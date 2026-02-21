@@ -1,0 +1,19 @@
+config:
+  edition: 2
+
+bucket_definitions:
+  user_data:
+    parameters: SELECT tenant_id FROM profiles WHERE user_id = token_parameters.user_id
+
+    data:
+      - SELECT * FROM tenants WHERE id = bucket.tenant_id
+      - SELECT * FROM profiles WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM products WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM customers WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM item_groups WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM categories WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM stock WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM locations WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM branches WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM sales WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM sale_items WHERE tenant_id = bucket.tenant_id

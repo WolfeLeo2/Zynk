@@ -1,0 +1,59 @@
+name: zynk
+description: "A smart inventory and stock tracker and overall business solution for SMEs"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  sqlite3_flutter_libs: ^0.5.41
+  supabase_flutter: ^2.12.0
+  flutter_riverpod: ^3.1.0
+  riverpod_annotation: ^4.0.0
+  freezed_annotation: ^3.1.0
+  google_fonts: ^8.0.2
+  uuid: ^4.5.2
+  path: ^1.9.1
+  path_provider: ^2.1.5
+  flutter_dotenv: ^6.0.0
+  fl_chart: ^1.1.1
+  shared_preferences: ^2.5.2
+  intl: ^0.20.2
+  go_router: ^17.1.0
+  image_picker: ^1.2.1
+  cached_network_image: any
+  local_auth: ^3.0.0
+  phosphor_flutter: ^2.1.0
+  mobile_scanner: ^7.2.0
+  lottie: any
+  powersync: ^1.17.0
+  logger: ^2.6.2
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  build_runner: ^2.11.1
+  riverpod_generator: ^4.0.0+1
+  freezed: ^3.2.3
+
+flutter:
+  uses-material-design: true
+
+
+  assets:
+    - .env
+    - assets/animations/hero_login.json
+
+fonts:
+  - family: GoogleSansFlex
+    fonts:
+      - asset: assets/fonts/GoogleSansFlex.ttf
+  
+  - family: ClashDisplay
+    fonts:
+      - asset: assets/fonts/ClashDisplay.ttf
