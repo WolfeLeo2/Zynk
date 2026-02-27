@@ -1,12 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/models/customer_model.dart';
+import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 
-class PosTicket extends StatelessWidget {
+class PosTicket extends ConsumerWidget {
   final List<PosCartItem> items;
   final double total;
   final VoidCallback onCharge;
   final Function(PosCartItem) onRemoveItem;
+  final VoidCallback onClearTicket;
+
+  // Customer & Staff info
+  final Customer? selectedCustomer;
+  final String? staffName;
+  final VoidCallback? onSelectCustomer;
+  final ValueChanged<String>? onStaffNameChanged;
 
   const PosTicket({
     super.key,
@@ -14,165 +28,485 @@ class PosTicket extends StatelessWidget {
     required this.total,
     required this.onCharge,
     required this.onRemoveItem,
+    required this.onClearTicket,
+    this.selectedCustomer,
+    this.staffName,
+    this.onSelectCustomer,
+    this.onStaffNameChanged,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final textTheme = theme.textTheme;
+    final cs = theme.colorScheme;
+    final tt = theme.textTheme;
+    final itemCount = items.fold<int>(0, (sum, i) => sum + i.quantity);
+    final branch = ref.watch(currentBranchProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Ticket Header
+        // ─── HEADER ───
         Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
           child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Current Ticket',
-                style: textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+              Expanded(
+                child: Text(
+                  'Current Ticket',
+                  style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
-              IconButton(
-                onPressed: () {}, // Clear ticket
-                icon: PhosphorIcon(
-                  PhosphorIconsDuotone.trash,
-                  color: colorScheme.error,
-                  size: 20,
+              if (items.isNotEmpty)
+                TextButton.icon(
+                  onPressed: onClearTicket,
+                  style: TextButton.styleFrom(
+                    foregroundColor: cs.error,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                  ),
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.trash,
+                    size: 18,
+                  ),
+                  label: const Text('Clear'),
                 ),
-                tooltip: 'Clear Ticket',
+            ],
+          ),
+        ),
+
+        // ─── STAFF + CUSTOMER SECTION ───
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Column(
+            children: [
+              // Staff name and Branch row
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      onChanged: onStaffNameChanged,
+                      style: tt.bodyMedium,
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(
+                          PhosphorIconsRegular.user,
+                          color: cs.onSurfaceVariant,
+                          size: 18,
+                        ),
+                        hintText: 'Cashier name',
+                        hintStyle: tt.bodyMedium?.copyWith(
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                        ),
+                        isDense: true,
+                        filled: true,
+                        fillColor: cs.surfaceContainerHighest.withValues(
+                          alpha: 0.3,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 10,
+                        ),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          PhosphorIconsRegular.storefront,
+                          color: branch != null ? cs.primary : cs.error,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          branch?.name ?? 'No branch',
+                          style: tt.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w500,
+                            color: branch != null ? cs.onSurface : cs.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // Customer selector
+              InkWell(
+                onTap: onSelectCustomer,
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 12,
+                  ),
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: cs.outline),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        PhosphorIconsRegular.addressBook,
+                        color: cs.secondary,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: selectedCustomer != null
+                            ? Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    selectedCustomer!.name,
+                                    style: tt.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  if (selectedCustomer!.phone != null ||
+                                      selectedCustomer!.email != null)
+                                    Text(
+                                      [
+                                        selectedCustomer!.phone,
+                                        selectedCustomer!.email,
+                                      ].whereType<String>().join(' • '),
+                                      style: tt.bodySmall?.copyWith(
+                                        color: cs.onSurfaceVariant,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                ],
+                              )
+                            : Text(
+                                'Select customer',
+                                style: tt.bodyMedium?.copyWith(
+                                  color: cs.onSurfaceVariant.withValues(
+                                    alpha: 0.6,
+                                  ),
+                                ),
+                              ),
+                      ),
+                      Icon(
+                        selectedCustomer != null
+                            ? PhosphorIconsRegular.x
+                            : PhosphorIconsRegular.caretRight,
+                        size: 16,
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
         ),
-        const Divider(height: 1),
+        const SizedBox(height: 12),
 
-        // Ticket Items List
+        Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.15)),
+
+        // ─── ITEMS LIST ───
         Expanded(
           child: items.isEmpty
               ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      PhosphorIcon(
-                        PhosphorIconsDuotone.receipt,
-                        size: 48,
-                        color: colorScheme.onSurfaceVariant.withValues(
-                          alpha: 0.5,
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 72,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest.withValues(
+                              alpha: 0.3,
+                            ),
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: PhosphorIcon(
+                              PhosphorIconsDuotone.shoppingCartSimple,
+                              size: 32,
+                              color: cs.onSurfaceVariant.withValues(
+                                alpha: 0.35,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        'Ticket is empty',
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: colorScheme.onSurfaceVariant,
+                        const SizedBox(height: 16),
+                        Text(
+                          'No items yet',
+                          style: tt.titleSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 6),
+                        Text(
+                          'Tap products to add them to this ticket',
+                          style: tt.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.all(16),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   itemCount: items.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
                     final item = items[index];
-                    return Dismissible(
-                      key: ValueKey(item.product.id),
-                      direction: DismissDirection.endToStart,
-                      onDismissed: (_) => onRemoveItem(item),
-                      background: Container(
-                        alignment: Alignment.centerRight,
-                        padding: const EdgeInsets.only(right: 16),
-                        color: colorScheme.errorContainer,
-                        child: PhosphorIcon(
-                          PhosphorIconsRegular.trash,
-                          color: colorScheme.onErrorContainer,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.product.name,
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                    color: colorScheme.onSurface,
-                                  ),
-                                ),
-                                Text(
-                                  '${item.quantity} x Ksh ${item.product.basePrice.toStringAsFixed(0)}',
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Text(
-                            'Ksh ${item.total.toStringAsFixed(0)}',
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.onSurface,
-                            ),
-                          ),
-                        ],
-                      ),
+                    return _TicketItemRow(
+                      item: item,
+                      cs: cs,
+                      tt: tt,
+                      onRemove: () => onRemoveItem(item),
                     );
                   },
                 ),
         ),
 
-        const Divider(height: 1),
-
-        // Totals & Charge Button
+        // ─── TOTALS + CHARGE + INVOICE ───
         Container(
-          padding: const EdgeInsets.all(16),
-          color: colorScheme.surfaceContainerLow,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLow,
+            border: Border(
+              top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.15)),
+            ),
+          ),
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           child: Column(
             children: [
+              // Subtotal row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Total', style: textTheme.titleMedium),
+                  Text(
+                    '$itemCount item${itemCount != 1 ? 's' : ''}',
+                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                  ),
                   Text(
                     'Ksh ${total.toStringAsFixed(0)}',
-                    style: textTheme.displaySmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.primary,
-                      fontSize: 24,
+                    style: GoogleFonts.googleSansFlex(
+                      textStyle: tt.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        fontVariations: [
+                          FontVariation.weight(900),
+                          FontVariation.opticalSize(12),
+                        ],
+                        color: cs.primary,
+                      ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: items.isEmpty ? null : onCharge,
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: FilledButton.icon(
+                        onPressed: items.isEmpty || selectedCustomer == null
+                            ? null
+                            : onCharge,
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          backgroundColor: cs.secondary,
+                          foregroundColor: cs.onSecondary,
+                          textStyle: tt.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        icon: const PhosphorIcon(
+                          PhosphorIconsBold.creditCard,
+                          size: 20,
+                        ),
+                        label: const Text('Charge'),
+                      ),
                     ),
                   ),
-                  icon: const PhosphorIcon(PhosphorIconsBold.creditCard),
-                  label: const Text('CHARGE'),
-                ),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final canCreateInvoice = ref.watch(
+                        hasPermissionProvider(Permission.createInvoices),
+                      );
+
+                      if (selectedCustomer == null ||
+                          items.isEmpty ||
+                          !canCreateInvoice) {
+                        return const SizedBox.shrink();
+                      }
+
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.only(left: 8.0),
+                          child: SizedBox(
+                            height: 52,
+                            child: FilledButton.icon(
+                              onPressed: () {
+                                GoRouter.of(context).push(
+                                  '/sales/create-invoice',
+                                  extra: {
+                                    'cartItems': items,
+                                    'customer': selectedCustomer,
+                                    'staffName': staffName,
+                                  },
+                                );
+                              },
+                              style: FilledButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 14,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                                backgroundColor: cs.primary,
+                                foregroundColor: cs.onPrimary,
+                                textStyle: tt.labelLarge?.copyWith(
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              icon: PhosphorIcon(
+                                PhosphorIconsBold.fileText,
+                                size: 20,
+                              ),
+                              label: Text('Invoice'),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
             ],
           ),
         ),
       ],
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TICKET ITEM ROW
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TicketItemRow extends StatelessWidget {
+  final PosCartItem item;
+  final ColorScheme cs;
+  final TextTheme tt;
+  final VoidCallback onRemove;
+
+  const _TicketItemRow({
+    required this.item,
+    required this.cs,
+    required this.tt,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Dismissible(
+      key: ValueKey(item.product.id),
+      direction: DismissDirection.endToStart,
+      onDismissed: (_) => onRemove(),
+      background: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: cs.errorContainer,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: PhosphorIcon(
+          PhosphorIconsBold.trash,
+          color: cs.onErrorContainer,
+          size: 20,
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.15)),
+        ),
+        child: Row(
+          children: [
+            // Quantity badge
+            Container(
+              width: 30,
+              height: 30,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer.withValues(alpha: 0.7),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  '${item.quantity}',
+                  style: tt.labelMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Product name + unit price
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.product.name,
+                    style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'Ksh ${item.product.basePrice.toStringAsFixed(0)} each',
+                    style: tt.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            // Line total
+            Text(
+              'Ksh ${item.total.toStringAsFixed(0)}',
+              style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

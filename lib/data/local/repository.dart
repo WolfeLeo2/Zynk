@@ -1,10 +1,14 @@
 import 'package:powersync/powersync.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/models/sales_models.dart';
+import 'package:zynk/core/models/customer_model.dart';
 
 class PowerSyncRepository {
   final PowerSyncDatabase _db;
 
   PowerSyncRepository(this._db);
+
+  PowerSyncDatabase get db => _db;
 
   // --- Database Management ---
   Future<void> clearDatabase() async {
@@ -72,8 +76,8 @@ class PowerSyncRepository {
       '''INSERT INTO products (
         id, tenant_id, item_group_id, category_id, name, sku, barcode, 
         description, image_url, base_price, cost_price, tax_category, is_service, 
-        commission_type, commission_value, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         product.id,
         product.tenantId,
@@ -88,8 +92,6 @@ class PowerSyncRepository {
         product.costPrice, // Added
         product.taxCategory,
         product.isService ? 1 : 0,
-        product.commissionType,
-        product.commissionValue,
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -101,7 +103,7 @@ class PowerSyncRepository {
       '''UPDATE products SET 
         item_group_id = ?, category_id = ?, name = ?, sku = ?, barcode = ?, 
         description = ?, image_url = ?, base_price = ?, cost_price = ?, tax_category = ?, is_service = ?, 
-        commission_type = ?, commission_value = ?, updated_at = ?
+        updated_at = ?
       WHERE id = ?''',
       [
         product.itemGroupId,
@@ -115,12 +117,105 @@ class PowerSyncRepository {
         product.costPrice,
         product.taxCategory,
         product.isService ? 1 : 0,
-        product.commissionType,
-        product.commissionValue,
         DateTime.now().toIso8601String(),
         product.id,
       ],
     );
+  }
+
+  Future<void> batchUpdateProductGroups(
+    List<String> productIds,
+    String? groupId,
+  ) async {
+    if (productIds.isEmpty) return;
+    final placeholders = List.filled(productIds.length, '?').join(', ');
+    final args = <Object?>[
+      groupId,
+      DateTime.now().toIso8601String(),
+      ...productIds,
+    ];
+    await _db.execute(
+      'UPDATE products SET item_group_id = ?, updated_at = ? WHERE id IN ($placeholders)',
+      args,
+    );
+  }
+
+  // --- Stock & Inventory ---
+  Stream<Stock?> watchProductStock(String productId) {
+    return _db
+        .watch(
+          'SELECT * FROM stock WHERE product_id = ?',
+          parameters: [productId],
+        )
+        .map((rows) => rows.isEmpty ? null : Stock.fromMap(rows.first));
+  }
+
+  Stream<List<StockAdjustment>> watchProductStockHistory(String productId) {
+    return _db
+        .watch(
+          'SELECT * FROM stock_adjustments WHERE product_id = ? ORDER BY created_at DESC',
+          parameters: [productId],
+        )
+        .map(
+          (rows) => rows.map((row) => StockAdjustment.fromMap(row)).toList(),
+        );
+  }
+
+  Future<void> adjustStock({
+    required String tenantId,
+    required String branchId,
+    required String productId,
+    required String
+    adjustmentType, // 'addition', 'reduction', 'initial', 'damage'
+    required int quantityChange,
+    required String createdBy,
+    String? referenceNumber,
+    String? notes,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      final now = DateTime.now().toIso8601String();
+
+      // 1. Get current stock
+      final stockResult = await tx.getAll(
+        'SELECT quantity FROM stock WHERE product_id = ?',
+        [productId],
+      );
+
+      if (stockResult.isEmpty) {
+        // Interacting with uuid from dart requires import 'package:uuid/uuid.dart', or we can use the built in uuid() function of powersync sqlite
+        await tx.execute(
+          '''INSERT INTO stock (
+            id, tenant_id, branch_id, product_id, quantity, reorder_level, 
+            last_updated
+          ) VALUES (uuid(), ?, ?, ?, ?, 0, ?)''',
+          [tenantId, branchId, productId, quantityChange, now],
+        );
+      } else {
+        await tx.execute(
+          'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ?',
+          [quantityChange, now, productId],
+        );
+      }
+
+      // 2. Insert stock adjustment log
+      await tx.execute(
+        '''INSERT INTO stock_adjustments (
+          id, tenant_id, branch_id, product_id, adjustment_type, quantity, 
+          reference_number, notes, created_by, created_at
+        ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        [
+          tenantId,
+          branchId,
+          productId,
+          adjustmentType,
+          quantityChange,
+          referenceNumber,
+          notes,
+          createdBy,
+          now,
+        ],
+      );
+    });
   }
 
   // --- Categories ---
@@ -201,18 +296,231 @@ class PowerSyncRepository {
     );
   }
 
-  // --- Sale Items (New) ---
-  // To handle invalid syntax error seen before in `AddProduct`? No that was for `ItemGroupsCompanion`
-  // We need generic insert/update helpers perhaps?
+  Future<void> updateItemGroup(ItemGroup group) async {
+    await _db.execute(
+      'UPDATE item_groups SET name = ?, description = ?, default_commission_type = ?, default_commission_value = ?, updated_at = ? WHERE id = ?',
+      [
+        group.name,
+        group.description,
+        group.defaultCommissionType,
+        group.defaultCommissionValue,
+        DateTime.now().toIso8601String(),
+        group.id,
+      ],
+    );
+  }
 
-  // --- Sync Status ---
+  // --- Customers ---
+  Stream<List<Customer>> watchCustomers() {
+    return _db
+        .watch('SELECT * FROM customers ORDER BY name ASC')
+        .map((results) => results.map((row) => Customer.fromMap(row)).toList());
+  }
+
+  Future<void> createCustomer(Customer customer) async {
+    await _db.execute(
+      'INSERT INTO customers (id, tenant_id, name, phone, email, loyalty_points, credit_limit, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        customer.id,
+        customer.tenantId,
+        customer.name,
+        customer.phone,
+        customer.email,
+        customer.loyaltyPoints,
+        customer.creditLimit,
+        DateTime.now().toIso8601String(),
+        DateTime.now().toIso8601String(),
+      ],
+    );
+  }
+
+  // --- Sales / Invoices ---
+
+  /// Watch all sales for a tenant, optionally filtered by status and/or branch
+  Stream<List<Sale>> watchSales({
+    String? tenantId,
+    String? branchId,
+    InvoiceStatus? status,
+    int limit = 50,
+  }) {
+    var sql = 'SELECT * FROM sales WHERE 1=1';
+    final params = <dynamic>[];
+
+    if (tenantId != null) {
+      sql += ' AND tenant_id = ?';
+      params.add(tenantId);
+    }
+    if (branchId != null) {
+      sql += ' AND branch_id = ?';
+      params.add(branchId);
+    }
+    if (status != null) {
+      sql += ' AND status = ?';
+      params.add(status.value);
+    }
+    sql += ' ORDER BY created_at DESC LIMIT ?';
+    params.add(limit);
+
+    return _db
+        .watch(sql, parameters: params)
+        .map((rows) => rows.map((row) => Sale.fromMap(row)).toList());
+  }
+
+  /// Watch a single sale by ID
+  Stream<Sale?> watchSaleById(String saleId) {
+    return _db
+        .watch('SELECT * FROM sales WHERE id = ?', parameters: [saleId])
+        .map((rows) => rows.isEmpty ? null : Sale.fromMap(rows.first));
+  }
+
+  /// Watch sale items for a specific sale, joined with product name
+  Stream<List<SaleItem>> watchSaleItems(String saleId) {
+    return _db
+        .watch(
+          '''SELECT si.*, p.name as product_name, p.image_url as product_image_url
+         FROM sale_items si
+         LEFT JOIN products p ON si.product_id = p.id
+         WHERE si.sale_id = ?
+         ORDER BY si.created_at ASC''',
+          parameters: [saleId],
+        )
+        .map((rows) => rows.map((row) => SaleItem.fromMap(row)).toList());
+  }
+
+  // --- Payments ---
+
+  /// Watch all payments for a specific sale
+  Stream<List<Payment>> watchPaymentsForSale(String saleId) {
+    return _db
+        .watch(
+          'SELECT * FROM sale_payments WHERE sale_id = ? ORDER BY created_at ASC',
+          parameters: [saleId],
+        )
+        .map((rows) => rows.map((row) => Payment.fromMap(row)).toList());
+  }
+
+  // --- Credit Notes ---
+
+  /// Watch all credit notes for a tenant
+  Stream<List<CreditNote>> watchCreditNotes({String? tenantId}) {
+    var sql = 'SELECT * FROM credit_notes';
+    final params = <dynamic>[];
+    if (tenantId != null) {
+      sql += ' WHERE tenant_id = ?';
+      params.add(tenantId);
+    }
+    sql += ' ORDER BY created_at DESC';
+    return _db
+        .watch(sql, parameters: params)
+        .map((rows) => rows.map((row) => CreditNote.fromMap(row)).toList());
+  }
+
+  /// Watch credit notes for a specific sale
+  Stream<List<CreditNote>> watchCreditNotesForSale(String saleId) {
+    return _db
+        .watch(
+          'SELECT * FROM credit_notes WHERE original_sale_id = ? ORDER BY created_at DESC',
+          parameters: [saleId],
+        )
+        .map((rows) => rows.map((row) => CreditNote.fromMap(row)).toList());
+  }
+
+  // --- Dashboard Aggregates ---
+
+  /// Watch total revenue (sum of amount from sale_payments)
   Stream<double> watchTotalSales() {
-    return _db.watch('SELECT SUM(grand_total) as total FROM sales').map((
-      results,
-    ) {
-      if (results.isEmpty || results.first['total'] == null) return 0.0;
-      return (results.first['total'] as num).toDouble();
-    });
+    return _db
+        .watch("SELECT COALESCE(SUM(amount), 0) as total FROM sale_payments")
+        .map((results) {
+          if (results.isEmpty || results.first['total'] == null) return 0.0;
+          return (results.first['total'] as num).toDouble();
+        });
+  }
+
+  /// Watch today's revenue (from payments made today)
+  Stream<double> watchTodaysRevenue() {
+    final today = DateTime.now().toIso8601String().substring(
+      0,
+      10,
+    ); // YYYY-MM-DD
+    return _db
+        .watch(
+          "SELECT COALESCE(SUM(amount), 0) as total FROM sale_payments WHERE created_at >= ?",
+          parameters: ['${today}T00:00:00'],
+        )
+        .map((results) {
+          if (results.isEmpty || results.first['total'] == null) return 0.0;
+          return (results.first['total'] as num).toDouble();
+        });
+  }
+
+  /// Watch today's order count (sales created today that are valid/approved)
+  Stream<int> watchTodaysOrderCount() {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    return _db
+        .watch(
+          "SELECT COUNT(*) as count FROM sales WHERE status NOT IN ('draft', 'voided', 'rejected', 'pending_approval') AND created_at >= ?",
+          parameters: ['${today}T00:00:00'],
+        )
+        .map((results) {
+          if (results.isEmpty) return 0;
+          return (results.first['count'] as num).toInt();
+        });
+  }
+
+  /// Watch average order value (valid sales created today)
+  Stream<double> watchAverageOrderValue() {
+    final today = DateTime.now().toIso8601String().substring(0, 10);
+    return _db
+        .watch(
+          "SELECT COALESCE(AVG(grand_total), 0) as avg FROM sales WHERE status NOT IN ('draft', 'voided', 'rejected', 'pending_approval') AND created_at >= ?",
+          parameters: ['${today}T00:00:00'],
+        )
+        .map((results) {
+          if (results.isEmpty || results.first['avg'] == null) return 0.0;
+          return (results.first['avg'] as num).toDouble();
+        });
+  }
+
+  /// Watch low stock item count
+  Stream<int> watchLowStockCount() {
+    return _db
+        .watch(
+          'SELECT COUNT(*) as count FROM stock WHERE quantity <= reorder_level AND quantity >= 0',
+        )
+        .map((results) {
+          if (results.isEmpty) return 0;
+          return (results.first['count'] as num).toInt();
+        });
+  }
+
+  /// Watch top selling products (by total quantity sold)
+  Stream<List<Map<String, dynamic>>> watchTopProducts({int limit = 6}) {
+    return _db
+        .watch(
+          '''SELECT p.name, p.image_url, p.base_price,
+                SUM(si.quantity) as total_sold,
+                SUM(si.total) as total_revenue
+         FROM sale_items si
+         JOIN products p ON si.product_id = p.id
+         JOIN sales s ON si.sale_id = s.id
+         WHERE s.status = 'completed'
+         GROUP BY p.id, p.name, p.image_url, p.base_price
+         ORDER BY total_sold DESC
+         LIMIT ?''',
+          parameters: [limit],
+        )
+        .map((rows) => rows.toList());
+  }
+
+  /// Watch payment method breakdown
+  Stream<List<Map<String, dynamic>>> watchPaymentMethodBreakdown() {
+    return _db
+        .watch('''SELECT payment_method, COUNT(*) as count, SUM(amount) as total
+         FROM sale_payments
+         GROUP BY payment_method
+         ORDER BY total DESC''')
+        .map((rows) => rows.toList());
   }
 
   Stream<int> watchStaffCount() {

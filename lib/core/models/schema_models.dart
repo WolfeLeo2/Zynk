@@ -45,7 +45,8 @@ class Profile {
   final String userId;
   final String tenantId;
   final String? branchId;
-  final UserRole role; // Using the existing UserRole enum
+  final UserRole role;
+  final Set<Permission> permissions;
   final String? displayName;
   final String? profilePictureUrl;
   final DateTime? createdAt;
@@ -57,19 +58,31 @@ class Profile {
     required this.tenantId,
     this.branchId,
     required this.role,
+    Set<Permission>? permissions,
     this.displayName,
     this.profilePictureUrl,
     this.createdAt,
     this.updatedAt,
-  });
+  }) : permissions = permissions ?? role.defaultPermissions;
+
+  /// Returns true if this profile has the given permission.
+  /// Owner always returns true.
+  bool hasPermission(Permission permission) {
+    if (role.hasAllPermissions) return true;
+    return permissions.contains(permission);
+  }
 
   factory Profile.fromMap(Map<String, dynamic> map) {
+    final role = UserRole.fromString(map['role'] as String? ?? 'Cashier');
     return Profile(
       id: map['id'] as String,
       userId: map['user_id'] as String,
       tenantId: map['tenant_id'] as String,
       branchId: map['branch_id'] as String?,
-      role: UserRole.fromString(map['role'] as String? ?? 'Cashier'),
+      role: role,
+      permissions: role.isOwner
+          ? Permission.values.toSet()
+          : Permission.fromJsonList(map['permissions'] as String?),
       displayName: map['display_name'] as String?,
       profilePictureUrl: map['profile_picture_url'] as String?,
       createdAt: map['created_at'] != null
@@ -88,6 +101,7 @@ class Profile {
       'tenant_id': tenantId,
       'branch_id': branchId,
       'role': role.toShortString(),
+      'permissions': Permission.toJsonList(permissions),
       'display_name': displayName,
       'profile_picture_url': profilePictureUrl,
       'created_at': createdAt?.toIso8601String(),
@@ -251,8 +265,6 @@ class Product {
   final double? costPrice; // Added
   final String? taxCategory;
   final bool isService;
-  final String? commissionType;
-  final double? commissionValue;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -270,8 +282,6 @@ class Product {
     this.costPrice, // Added
     this.taxCategory,
     this.isService = false,
-    this.commissionType,
-    this.commissionValue,
     this.createdAt,
     this.updatedAt,
   });
@@ -291,8 +301,6 @@ class Product {
       costPrice: (map['cost_price'] as num?)?.toDouble(), // Added
       taxCategory: map['tax_category'] as String?,
       isService: (map['is_service'] as int?) == 1,
-      commissionType: map['commission_type'] as String?,
-      commissionValue: (map['commission_value'] as num?)?.toDouble(),
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : null,
@@ -317,10 +325,112 @@ class Product {
       'cost_price': costPrice, // Added
       'tax_category': taxCategory,
       'is_service': isService ? 1 : 0,
-      'commission_type': commissionType,
-      'commission_value': commissionValue,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
+    };
+  }
+}
+
+class Stock {
+  final String id;
+  final String tenantId;
+  final String branchId;
+  final String productId;
+  final int quantity;
+  final int? reorderLevel;
+  final DateTime? lastUpdated;
+
+  Stock({
+    required this.id,
+    required this.tenantId,
+    required this.branchId,
+    required this.productId,
+    required this.quantity,
+    this.reorderLevel,
+    this.lastUpdated,
+  });
+
+  factory Stock.fromMap(Map<String, dynamic> map) {
+    return Stock(
+      id: map['id'] as String,
+      tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String,
+      productId: map['product_id'] as String,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+      reorderLevel: (map['reorder_level'] as num?)?.toInt(),
+      lastUpdated: map['last_updated'] != null
+          ? DateTime.parse(map['last_updated'])
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'tenant_id': tenantId,
+      'branch_id': branchId,
+      'product_id': productId,
+      'quantity': quantity,
+      'reorder_level': reorderLevel,
+      'last_updated': lastUpdated?.toIso8601String(),
+    };
+  }
+}
+
+class StockAdjustment {
+  final String id;
+  final String tenantId;
+  final String branchId;
+  final String productId;
+  final String adjustmentType;
+  final int quantity;
+  final String? referenceNumber;
+  final String? notes;
+  final String? createdBy;
+  final DateTime? createdAt;
+
+  StockAdjustment({
+    required this.id,
+    required this.tenantId,
+    required this.branchId,
+    required this.productId,
+    required this.adjustmentType,
+    required this.quantity,
+    this.referenceNumber,
+    this.notes,
+    this.createdBy,
+    this.createdAt,
+  });
+
+  factory StockAdjustment.fromMap(Map<String, dynamic> map) {
+    return StockAdjustment(
+      id: map['id'] as String,
+      tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String,
+      productId: map['product_id'] as String,
+      adjustmentType: map['adjustment_type'] as String,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
+      referenceNumber: map['reference_number'] as String?,
+      notes: map['notes'] as String?,
+      createdBy: map['created_by'] as String?,
+      createdAt: map['created_at'] != null
+          ? DateTime.parse(map['created_at'])
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'tenant_id': tenantId,
+      'branch_id': branchId,
+      'product_id': productId,
+      'adjustment_type': adjustmentType,
+      'quantity': quantity,
+      'reference_number': referenceNumber,
+      'notes': notes,
+      'created_by': createdBy,
+      'created_at': createdAt?.toIso8601String(),
     };
   }
 }

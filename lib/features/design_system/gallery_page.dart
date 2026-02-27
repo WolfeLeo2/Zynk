@@ -33,23 +33,26 @@ class _PosSandboxTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: AppTokens.bgCanvasDark,
+      color: Theme.of(context).colorScheme.surface,
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
+          Text(
             'POS Components Sandbox',
-            style: TextStyle(color: AppTokens.textMutedDark, fontSize: 12),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurface,
+              fontSize: 12,
+            ),
           ),
           const SizedBox(height: 16),
           // TODO: Add PosProductCard here
           Container(
             height: 100,
             decoration: BoxDecoration(
-              color: AppTokens.bgSurfaceDark,
+              color: Theme.of(context).colorScheme.surface,
               borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppTokens.borderSubtleDark),
+              border: Border.all(color: Theme.of(context).colorScheme.outline),
             ),
             alignment: Alignment.center,
             child: const Text('Comming Soon: PosProductCard'),
@@ -59,9 +62,11 @@ class _PosSandboxTab extends StatelessWidget {
           Expanded(
             child: Container(
               decoration: BoxDecoration(
-                color: AppTokens.bgSurfaceDark,
+                color: Theme.of(context).colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: AppTokens.borderSubtleDark),
+                border: Border.all(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
               ),
               alignment: Alignment.center,
               child: const Text('Comming Soon: PosTicket (Cart)'),
@@ -137,7 +142,7 @@ class _TokensTab extends StatelessWidget {
                       width: 48,
                       height: 48,
                       decoration: BoxDecoration(
-                        color: AppTokens.brandSecondary,
+                        color: Theme.of(context).colorScheme.secondary,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: PhosphorIcon(
@@ -200,12 +205,21 @@ class _TokensTab extends StatelessWidget {
         Wrap(
           spacing: 12,
           children: [
-            _ColorChip(color: AppTokens.brandPrimary, label: 'Primary'),
-            _ColorChip(color: AppTokens.brandSecondary, label: 'Secondary'),
-            _ColorChip(color: AppTokens.brandAccent, label: 'Accent'),
-            _ColorChip(color: AppTokens.bgCanvasDark, label: 'Canvas'),
             _ColorChip(
-              color: AppTokens.bgSurfaceHighlightDark,
+              color: Theme.of(context).colorScheme.primary,
+              label: 'Primary',
+            ),
+            _ColorChip(
+              color: Theme.of(context).colorScheme.secondary,
+              label: 'Secondary',
+            ),
+            _ColorChip(color: AppTokens.brandAccent, label: 'Accent'),
+            _ColorChip(
+              color: Theme.of(context).colorScheme.surface,
+              label: 'Canvas',
+            ),
+            _ColorChip(
+              color: Theme.of(context).colorScheme.surface,
               label: 'Surface+',
             ),
           ],
@@ -226,7 +240,7 @@ class _SectionHeader extends StatelessWidget {
     return Text(
       title,
       style: Theme.of(context).textTheme.titleSmall?.copyWith(
-        color: AppTokens.brandSecondary,
+        color: Theme.of(context).colorScheme.secondary,
         letterSpacing: 1.2,
         fontWeight: FontWeight.bold,
       ),

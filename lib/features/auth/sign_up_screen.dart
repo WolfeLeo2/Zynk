@@ -85,7 +85,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                 color: Theme.of(context).colorScheme.onSecondary,
               ),
             ),
-            backgroundColor: AppTokens.brandSecondary,
+            backgroundColor: Theme.of(context).colorScheme.secondary,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12),
@@ -226,7 +226,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                         child: Text(
                           'Sign in',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppTokens.brandPrimary,
+                            color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),
@@ -266,12 +266,12 @@ class _StepOne extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppTokens.brandPrimary.withValues(alpha: 0.15),
+              color: theme.colorScheme.primary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
             ),
             child: PhosphorIcon(
               PhosphorIconsDuotone.storefront,
-              color: AppTokens.brandPrimary,
+              color: theme.colorScheme.primary,
               size: 28,
             ),
           ),
@@ -353,12 +353,12 @@ class _StepTwo extends StatelessWidget {
             width: 56,
             height: 56,
             decoration: BoxDecoration(
-              color: AppTokens.brandSecondary.withValues(alpha: 0.15),
+              color: theme.colorScheme.secondary.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(16),
             ),
             child: PhosphorIcon(
               PhosphorIconsDuotone.lock,
-              color: AppTokens.brandSecondary,
+              color: theme.colorScheme.secondary,
               size: 28,
             ),
           ),
@@ -447,7 +447,7 @@ class _StepProgressBar extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: isActive
-                  ? AppTokens.brandPrimary
+                  ? Theme.of(context).colorScheme.primary
                   : Theme.of(context).colorScheme.outline,
               borderRadius: BorderRadius.circular(2),
             ),

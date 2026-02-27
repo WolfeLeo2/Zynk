@@ -60,12 +60,9 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final isDark = theme.brightness == Brightness.dark;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? AppTokens.bgCanvasDark
-          : AppTokens.bgCanvasLight,
+      backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -155,7 +152,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                     child: TextButton(
                       onPressed: () {},
                       style: TextButton.styleFrom(
-                        foregroundColor: AppTokens.brandPrimary,
+                        foregroundColor: theme.colorScheme.primary,
                         padding: const EdgeInsets.symmetric(
                           vertical: 8,
                           horizontal: 4,
@@ -164,7 +161,6 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       child: const Text(
                         'Forgot password?',
                         style: TextStyle(
-                          fontSize: 13,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -221,7 +217,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                         child: Text(
                           'Create one',
                           style: theme.textTheme.bodyMedium?.copyWith(
-                            color: AppTokens.brandPrimary,
+                            color: theme.colorScheme.primary,
                             fontWeight: FontWeight.w700,
                           ),
                         ),

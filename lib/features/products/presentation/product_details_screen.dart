@@ -1,18 +1,20 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/products/presentation/components/adjust_stock_sheet.dart';
 
-class ProductDetailsScreen extends StatelessWidget {
+class ProductDetailsScreen extends ConsumerWidget {
   final Product product;
 
   const ProductDetailsScreen({super.key, required this.product});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
@@ -115,6 +117,123 @@ class ProductDetailsScreen extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 24),
+
+            // Category and Group Information
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: colorScheme.surface,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: colorScheme.shadow.withValues(alpha: 0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Classification',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurface,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final categories =
+                          ref.watch(allCategoriesProvider).value ?? [];
+                      final categoryName =
+                          categories
+                              .where((c) => c.id == product.categoryId)
+                              .map((c) => c.name)
+                              .firstOrNull ??
+                          'No Category';
+
+                      return Row(
+                        children: [
+                          Icon(
+                            PhosphorIconsRegular.folder,
+                            color: colorScheme.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Category',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                Text(
+                                  categoryName,
+                                  style: theme.textTheme.titleSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    child: Divider(height: 1),
+                  ),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final groups =
+                          ref.watch(allItemGroupsProvider).value ?? [];
+                      final groupName =
+                          groups
+                              .where((g) => g.id == product.itemGroupId)
+                              .map((g) => g.name)
+                              .firstOrNull ??
+                          'No Group';
+
+                      return Row(
+                        children: [
+                          Icon(
+                            PhosphorIconsRegular.package,
+                            color: colorScheme.primary,
+                            size: 20,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Item Group',
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                Text(
+                                  groupName,
+                                  style: theme.textTheme.titleSmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
             const SizedBox(height: 32),
 
             // Pricing & Margins Card
@@ -141,7 +260,7 @@ class ProductDetailsScreen extends StatelessWidget {
                     children: [
                       Icon(
                         PhosphorIconsDuotone.money,
-                        color: AppTokens.brandSecondary,
+                        color: Theme.of(context).colorScheme.secondary,
                       ),
                       const SizedBox(width: 8),
                       Text(
@@ -169,7 +288,7 @@ class ProductDetailsScreen extends StatelessWidget {
                           theme,
                           'Selling Price',
                           'KES ${product.basePrice.toStringAsFixed(2)}',
-                          valueColor: AppTokens.brandSecondary,
+                          valueColor: Theme.of(context).colorScheme.secondary,
                         ),
                       ),
                     ],
@@ -180,20 +299,11 @@ class ProductDetailsScreen extends StatelessWidget {
                       Expanded(
                         child: _buildInfoItem(
                           theme,
-                          'Commission',
-                          product.commissionType != 'none' &&
-                                  product.commissionValue != null
-                              ? '${product.commissionType == 'percent' ? '${product.commissionValue}%' : 'KES ${product.commissionValue}'}'
-                              : 'None',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildInfoItem(
-                          theme,
                           'Tax Category',
                           product.taxCategory?.toUpperCase() ?? 'STANDARD',
                         ),
                       ),
+                      Expanded(child: Container()),
                     ],
                   ),
                 ],
@@ -227,9 +337,21 @@ class ProductDetailsScreen extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
+                      const Spacer(),
+                      if (!product.isService)
+                        TextButton.icon(
+                          onPressed: () {
+                            AdjustStockSheet.show(context, product);
+                          },
+                          icon: const Icon(
+                            PhosphorIconsRegular.plusMinus,
+                            size: 18,
+                          ),
+                          label: const Text('Adjust'),
+                      ),
                     ],
                   ),
-                  const Divider(height: 32),
+                  const Divider(height: 16),
                   Row(
                     children: [
                       Expanded(
@@ -240,14 +362,121 @@ class ProductDetailsScreen extends StatelessWidget {
                         ),
                       ),
                       Expanded(
-                        child: _buildInfoItem(
+                        child: Consumer(
+                          builder: (context, ref, child) {
+                            if (product.isService) {
+                              return _buildInfoItem(
                           theme,
                           'Current Stock',
-                          '0', // MOCKED FOR NOW til stock is implemented
+                                'N/A',
+                              );
+                            }
+                            final stockAsync = ref.watch(
+                              stockProvider(product.id),
+                            );
+                            return stockAsync.when(
+                              data: (stock) => _buildInfoItem(
+                                theme,
+                                'Current Stock',
+                                stock?.quantity.toString() ?? '0',
+                              ),
+                              loading: () =>
+                                  _buildInfoItem(theme, 'Current Stock', '...'),
+                              error: (_, _) =>
+                                  _buildInfoItem(theme, 'Current Stock', 'Err'),
+                            );
+                          },
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 24),
+                  if (!product.isService) ...[
+                    Text(
+                      'Stock History',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final historyAsync = ref.watch(
+                          stockHistoryProvider(product.id),
+                        );
+                        return historyAsync.when(
+                          data: (history) {
+                            if (history.isEmpty) {
+                              return Center(
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16.0),
+                                  child: Text(
+                                    'No stock history recorded yet.',
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }
+                            return ListView.separated(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              itemCount: history.length > 5
+                                  ? 5
+                                  : history.length, // Show latest 5
+                              separatorBuilder: (_, _) => const Divider(),
+                              itemBuilder: (context, index) {
+                                final adj = history[index];
+                                final isPositive = adj.quantity > 0;
+                                return ListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  leading: CircleAvatar(
+                                    backgroundColor: isPositive
+                                        ? Colors.green.withValues(alpha: 0.1)
+                                        : Colors.red.withValues(alpha: 0.1),
+                                    child: Icon(
+                                      isPositive
+                                          ? PhosphorIconsRegular.trendUp
+                                          : PhosphorIconsRegular.trendDown,
+                                      color: isPositive
+                                          ? Colors.green
+                                          : Colors.red,
+                                      size: 18,
+                                    ),
+                                  ),
+                                  title: Text(
+                                    adj.adjustmentType.toUpperCase(),
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  subtitle: Text(
+                                    adj.createdAt != null
+                                        ? '${adj.createdAt!.toLocal().toString().substring(0, 16)}'
+                                        : 'Unknown date',
+                                  ),
+                                  trailing: Text(
+                                    '${isPositive ? '+' : ''}${adj.quantity}',
+                                    style: TextStyle(
+                                      color: isPositive
+                                          ? Colors.green
+                                          : Colors.red,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                          loading: () =>
+                              const Center(child: CircularProgressIndicator()),
+                          error: (_, _) => const Text('Failed to load history'),
+                        );
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),

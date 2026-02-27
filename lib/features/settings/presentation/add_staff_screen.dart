@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 
 class AddStaffScreen extends ConsumerStatefulWidget {
@@ -17,11 +18,19 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-  String _selectedRole = 'Cashier';
+  UserRole _selectedRole = UserRole.cashier;
   String? _selectedBranchId;
   bool _isLoading = false;
 
-  final List<String> _roles = ['Cashier', 'Manager'];
+  /// The set of permissions for this staff member.
+  /// Initialised to the role's defaults and can be toggled individually.
+  late Set<Permission> _permissions;
+
+  @override
+  void initState() {
+    super.initState();
+    _permissions = Set.from(_selectedRole.defaultPermissions);
+  }
 
   @override
   void dispose() {
@@ -29,6 +38,13 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
+  }
+
+  void _onRoleChanged(UserRole role) {
+    setState(() {
+      _selectedRole = role;
+      _permissions = Set.from(role.defaultPermissions);
+    });
   }
 
   Future<void> _inviteStaff() async {
@@ -55,8 +71,9 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
           'email': _emailController.text.trim(),
           'password': _passwordController.text,
           'name': _nameController.text.trim(),
-          'role': _selectedRole,
+          'role': _selectedRole.toShortString(),
           'branch_id': _selectedBranchId,
+          'permissions': _permissions.map((p) => p.value).toList(),
         },
       );
 
@@ -181,12 +198,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                 const SizedBox(height: 32),
 
                 // Name Field
-                Text(
-                  'Full Name',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                _FieldLabel(label: 'Full Name'),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _nameController,
@@ -207,12 +219,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                 const SizedBox(height: 24),
 
                 // Email Field
-                Text(
-                  'Email Address',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                _FieldLabel(label: 'Email Address'),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _emailController,
@@ -239,12 +246,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                 const SizedBox(height: 24),
 
                 // Password Field
-                Text(
-                  'Initial Password',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                _FieldLabel(label: 'Initial Password'),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _passwordController,
@@ -270,42 +272,42 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // Role Dropdown
-                Text(
-                  'Role',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                // ── Role Selection Chips ──
+                _FieldLabel(label: 'Role'),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedRole,
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(PhosphorIconsRegular.shieldStar),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                    filled: true,
-                    fillColor: colorScheme.surface,
-                  ),
-                  items: _roles.map((role) {
-                    return DropdownMenuItem(value: role, child: Text(role));
+                Row(
+                  children: [UserRole.cashier, UserRole.manager].map((role) {
+                    final isSelected = _selectedRole == role;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 10),
+                      child: ChoiceChip(
+                        label: Text(role.label),
+                        selected: isSelected,
+                        showCheckmark: false,
+                        avatar: PhosphorIcon(
+                          role == UserRole.manager
+                              ? PhosphorIconsRegular.crown
+                              : PhosphorIconsRegular.user,
+                          size: 18,
+                        ),
+                        onSelected: (_) => _onRoleChanged(role),
+                        selectedColor: colorScheme.primary,
+                        labelStyle: TextStyle(
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                          color: isSelected
+                              ? colorScheme.onPrimary
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                    );
                   }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _selectedRole = val);
-                    }
-                  },
                 ),
                 const SizedBox(height: 24),
 
-                // Branch Dropdown
-                Text(
-                  'Assigned Branch',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
+                // ── Branch Dropdown ──
+                _FieldLabel(label: 'Assigned Branch'),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   initialValue: _selectedBranchId,
@@ -328,7 +330,39 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                   validator: (val) =>
                       val == null ? 'Please select a branch' : null,
                 ),
-                const SizedBox(height: 48),
+                const SizedBox(height: 32),
+
+                // ── Permissions ──
+                _FieldLabel(label: 'Permissions'),
+                const SizedBox(height: 4),
+                Text(
+                  'Customize what this staff member can do. '
+                  'Changing the role resets to defaults.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Permission categories
+                ...PermissionCategory.values.map(
+                  (cat) => _PermissionCategoryCard(
+                    category: cat,
+                    permissions: _permissions,
+                    colorScheme: colorScheme,
+                    theme: theme,
+                    onToggle: (perm, enabled) {
+                      setState(() {
+                        if (enabled) {
+                          _permissions.add(perm);
+                        } else {
+                          _permissions.remove(perm);
+                        }
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: 32),
 
                 // Main CTA
                 FilledButton.icon(
@@ -358,6 +392,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     ),
                   ),
                 ),
+                const SizedBox(height: 48),
               ],
             ),
           );
@@ -367,5 +402,154 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
             Center(child: Text('Error loading branches: $err')),
       ),
     );
+  }
+}
+
+// ── Helper Widgets ──
+
+class _FieldLabel extends StatelessWidget {
+  final String label;
+  const _FieldLabel({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      label,
+      style: Theme.of(
+        context,
+      ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+    );
+  }
+}
+
+/// A card that shows permissions grouped by category with toggle switches.
+class _PermissionCategoryCard extends StatelessWidget {
+  final PermissionCategory category;
+  final Set<Permission> permissions;
+  final ColorScheme colorScheme;
+  final ThemeData theme;
+  final void Function(Permission, bool) onToggle;
+
+  const _PermissionCategoryCard({
+    required this.category,
+    required this.permissions,
+    required this.colorScheme,
+    required this.theme,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final catPerms = category.permissions;
+    final allEnabled = catPerms.every((p) => permissions.contains(p));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        children: [
+          // Category header with "select all" toggle
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 14, 8, 4),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primaryContainer.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: _categoryIcon(category),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        category.displayName,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        category.description,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Switch(
+                  value: allEnabled,
+                  onChanged: (enabled) {
+                    for (final p in catPerms) {
+                      onToggle(p, enabled);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          // Individual toggles
+          ...catPerms.map(
+            (perm) => SwitchListTile(
+              contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+              dense: true,
+              title: Text(perm.displayName, style: theme.textTheme.bodyMedium),
+              subtitle: Text(
+                perm.description,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+              value: permissions.contains(perm),
+              onChanged: (enabled) => onToggle(perm, enabled),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _categoryIcon(PermissionCategory cat) {
+    switch (cat) {
+      case PermissionCategory.sales:
+        return PhosphorIcon(
+          PhosphorIconsDuotone.shoppingCart,
+          color: Colors.blue,
+          size: 20,
+        );
+      case PermissionCategory.inventory:
+        return PhosphorIcon(
+          PhosphorIconsDuotone.package,
+          color: Colors.orange,
+          size: 20,
+        );
+      case PermissionCategory.reports:
+        return PhosphorIcon(
+          PhosphorIconsDuotone.chartBar,
+          color: Colors.purple,
+          size: 20,
+        );
+      case PermissionCategory.people:
+        return PhosphorIcon(
+          PhosphorIconsDuotone.users,
+          color: Colors.green,
+          size: 20,
+        );
+      case PermissionCategory.settings:
+        return PhosphorIcon(
+          PhosphorIconsDuotone.gear,
+          color: Colors.grey,
+          size: 20,
+        );
+    }
   }
 }

@@ -3,8 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
-import 'package:zynk/core/theme/app_tokens.dart';
-
 /// Shown after sign-in when the user has biometrics / PIN set up.
 /// Provides two unlock paths:
 ///   1. Biometric (Face ID / Fingerprint) — triggered automatically on mount
@@ -128,11 +126,11 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // Use AppTokens for consistent theming
-    final successColor = AppTokens.brandSecondary;
+    // Use AppTheme and AppTokens for consistent theming
+    final successColor = theme.colorScheme.secondary;
 
     return Scaffold(
-      backgroundColor: AppTokens.bgCanvasDark,
+      backgroundColor: theme.colorScheme.surface,
       body: SafeArea(
         child: Column(
           children: [
@@ -152,7 +150,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
                         decoration: BoxDecoration(
                           color: isActive
                               ? successColor
-                              : AppTokens.borderSubtleDark,
+                              : Theme.of(context).colorScheme.outline,
                           borderRadius: BorderRadius.circular(2),
                         ),
                       );
@@ -171,10 +169,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
                       ),
                       child: const Text(
                         'Use PIN',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                 ],
@@ -205,7 +200,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
             Text(
               'Secure Your Account',
               style: theme.textTheme.headlineSmall?.copyWith(
-                color: AppTokens.textPrimaryDark,
+                color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -215,7 +210,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
                   ? 'Enter your 6-digit PIN'
                   : 'Use biometrics for quick access',
               style: theme.textTheme.bodyMedium?.copyWith(
-                color: AppTokens.textMutedDark,
+                color: theme.colorScheme.onSurface,
               ),
             ),
             const SizedBox(height: 40),
@@ -248,12 +243,14 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: filled
-                          ? (_pinError ? AppTokens.brandAccent : successColor)
+                          ? (_pinError ? theme.colorScheme.error : successColor)
                           : Colors.transparent,
                       border: Border.all(
                         color: filled
-                            ? (_pinError ? AppTokens.brandAccent : successColor)
-                            : AppTokens.borderSubtleDark,
+                            ? (_pinError
+                                  ? theme.colorScheme.error
+                                  : successColor)
+                            : theme.colorScheme.outline,
                         width: 2,
                       ),
                     ),
@@ -267,7 +264,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
               Text(
                 'Incorrect PIN. Try again.',
                 style: theme.textTheme.bodySmall?.copyWith(
-                  color: AppTokens.brandAccent,
+                  color: theme.colorScheme.error,
                 ),
               ),
             ],
@@ -285,7 +282,6 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
                     Text(
                       'SHOW PIN',
                       style: TextStyle(
-                        fontSize: 12,
                         fontWeight: FontWeight.w600,
                         letterSpacing: 1,
                       ),
@@ -380,7 +376,7 @@ class _Keypad extends StatelessWidget {
                         onTap: onBiometric!,
                         child: PhosphorIcon(
                           PhosphorIconsDuotone.fingerprint,
-                          color: AppTokens.brandSecondary,
+                          color: Theme.of(context).colorScheme.secondary,
                           size: 28,
                         ),
                       )
@@ -392,12 +388,11 @@ class _Keypad extends StatelessWidget {
                 height: 72,
                 child: _KeyButton(
                   onTap: () => onDigit(0),
-                  child: const Text(
+                  child: Text(
                     '0',
                     style: TextStyle(
-                      fontSize: 24,
                       fontWeight: FontWeight.w500,
-                      color: AppTokens.textPrimaryDark,
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 ),
@@ -410,7 +405,7 @@ class _Keypad extends StatelessWidget {
                   onTap: onDelete,
                   child: PhosphorIcon(
                     PhosphorIconsDuotone.backspace,
-                    color: AppTokens.textMutedDark,
+                    color: Theme.of(context).colorScheme.onPrimary,
                     size: 22,
                   ),
                 ),
@@ -434,10 +429,9 @@ class _Keypad extends StatelessWidget {
                 onTap: () => onDigit(d),
                 child: Text(
                   '$d',
-                  style: const TextStyle(
-                    fontSize: 24,
+                  style: TextStyle(
                     fontWeight: FontWeight.w500,
-                    color: AppTokens.textPrimaryDark,
+                    color: Theme.of(context).colorScheme.onSurface,
                   ),
                 ),
               ),
@@ -457,12 +451,14 @@ class _KeyButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: AppTokens.bgSurfaceHighlightDark,
+      color: Theme.of(context).colorScheme.surface,
       borderRadius: BorderRadius.circular(36),
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(36),
-        splashColor: AppTokens.brandPrimary.withValues(alpha: 0.2),
+        splashColor: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.2),
         child: Center(child: child),
       ),
     );

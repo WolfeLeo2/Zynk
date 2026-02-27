@@ -30,9 +30,8 @@ class AddProductController extends _$AddProductController {
     required double? costPrice, // Added
     required String sku,
     required String barcode,
-    required String commissionType,
-    required double commissionValue,
     required File? imageFile,
+    int? initialStock, // Added for new products
   }) async {
     state = const AsyncLoading();
 
@@ -40,12 +39,16 @@ class AddProductController extends _$AddProductController {
       final repository = ref.read(repositoryProvider);
       final profile = ref.read(currentUserProfileProvider).value;
       final tenantId = profile?.tenantId ?? 'tenant_1';
+      final branchId = ref.read(currentBranchIdProvider);
+      if (branchId == null)
+        throw Exception('No branch selected. Please select a branch first.');
+      final createdBy = profile?.userId ?? 'system';
 
       String? imageUrl = existingImageUrl;
       if (imageFile != null) {
         final bytes = await imageFile.readAsBytes();
         final fileExt = imageFile.path.split('.').last;
-        final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+        final fileName = '\${DateTime.now().millisecondsSinceEpoch}.$fileExt';
         final path = 'products/$tenantId/$fileName';
 
         await Supabase.instance.client.storage
@@ -78,15 +81,14 @@ class AddProductController extends _$AddProductController {
           costPrice: costPrice,
           taxCategory: 'standard',
           isService: false,
-          commissionType: commissionType,
-          commissionValue: commissionValue,
           createdAt: DateTime.now(), // Will be ignored by DB
           updatedAt: DateTime.now(),
         );
         await repository.updateProduct(updatedProduct);
       } else {
+        final newProductId = const Uuid().v4();
         final newProduct = Product(
-          id: const Uuid().v4(),
+          id: newProductId,
           tenantId: tenantId,
           itemGroupId: itemGroupId,
           categoryId: categoryId,
@@ -99,13 +101,24 @@ class AddProductController extends _$AddProductController {
           costPrice: costPrice, // Added
           taxCategory: 'standard', // Default
           isService: false, // Default
-          commissionType: commissionType,
-          commissionValue: commissionValue,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
 
         await repository.createProduct(newProduct);
+
+        // If initial stock is provided, create stock entry and adjustment log
+        if (initialStock != null && initialStock > 0) {
+          await repository.adjustStock(
+            tenantId: tenantId,
+            branchId: branchId,
+            productId: newProductId,
+            adjustmentType: 'initial',
+            quantityChange: initialStock,
+            createdBy: createdBy,
+            notes: 'Initial stock on creation',
+          );
+        }
       }
 
       state = const AsyncData(null);

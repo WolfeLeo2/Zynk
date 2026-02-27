@@ -12,6 +12,7 @@ class AppTokens {
   static const Color _neonLime = Color(0xFFD4FC45); // Success / Growth
   static const Color _hotPink = Color(0xFFFF4D8F);
   static const Color _basedGray = Color.fromARGB(255, 212, 208, 229);
+  static const Color _darkLime = Color(0xFF65A30D);
 
   // Neutrals - Cool Blue Tints
   static const Color _midnight = Color(0xFF0D1117); // Canvas Base
@@ -35,6 +36,7 @@ class AppTokens {
 
   static const Color brandPrimary = _electricBlue;
   static const Color brandSecondary = _neonLime;
+  static const Color brandSecondaryLight = _darkLime;
   static const Color brandTertiary = _basedGray;
   static const Color brandAccent = _hotPink;
 

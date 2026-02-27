@@ -118,8 +118,10 @@ class AppTheme {
       // COLORS
       colorScheme: const ColorScheme.light(
         primary: AppTokens.brandPrimary,
-        secondary: AppTokens.brandSecondary,
+        secondary: AppTokens.brandSecondaryLight,
         surface: AppTokens.bgSurfaceLight,
+        tertiary: AppTokens.brandTertiary,
+        onTertiary: Colors.black87,
         error: Colors.redAccent,
         onPrimary: Colors.white,
         onSecondary: Colors.black,

@@ -7,6 +7,7 @@ import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/core/providers/app_providers.dart' hide userRoleProvider;
 
 class AppShell extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
@@ -15,6 +16,9 @@ class AppShell extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Eagerly initialize branch selection — triggers load from SharedPreferences
+    ref.watch(branchSelectionProvider);
+
     final role = ref.watch(userRoleProvider);
     final destinations = _buildDestinations(role);
 
@@ -248,7 +252,7 @@ class AppShell extends ConsumerWidget {
   List<_SidebarDestination> _buildDestinations(UserRole role) {
     final dests = <_SidebarDestination>[];
 
-    // 1. Home / Dashboard
+    // 0. Dashboard
     dests.add(
       _SidebarDestination(
         icon: PhosphorIcon(PhosphorIconsDuotone.house),
@@ -260,21 +264,43 @@ class AppShell extends ConsumerWidget {
       ),
     );
 
-    // 2. Settings (Owner/Manager only)
-    if (role.canManageBusiness) {
-      dests.add(
-        _SidebarDestination(
-          icon: PhosphorIcon(PhosphorIconsDuotone.gear),
-          selectedIcon: PhosphorIcon(
-            PhosphorIconsFill.gear,
-            color: Colors.black87,
-          ),
-          label: 'Settings',
+    // 1. POS
+    dests.add(
+      _SidebarDestination(
+        icon: PhosphorIcon(PhosphorIconsDuotone.storefront),
+        selectedIcon: PhosphorIcon(
+          PhosphorIconsFill.storefront,
+          color: Colors.black87,
         ),
-      );
-    }
+        label: 'POS',
+      ),
+    );
 
-    // 3. Design Gallery (Dev only)
+    // 2. Sales
+    dests.add(
+      _SidebarDestination(
+        icon: PhosphorIcon(PhosphorIconsDuotone.receipt),
+        selectedIcon: PhosphorIcon(
+          PhosphorIconsFill.receipt,
+          color: Colors.black87,
+        ),
+        label: 'Sales',
+      ),
+    );
+
+    // 3. Settings
+    dests.add(
+      _SidebarDestination(
+        icon: PhosphorIcon(PhosphorIconsDuotone.gear),
+        selectedIcon: PhosphorIcon(
+          PhosphorIconsFill.gear,
+          color: Colors.black87,
+        ),
+        label: 'Settings',
+      ),
+    );
+
+    // 4. Design Gallery (Dev only)
     dests.add(
       _SidebarDestination(
         icon: PhosphorIcon(PhosphorIconsDuotone.palette),

@@ -1,0 +1,273 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import 'package:go_router/go_router.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
+import 'skeleton_widgets.dart';
+import 'empty_error_states.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOP SELLING PRODUCTS LIST
+// ─────────────────────────────────────────────────────────────────────────────
+
+class TopSellingProductsList extends ConsumerWidget {
+  const TopSellingProductsList({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final productsAsync = ref.watch(topProductsProvider);
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Top Selling Products',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: colorScheme.onSurface,
+                ),
+              ),
+              TextButton(
+                onPressed: () => context.push('/products'),
+                child: const Text('See All'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          productsAsync.when(
+            data: (products) {
+              if (products.isEmpty) {
+                return EmptyState(
+                  colorScheme: colorScheme,
+                  title: 'No sales data yet',
+                  message: 'Complete some sales to see your top products here',
+                  icon: PhosphorIconsDuotone.package,
+                );
+              }
+
+              // Find max sold for progress bar scaling
+              final maxSold = products.fold<double>(
+                1,
+                (m, p) => ((p['total_sold'] as num?)?.toDouble() ?? 0) > m
+                    ? ((p['total_sold'] as num?)?.toDouble() ?? 0)
+                    : m,
+              );
+
+              return ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: products.length > 6 ? 6 : products.length,
+                itemBuilder: (context, index) {
+                  final product = products[index];
+                  return _TopProductItem(
+                    product: product,
+                    index: index,
+                    maxSold: maxSold,
+                    colorScheme: colorScheme,
+                  );
+                },
+              );
+            },
+            loading: () => Column(
+              children: List.generate(
+                3,
+                (_) => SkeletonListItem(colorScheme: colorScheme),
+              ),
+            ),
+            error: (error, stack) => ErrorState(
+              colorScheme: colorScheme,
+              message: 'Failed to load products',
+              onRetry: () => ref.invalidate(topProductsProvider),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOP PRODUCT ITEM
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TopProductItem extends StatelessWidget {
+  final Map<String, dynamic> product;
+  final int index;
+  final double maxSold;
+  final ColorScheme colorScheme;
+
+  const _TopProductItem({
+    required this.product,
+    required this.index,
+    required this.maxSold,
+    required this.colorScheme,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = product['name'] as String? ?? 'Unknown';
+    final totalSold = (product['total_sold'] as num?)?.toInt() ?? 0;
+    final totalRevenue = (product['total_revenue'] as num?)?.toDouble() ?? 0;
+    final basePrice = (product['base_price'] as num?)?.toDouble() ?? 0;
+    final imageUrl = product['image_url'] as String?;
+    final progress = maxSold > 0 ? totalSold / maxSold : 0.0;
+
+    // Rank medal colors
+    final rankColors = [
+      const Color(0xFFFFD700), // Gold
+      const Color(0xFFC0C0C0), // Silver
+      const Color(0xFFCD7F32), // Bronze
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colorScheme.surface.withValues(alpha: 0.5),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            // Rank badge
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                gradient: index < 3
+                    ? LinearGradient(
+                        colors: [
+                          rankColors[index],
+                          rankColors[index].withValues(alpha: 0.7),
+                        ],
+                      )
+                    : null,
+                color: index >= 3 ? colorScheme.surfaceContainerHighest : null,
+                shape: BoxShape.circle,
+                boxShadow: index < 3
+                    ? [
+                        BoxShadow(
+                          color: rankColors[index].withValues(alpha: 0.3),
+                          blurRadius: 8,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: Center(
+                child: Text(
+                  '#${index + 1}',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                    color: index < 3
+                        ? Colors.white
+                        : colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            // Product image or icon
+            Container(
+              width: 48,
+              height: 48,
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+                ),
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: imageUrl != null && imageUrl.isNotEmpty
+                    ? Image.network(
+                        imageUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) {
+                          return PhosphorIcon(
+                            PhosphorIconsDuotone.package,
+                            color: colorScheme.onSurfaceVariant,
+                          );
+                        },
+                      )
+                    : PhosphorIcon(
+                        PhosphorIconsDuotone.package,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    '$totalSold sold • Ksh ${basePrice.toStringAsFixed(0)} each',
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: progress,
+                      backgroundColor: colorScheme.surfaceContainerHighest,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        index < 3
+                            ? rankColors[index].withValues(alpha: 0.7)
+                            : colorScheme.primary.withValues(alpha: 0.7),
+                      ),
+                      minHeight: 4,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Ksh ${_formatRevenue(totalRevenue)}',
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.primary,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _formatRevenue(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+    return value.toStringAsFixed(0);
+  }
+}

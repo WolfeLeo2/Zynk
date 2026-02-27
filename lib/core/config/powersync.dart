@@ -44,6 +44,7 @@ final schema = Schema([
     Column.text('tenant_id'),
     Column.text('branch_id'),
     Column.text('role'),
+    Column.text('permissions'),
     Column.text('display_name'),
     Column.text('profile_picture_url'),
     Column.text('created_at'),
@@ -83,8 +84,6 @@ final schema = Schema([
     Column.real('cost_price'), // Added
     Column.text('tax_category'),
     Column.integer('is_service'), // Boolean as Integer (0/1)
-    Column.text('commission_type'),
-    Column.real('commission_value'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -97,8 +96,19 @@ final schema = Schema([
     Column.integer('quantity'),
     Column.integer('reorder_level'),
     Column.text('last_updated'),
+  ]),
+
+  // Stock Adjustments
+  const Table('stock_adjustments', [
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('product_id'),
+    Column.text('adjustment_type'),
+    Column.integer('quantity'),
+    Column.text('reference_number'),
+    Column.text('notes'),
+    Column.text('created_by'),
     Column.text('created_at'),
-    Column.text('updated_at'),
   ]),
 
   // Customers
@@ -113,15 +123,30 @@ final schema = Schema([
     Column.text('updated_at'),
   ]),
 
-  // Sales
+  // Sales (evolved into full invoice)
   const Table('sales', [
     Column.text('tenant_id'),
     Column.text('branch_id'),
     Column.text('customer_id'),
+    Column.text('invoice_number'),
+    Column.text('sale_type'),
+    Column.text('created_by'),
+    Column.text('approved_by'),
     Column.real('total_amount'),
+    Column.real('subtotal'),
+    Column.real('tax_amount'),
+    Column.real('discount_amount'),
+    Column.real('grand_total'),
+    Column.real('amount_paid'),
     Column.text('payment_method'),
     Column.text('status'),
+    Column.text('notes'),
+    Column.text('due_date'),
+    Column.text('completed_at'),
+    Column.text('voided_at'),
+    Column.text('void_reason'),
     Column.text('external_ref'),
+    Column.text('fulfillment_status'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -130,11 +155,57 @@ final schema = Schema([
   const Table('sale_items', [
     Column.text('sale_id'),
     Column.text('product_id'),
-    Column.text('tenant_id'), // Add this to match the sync rule
+    Column.text('tenant_id'),
     Column.integer('quantity'),
     Column.real('unit_price'),
+    Column.real('cost_price'),
+    Column.real('tax_amount'),
+    Column.real('discount'),
+    Column.real('total'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Sale Payments
+  const Table('sale_payments', [
+    Column.text('sale_id'),
+    Column.text('tenant_id'),
+    Column.real('amount'),
+    Column.text('payment_method'),
+    Column.text('reference_number'),
+    Column.text('notes'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Payments
+  const Table('payments', [
+    Column.text('tenant_id'),
+    Column.text('sale_id'),
+    Column.real('amount'),
+    Column.text('payment_method'),
+    Column.text('reference_number'),
+    Column.text('recorded_by'),
+    Column.text('notes'),
+    Column.text('created_at'),
+  ]),
+
+  // Credit Notes
+  const Table('credit_notes', [
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('original_sale_id'),
+    Column.text('credit_number'),
+    Column.text('status'),
+    Column.text('reason'),
+    Column.text('items'),
+    Column.real('subtotal'),
     Column.real('tax_amount'),
     Column.real('total'),
+    Column.text('applied_to_sale_id'),
+    Column.text('created_by'),
+    Column.text('approved_by'),
+    Column.integer('restock_items'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),

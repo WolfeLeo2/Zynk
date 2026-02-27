@@ -13,7 +13,10 @@ bucket_definitions:
       - SELECT * FROM item_groups WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM categories WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM stock WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM stock_adjustments WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM locations WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM branches WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM sales WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM sale_items WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM payments WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM credit_notes WHERE tenant_id = bucket.tenant_id

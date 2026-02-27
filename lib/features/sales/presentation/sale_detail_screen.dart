@@ -1,0 +1,1475 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/models/sales_models.dart';
+import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/features/pos/providers/customer_providers.dart';
+import 'package:zynk/features/sales/providers/sales_providers.dart';
+
+/// Zoho-inspired sale detail screen with sections for items, payments,
+/// timeline, and action buttons (approve / void / record payment / credit note).
+class SaleDetailScreen extends ConsumerWidget {
+  final String saleId;
+  const SaleDetailScreen({super.key, required this.saleId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final saleAsync = ref.watch(saleDetailProvider(saleId));
+
+    return saleAsync.when(
+      data: (sale) {
+        if (sale == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Sale')),
+            body: const Center(child: Text('Sale not found')),
+          );
+        }
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(sale.invoiceNumber ?? 'Sale'),
+            actions: [
+              if (sale.status.canBeVoided ||
+                  sale.status.canBeApproved ||
+                  sale.status == InvoiceStatus.draft)
+                Builder(
+                  builder: (ctx) {
+                    final canApprove = ref.watch(
+                      hasPermissionProvider(Permission.approveInvoices),
+                    );
+                    final canVoid = ref.watch(
+                      hasPermissionProvider(Permission.voidSales),
+                    );
+                    return PopupMenuButton<String>(
+                      onSelected: (action) =>
+                          _handleAction(context, ref, sale, action),
+                      itemBuilder: (_) => [
+                        if ((sale.status.canBeApproved ||
+                                sale.status == InvoiceStatus.draft) &&
+                            canApprove)
+                          const PopupMenuItem(
+                            value: 'approve',
+                            child: Text('Approve'),
+                          ),
+                        const PopupMenuItem(
+                          value: 'reject',
+                          child: Text('Reject'),
+                        ),
+                        if (sale.status.canBeVoided && canVoid)
+                          const PopupMenuItem(
+                            value: 'void',
+                            child: Text('Void Sale'),
+                          ),
+                        if ((sale.status == InvoiceStatus.paid ||
+                                sale.status == InvoiceStatus.partiallyPaid ||
+                                sale.status == InvoiceStatus.approved ||
+                                sale.status == InvoiceStatus.completed) &&
+                            sale.fulfillmentStatus ==
+                                FulfillmentStatus.unfulfilled &&
+                            canApprove)
+                          const PopupMenuItem(
+                            value: 'fulfill',
+                            child: Text('Release Goods'),
+                          ),
+                      ],
+                    );
+                  },
+                ),
+            ],
+          ),
+          body: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // ── Status Hero ──
+              _StatusHero(sale: sale),
+              const SizedBox(height: 20),
+
+              // ── Details Section ──
+              _DetailsSection(sale: sale),
+              const SizedBox(height: 20),
+
+              // ── Items Section ──
+              _SectionTitle(title: 'Items'),
+              const SizedBox(height: 8),
+              _ItemsList(saleId: sale.id),
+              const SizedBox(height: 20),
+
+              // ── Totals ──
+              _TotalsCard(sale: sale),
+              const SizedBox(height: 20),
+
+              // ── Transaction History ──
+              _SectionTitle(title: 'Transaction History'),
+              const SizedBox(height: 8),
+              _PaymentsList(saleId: sale.id),
+              const SizedBox(height: 20),
+
+              // ── Credit Notes ──
+              _SectionTitle(title: 'Credit Notes'),
+              const SizedBox(height: 8),
+              _CreditNotesList(saleId: sale.id),
+              const SizedBox(height: 100),
+            ],
+          ),
+
+          // ── Bottom Action Buttons ──
+          bottomNavigationBar: _buildBottomActions(context, ref, sale),
+        );
+      },
+      loading: () => Scaffold(
+        appBar: AppBar(),
+        body: const Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Scaffold(
+        appBar: AppBar(),
+        body: Center(child: Text('Error: $e')),
+      ),
+    );
+  }
+
+  Widget? _buildBottomActions(BuildContext context, WidgetRef ref, Sale sale) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final actions = <Widget>[];
+    final canPay = ref.watch(hasPermissionProvider(Permission.recordPayments));
+    final canCreditNote = ref.watch(
+      hasPermissionProvider(Permission.issueCreditNotes),
+    );
+
+    final canApprove = ref.watch(
+      hasPermissionProvider(Permission.approveInvoices),
+    );
+
+    // Approve button (for draft or pending approval invoices)
+    if (sale.status == InvoiceStatus.draft ||
+        sale.status == InvoiceStatus.pendingApproval) {
+      actions.add(
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: canApprove
+                ? () => _handleAction(context, ref, sale, 'approve')
+                : null,
+            icon: const PhosphorIcon(PhosphorIconsBold.checkCircle, size: 18),
+            label: const Text('Approve'),
+            style: FilledButton.styleFrom(
+              backgroundColor: canApprove
+                  ? cs.primary
+                  : cs.surfaceContainerHighest,
+              foregroundColor: canApprove ? cs.onPrimary : cs.onSurfaceVariant,
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (sale.status.canAcceptPayment && canPay) {
+      actions.add(
+        Expanded(
+          child: FilledButton.icon(
+            onPressed: () => _showRecordPayment(context, ref, sale),
+            icon: const PhosphorIcon(PhosphorIconsBold.money, size: 18),
+            label: const Text('Record Payment'),
+            style: FilledButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (sale.status == InvoiceStatus.completed && canCreditNote) {
+      actions.add(
+        Expanded(
+          child: OutlinedButton.icon(
+            onPressed: () => _showCreateCreditNote(context, ref, sale),
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.arrowUUpLeft,
+              size: 18,
+            ),
+            label: const Text('Credit Note'),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    if (actions.isEmpty) return null;
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
+        ),
+      ),
+      child: Row(
+        children: actions.expand((w) => [w, const SizedBox(width: 12)]).toList()
+          ..removeLast(),
+      ),
+    );
+  }
+
+  void _handleAction(
+    BuildContext context,
+    WidgetRef ref,
+    Sale sale,
+    String action,
+  ) async {
+    final service = ref.read(salesServiceProvider);
+    try {
+      switch (action) {
+        case 'submit_for_approval':
+          await service.submitForApproval(sale.id);
+          break;
+        case 'approve':
+          await service.approveSale(sale.id);
+          break;
+        case 'reject':
+          await service.rejectSale(sale.id, reason: 'Rejected by manager');
+          break;
+        case 'fulfill':
+          await service.fulfillSale(sale.id);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Goods released and stock adjusted'),
+              ),
+            );
+          }
+          break;
+        case 'void':
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Void Sale?'),
+              content: const Text(
+                'This will reverse stock and void the invoice. This action cannot be undone.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Void'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) {
+            await service.voidSale(sale.id, reason: 'Voided by user');
+          }
+          break;
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  void _showRecordPayment(BuildContext context, WidgetRef ref, Sale sale) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _RecordPaymentSheet(sale: sale),
+    );
+  }
+
+  void _showCreateCreditNote(BuildContext context, WidgetRef ref, Sale sale) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => _CreateCreditNoteSheet(saleId: sale.id),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STATUS HERO
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _StatusHero extends StatelessWidget {
+  final Sale sale;
+  const _StatusHero({required this.sale});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final color = _colorForStatus(sale.status);
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [color.withValues(alpha: 0.08), Colors.transparent],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Center(
+              child: sale.status == InvoiceStatus.pendingApproval
+                  ? SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 3,
+                        valueColor: AlwaysStoppedAnimation<Color>(color),
+                      ),
+                    )
+                  : PhosphorIcon(
+                      _iconForStatus(sale.status),
+                      color: color,
+                      size: 28,
+                    ),
+            ),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  sale.status.displayName,
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _formatFull(sale.createdAt),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: sale.fulfillmentStatus == FulfillmentStatus.fulfilled
+                        ? Colors.green.withValues(alpha: 0.1)
+                        : Colors.orange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    sale.fulfillmentStatus == FulfillmentStatus.fulfilled
+                        ? 'FULFILLED'
+                        : 'UNFULFILLED',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color:
+                          sale.fulfillmentStatus == FulfillmentStatus.fulfilled
+                          ? Colors.green
+                          : Colors.orange,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (sale.remainingBalance > 0)
+                Text(
+                  'Due: Ksh ${sale.remainingBalance.toStringAsFixed(0)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: const Color(0xFFFFA726),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ITEMS LIST
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ItemsList extends ConsumerWidget {
+  final String saleId;
+  const _ItemsList({required this.saleId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final itemsAsync = ref.watch(saleItemsProvider(saleId));
+
+    return itemsAsync.when(
+      data: (items) {
+        if (items.isEmpty) {
+          return _emptyHint(theme, 'No items');
+        }
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            children: items.asMap().entries.map((e) {
+              final i = e.key;
+              final item = e.value;
+              return Column(
+                children: [
+                  if (i > 0)
+                    Divider(
+                      height: 1,
+                      color: cs.outline.withValues(alpha: 0.1),
+                    ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${item.quantity}',
+                            style: theme.textTheme.labelMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.productName ??
+                                    item.productId.substring(0, 8),
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Text(
+                                '@ Ksh ${item.unitPrice.toStringAsFixed(0)}',
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          'Ksh ${item.total.toStringAsFixed(0)}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            }).toList(),
+          ),
+        );
+      },
+      loading: () => const SizedBox(
+        height: 60,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Text('Error: $e'),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// TOTALS CARD
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _TotalsCard extends StatelessWidget {
+  final Sale sale;
+  const _TotalsCard({required this.sale});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        children: [
+          _row(theme, 'Subtotal', sale.subtotal),
+          if (sale.discountAmount > 0)
+            _row(theme, 'Discount', -sale.discountAmount),
+          if (sale.taxAmount > 0) _row(theme, 'Tax', sale.taxAmount),
+          const Divider(height: 20),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'Grand Total',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: cs.primary,
+                ),
+              ),
+            ],
+          ),
+          if (sale.amountPaid > 0) ...[
+            const SizedBox(height: 8),
+            _row(
+              theme,
+              'Paid',
+              sale.amountPaid,
+              color: const Color(0xFF66BB6A),
+            ),
+            if (sale.remainingBalance > 0)
+              _row(
+                theme,
+                'Balance Due',
+                sale.remainingBalance,
+                color: const Color(0xFFFFA726),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _row(ThemeData theme, String label, double amount, {Color? color}) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: theme.textTheme.bodyMedium),
+          Text(
+            '${amount < 0 ? "-" : ""}Ksh ${amount.abs().toStringAsFixed(0)}',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAYMENTS LIST
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _PaymentsList extends ConsumerWidget {
+  final String saleId;
+  const _PaymentsList({required this.saleId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final paymentsAsync = ref.watch(salePaymentsProvider(saleId));
+
+    return paymentsAsync.when(
+      data: (payments) {
+        if (payments.isEmpty) {
+          return _emptyHint(theme, 'No payments recorded');
+        }
+        return Column(
+          children: payments.map((p) {
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF66BB6A).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: PhosphorIcon(
+                        _paymentIcon(p.paymentMethod),
+                        color: const Color(0xFF66BB6A),
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          p.paymentMethod.displayName,
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        if (p.referenceNumber != null)
+                          Text(
+                            p.referenceNumber!,
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    'Ksh ${p.amount.toStringAsFixed(0)}',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: const Color(0xFF66BB6A),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
+      loading: () => const SizedBox(
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Text('Error: $e'),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CREDIT NOTES LIST
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CreditNotesList extends ConsumerWidget {
+  final String saleId;
+  const _CreditNotesList({required this.saleId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final cnAsync = ref.watch(creditNotesForSaleProvider(saleId));
+
+    return cnAsync.when(
+      data: (notes) {
+        if (notes.isEmpty) {
+          return _emptyHint(theme, 'No credit notes');
+        }
+        return Column(
+          children: notes.map((cn) {
+            final color = cn.status == CreditNoteStatus.approved
+                ? const Color(0xFF66BB6A)
+                : cn.status == CreditNoteStatus.applied
+                ? Theme.of(context).colorScheme.secondary
+                : const Color(0xFFFFA726);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: color.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Center(
+                      child: PhosphorIcon(
+                        PhosphorIconsRegular.arrowUUpLeft,
+                        color: color,
+                        size: 20,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          cn.creditNumber ?? 'CN',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        Text(
+                          cn.reason,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'Ksh ${cn.total.toStringAsFixed(0)}',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
+                      Text(
+                        cn.status.displayName,
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: color,
+                          fontSize: 10,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }).toList(),
+        );
+      },
+      loading: () => const SizedBox(
+        height: 50,
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) => Text('Error: $e'),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// RECORD PAYMENT SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _RecordPaymentSheet extends ConsumerStatefulWidget {
+  final Sale sale;
+  const _RecordPaymentSheet({required this.sale});
+
+  @override
+  ConsumerState<_RecordPaymentSheet> createState() =>
+      _RecordPaymentSheetState();
+}
+
+class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
+  final _amountController = TextEditingController();
+  String _method = 'cash';
+  final _refController = TextEditingController();
+  bool _loading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController.text = widget.sale.remainingBalance.toStringAsFixed(0);
+  }
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    _refController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    setState(() => _loading = true);
+    try {
+      await ref
+          .read(salesServiceProvider)
+          .recordPayment(
+            saleId: widget.sale.id,
+            amount: double.tryParse(_amountController.text) ?? 0,
+            paymentMethod: _method,
+            referenceNumber: _refController.text.isEmpty
+                ? null
+                : _refController.text,
+          );
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    return Container(
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Record Payment',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Balance: Ksh ${widget.sale.remainingBalance.toStringAsFixed(0)}',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Amount (Ksh)',
+                prefixText: 'Ksh ',
+              ),
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              initialValue: _method,
+              decoration: const InputDecoration(labelText: 'Payment Method'),
+              items: const [
+                DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
+                DropdownMenuItem(value: 'card', child: Text('Card')),
+                DropdownMenuItem(
+                  value: 'bank_transfer',
+                  child: Text('Bank Transfer'),
+                ),
+              ],
+              onChanged: (v) => setState(() => _method = v ?? 'cash'),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _refController,
+              decoration: const InputDecoration(
+                labelText: 'Reference (optional)',
+                hintText: 'M-Pesa code, cheque number, etc.',
+              ),
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: _loading ? null : _submit,
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Record Payment',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CREATE CREDIT NOTE SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CreateCreditNoteSheet extends ConsumerStatefulWidget {
+  final String saleId;
+  const _CreateCreditNoteSheet({required this.saleId});
+
+  @override
+  ConsumerState<_CreateCreditNoteSheet> createState() =>
+      _CreateCreditNoteSheetState();
+}
+
+class _CreateCreditNoteSheetState
+    extends ConsumerState<_CreateCreditNoteSheet> {
+  final _reasonController = TextEditingController();
+  bool _loading = false;
+  bool _restockItems = false;
+  final Map<String, int> _returnQuantities = {};
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_reasonController.text.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Please enter a reason')));
+      return;
+    }
+
+    final selectedItems = _returnQuantities.entries
+        .where((e) => e.value > 0)
+        .toList();
+
+    if (selectedItems.isEmpty) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select items to return')));
+      return;
+    }
+
+    setState(() => _loading = true);
+    try {
+      // Get the items for credit note
+      final saleItemsAsync = ref.read(saleItemsProvider(widget.saleId));
+      final saleItems = saleItemsAsync.value ?? [];
+
+      final cnItems = <CreditNoteItem>[];
+      for (final entry in selectedItems) {
+        final saleItem = saleItems.firstWhere(
+          (si) => si.productId == entry.key,
+        );
+        final qty = entry.value;
+        cnItems.add(
+          CreditNoteItem(
+            productId: saleItem.productId,
+            productName: saleItem.productName,
+            quantity: qty,
+            unitPrice: saleItem.unitPrice,
+            total: saleItem.unitPrice * qty,
+          ),
+        );
+      }
+
+      final saleDetail = ref.read(saleDetailProvider(widget.saleId)).value;
+
+      await ref
+          .read(salesServiceProvider)
+          .createCreditNote(
+            tenantId: saleDetail!.tenantId,
+            branchId: saleDetail.branchId,
+            originalSaleId: widget.saleId,
+            reason: _reasonController.text,
+            items: cnItems,
+            restockItems: _restockItems,
+          );
+
+      if (mounted) Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final itemsAsync = ref.watch(saleItemsProvider(widget.saleId));
+
+    return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.8,
+      ),
+      padding: EdgeInsets.only(
+        bottom: MediaQuery.of(context).viewInsets.bottom,
+      ),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: cs.onSurfaceVariant.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: 20),
+            Text(
+              'Create Credit Note',
+              style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Select items being returned',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 20),
+
+            // Items to return
+            Flexible(
+              child: itemsAsync.when(
+                data: (items) => ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: items.length,
+                  itemBuilder: (_, i) {
+                    final item = items[i];
+                    final returnQty = _returnQuantities[item.productId] ?? 0;
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.productName ??
+                                      item.productId.substring(0, 8),
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  '${item.quantity} sold @ Ksh ${item.unitPrice.toStringAsFixed(0)}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Stepper
+                          Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(
+                                color: cs.outline.withValues(alpha: 0.2),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                IconButton(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                  iconSize: 16,
+                                  onPressed: returnQty > 0
+                                      ? () => setState(
+                                          () =>
+                                              _returnQuantities[item
+                                                      .productId] =
+                                                  returnQty - 1,
+                                        )
+                                      : null,
+                                  icon: const Icon(Icons.remove),
+                                ),
+                                SizedBox(
+                                  width: 28,
+                                  child: Text(
+                                    '$returnQty',
+                                    textAlign: TextAlign.center,
+                                    style: theme.textTheme.bodyMedium?.copyWith(
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 36,
+                                    minHeight: 36,
+                                  ),
+                                  iconSize: 16,
+                                  onPressed: returnQty < item.quantity
+                                      ? () => setState(
+                                          () =>
+                                              _returnQuantities[item
+                                                      .productId] =
+                                                  returnQty + 1,
+                                        )
+                                      : null,
+                                  icon: const Icon(Icons.add),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (e, _) => Text('Error: $e'),
+              ),
+            ),
+            const SizedBox(height: 14),
+
+            TextField(
+              controller: _reasonController,
+              decoration: const InputDecoration(
+                labelText: 'Reason for return',
+                hintText: 'e.g., Defective product, wrong item',
+              ),
+              maxLines: 2,
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              title: const Text('Restock returned items'),
+              subtitle: const Text(
+                'Increase inventory levels for returned products',
+              ),
+              value: _restockItems,
+              onChanged: (val) => setState(() => _restockItems = val),
+              contentPadding: EdgeInsets.zero,
+              activeTrackColor: cs.primary,
+            ),
+            const SizedBox(height: 20),
+
+            SizedBox(
+              height: 52,
+              child: FilledButton(
+                onPressed: _loading ? null : _submit,
+                style: FilledButton.styleFrom(
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                ),
+                child: _loading
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text(
+                        'Create Credit Note',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SECTION TITLE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionTitle extends StatelessWidget {
+  final String title;
+  const _SectionTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+        fontWeight: FontWeight.w600,
+        letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+Widget _emptyHint(ThemeData theme, String text) {
+  return Padding(
+    padding: const EdgeInsets.symmetric(vertical: 16),
+    child: Center(
+      child: Text(
+        text,
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: theme.colorScheme.onSurface,
+        ),
+      ),
+    ),
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DETAILS SECTION (Customer & Staff)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _DetailsSection extends ConsumerWidget {
+  final Sale sale;
+  const _DetailsSection({required this.sale});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final staffAsync = ref.watch(staffProvider);
+    final customersAsync = ref.watch(allCustomersProvider);
+
+    String staffName = 'Unknown Staff';
+    if (staffAsync.hasValue && staffAsync.value != null) {
+      try {
+        staffName =
+            staffAsync.value!
+                .firstWhere((s) => s.userId == sale.createdBy)
+                .displayName ??
+            'Unknown Staff';
+      } catch (_) {}
+    }
+
+    String customerName = 'Walk-in Customer';
+    if (customersAsync.hasValue &&
+        customersAsync.value != null &&
+        sale.customerId != null) {
+      try {
+        customerName = customersAsync.value!
+            .firstWhere((c) => c.id == sale.customerId)
+            .name;
+      } catch (_) {}
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _buildRow(theme, PhosphorIconsRegular.user, 'Customer', customerName),
+          const SizedBox(height: 12),
+          _buildRow(
+            theme,
+            PhosphorIconsRegular.identificationBadge,
+            'Staff',
+            staffName,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRow(ThemeData theme, IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 12),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            Text(
+              value,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+Color _colorForStatus(InvoiceStatus status) {
+  switch (status) {
+    case InvoiceStatus.draft:
+      return AppTokens.textMutedDark;
+    case InvoiceStatus.pendingApproval:
+      return const Color(0xFFFFA726);
+    case InvoiceStatus.approved:
+      return AppTokens.brandPrimary;
+    case InvoiceStatus.rejected:
+      return AppTokens.brandAccent;
+    case InvoiceStatus.partiallyPaid:
+      return const Color(0xFFFFA726);
+    case InvoiceStatus.paid:
+      return AppTokens.brandSecondary;
+    case InvoiceStatus.completed:
+      return const Color(0xFF66BB6A);
+    case InvoiceStatus.voided:
+      return const Color(0xFFEF5350);
+  }
+}
+
+IconData _iconForStatus(InvoiceStatus status) {
+  switch (status) {
+    case InvoiceStatus.draft:
+      return PhosphorIconsDuotone.pencilLine;
+    case InvoiceStatus.pendingApproval:
+      return PhosphorIconsDuotone.clock;
+    case InvoiceStatus.approved:
+      return PhosphorIconsDuotone.checkCircle;
+    case InvoiceStatus.rejected:
+      return PhosphorIconsDuotone.xCircle;
+    case InvoiceStatus.partiallyPaid:
+      return PhosphorIconsDuotone.percent;
+    case InvoiceStatus.paid:
+      return PhosphorIconsDuotone.currencyCircleDollar;
+    case InvoiceStatus.completed:
+      return PhosphorIconsDuotone.sealCheck;
+    case InvoiceStatus.voided:
+      return PhosphorIconsDuotone.prohibit;
+  }
+}
+
+IconData _paymentIcon(PaymentMethod method) {
+  switch (method) {
+    case PaymentMethod.cash:
+      return PhosphorIconsRegular.money;
+    case PaymentMethod.mpesa:
+      return PhosphorIconsRegular.cellSignalFull;
+    case PaymentMethod.card:
+      return PhosphorIconsRegular.creditCard;
+    case PaymentMethod.bankTransfer:
+      return PhosphorIconsRegular.bank;
+    case PaymentMethod.creditNote:
+      return PhosphorIconsRegular.arrowUUpLeft;
+  }
+}
+
+String _formatFull(DateTime? date) {
+  if (date == null) return '';
+  final months = [
+    '',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final hour = date.hour > 12 ? date.hour - 12 : date.hour;
+  final amPm = date.hour >= 12 ? 'PM' : 'AM';
+  return '${months[date.month]} ${date.day}, ${date.year} · $hour:${date.minute.toString().padLeft(2, '0')} $amPm';
+}

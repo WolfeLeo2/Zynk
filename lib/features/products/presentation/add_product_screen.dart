@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart'; // Add uuid import
-import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/core/providers/app_providers.dart'; // for repositoryProvider
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
@@ -22,7 +21,6 @@ class AddProductScreen extends ConsumerStatefulWidget {
 }
 
 class _AddProductScreenState extends ConsumerState<AddProductScreen> {
-  int _currentStep = 0;
   final _formKey = GlobalKey<FormState>();
 
   // Form Controllers
@@ -31,7 +29,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _skuController = TextEditingController();
   final _barcodeController = TextEditingController();
   final _stockController = TextEditingController();
-  final _commissionController = TextEditingController();
   final _costPriceController = TextEditingController(); // Added
   final _lowStockController =
       TextEditingController(); // Added missing controller
@@ -41,7 +38,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   String? _selectedCategoryId;
   String? _selectedItemGroupId;
-  String _commissionType = 'fixed'; // 'fixed' or 'percent'
 
   bool _autoGenerateSku = true;
   bool _trackStock = true;
@@ -60,8 +56,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       if (p.costPrice != null) {
         _costPriceController.text = p.costPrice.toString();
       }
-      _commissionType = p.commissionType ?? 'fixed';
-      _commissionController.text = p.commissionValue.toString();
       _selectedCategoryId = p.categoryId;
       _selectedItemGroupId = p.itemGroupId;
       _existingImageUrl = p.imageUrl;
@@ -75,24 +69,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _skuController.dispose();
     _barcodeController.dispose();
     _stockController.dispose();
-    _commissionController.dispose();
     _costPriceController.dispose(); // Added
     _lowStockController.dispose();
     super.dispose();
-  }
-
-  void _nextStep() {
-    if (_currentStep < 2) {
-      setState(() => _currentStep++);
-    } else {
-      _saveProduct();
-    }
-  }
-
-  void _prevStep() {
-    if (_currentStep > 0) {
-      setState(() => _currentStep--);
-    }
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -119,9 +98,22 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   Future<void> _saveProduct() async {
     if (_formKey.currentState!.validate()) {
+      if (_selectedCategoryId == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please select a Category',
+              style: TextStyle(color: Theme.of(context).colorScheme.onError),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
       final price = double.tryParse(_priceController.text) ?? 0.0;
       final costPrice = double.tryParse(_costPriceController.text);
-      final commissionVal = double.tryParse(_commissionController.text) ?? 0.0;
 
       String skuToSave = _skuController.text;
       if (_autoGenerateSku && skuToSave.isEmpty) {
@@ -141,9 +133,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             costPrice: costPrice,
             sku: skuToSave,
             barcode: _barcodeController.text,
-            commissionType: _commissionType,
-            commissionValue: commissionVal,
             imageFile: _selectedImage,
+            initialStock: int.tryParse(_stockController.text),
           );
 
       if (mounted) {
@@ -169,7 +160,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   color: Theme.of(context).colorScheme.onSecondary,
                 ),
               ),
-              backgroundColor: AppTokens.brandSecondary,
+              backgroundColor: Theme.of(context).colorScheme.secondary,
               behavior: SnackBarBehavior.floating,
             ),
           );
@@ -366,145 +357,97 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
+    final isEditing = widget.existingProduct != null;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Add New Product'),
+        title: Text(isEditing ? 'Edit Product' : 'Add New Product'),
         centerTitle: true,
         leading: IconButton(
           onPressed: () => context.pop(),
           icon: const Icon(PhosphorIconsBold.x),
         ),
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // Stepper
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      _StepIndicator(
-                        isActive: _currentStep >= 0,
-                        isCompleted: _currentStep > 0,
-                        label: '1',
-                      ),
-                      _StepConnector(isActive: _currentStep > 0),
-                      _StepIndicator(
-                        isActive: _currentStep >= 1,
-                        isCompleted: _currentStep > 1,
-                        label: '2',
-                      ),
-                      _StepConnector(isActive: _currentStep > 1),
-                      _StepIndicator(
-                        isActive: _currentStep >= 2,
-                        isCompleted: _currentStep > 2,
-                        label: '3',
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    _getStepTitle(_currentStep),
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Divider(height: 1),
-
-            // Content
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(24),
-                child: Form(
-                  key: _formKey,
-                  child: _buildStepContent(_currentStep),
-                ),
-              ),
-            ),
-
-            // Footer
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colorScheme.surface,
-                border: Border(
-                  top: BorderSide(color: colorScheme.outlineVariant),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
-                  if (_currentStep > 0)
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: _prevStep,
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        child: const Text('Back'),
-                      ),
-                    ),
-                  if (_currentStep > 0) const SizedBox(width: 16),
-                  Expanded(
-                    flex: 2,
-                    child: FilledButton(
-                      onPressed: _nextStep,
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        backgroundColor: colorScheme.primary,
-                        foregroundColor: colorScheme.onPrimary,
-                      ),
-                      child: Text(
-                        _currentStep == 2 ? 'Save Product' : 'Next Step',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, -5),
             ),
           ],
+        ),
+        child: FilledButton(
+          onPressed: _saveProduct,
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            backgroundColor: colorScheme.primary,
+            foregroundColor: colorScheme.onPrimary,
+          ),
+          child: Text(isEditing ? 'Save Changes' : 'Save Product'),
+        ),
+      ),
+      body: SafeArea(
+        child: Form(
+          key: _formKey,
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _buildSectionHeader(
+                  theme,
+                  'Basic Info',
+                  PhosphorIconsDuotone.info,
+                ),
+                const SizedBox(height: 16),
+                _buildStep1(),
+                const SizedBox(height: 32),
+
+                _buildSectionHeader(
+                  theme,
+                  'Pricing & Commission',
+                  PhosphorIconsDuotone.currencyCircleDollar,
+                ),
+                const SizedBox(height: 16),
+                _buildStep2(),
+                const SizedBox(height: 32),
+
+                _buildSectionHeader(
+                  theme,
+                  'Inventory & Stock',
+                  PhosphorIconsDuotone.package,
+                ),
+                const SizedBox(height: 16),
+                _buildStep3(),
+                const SizedBox(height: 48), // bottom padding
+              ],
+            ),
+          ),
         ),
       ),
     );
   }
 
-  String _getStepTitle(int step) {
-    switch (step) {
-      case 0:
-        return 'Basic Info';
-      case 1:
-        return 'Pricing & Commission';
-      case 2:
-        return 'Inventory & Stock';
-      default:
-        return '';
-    }
-  }
-
-  Widget _buildStepContent(int step) {
-    switch (step) {
-      case 0:
-        return _buildStep1();
-      case 1:
-        return _buildStep2();
-      case 2:
-        return _buildStep3();
-      default:
-        return const SizedBox.shrink();
-    }
+  Widget _buildSectionHeader(ThemeData theme, String title, IconData icon) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, color: theme.colorScheme.primary, size: 20),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.bold,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ],
+    );
   }
 
   // Step 1: Basic Info
@@ -703,72 +646,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 24),
-
-        // Commission Card
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.purple.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.purple.withValues(alpha: 0.2)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(PhosphorIconsDuotone.coin, color: Colors.purple),
-                  SizedBox(width: 8),
-                  Text(
-                    'Staff Commission',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: Colors.purple,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: RadioListTile<String>(
-                      title: const Text('Fixed'),
-                      value: 'fixed',
-                      groupValue: _commissionType,
-                      onChanged: (val) =>
-                          setState(() => _commissionType = val!),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                  Expanded(
-                    child: RadioListTile<String>(
-                      title: const Text('Percentage'),
-                      value: 'percent',
-                      groupValue: _commissionType,
-                      onChanged: (val) =>
-                          setState(() => _commissionType = val!),
-                      contentPadding: EdgeInsets.zero,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _commissionController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Commission Value',
-                  hintText: '0.00',
-                  filled: true,
-                  fillColor: Colors.white,
-                  border: OutlineInputBorder(),
-                ),
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -812,19 +689,38 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             Expanded(
               child: TextFormField(
                 controller: _barcodeController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Barcode (Optional)',
                   hintText: 'Scan or type',
+                  labelStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
+                  hintStyle: TextStyle(
+                    color: Theme.of(context).colorScheme.onSecondary.withValues(
+                      alpha: 0.5,
+                    ),
+                  ),
                   filled: true,
                   fillColor: Colors.white,
                   border: OutlineInputBorder(),
                 ),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSecondary,
+                ),
               ),
             ),
             const SizedBox(width: 8),
-            IconButton.filledTonal(
+            IconButton(
               onPressed: _scanBarcode,
-              icon: const Icon(PhosphorIconsDuotone.barcode),
+              icon: Icon(
+                PhosphorIconsDuotone.barcode,
+                color: Theme.of(context).colorScheme.onSecondaryContainer,
+              ),
+              style: IconButton.styleFrom(
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.secondaryContainer,
+              ),
             ),
           ],
         ),
@@ -835,7 +731,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.withOpacity(0.3)),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
           ),
           child: Column(
             children: [
@@ -846,21 +742,24 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 onChanged: (val) => setState(() => _trackStock = val),
                 contentPadding: EdgeInsets.zero,
               ),
-              if (_trackStock)
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stockController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Initial Stock',
-                            border: OutlineInputBorder(),
-                          ),
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _stockController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Initial Stock *',
+                          border: OutlineInputBorder(),
                         ),
+                        validator: (value) => value == null || value.isEmpty
+                            ? 'Please enter initial stock'
+                            : null,
                       ),
+                    ),
+                    if (_trackStock) ...[
                       const SizedBox(width: 16),
                       Expanded(
                         child: TextFormField(
@@ -873,64 +772,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                         ),
                       ),
                     ],
-                  ),
+                  ],
                 ),
+              ),
             ],
           ),
         ),
       ],
-    );
-  }
-}
-
-class _StepIndicator extends StatelessWidget {
-  final bool isActive;
-  final bool isCompleted;
-  final String label;
-
-  const _StepIndicator({
-    required this.isActive,
-    required this.isCompleted,
-    required this.label,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isActive ? AppTokens.brandPrimary : Colors.grey[300];
-    return Container(
-      width: 32,
-      height: 32,
-      decoration: BoxDecoration(
-        color: isCompleted ? AppTokens.brandPrimary : Colors.transparent,
-        shape: BoxShape.circle,
-        border: Border.all(color: color!, width: 2),
-      ),
-      alignment: Alignment.center,
-      child: isCompleted
-          ? const Icon(PhosphorIconsBold.check, color: Colors.white, size: 16)
-          : Text(
-              label,
-              style: TextStyle(
-                color: isActive ? AppTokens.brandPrimary : Colors.grey[400],
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-    );
-  }
-}
-
-class _StepConnector extends StatelessWidget {
-  final bool isActive;
-
-  const _StepConnector({required this.isActive});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 40,
-      height: 2,
-      color: isActive ? AppTokens.brandPrimary : Colors.grey[300],
-      margin: const EdgeInsets.symmetric(horizontal: 4),
     );
   }
 }

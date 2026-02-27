@@ -6,7 +6,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
 
 class StaffScreen extends ConsumerWidget {
   const StaffScreen({super.key});
@@ -133,7 +132,7 @@ class _StaffCard extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppTokens.bgSurfaceHighlightDark,
+        color: theme.colorScheme.surfaceContainer,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
           color: colorScheme.outlineVariant.withValues(alpha: 0.5),
@@ -145,9 +144,9 @@ class _StaffCard extends StatelessWidget {
           width: 48,
           height: 48,
           decoration: BoxDecoration(
-            color: colorScheme.surface,
+            color: theme.colorScheme.surface,
             shape: BoxShape.circle,
-            border: Border.all(color: colorScheme.outlineVariant),
+            border: Border.all(color: theme.colorScheme.outlineVariant),
           ),
           child: ClipOval(
             child: member.profilePictureUrl != null
@@ -165,7 +164,7 @@ class _StaffCard extends StatelessWidget {
                           ? member.displayName![0].toUpperCase()
                           : '?',
                       style: theme.textTheme.titleMedium?.copyWith(
-                        color: colorScheme.primary,
+                        color: theme.colorScheme.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

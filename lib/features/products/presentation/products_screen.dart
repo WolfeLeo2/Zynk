@@ -3,9 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/features/products/presentation/item_groups_view.dart';
+import 'package:zynk/features/products/presentation/batch_upload_screen.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   const ProductsScreen({super.key});
@@ -16,104 +17,239 @@ class ProductsScreen extends ConsumerStatefulWidget {
 
 class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   String _searchQuery = '';
+  String? _selectedCategoryId;
+
+  void importCsv(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const BatchUploadScreen()),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final productsAsync = ref.watch(allProductsProvider);
     final theme = Theme.of(context);
 
-    // Filter products based on search
-    final filteredProducts = productsAsync.whenData((products) {
-      if (_searchQuery.isEmpty) return products;
-      return products
-          .where(
-            (p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()),
-          )
-          .toList();
-    });
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Products'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: FilledButton.icon(
-              onPressed: () => context.push('/add-product'),
-              icon: const Icon(PhosphorIconsBold.plus),
-              label: const Text('Add Product'),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppTokens.brandSecondary,
-                foregroundColor: theme.colorScheme.onSecondary,
-              ),
-            ),
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Products'),
+          bottom: TabBar(
+            tabs: const [
+              Tab(text: 'All Products'),
+              Tab(text: 'Item Groups'),
+            ],
+            labelColor: theme.colorScheme.primary,
+            unselectedLabelColor: theme.colorScheme.onSurfaceVariant,
+            indicatorSize: TabBarIndicatorSize.label,
+            splashFactory: InkRipple.splashFactory,
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          // Search Bar
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-            child: TextField(
-              decoration: InputDecoration(
-                hintText: 'Search products by name...',
-                prefixIcon: const Icon(PhosphorIconsDuotone.magnifyingGlass),
-                filled: true,
-                fillColor: theme.colorScheme.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outlineVariant,
+          actions: [
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Theme(
+                data: theme.copyWith(
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                ),
+                child: PopupMenuButton<String>(
+                  offset: const Offset(0, 48),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outlineVariant,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: theme.colorScheme.primary),
-                ),
-              ),
-              onChanged: (val) {
-                setState(() {
-                  _searchQuery = val;
-                });
-              },
-            ),
-          ),
-
-          // Main Content
-          Expanded(
-            child: filteredProducts.when(
-              data: (products) {
-                if (products.isEmpty) {
-                  return _buildEmptyState(theme);
-                }
-                return LayoutBuilder(
-                  builder: (context, constraints) {
-                    if (constraints.maxWidth > 800) {
-                      // Desktop/Tablet Grid
-                      return _buildGridView(products, crossAxisCount: 4);
-                    } else if (constraints.maxWidth > 600) {
-                      // Small Tablet Grid
-                      return _buildGridView(products, crossAxisCount: 3);
-                    } else {
-                      // Mobile List
-                      return _buildGridView(products, crossAxisCount: 2);
+                  tooltip: 'Add options',
+                  onSelected: (value) {
+                    if (value == 'csv') {
+                      importCsv(context);
+                    } else if (value == 'product') {
+                      context.push('/add-product');
                     }
                   },
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, s) => Center(child: Text('Error: $e')),
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'product',
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIconsBold.plus, size: 20),
+                          SizedBox(width: 12),
+                          Text('Add Product'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'csv',
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIconsDuotone.fileCsv, size: 20),
+                          SizedBox(width: 12),
+                          Text('Import CSV'),
+                        ],
+                      ),
+                    ),
+                  ],
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.secondary,
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          PhosphorIconsBold.plus,
+                          size: 18,
+                          color: theme.colorScheme.onSecondary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Add',
+                          style: TextStyle(
+                            color: theme.colorScheme.onSecondary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          PhosphorIconsBold.caretDown,
+                          size: 16,
+                          color: theme.colorScheme.onSecondary,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
-      ),
+          ],
+        ),
+      body: Consumer(
+        builder: (context, ref, child) {
+          final productsAsync = ref.watch(allProductsProvider);
+          final categoriesAsync = ref.watch(allCategoriesProvider);
+          final categories = categoriesAsync.value ?? [];
+
+          return TabBarView(
+            children: [
+              // Tab 1: All Products
+              Column(
+                children: [
+                  // Search Bar
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                  child: TextField(
+                    decoration: InputDecoration(
+                      hintText: 'Search products by name...',
+                      prefixIcon: const Icon(
+                        PhosphorIconsDuotone.magnifyingGlass,
+                      ),
+                      filled: true,
+                      fillColor: theme.colorScheme.surface,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.outlineVariant,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(16),
+                        borderSide: BorderSide(
+                          color: theme.colorScheme.primary,
+                        ),
+                      ),
+                    ),
+                    onChanged: (val) {
+                      setState(() {
+                        _searchQuery = val;
+                      });
+                    },
+                  ),
+                ),
+                
+                // Category Filter Chips
+                  if (categories.isNotEmpty)
+                    SizedBox(
+                      height: 48,
+                      child: ListView(
+                        scrollDirection: Axis.horizontal,
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.only(right: 8),
+                            child: FilterChip(
+                              label: const Text('All Categories'),
+                              selected: _selectedCategoryId == null,
+                              onSelected: (_) => setState(() => _selectedCategoryId = null),
+                            ),
+                          ),
+                          ...categories.map(
+                            (cat) => Padding(
+                              padding: const EdgeInsets.only(right: 8),
+                              child: FilterChip(
+                                label: Text(cat.name),
+                                selected: _selectedCategoryId == cat.id,
+                                onSelected: (_) => setState(() => _selectedCategoryId = _selectedCategoryId == cat.id ? null : cat.id),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  
+                  // Main Content
+                  Expanded(
+                    child: productsAsync.when(
+                      data: (products) {
+                        var filtered = products.toList();
+                        if (_selectedCategoryId != null) {
+                          filtered = filtered.where((p) => p.categoryId == _selectedCategoryId).toList();
+                        }
+                        if (_searchQuery.isNotEmpty) {
+                          filtered = filtered.where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+                        }
+
+                        if (filtered.isEmpty) {
+                          return _buildEmptyState(theme);
+                        }
+                        return LayoutBuilder(
+                          builder: (context, constraints) {
+                            if (constraints.maxWidth > 800) {
+                              // Desktop/Tablet Grid
+                              return _buildGridView(filtered, crossAxisCount: 4);
+                            } else if (constraints.maxWidth > 600) {
+                              // Small Tablet Grid
+                              return _buildGridView(filtered, crossAxisCount: 3);
+                            } else {
+                              // Mobile List
+                              return _buildGridView(filtered, crossAxisCount: 2);
+                            }
+                          },
+                        );
+                      },
+                      loading: () =>
+                          const Center(child: CircularProgressIndicator()),
+                      error: (e, s) => Center(child: Text('Error: $e')),
+                    ),
+                  ),
+                ],
+              ),
+            // Tab 2: Item Groups
+            const ItemGroupsView(),
+          ],
+        );
+      },
+      )
+      )
     );
   }
 
@@ -165,29 +301,17 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
 
   Widget _buildGridView(List<Product> products, {required int crossAxisCount}) {
     return GridView.builder(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: crossAxisCount,
-        childAspectRatio: 0.75,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
+        childAspectRatio: 0.65,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
       ),
       itemCount: products.length,
       itemBuilder: (context, index) {
         final product = products[index];
         return _ProductGridCard(product: product);
-      },
-    );
-  }
-
-  Widget _buildListView(List<Product> products) {
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-      itemCount: products.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 6),
-      itemBuilder: (context, index) {
-        final product = products[index];
-        return _ProductListCard(product: product);
       },
     );
   }
@@ -201,75 +325,60 @@ class _ProductGridCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final cs = theme.colorScheme;
 
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
-      color: theme.colorScheme.surface,
-      child: InkWell(
-        onTap: () {
-          context.push('/product-details', extra: product);
-        },
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Image Area
-            Expanded(
-              flex: 4,
+    return InkWell(
+      onTap: () => context.push('/product-details', extra: product),
+      borderRadius: BorderRadius.circular(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Square Image Area
+          AspectRatio(
+            aspectRatio: 1.0,
+            child: Container(
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerLow,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: cs.outlineVariant, width: 1),
+              ),
+              clipBehavior: Clip.antiAlias,
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  Container(
-                    decoration: BoxDecoration(
-                      color: colorScheme.surfaceContainerHighest.withValues(
-                        alpha: 0.3,
-                      ),
-                    ),
-                    child: product.imageUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: product.imageUrl!,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => const Center(
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            ),
-                            errorWidget: (context, url, error) => Center(
-                              child: Icon(
-                                PhosphorIconsDuotone.imageBroken,
-                                color: colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          )
-                        : Center(
+                  product.imageUrl != null
+                      ? CachedNetworkImage(
+                          imageUrl: product.imageUrl!,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => const Center(
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          ),
+                          errorWidget: (context, url, error) => Center(
                             child: Icon(
-                              PhosphorIconsDuotone.package,
-                              size: 40,
-                              color: colorScheme.outline,
+                              PhosphorIconsDuotone.imageBroken,
+                              color: cs.onSurfaceVariant,
                             ),
                           ),
-                  ),
+                        )
+                      : Center(
+                          child: Icon(
+                            PhosphorIconsDuotone.package,
+                            size: 40,
+                            color: cs.outlineVariant,
+                          ),
+                        ),
                   // Inventory Badge Overlay
                   Positioned(
                     top: 8,
                     right: 8,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
+                        horizontal: 6,
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: theme.colorScheme.surface.withValues(alpha: 0.9),
+                        color: cs.surface.withValues(alpha: 0.85),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(
-                          color: theme.colorScheme.outlineVariant,
-                          width: 0.5,
-                        ),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -277,15 +386,13 @@ class _ProductGridCard extends StatelessWidget {
                           Icon(
                             PhosphorIconsFill.circle,
                             size: 8,
-                            color:
-                                AppTokens.brandSecondary, // Green for in stock
+                            color: cs.primary,
                           ),
                           const SizedBox(width: 4),
                           Text(
-                            'Stocked', // We will sync real stock later
+                            'Stocked', // Future: Wire real stock logic here
                             style: theme.textTheme.labelSmall?.copyWith(
                               fontWeight: FontWeight.bold,
-                              fontSize: 10,
                             ),
                           ),
                         ],
@@ -295,176 +402,35 @@ class _ProductGridCard extends StatelessWidget {
                 ],
               ),
             ),
-            // Inventory Details
-            Expanded(
-              flex: 3,
-              child: Padding(
-                padding: const EdgeInsets.all(10.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // SKU
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 6,
-                        vertical: 2,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.onSurface.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        product.sku ?? 'SKU-PENDING',
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.w600,
-                          color: colorScheme.onSurfaceVariant,
-                          letterSpacing: 0.5,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    // Name
-                    Text(
-                      product.name,
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        height: 1.2,
-                      ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const Spacer(),
-                    // Pricing
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'KES',
-                          style: theme.textTheme.labelSmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        const SizedBox(width: 2),
-                        Text(
-                          product.basePrice.toStringAsFixed(2),
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            color: colorScheme.onSurface,
-                            fontWeight: FontWeight.w900,
-                            height: 1.0,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _ProductListCard extends StatelessWidget {
-  final Product product;
-
-  const _ProductListCard({required this.product});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-
-    return Card(
-      elevation: 0,
-      clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: colorScheme.outline),
-      ),
-      child: InkWell(
-        onTap: () {
-          // Navigate to details
-        },
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              // Image
-              Container(
-                width: 80,
-                height: 80,
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                clipBehavior: Clip.hardEdge,
-                child: product.imageUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: product.imageUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => const Center(
-                          child: SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Icon(
-                          PhosphorIconsDuotone.imageBroken,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
-                      )
-                    : Icon(
-                        PhosphorIconsDuotone.package,
-                        size: 32,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-              ),
-              const SizedBox(width: 16),
-              // Details
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (product.sku != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Text(
-                          'SKU: ${product.sku}',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'KES ${product.basePrice.toStringAsFixed(2)}',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: colorScheme.primary,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(PhosphorIconsRegular.caretRight),
-            ],
           ),
-        ),
+          const SizedBox(height: 8),
+          // Name and Details
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.name,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                    height: 1.2,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'KES ${product.basePrice.toStringAsFixed(0)}',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    color: cs.primary,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

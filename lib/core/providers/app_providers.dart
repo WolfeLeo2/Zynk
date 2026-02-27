@@ -1,10 +1,14 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/powersync.dart'; // Import global 'db'
 import '../../data/local/repository.dart';
 import '../../core/models/schema_models.dart';
 import '../services/auth_service.dart';
+import '../services/app_logger.dart';
+
+final _log = AppLogger('AppProviders');
 
 // ============================================
 // Shared Preferences Provider
@@ -128,22 +132,82 @@ class BranchSelectionState {
 }
 
 /// Branch selection notifier using Riverpod 3.x Notifier class
+/// Auto-selects a branch on startup:
+/// 1. From SharedPreferences (previously selected)
+/// 2. From user metadata (branch_id assigned on login)
+/// 3. Falls back to first available branch
 class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
   static const _prefsKey = 'selected_branch_id';
 
   @override
   BranchSelectionState build() {
-    Future.microtask(() => _loadSavedBranch());
+    // Listen to branches stream to auto-populate and auto-select
+    ref.listen(branchesProvider, (prev, next) {
+      next.whenData((branches) {
+        _log.d('branchesProvider delivered ${branches.length} branches');
+        setAvailableBranches(branches);
+      });
+    });
+
+    Future.microtask(() => _initBranch());
     return const BranchSelectionState(isLoading: true);
   }
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
-  Future<void> _loadSavedBranch() async {
+  Future<void> _initBranch() async {
     try {
+      // Step 1: Try loading from SharedPreferences
       final savedBranchId = _prefs.getString(_prefsKey);
-      state = state.copyWith(selectedBranchId: savedBranchId, isLoading: false);
+      _log.d('Saved branch from prefs: $savedBranchId');
+
+      if (savedBranchId != null) {
+        state = state.copyWith(
+          selectedBranchId: savedBranchId,
+          isLoading: false,
+        );
+        return;
+      }
+
+      // Step 2: Check user metadata for a default branch
+      final user = Supabase.instance.client.auth.currentUser;
+      final metaBranchId =
+          user?.appMetadata['branch_id'] as String? ??
+          user?.userMetadata?['branch_id'] as String?;
+      _log.d('Branch from user metadata: $metaBranchId');
+
+      if (metaBranchId != null) {
+        await _prefs.setString(_prefsKey, metaBranchId);
+        state = state.copyWith(
+          selectedBranchId: metaBranchId,
+          isLoading: false,
+        );
+        return;
+      }
+
+      // Step 3: Auto-select first available branch
+      final branches = ref.read(branchesProvider).value ?? [];
+      _log.d('Available branches for auto-select: ${branches.length}');
+
+      if (branches.isNotEmpty) {
+        final firstId = branches.first.id;
+        _log.i(
+          'Auto-selecting first branch: $firstId (${branches.first.name})',
+        );
+        await _prefs.setString(_prefsKey, firstId);
+        state = state.copyWith(
+          selectedBranchId: firstId,
+          availableBranches: branches,
+          isLoading: false,
+        );
+        return;
+      }
+
+      // No branch available yet — will auto-select when branchesProvider delivers
+      _log.d('No branches available yet, waiting for stream...');
+      state = state.copyWith(isLoading: false);
     } catch (e) {
+      _log.e('Branch init failed: $e');
       state = state.copyWith(
         error: 'Failed to load saved branch: $e',
         isLoading: false,
@@ -153,6 +217,7 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
 
   Future<void> selectBranch(String branchId) async {
     try {
+      _log.i('Branch selected: $branchId');
       await _prefs.setString(_prefsKey, branchId);
       state = state.copyWith(selectedBranchId: branchId);
     } catch (e) {
@@ -167,9 +232,25 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
 
   void setAvailableBranches(List<Branch> branches) {
     state = state.copyWith(availableBranches: branches);
+
+    // If no branch selected yet and branches are available, auto-select
+    if (state.selectedBranchId == null && branches.isNotEmpty) {
+      _log.i(
+        'Auto-selecting first branch: ${branches.first.id} (${branches.first.name})',
+      );
+      selectBranch(branches.first.id);
+      return;
+    }
+
+    // Verify current selection is still valid
     if (state.selectedBranchId != null) {
       final stillValid = branches.any((b) => b.id == state.selectedBranchId);
-      if (!stillValid) {
+      if (!stillValid && branches.isNotEmpty) {
+        _log.d(
+          'Previously selected branch no longer valid, switching to first',
+        );
+        selectBranch(branches.first.id);
+      } else if (!stillValid) {
         clearSelection();
       }
     }

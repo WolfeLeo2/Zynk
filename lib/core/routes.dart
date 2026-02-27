@@ -13,8 +13,12 @@ import 'package:zynk/features/dashboard/presentation/dashboard_layout.dart';
 import 'package:zynk/features/pos/presentation/pos_screen.dart';
 import 'package:zynk/features/products/presentation/add_product_screen.dart';
 import 'package:zynk/features/products/presentation/products_screen.dart';
-import 'package:zynk/features/products/presentation/product_details_screen.dart'; // Added
-import 'package:zynk/core/models/schema_models.dart'; // Added
+import 'package:zynk/features/products/presentation/product_details_screen.dart';
+import 'package:zynk/features/products/presentation/group_details_screen.dart';
+import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/features/sales/presentation/sales_list_screen.dart';
+import 'package:zynk/features/sales/presentation/create_invoice_screen.dart';
+import 'package:zynk/features/sales/presentation/sale_detail_screen.dart';
 import 'package:zynk/features/settings/presentation/settings_screen.dart';
 import 'package:zynk/features/settings/presentation/branches_screen.dart';
 import 'package:zynk/features/settings/presentation/add_branch_screen.dart';
@@ -64,7 +68,10 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       GoRoute(
         path: '/add-product',
-        builder: (context, state) => const AddProductScreen(),
+        builder: (context, state) {
+          final product = state.extra as Product?;
+          return AddProductScreen(existingProduct: product);
+        },
       ),
 
       GoRoute(
@@ -81,21 +88,65 @@ final routerProvider = Provider<GoRouter>((ref) {
           return AppShell(navigationShell: navigationShell);
         },
         branches: [
-          // Home Branch (Placeholder)
+          // 0: Dashboard
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: '/',
                 builder: (context, state) => const DashboardLayout(),
+                routes: [
+                  GoRoute(
+                    path: 'products',
+                    builder: (context, state) => const ProductsScreen(),
+                    routes: [
+                      GoRoute(
+                        path: 'groups/:id',
+                        builder: (context, state) {
+                          final group = state.extra as ItemGroup;
+                          return GroupDetailsScreen(group: group);
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ),
-
+            ],
+          ),
+          // 1: POS
+          StatefulShellBranch(
+            routes: [
               GoRoute(
                 path: '/pos',
                 builder: (context, state) => const PosScreen(),
               ),
+            ],
+          ),
+          // 2: Sales / Invoices
+          StatefulShellBranch(
+            routes: [
               GoRoute(
-                path: '/products',
-                builder: (context, state) => const ProductsScreen(),
+                path: '/sales',
+                builder: (context, state) => const SalesListScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'create-invoice',
+                    builder: (context, state) {
+                      final extra = state.extra as Map<String, dynamic>? ?? {};
+                      return CreateInvoiceScreen(
+                        cartItems: extra['cartItems'] ?? [],
+                        customer: extra['customer'],
+                        staffName: extra['staffName'],
+                      );
+                    },
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) {
+                      final saleId = state.pathParameters['id']!;
+                      return SaleDetailScreen(saleId: saleId);
+                    },
+                  ),
+                ],
               ),
             ],
           ),
