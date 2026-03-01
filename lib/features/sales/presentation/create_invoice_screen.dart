@@ -12,13 +12,13 @@ import 'package:zynk/features/sales/providers/sales_providers.dart';
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final List<PosCartItem> cartItems;
   final Customer customer;
-  final String? staffName;
+  final String? salespersonName;
 
   const CreateInvoiceScreen({
     super.key,
     required this.cartItems,
     required this.customer,
-    this.staffName,
+    this.salespersonName,
   });
 
   @override
@@ -109,7 +109,8 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             // ── Staff Details ──
-            if (widget.staffName != null && widget.staffName!.isNotEmpty) ...[
+            if (widget.salespersonName != null &&
+                widget.salespersonName!.isNotEmpty) ...[
               Text(
                 'Salesperson',
                 style: theme.textTheme.titleSmall?.copyWith(
@@ -137,7 +138,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     ),
                     const SizedBox(width: 12),
                     Text(
-                      widget.staffName!,
+                      widget.salespersonName!,
                       style: theme.textTheme.bodyLarge?.copyWith(
                         fontWeight: FontWeight.w500,
                       ),

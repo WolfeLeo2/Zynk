@@ -1,10 +1,16 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import '../../core/services/auth_service.dart';
+import 'package:zynk/core/services/auth_service.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:path/path.dart' as path;
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/theme/app_tokens.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -18,8 +24,14 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   final _passwordController = TextEditingController();
   final _shopNameController = TextEditingController();
   final _ownerNameController = TextEditingController();
+  final _businessAddressController = TextEditingController();
+
+  String _businessPhone = '';
   final _formKey = GlobalKey<FormState>();
   final _pageController = PageController();
+
+  XFile? _logoFile;
+  final _imagePicker = ImagePicker();
 
   bool _isLoading = false;
   bool _obscurePassword = true;
@@ -33,6 +45,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     _passwordController.dispose();
     _shopNameController.dispose();
     _ownerNameController.dispose();
+    _businessAddressController.dispose();
     _pageController.dispose();
     super.dispose();
   }
@@ -69,18 +82,37 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
     final auth = ref.read(authServiceProvider);
 
     try {
+      String? logoUrl;
+      if (_logoFile != null) {
+        final fileExt = path.extension(_logoFile!.path);
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}$fileExt';
+        final filePath = 'tenant_logos/$fileName';
+
+        final bytes = await _logoFile!.readAsBytes();
+        await Supabase.instance.client.storage
+            .from('logos')
+            .uploadBinary(filePath, bytes);
+
+        logoUrl = Supabase.instance.client.storage
+            .from('logos')
+            .getPublicUrl(filePath);
+      }
+
       await auth.signUpOwner(
         email: _emailController.text.trim(),
         password: _passwordController.text,
         shopName: _shopNameController.text.trim(),
         ownerName: _ownerNameController.text.trim(),
+        businessAddress: _businessAddressController.text.trim(),
+        businessPhone: _businessPhone,
+        logoUrl: logoUrl,
       );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '🎉 Shop created! Check your email to confirm',
+              'Shop created! Check your email to confirm!',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSecondary,
               ),
@@ -165,6 +197,21 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                     _StepOne(
                       shopNameController: _shopNameController,
                       ownerNameController: _ownerNameController,
+                      addressController: _businessAddressController,
+                      onPhoneChanged: (phone) {
+                        _businessPhone = phone;
+                      },
+                      logoFile: _logoFile,
+                      onPickLogo: () async {
+                        final file = await _imagePicker.pickImage(
+                          source: ImageSource.gallery,
+                          maxWidth: 512,
+                          maxHeight: 512,
+                        );
+                        if (file != null) {
+                          setState(() => _logoFile = file);
+                        }
+                      },
                     ),
                     _StepTwo(
                       emailController: _emailController,
@@ -247,10 +294,18 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
 class _StepOne extends StatelessWidget {
   final TextEditingController shopNameController;
   final TextEditingController ownerNameController;
+  final TextEditingController addressController;
+  final Function(String) onPhoneChanged;
+  final XFile? logoFile;
+  final VoidCallback onPickLogo;
 
   const _StepOne({
     required this.shopNameController,
     required this.ownerNameController,
+    required this.addressController,
+    required this.onPhoneChanged,
+    this.logoFile,
+    required this.onPickLogo,
   });
 
   @override
@@ -291,6 +346,75 @@ class _StepOne extends StatelessWidget {
           ),
           const SizedBox(height: 36),
 
+          // Logo Upload
+          Center(
+            child: GestureDetector(
+              onTap: onPickLogo,
+              child: Stack(
+                children: [
+                  Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest,
+                      shape: BoxShape.circle,
+                      image: logoFile != null
+                          ? DecorationImage(
+                              image: kIsWeb
+                                  ? NetworkImage(logoFile!.path)
+                                  : FileImage(File(logoFile!.path))
+                                        as ImageProvider,
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                      border: Border.all(
+                        color: theme.colorScheme.outlineVariant,
+                        width: 2,
+                      ),
+                    ),
+                    child: logoFile == null
+                        ? Icon(
+                            PhosphorIconsRegular.camera,
+                            size: 32,
+                            color: theme.colorScheme.onSurfaceVariant,
+                          )
+                        : null,
+                  ),
+                  Positioned(
+                    bottom: 0,
+                    right: 0,
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.primary,
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: theme.colorScheme.surface,
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        PhosphorIconsRegular.pencilSimple,
+                        size: 14,
+                        color: theme.colorScheme.onPrimary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Text(
+              'Business Logo',
+              style: theme.textTheme.labelLarge?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(height: 36),
+
           _FieldLabel('Shop / Business Name'),
           const SizedBox(height: 8),
           TextFormField(
@@ -312,13 +436,41 @@ class _StepOne extends StatelessWidget {
           const SizedBox(height: 8),
           TextFormField(
             controller: ownerNameController,
-            textInputAction: TextInputAction.done,
+            textInputAction: TextInputAction.next,
             textCapitalization: TextCapitalization.words,
             decoration: const InputDecoration(
               hintText: 'e.g. Jane Wanjiku',
               prefixIcon: PhosphorIcon(PhosphorIconsDuotone.user, size: 20),
             ),
             validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+          ),
+          const SizedBox(height: 20),
+
+          _FieldLabel('Business Address'),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: addressController,
+            textInputAction: TextInputAction.next,
+            textCapitalization: TextCapitalization.sentences,
+            decoration: const InputDecoration(
+              hintText: 'e.g. Kenyatta Ave, Nairobi',
+              prefixIcon: PhosphorIcon(PhosphorIconsDuotone.mapPin, size: 20),
+            ),
+            validator: (v) => (v == null || v.isEmpty) ? 'Required' : null,
+          ),
+          const SizedBox(height: 20),
+
+          _FieldLabel('Business Phone'),
+          const SizedBox(height: 8),
+          IntlPhoneField(
+            decoration: const InputDecoration(
+              hintText: 'e.g. 700 123 456',
+              prefixIcon: PhosphorIcon(PhosphorIconsDuotone.phone, size: 20),
+            ),
+            initialCountryCode: 'KE',
+            onChanged: (phone) {
+              onPhoneChanged(phone.completeNumber);
+            },
           ),
         ],
       ),

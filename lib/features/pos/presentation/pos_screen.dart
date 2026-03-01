@@ -28,7 +28,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
   String _searchQuery = '';
   String? _selectedCategoryId;
   Customer? _selectedCustomer;
-  String _staffName = '';
+  String _salespersonName = '';
 
   @override
   void initState() {
@@ -109,7 +109,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
   void _showCheckout() {
     // Validate staff name and customer before allowing checkout
-    if (_staffName.trim().isEmpty) {
+    if (_salespersonName.trim().isEmpty) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -138,6 +138,8 @@ class _PosScreenState extends ConsumerState<PosScreen>
       builder: (_) => CheckoutSheet(
         items: List.from(_cart),
         total: _total,
+        customer: _selectedCustomer,
+        salespersonName: _salespersonName,
         onComplete: () {
           setState(() => _cart.clear());
           _selectedCustomer = null;
@@ -163,11 +165,13 @@ class _PosScreenState extends ConsumerState<PosScreen>
         },
         onCreateNew: (name, phone, email) async {
           final tenantId = ref.read(tenantIdProvider);
-          if (tenantId == null) return;
+          final branchId = ref.read(currentBranchIdProvider);
+          if (tenantId == null || branchId == null || branchId == 'all') return;
           final repo = ref.read(repositoryProvider);
           final customer = Customer(
             id: const Uuid().v4(),
             tenantId: tenantId,
+            branchId: branchId,
             name: name,
             phone: phone.isNotEmpty ? phone : null,
             email: email.isNotEmpty ? email : null,
@@ -238,10 +242,12 @@ class _PosScreenState extends ConsumerState<PosScreen>
                     onRemoveItem: _removeFromCart,
                     onClearTicket: _clearCart,
                     selectedCustomer: _selectedCustomer,
-                    staffName: _staffName.isEmpty ? null : _staffName,
+                    salespersonName: _salespersonName.isEmpty
+                        ? null
+                        : _salespersonName,
                     onSelectCustomer: _showCustomerSelector,
-                    onStaffNameChanged: (name) =>
-                        setState(() => _staffName = name),
+                    onSalespersonNameChanged: (name) =>
+                        setState(() => _salespersonName = name),
                   ),
                 ),
               ],
@@ -300,10 +306,12 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   onRemoveItem: _removeFromCart,
                   onClearTicket: _clearCart,
                   selectedCustomer: _selectedCustomer,
-                  staffName: _staffName.isEmpty ? null : _staffName,
+                  salespersonName: _salespersonName.isEmpty
+                      ? null
+                      : _salespersonName,
                   onSelectCustomer: _showCustomerSelector,
-                  onStaffNameChanged: (name) =>
-                      setState(() => _staffName = name),
+                  onSalespersonNameChanged: (name) =>
+                      setState(() => _salespersonName = name),
                 ),
               ],
             ),

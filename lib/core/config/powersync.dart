@@ -14,6 +14,10 @@ final schema = Schema([
   const Table('tenants', [
     Column.text('name'),
     Column.text('plan_type'),
+    Column.text('address'),
+    Column.text('phone'),
+    Column.text('email'),
+    Column.text('logo_url'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -34,6 +38,7 @@ final schema = Schema([
     Column.text('location_id'),
     Column.text('name'),
     Column.text('address'),
+    Column.text('phone'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -54,6 +59,7 @@ final schema = Schema([
   // Categories
   const Table('categories', [
     Column.text('tenant_id'),
+    Column.text('branch_id'),
     Column.text('name'),
     Column.text('created_at'),
     Column.text('updated_at'),
@@ -62,6 +68,7 @@ final schema = Schema([
   // Item Groups
   const Table('item_groups', [
     Column.text('tenant_id'),
+    Column.text('branch_id'),
     Column.text('name'),
     Column.text('description'),
     Column.text('default_commission_type'),
@@ -73,6 +80,7 @@ final schema = Schema([
   // Products
   const Table('products', [
     Column.text('tenant_id'),
+    Column.text('branch_id'),
     Column.text('item_group_id'),
     Column.text('category_id'),
     Column.text('name'),
@@ -114,6 +122,7 @@ final schema = Schema([
   // Customers
   const Table('customers', [
     Column.text('tenant_id'),
+    Column.text('branch_id'),
     Column.text('name'),
     Column.text('phone'),
     Column.text('email'),
@@ -131,6 +140,7 @@ final schema = Schema([
     Column.text('invoice_number'),
     Column.text('sale_type'),
     Column.text('created_by'),
+    Column.text('salesperson'),
     Column.text('approved_by'),
     Column.real('total_amount'),
     Column.real('subtotal'),
@@ -170,24 +180,13 @@ final schema = Schema([
   const Table('sale_payments', [
     Column.text('sale_id'),
     Column.text('tenant_id'),
+    Column.text('branch_id'),
     Column.real('amount'),
     Column.text('payment_method'),
     Column.text('reference_number'),
     Column.text('notes'),
     Column.text('created_at'),
     Column.text('updated_at'),
-  ]),
-
-  // Payments
-  const Table('payments', [
-    Column.text('tenant_id'),
-    Column.text('sale_id'),
-    Column.real('amount'),
-    Column.text('payment_method'),
-    Column.text('reference_number'),
-    Column.text('recorded_by'),
-    Column.text('notes'),
-    Column.text('created_at'),
   ]),
 
   // Credit Notes

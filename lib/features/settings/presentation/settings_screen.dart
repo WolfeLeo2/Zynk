@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,7 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
-import 'package:zynk/core/providers/app_providers.dart'; // for repositoryProvider
+import 'package:zynk/core/providers/app_providers.dart';
 
 import 'package:zynk/core/theme/app_tokens.dart';
 
@@ -45,7 +44,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final file = File(pickedFile.path);
       final profile = ref.read(currentUserProfileProvider).value;
 
       if (profile == null) throw Exception('Profile not found');
@@ -55,12 +53,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           '${profile.userId}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
       final path = 'avatars/$fileName';
 
-      // 1. Upload to Supabase Storage
+      final bytes = await pickedFile.readAsBytes();
+
       await Supabase.instance.client.storage
           .from('avatars')
           .uploadBinary(
             path,
-            await file.readAsBytes(),
+            bytes,
             fileOptions: const FileOptions(contentType: 'image/jpeg'),
           );
 
@@ -68,7 +67,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           .from('avatars')
           .getPublicUrl(path);
 
-      // 2. Update Local DB
       final repo = ref.read(repositoryProvider);
 
       await repo.updateProfile(profile.userId, {
@@ -124,6 +122,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
+  Future<void> _updateBusinessLogo() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile == null) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      final profile = ref.read(currentUserProfileProvider).value;
+
+      if (profile?.tenantId == null) {
+        throw Exception('Tenant not found');
+      }
+
+      final tenantId = profile!.tenantId;
+      final fileExt = pickedFile.path.split('.').last;
+      final fileName =
+          '${tenantId}_${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+      final path = 'tenant_logos/$fileName';
+
+      final bytes = await pickedFile.readAsBytes();
+
+      await Supabase.instance.client.storage
+          .from('logos')
+          .uploadBinary(
+            path,
+            bytes,
+            fileOptions: const FileOptions(contentType: 'image/jpeg'),
+          );
+
+      final imageUrl = Supabase.instance.client.storage
+          .from('logos')
+          .getPublicUrl(path);
+
+      final repo = ref.read(repositoryProvider);
+
+      await repo.updateTenant(tenantId, {'logo_url': imageUrl});
+
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Business logo updated!')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error updating logo: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _signOut() async {
     await ref.read(authServiceProvider).signOut();
   }
@@ -145,7 +198,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           return ListView(
             padding: const EdgeInsets.all(16),
             children: [
-              // 1. Profile Section
+              // ── Profile Section ──
               _SettingsSection(
                 title: 'Profile',
                 children: [
@@ -249,11 +302,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               const SizedBox(height: 24),
 
-              // 2. Business Settings (Owners/Managers)
+              // ── Business Management (Owners only) ──
               if (ref.watch(isOwnerProvider))
                 _SettingsSection(
                   title: 'Business',
                   children: [
+                    ListTile(
+                      leading: const Icon(PhosphorIconsDuotone.image),
+                      title: const Text('Business Logo'),
+                      subtitle: const Text('Update your shop\'s logo'),
+                      trailing: _isLoading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(PhosphorIconsRegular.caretRight),
+                      onTap: _isLoading ? null : _updateBusinessLogo,
+                    ),
+                    const Divider(),
                     ListTile(
                       leading: const Icon(PhosphorIconsDuotone.storefront),
                       title: const Text('Branches'),
@@ -272,7 +339,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               if (ref.watch(isOwnerProvider)) const SizedBox(height: 24),
 
-              // 3. App Settings
+              // ── App Settings ──
               _SettingsSection(
                 title: 'App Settings',
                 children: [
@@ -282,7 +349,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     subtitle: const Text('System Default'),
                     trailing: const Icon(PhosphorIconsRegular.caretRight),
                     onTap: () {
-                      // TODO: Implement Theme Selector
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Theme settings coming soon'),
@@ -295,7 +361,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               const SizedBox(height: 24),
 
-              // 3. Account Actions
+              // ── Account ──
               _SettingsSection(
                 title: 'Account',
                 children: [

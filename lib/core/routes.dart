@@ -135,7 +135,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                       return CreateInvoiceScreen(
                         cartItems: extra['cartItems'] ?? [],
                         customer: extra['customer'],
-                        staffName: extra['staffName'],
+                        salespersonName: extra['salespersonName'],
                       );
                     },
                   ),

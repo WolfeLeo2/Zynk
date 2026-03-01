@@ -61,7 +61,9 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        // ── Get sale for tenant context ──
+        // ── Get tenant context ──
+        // The client can pass tenant_id directly to avoid a DB lookup race condition
+        // (e.g. approving a draft invoice that may not have synced to Supabase yet).
         const saleId = params.sale_id;
         if (!saleId && action !== "apply_credit") {
             return new Response(JSON.stringify({ error: "Missing sale_id" }), {
@@ -71,7 +73,10 @@ Deno.serve(async (req: Request) => {
         }
 
         let tenantId: string;
-        if (saleId) {
+        if (params.tenant_id) {
+            // Prefer client-provided tenant_id to avoid the sale lookup entirely.
+            tenantId = params.tenant_id;
+        } else if (saleId) {
             const { data: sale } = await supabase
                 .from("sales")
                 .select("tenant_id")
@@ -264,7 +269,7 @@ Deno.serve(async (req: Request) => {
                     .eq("id", saleId)
                     .single();
 
-                if (!sale) throw new Error("Sale not found");
+                if (!sale) throw new Error("Sale not found. Ensure the invoice has synced before recording payment.");
 
                 const validStatuses = ["approved", "partially_paid"];
                 if (!validStatuses.includes(sale.status)) {
@@ -280,6 +285,7 @@ Deno.serve(async (req: Request) => {
                         id: crypto.randomUUID(),
                         sale_id: saleId,
                         tenant_id: sale.tenant_id,
+                        branch_id: sale.branch_id,
                         amount,
                         payment_method,
                         reference_number: reference_number || null,

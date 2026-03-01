@@ -52,7 +52,6 @@ class PosProductCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
                       product.name,
@@ -64,7 +63,7 @@ class PosProductCard extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (!product.isService) ...[
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 2),
                       stockAsync.when(
                         data: (stock) {
                           final qty = stock?.quantity ?? 0;
@@ -86,6 +85,7 @@ class PosProductCard extends ConsumerWidget {
                         error: (e, s) => const SizedBox(),
                       ),
                     ],
+                    const Spacer(),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.end,

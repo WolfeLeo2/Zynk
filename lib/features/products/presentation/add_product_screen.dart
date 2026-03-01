@@ -285,12 +285,14 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               if (controller.text.isNotEmpty) {
                 final repo = ref.read(repositoryProvider);
                 final tenantId = ref.read(tenantIdProvider);
+                final branchId = ref.read(currentBranchIdProvider);
 
-                if (tenantId != null) {
+                if (tenantId != null && branchId != null && branchId != 'all') {
                   await repo.createCategory(
                     Category(
                       id: const Uuid().v4(),
                       tenantId: tenantId,
+                      branchId: branchId,
                       name: controller.text,
                       createdAt: DateTime.now(),
                       updatedAt: DateTime.now(),
@@ -331,12 +333,14 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               if (controller.text.isNotEmpty) {
                 final repo = ref.read(repositoryProvider);
                 final tenantId = ref.read(tenantIdProvider);
+                final branchId = ref.read(currentBranchIdProvider);
 
-                if (tenantId != null) {
+                if (tenantId != null && branchId != null && branchId != 'all') {
                   await repo.createItemGroup(
                     ItemGroup(
                       id: const Uuid().v4(),
                       tenantId: tenantId,
+                      branchId: branchId,
                       name: controller.text,
                       createdAt: DateTime.now(),
                       updatedAt: DateTime.now(),
@@ -696,9 +700,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   hintStyle: TextStyle(
-                    color: Theme.of(context).colorScheme.onSecondary.withValues(
-                      alpha: 0.5,
-                    ),
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSecondary.withValues(alpha: 0.5),
                   ),
                   filled: true,
                   fillColor: Colors.white,

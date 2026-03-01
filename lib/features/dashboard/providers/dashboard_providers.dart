@@ -35,35 +35,40 @@ final chartTypeProvider = NotifierProvider<ChartTypeNotifier, ChartType>(
 final todaysRevenueProvider = StreamProvider.autoDispose<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
-  return repo.watchTodaysRevenue();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchTodaysRevenue(branchId: branchId);
 });
 
 /// Total all-time revenue
 final salesDataProvider = StreamProvider.autoDispose<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repository = ref.watch(repositoryProvider);
-  return repository.watchTotalSales();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repository.watchTotalSales(branchId: branchId);
 });
 
 /// Today's order count
 final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
-  return repo.watchTodaysOrderCount();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchTodaysOrderCount(branchId: branchId);
 });
 
 /// Average order value (today)
 final averageOrderValueProvider = StreamProvider.autoDispose<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
-  return repo.watchAverageOrderValue();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchAverageOrderValue(branchId: branchId);
 });
 
 /// Low stock item count
 final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
-  return repo.watchLowStockCount();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchLowStockCount(branchId: branchId);
 });
 
 /// Staff count
@@ -87,7 +92,8 @@ final customerCountProvider = StreamProvider.autoDispose<int>((ref) {
 final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
-  return repo.watchSales(limit: 10);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchSales(branchId: branchId, limit: 10);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -98,7 +104,8 @@ final topProductsProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
-      return repo.watchTopProducts(limit: 6);
+      final branchId = ref.watch(currentBranchIdProvider);
+      return repo.watchTopProducts(branchId: branchId, limit: 6);
     });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,7 +116,8 @@ final paymentBreakdownProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
-      return repo.watchPaymentMethodBreakdown();
+      final branchId = ref.watch(currentBranchIdProvider);
+      return repo.watchPaymentMethodBreakdown(branchId: branchId);
     });
 
 // Static chart palette — no theme dependency so this works everywhere
@@ -265,3 +273,46 @@ final greetingProvider = Provider<String>((ref) {
   if (hour < 17) return 'Good afternoon';
   return 'Good evening';
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHART TIME RANGE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ChartTimeRangeNotifier extends Notifier<String> {
+  @override
+  String build() => 'This Week';
+  void setRange(String range) => state = range;
+}
+
+final chartTimeRangeProvider = NotifierProvider<ChartTimeRangeNotifier, String>(
+  ChartTimeRangeNotifier.new,
+);
+
+/// Convert time range label to days
+int _rangeToDays(String range) {
+  switch (range) {
+    case 'Today':
+      return 1;
+    case 'This Week':
+      return 7;
+    case 'This Month':
+      return 30;
+    case 'This Year':
+      return 365;
+    default:
+      return 7;
+  }
+}
+
+/// Daily revenue + order data for the interactive chart
+final dailySalesChartProvider =
+    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+      ref.watch(dashboardRefreshTriggerProvider);
+      final repo = ref.watch(repositoryProvider);
+      final branchId = ref.watch(currentBranchIdProvider);
+      final range = ref.watch(chartTimeRangeProvider);
+      return repo.watchDailySalesData(
+        branchId: branchId,
+        days: _rangeToDays(range),
+      );
+    });

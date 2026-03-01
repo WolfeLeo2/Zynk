@@ -18,6 +18,8 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _addressController = TextEditingController();
+  final _phoneController = TextEditingController();
   UserRole _selectedRole = UserRole.cashier;
   String? _selectedBranchId;
   bool _isLoading = false;
@@ -37,6 +39,8 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
     _nameController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
+    _addressController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
@@ -73,6 +77,8 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
           'name': _nameController.text.trim(),
           'role': _selectedRole.toShortString(),
           'branch_id': _selectedBranchId,
+          'phone': _phoneController.text.trim(),
+          'address': _addressController.text.trim(),
           'permissions': _permissions.map((p) => p.value).toList(),
         },
       );
@@ -269,6 +275,46 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     }
                     return null;
                   },
+                ),
+                const SizedBox(height: 24),
+
+                // Phone Field
+                _FieldLabel(label: 'Phone Number'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _phoneController,
+                  keyboardType: TextInputType.phone,
+                  decoration: InputDecoration(
+                    hintText: 'e.g., +254 700 123 456',
+                    prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                  ),
+                  validator: (value) =>
+                      value?.trim().isEmpty == true ? 'Required' : null,
+                ),
+                const SizedBox(height: 24),
+
+                // Address Field
+                _FieldLabel(label: 'Home Address'),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _addressController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    hintText: 'e.g., Kenyatta Ave, Nairobi',
+                    prefixIcon: const Icon(PhosphorIconsRegular.mapPin),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    filled: true,
+                    fillColor: colorScheme.surface,
+                  ),
+                  validator: (value) =>
+                      value?.trim().isEmpty == true ? 'Required' : null,
                 ),
                 const SizedBox(height: 24),
 

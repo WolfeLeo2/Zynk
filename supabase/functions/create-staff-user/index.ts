@@ -48,7 +48,7 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { email, name, branch_id, role } = await req.json()
+    const { email, name, branch_id, role, phone, address } = await req.json()
 
     if (!email || !name) throw new Error('Missing required fields: email, name')
 
@@ -76,7 +76,9 @@ serve(async (req) => {
         tenant_id: callerProfile.tenant_id,
         branch_id: branch_id || callerProfile.branch_id,
         role: role || 'Cashier',
-        display_name: name
+        display_name: name,
+        phone,
+        address
       })
 
     if (insertError) {

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:intl/intl.dart';
 
 import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
@@ -18,6 +19,7 @@ class InteractiveSalesChart extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final chartType = ref.watch(chartTypeProvider);
     final colorScheme = Theme.of(context).colorScheme;
+    final chartDataAsync = ref.watch(dailySalesChartProvider);
 
     return Container(
       padding: const EdgeInsets.all(24),
@@ -31,31 +33,41 @@ class InteractiveSalesChart extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Header — Flexible wrapping prevents overflow
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Sales Analytics',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+              Flexible(
+                child: Text(
+                  'Sales Analytics',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
-              Row(
-                children: [
-                  const _TimeRangeSelector(),
-                  const SizedBox(width: 12),
-                  const _ChartTypeToggle(),
-                ],
-              ),
+              const SizedBox(width: 8),
+              const _TimeRangeSelector(),
+              const SizedBox(width: 8),
+              const _ChartTypeToggle(),
             ],
           ),
           const SizedBox(height: 24),
           SizedBox(
             height: 250,
-            child: _ChartRenderer(
-              chartType: chartType,
-              colorScheme: colorScheme,
+            child: chartDataAsync.when(
+              data: (rows) => _ChartRenderer(
+                chartType: chartType,
+                colorScheme: colorScheme,
+                data: rows,
+              ),
+              loading: () => SkeletonChart(colorScheme: colorScheme),
+              error: (_, _) => Center(
+                child: Text(
+                  'Unable to load chart data',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                ),
+              ),
             ),
           ),
         ],
@@ -67,18 +79,30 @@ class InteractiveSalesChart extends ConsumerWidget {
 class _ChartRenderer extends StatelessWidget {
   final ChartType chartType;
   final ColorScheme colorScheme;
+  final List<Map<String, dynamic>> data;
 
-  const _ChartRenderer({required this.chartType, required this.colorScheme});
+  const _ChartRenderer({
+    required this.chartType,
+    required this.colorScheme,
+    required this.data,
+  });
 
   @override
   Widget build(BuildContext context) {
+    if (data.isEmpty) {
+      return Center(
+        child: Text(
+          'No sales data for this period',
+          style: TextStyle(color: colorScheme.onSurfaceVariant),
+        ),
+      );
+    }
+
     switch (chartType) {
       case ChartType.line:
-        return _LineChart(colorScheme: colorScheme);
+        return _LineChart(colorScheme: colorScheme, data: data);
       case ChartType.bar:
-        return _BarChart(colorScheme: colorScheme);
-      case ChartType.area:
-        return _AreaChart(colorScheme: colorScheme);
+        return _BarChart(colorScheme: colorScheme, data: data);
       case ChartType.pie:
         return _PieChartWidget(colorScheme: colorScheme);
     }
@@ -86,7 +110,7 @@ class _ChartRenderer extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// CHART TYPE TOGGLE
+// CHART TYPE TOGGLE (line + bar only)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _ChartTypeToggle extends ConsumerWidget {
@@ -116,13 +140,6 @@ class _ChartTypeToggle extends ConsumerWidget {
           _buildTypeButton(
             ChartType.bar,
             Icons.bar_chart,
-            currentType,
-            ref,
-            colorScheme,
-          ),
-          _buildTypeButton(
-            ChartType.area,
-            Icons.stacked_line_chart,
             currentType,
             ref,
             colorScheme,
@@ -165,28 +182,23 @@ class _ChartTypeToggle extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TIME RANGE SELECTOR
+// TIME RANGE SELECTOR (wired to provider)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TimeRangeSelector extends StatefulWidget {
+class _TimeRangeSelector extends ConsumerWidget {
   const _TimeRangeSelector();
 
-  @override
-  State<_TimeRangeSelector> createState() => _TimeRangeSelectorState();
-}
-
-class _TimeRangeSelectorState extends State<_TimeRangeSelector> {
-  String selectedRange = 'This Week';
-  final List<String> ranges = ['Today', 'This Week', 'This Month', 'This Year'];
+  static const _ranges = ['Today', 'This Week', 'This Month', 'This Year'];
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedRange = ref.watch(chartTimeRangeProvider);
     final colorScheme = Theme.of(context).colorScheme;
 
     return PopupMenuButton<String>(
       initialValue: selectedRange,
       onSelected: (value) {
-        setState(() => selectedRange = value);
+        ref.read(chartTimeRangeProvider.notifier).setRange(value);
         HapticFeedback.lightImpact();
       },
       offset: const Offset(0, 8),
@@ -222,7 +234,7 @@ class _TimeRangeSelectorState extends State<_TimeRangeSelector> {
           ],
         ),
       ),
-      itemBuilder: (context) => ranges
+      itemBuilder: (context) => _ranges
           .map(
             (range) => PopupMenuItem(
               value: range,
@@ -243,16 +255,39 @@ class _TimeRangeSelectorState extends State<_TimeRangeSelector> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// LINE CHART
+// HELPERS — shared label formatter
+// ─────────────────────────────────────────────────────────────────────────────
+
+String _dayLabel(String iso) {
+  try {
+    final d = DateTime.parse(iso);
+    return DateFormat('E').format(d); // Mon, Tue, …
+  } catch (_) {
+    return iso.substring(5); // MM-DD fallback
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LINE CHART (real data)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _LineChart extends StatelessWidget {
   final ColorScheme colorScheme;
+  final List<Map<String, dynamic>> data;
 
-  const _LineChart({required this.colorScheme});
+  const _LineChart({required this.colorScheme, required this.data});
 
   @override
   Widget build(BuildContext context) {
+    final spots = data.asMap().entries.map((e) {
+      final revenue = (e.value['revenue'] as num?)?.toDouble() ?? 0;
+      return FlSpot(e.key.toDouble(), revenue);
+    }).toList();
+
+    final maxY = spots.isEmpty
+        ? 10.0
+        : spots.map((e) => e.y).reduce((a, b) => a > b ? a : b) * 1.2;
+
     return LineChart(
       LineChartData(
         gridData: FlGridData(
@@ -271,35 +306,34 @@ class _LineChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              interval: 1,
               getTitlesWidget: (value, meta) {
-                const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                if (value.toInt() >= 0 && value.toInt() < days.length) {
-                  return Text(
-                    days[value.toInt()],
+                final i = value.toInt();
+                if (i < 0 || i >= data.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _dayLabel(data[i]['day'] as String),
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
+                      fontSize: 11,
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
+                  ),
+                );
               },
             ),
           ),
         ),
         borderData: FlBorderData(show: false),
         minX: 0,
-        maxX: 6,
+        maxX: (data.length - 1).toDouble().clamp(0, double.infinity),
+        minY: 0,
+        maxY: maxY,
         lineBarsData: [
           LineChartBarData(
-            spots: const [
-              FlSpot(0, 3),
-              FlSpot(1, 4),
-              FlSpot(2, 3.5),
-              FlSpot(3, 5),
-              FlSpot(4, 4),
-              FlSpot(5, 5.5),
-              FlSpot(6, 5),
-            ],
+            spots: spots,
             isCurved: true,
             color: colorScheme.primary,
             barWidth: 4,
@@ -333,8 +367,12 @@ class _LineChart extends StatelessWidget {
                 colorScheme.surfaceContainerHighest,
             getTooltipItems: (touchedSpots) {
               return touchedSpots.map((spot) {
+                final i = spot.x.toInt();
+                final day = i < data.length
+                    ? _dayLabel(data[i]['day'] as String)
+                    : '';
                 return LineTooltipItem(
-                  'Ksh ${(spot.y * 10000).toStringAsFixed(0)}',
+                  '$day\nKsh ${_chartFormat(spot.y)}',
                   TextStyle(
                     color: colorScheme.onSurface,
                     fontWeight: FontWeight.bold,
@@ -350,16 +388,24 @@ class _LineChart extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BAR CHART
+// BAR CHART (real data)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _BarChart extends StatelessWidget {
   final ColorScheme colorScheme;
+  final List<Map<String, dynamic>> data;
 
-  const _BarChart({required this.colorScheme});
+  const _BarChart({required this.colorScheme, required this.data});
 
   @override
   Widget build(BuildContext context) {
+    final maxY = data.isEmpty
+        ? 10.0
+        : data
+                  .map((e) => (e['revenue'] as num?)?.toDouble() ?? 0)
+                  .reduce((a, b) => a > b ? a : b) *
+              1.2;
+
     return BarChart(
       BarChartData(
         gridData: FlGridData(
@@ -378,41 +424,65 @@ class _BarChart extends StatelessWidget {
           bottomTitles: AxisTitles(
             sideTitles: SideTitles(
               showTitles: true,
+              interval: 1,
               getTitlesWidget: (value, meta) {
-                const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                if (value.toInt() >= 0 && value.toInt() < days.length) {
-                  return Text(
-                    days[value.toInt()],
+                final i = value.toInt();
+                if (i < 0 || i >= data.length) {
+                  return const SizedBox.shrink();
+                }
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    _dayLabel(data[i]['day'] as String),
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
+                      fontSize: 11,
                     ),
-                  );
-                }
-                return const SizedBox.shrink();
+                  ),
+                );
               },
             ),
           ),
         ),
         borderData: FlBorderData(show: false),
-        barGroups: [
-          _makeBarGroup(0, 3, colorScheme.primary),
-          _makeBarGroup(1, 4, colorScheme.primary),
-          _makeBarGroup(2, 3.5, colorScheme.primary),
-          _makeBarGroup(3, 5, colorScheme.secondary),
-          _makeBarGroup(4, 4, colorScheme.primary),
-          _makeBarGroup(5, 5.5, colorScheme.secondary),
-          _makeBarGroup(6, 5, colorScheme.primary),
-        ],
+        maxY: maxY,
+        barGroups: data.asMap().entries.map((e) {
+          final revenue = (e.value['revenue'] as num?)?.toDouble() ?? 0;
+          return BarChartGroupData(
+            x: e.key,
+            barRods: [
+              BarChartRodData(
+                toY: revenue,
+                color: colorScheme.primary,
+                width: data.length > 14 ? 8 : 20,
+                borderRadius: BorderRadius.circular(4),
+                backDrawRodData: BackgroundBarChartRodData(
+                  show: true,
+                  toY: maxY,
+                  color: colorScheme.primary.withValues(alpha: 0.05),
+                ),
+              ),
+            ],
+          );
+        }).toList(),
         barTouchData: BarTouchData(
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (group) => colorScheme.surfaceContainerHighest,
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
+              final i = group.x;
+              final day = i < data.length
+                  ? _dayLabel(data[i]['day'] as String)
+                  : '';
+              final orders = i < data.length
+                  ? (data[i]['order_count'] as num?)?.toInt() ?? 0
+                  : 0;
               return BarTooltipItem(
-                'Ksh ${(rod.toY * 10000).toStringAsFixed(0)}',
+                '$day\nKsh ${_chartFormat(rod.toY)}\n$orders orders',
                 TextStyle(
                   color: colorScheme.onSurface,
                   fontWeight: FontWeight.bold,
+                  fontSize: 12,
                 ),
               );
             },
@@ -421,124 +491,10 @@ class _BarChart extends StatelessWidget {
       ),
     );
   }
-
-  BarChartGroupData _makeBarGroup(int x, double y, Color color) {
-    return BarChartGroupData(
-      x: x,
-      barRods: [
-        BarChartRodData(
-          toY: y,
-          color: color,
-          width: 20,
-          borderRadius: BorderRadius.circular(4),
-        ),
-      ],
-    );
-  }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AREA CHART
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _AreaChart extends StatelessWidget {
-  final ColorScheme colorScheme;
-
-  const _AreaChart({required this.colorScheme});
-
-  @override
-  Widget build(BuildContext context) {
-    return LineChart(
-      LineChartData(
-        gridData: FlGridData(
-          show: true,
-          drawVerticalLine: false,
-          getDrawingHorizontalLine: (value) => FlLine(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-            strokeWidth: 1,
-            dashArray: [5, 5],
-          ),
-        ),
-        titlesData: FlTitlesData(
-          leftTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          rightTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          topTitles: AxisTitles(sideTitles: SideTitles(showTitles: false)),
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                if (value.toInt() >= 0 && value.toInt() < days.length) {
-                  return Text(
-                    days[value.toInt()],
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ),
-        borderData: FlBorderData(show: false),
-        minX: 0,
-        maxX: 6,
-        lineBarsData: [
-          LineChartBarData(
-            spots: const [
-              FlSpot(0, 3),
-              FlSpot(1, 4),
-              FlSpot(2, 3.5),
-              FlSpot(3, 5),
-              FlSpot(4, 4),
-              FlSpot(5, 5.5),
-              FlSpot(6, 5),
-            ],
-            isCurved: true,
-            color: Colors.transparent,
-            barWidth: 0,
-            dotData: const FlDotData(show: false),
-            belowBarData: BarAreaData(
-              show: true,
-              gradient: LinearGradient(
-                colors: [
-                  colorScheme.primary.withValues(alpha: 0.8),
-                  colorScheme.secondary.withValues(alpha: 0.4),
-                  colorScheme.tertiary.withValues(alpha: 0.1),
-                ],
-                stops: const [0.0, 0.5, 1.0],
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-              ),
-            ),
-          ),
-        ],
-        lineTouchData: LineTouchData(
-          enabled: true,
-          touchTooltipData: LineTouchTooltipData(
-            getTooltipColor: (touchedSpot) =>
-                colorScheme.surfaceContainerHighest,
-            getTooltipItems: (touchedSpots) {
-              return touchedSpots.map((spot) {
-                return LineTooltipItem(
-                  'Ksh ${(spot.y * 10000).toStringAsFixed(0)}',
-                  TextStyle(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                  ),
-                );
-              }).toList();
-            },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// PIE CHART
+// PIE CHART (payment methods — already uses real data)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class _PieChartWidget extends ConsumerWidget {
@@ -710,11 +666,18 @@ class PaymentMethodsChart extends ConsumerWidget {
             style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
         ),
-        Text(
-          percentage,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        Text(percentage, style: const TextStyle(fontWeight: FontWeight.bold)),
       ],
     );
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+String _chartFormat(double value) {
+  if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+  if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+  return value.toStringAsFixed(0);
 }

@@ -1,6 +1,7 @@
 class Customer {
   final String id;
   final String tenantId;
+  final String? branchId;
   final String name;
   final String? phone;
   final String? email;
@@ -12,6 +13,7 @@ class Customer {
   Customer({
     required this.id,
     required this.tenantId,
+    this.branchId,
     required this.name,
     this.phone,
     this.email,
@@ -25,6 +27,7 @@ class Customer {
     return Customer(
       id: map['id'] as String,
       tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String?,
       name: map['name'] as String,
       phone: map['phone'] as String?,
       email: map['email'] as String?,
@@ -43,6 +46,7 @@ class Customer {
     return {
       'id': id,
       'tenant_id': tenantId,
+      'branch_id': branchId,
       'name': name,
       'phone': phone,
       'email': email,

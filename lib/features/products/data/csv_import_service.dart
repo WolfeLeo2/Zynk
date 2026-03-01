@@ -75,6 +75,7 @@ class CsvImportService {
         final newCategory = Category(
           id: categoryId,
           tenantId: tenantId,
+          branchId: branchId,
           name: categoryNameClean,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -86,6 +87,7 @@ class CsvImportService {
       final product = Product(
         id: newProductId,
         tenantId: tenantId,
+        branchId: branchId,
         itemGroupId:
             null, // CSV batch imports don't link to groups by default yet
         categoryId: categoryId,

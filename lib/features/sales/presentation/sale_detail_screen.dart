@@ -1,12 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
+import 'package:pdf/widgets.dart' as pw;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:printing/printing.dart';
 import 'package:zynk/core/models/sales_models.dart';
+import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/pos/providers/customer_providers.dart';
+import 'package:zynk/features/sales/presentation/printing/invoice_template.dart';
+import 'package:zynk/features/sales/presentation/printing/receipt_template.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 
 /// Zoho-inspired sale detail screen with sections for items, payments,
@@ -23,14 +29,29 @@ class SaleDetailScreen extends ConsumerWidget {
       data: (sale) {
         if (sale == null) {
           return Scaffold(
-            appBar: AppBar(title: const Text('Sale')),
+            appBar: AppBar(title: const Text('Invoice')),
             body: const Center(child: Text('Sale not found')),
           );
         }
         return Scaffold(
           appBar: AppBar(
-            title: Text(sale.invoiceNumber ?? 'Sale'),
+            title: Text(
+              sale.saleType == 'pos_sale'
+                  ? 'Receipt ${sale.invoiceNumber ?? ""}'
+                  : 'Invoice ${sale.invoiceNumber ?? ""}',
+            ),
             actions: [
+              // Print button
+              IconButton(
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.printer,
+                  size: 22,
+                ),
+                tooltip: sale.saleType == 'pos_sale'
+                    ? 'Print Receipt'
+                    : 'Print Invoice',
+                onPressed: () => _handlePrint(context, ref, sale),
+              ),
               if (sale.status.canBeVoided ||
                   sale.status.canBeApproved ||
                   sale.status == InvoiceStatus.draft)
@@ -67,7 +88,7 @@ class SaleDetailScreen extends ConsumerWidget {
                                 sale.status == InvoiceStatus.approved ||
                                 sale.status == InvoiceStatus.completed) &&
                             sale.fulfillmentStatus ==
-                                FulfillmentStatus.unfulfilled &&
+                                FulfillmentStatus.unreleased &&
                             canApprove)
                           const PopupMenuItem(
                             value: 'fulfill',
@@ -225,6 +246,92 @@ class SaleDetailScreen extends ConsumerWidget {
     );
   }
 
+  Future<void> _handlePrint(
+    BuildContext context,
+    WidgetRef ref,
+    Sale sale,
+  ) async {
+    // Gather data from providers
+    final itemsAsync = ref.read(saleItemsProvider(sale.id));
+    final paymentsAsync = ref.read(salePaymentsProvider(sale.id));
+    final tenantAsync = ref.read(currentTenantProvider);
+    final customersAsync = ref.read(allCustomersProvider);
+
+    final items = itemsAsync.value ?? [];
+    final payments = paymentsAsync.value ?? [];
+    final tenant = tenantAsync.value;
+
+    if (tenant == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Business info not loaded yet')),
+        );
+      }
+      return;
+    }
+
+    // Resolve customer name
+    String? customerName;
+    if (sale.customerId != null && customersAsync.hasValue) {
+      try {
+        customerName = customersAsync.value!
+            .firstWhere((c) => c.id == sale.customerId)
+            .name;
+      } catch (_) {}
+    }
+
+    // Resolve branch for this sale
+    Branch? branch;
+    final branchesAsync = ref.read(branchesProvider);
+    if (branchesAsync.hasValue) {
+      try {
+        branch = branchesAsync.value!.firstWhere((b) => b.id == sale.branchId);
+      } catch (_) {}
+    }
+
+    // Try to download logo
+    pw.MemoryImage? logoImage;
+    if (tenant.logoUrl != null && tenant.logoUrl!.isNotEmpty) {
+      try {
+        final response = await http.get(Uri.parse(tenant.logoUrl!));
+        if (response.statusCode == 200) {
+          logoImage = pw.MemoryImage(response.bodyBytes);
+        }
+      } catch (e) {
+        debugPrint('Failed to load logo for PDF: $e');
+      }
+    }
+
+    // Generate the appropriate PDF
+    final pw.Document pdf;
+    if (sale.saleType == 'pos_sale') {
+      pdf = ReceiptTemplate.generate(
+        sale: sale,
+        items: items,
+        tenant: tenant,
+        branch: branch,
+        customerName: customerName,
+        logoImage: logoImage,
+      );
+    } else {
+      pdf = InvoiceTemplate.generate(
+        sale: sale,
+        items: items,
+        payments: payments,
+        tenant: tenant,
+        branch: branch,
+        customerName: customerName,
+        logoImage: logoImage,
+      );
+    }
+
+    // Open print dialog
+    await Printing.layoutPdf(
+      onLayout: (_) => pdf.save(),
+      name: sale.invoiceNumber ?? 'document',
+    );
+  }
+
   void _handleAction(
     BuildContext context,
     WidgetRef ref,
@@ -235,16 +342,20 @@ class SaleDetailScreen extends ConsumerWidget {
     try {
       switch (action) {
         case 'submit_for_approval':
-          await service.submitForApproval(sale.id);
+          await service.submitForApproval(sale.id, tenantId: sale.tenantId);
           break;
         case 'approve':
-          await service.approveSale(sale.id);
+          await service.approveSale(sale.id, tenantId: sale.tenantId);
           break;
         case 'reject':
-          await service.rejectSale(sale.id, reason: 'Rejected by manager');
+          await service.rejectSale(
+            sale.id,
+            tenantId: sale.tenantId,
+            reason: 'Rejected by manager',
+          );
           break;
         case 'fulfill':
-          await service.fulfillSale(sale.id);
+          await service.fulfillSale(sale.id, tenantId: sale.tenantId);
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -275,7 +386,11 @@ class SaleDetailScreen extends ConsumerWidget {
             ),
           );
           if (confirmed == true) {
-            await service.voidSale(sale.id, reason: 'Voided by user');
+            await service.voidSale(
+              sale.id,
+              tenantId: sale.tenantId,
+              reason: 'Voided by user',
+            );
           }
           break;
       }
@@ -378,30 +493,55 @@ class _StatusHero extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: sale.fulfillmentStatus == FulfillmentStatus.fulfilled
-                        ? Colors.green.withValues(alpha: 0.1)
-                        : Colors.orange.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Text(
-                    sale.fulfillmentStatus == FulfillmentStatus.fulfilled
-                        ? 'FULFILLED'
-                        : 'UNFULFILLED',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color:
-                          sale.fulfillmentStatus == FulfillmentStatus.fulfilled
-                          ? Colors.green
-                          : Colors.orange,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 0.5,
+                Row(
+                  children: [
+                    // Release badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color:
+                            sale.fulfillmentStatus == FulfillmentStatus.released
+                            ? Colors.green.withValues(alpha: 0.1)
+                            : Colors.orange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        sale.fulfillmentStatus.displayName.toUpperCase(),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color:
+                              sale.fulfillmentStatus ==
+                                  FulfillmentStatus.released
+                              ? Colors.green
+                              : Colors.orange,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                     ),
-                  ),
+                    const SizedBox(width: 6),
+                    // Payment badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: _paymentBadgeColor(sale).withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        _paymentBadgeLabel(sale),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: _paymentBadgeColor(sale),
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -428,6 +568,22 @@ class _StatusHero extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Color _paymentBadgeColor(Sale sale) {
+    if (sale.amountPaid >= sale.grandTotal && sale.grandTotal > 0) {
+      return Colors.green;
+    }
+    if (sale.amountPaid > 0) return const Color(0xFFFFA726); // Orange
+    return Colors.red;
+  }
+
+  String _paymentBadgeLabel(Sale sale) {
+    if (sale.amountPaid >= sale.grandTotal && sale.grandTotal > 0) {
+      return 'PAID';
+    }
+    if (sale.amountPaid > 0) return 'PARTIAL';
+    return 'UNPAID';
   }
 }
 
@@ -1324,8 +1480,10 @@ class _DetailsSection extends ConsumerWidget {
     final staffAsync = ref.watch(staffProvider);
     final customersAsync = ref.watch(allCustomersProvider);
 
-    String staffName = 'Unknown Staff';
-    if (staffAsync.hasValue && staffAsync.value != null) {
+    String staffName = sale.salespersonName ?? 'Unknown Staff';
+    if (staffName == 'Unknown Staff' &&
+        staffAsync.hasValue &&
+        staffAsync.value != null) {
       try {
         staffName =
             staffAsync.value!

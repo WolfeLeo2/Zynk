@@ -40,8 +40,9 @@ class AddProductController extends _$AddProductController {
       final profile = ref.read(currentUserProfileProvider).value;
       final tenantId = profile?.tenantId ?? 'tenant_1';
       final branchId = ref.read(currentBranchIdProvider);
-      if (branchId == null)
-        throw Exception('No branch selected. Please select a branch first.');
+      if (branchId == null || branchId == 'all') {
+        throw Exception('Please select a specific branch first.');
+      }
       final createdBy = profile?.userId ?? 'system';
 
       String? imageUrl = existingImageUrl;
@@ -70,6 +71,7 @@ class AddProductController extends _$AddProductController {
         final updatedProduct = Product(
           id: id,
           tenantId: tenantId,
+          branchId: branchId,
           itemGroupId: itemGroupId,
           categoryId: categoryId,
           name: name,
@@ -90,6 +92,7 @@ class AddProductController extends _$AddProductController {
         final newProduct = Product(
           id: newProductId,
           tenantId: tenantId,
+          branchId: branchId,
           itemGroupId: itemGroupId,
           categoryId: categoryId,
           name: name,

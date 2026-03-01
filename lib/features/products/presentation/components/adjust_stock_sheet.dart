@@ -76,8 +76,9 @@ class _AdjustStockSheetState extends ConsumerState<AdjustStockSheet> {
       if (profile == null) throw Exception('Profile not loaded');
 
       final selectedBranchId = ref.read(currentBranchIdProvider);
-      if (selectedBranchId == null)
-        throw Exception('No branch selected. Please select a branch first.');
+      if (selectedBranchId == null || selectedBranchId == 'all') {
+        throw Exception('Please select a specific branch first.');
+      }
 
       final repo = ref.read(repositoryProvider);
 

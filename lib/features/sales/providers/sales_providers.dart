@@ -19,20 +19,28 @@ final salesServiceProvider = Provider<SalesService>((ref) {
 final salesListProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
-  return repo.watchSales(tenantId: tenantId);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchSales(tenantId: tenantId, branchId: branchId);
 });
 
 final completedSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
-  return repo.watchSales(tenantId: tenantId, status: InvoiceStatus.completed);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchSales(
+    tenantId: tenantId,
+    branchId: branchId,
+    status: InvoiceStatus.completed,
+  );
 });
 
 final pendingSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
   return repo.watchSales(
     tenantId: tenantId,
+    branchId: branchId,
     status: InvoiceStatus.pendingApproval,
   );
 });
@@ -83,32 +91,38 @@ final creditNotesForSaleProvider = StreamProvider.autoDispose
 
 final todaysRevenueProvider = StreamProvider.autoDispose<double>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return repo.watchTodaysRevenue();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchTodaysRevenue(branchId: branchId);
 });
 
 final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return repo.watchTodaysOrderCount();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchTodaysOrderCount(branchId: branchId);
 });
 
 final averageOrderValueProvider = StreamProvider.autoDispose<double>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return repo.watchAverageOrderValue();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchAverageOrderValue(branchId: branchId);
 });
 
 final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
   final repo = ref.watch(repositoryProvider);
-  return repo.watchLowStockCount();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchLowStockCount(branchId: branchId);
 });
 
 final topProductsProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       final repo = ref.watch(repositoryProvider);
-      return repo.watchTopProducts();
+      final branchId = ref.watch(currentBranchIdProvider);
+      return repo.watchTopProducts(branchId: branchId);
     });
 
 final paymentMethodBreakdownProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       final repo = ref.watch(repositoryProvider);
-      return repo.watchPaymentMethodBreakdown();
+      final branchId = ref.watch(currentBranchIdProvider);
+      return repo.watchPaymentMethodBreakdown(branchId: branchId);
     });

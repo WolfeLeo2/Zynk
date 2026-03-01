@@ -4,6 +4,10 @@ class Tenant {
   final String id;
   final String name;
   final String? planType;
+  final String? address;
+  final String? phone;
+  final String? email;
+  final String? logoUrl;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -11,6 +15,10 @@ class Tenant {
     required this.id,
     required this.name,
     this.planType,
+    this.address,
+    this.phone,
+    this.email,
+    this.logoUrl,
     this.createdAt,
     this.updatedAt,
   });
@@ -20,6 +28,10 @@ class Tenant {
       id: map['id'] as String,
       name: map['name'] as String,
       planType: map['plan_type'] as String?,
+      address: map['address'] as String?,
+      phone: map['phone'] as String?,
+      email: map['email'] as String?,
+      logoUrl: map['logo_url'] as String?,
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : null,
@@ -34,6 +46,10 @@ class Tenant {
       'id': id,
       'name': name,
       'plan_type': planType,
+      'address': address,
+      'phone': phone,
+      'email': email,
+      'logo_url': logoUrl,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -116,6 +132,7 @@ class Branch {
   final String? locationId;
   final String name;
   final String? address;
+  final String? phone;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -125,6 +142,7 @@ class Branch {
     this.locationId,
     required this.name,
     this.address,
+    this.phone,
     this.createdAt,
     this.updatedAt,
   });
@@ -136,6 +154,7 @@ class Branch {
       locationId: map['location_id'] as String?,
       name: map['name'] as String,
       address: map['address'] as String?,
+      phone: map['phone'] as String?,
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : null,
@@ -152,6 +171,7 @@ class Branch {
       'location_id': locationId,
       'name': name,
       'address': address,
+      'phone': phone,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -161,6 +181,7 @@ class Branch {
 class Category {
   final String id;
   final String tenantId;
+  final String? branchId;
   final String name;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -168,6 +189,7 @@ class Category {
   Category({
     required this.id,
     required this.tenantId,
+    this.branchId,
     required this.name,
     this.createdAt,
     this.updatedAt,
@@ -177,6 +199,7 @@ class Category {
     return Category(
       id: map['id'] as String,
       tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String?,
       name: map['name'] as String,
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
@@ -191,6 +214,7 @@ class Category {
     return {
       'id': id,
       'tenant_id': tenantId,
+      'branch_id': branchId,
       'name': name,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
@@ -201,6 +225,7 @@ class Category {
 class ItemGroup {
   final String id;
   final String tenantId;
+  final String? branchId;
   final String name;
   final String? description;
   final String? defaultCommissionType;
@@ -211,6 +236,7 @@ class ItemGroup {
   ItemGroup({
     required this.id,
     required this.tenantId,
+    this.branchId,
     required this.name,
     this.description,
     this.defaultCommissionType,
@@ -223,6 +249,7 @@ class ItemGroup {
     return ItemGroup(
       id: map['id'] as String,
       tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String?,
       name: map['name'] as String,
       description: map['description'] as String?,
       defaultCommissionType: map['default_commission_type'] as String?,
@@ -241,6 +268,7 @@ class ItemGroup {
     return {
       'id': id,
       'tenant_id': tenantId,
+      'branch_id': branchId,
       'name': name,
       'description': description,
       'default_commission_type': defaultCommissionType,
@@ -254,6 +282,7 @@ class ItemGroup {
 class Product {
   final String id;
   final String tenantId;
+  final String? branchId;
   final String? itemGroupId;
   final String? categoryId;
   final String name;
@@ -271,6 +300,7 @@ class Product {
   Product({
     required this.id,
     required this.tenantId,
+    this.branchId,
     this.itemGroupId,
     this.categoryId,
     required this.name,
@@ -290,6 +320,7 @@ class Product {
     return Product(
       id: map['id'] as String,
       tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String?,
       itemGroupId: map['item_group_id'] as String?,
       categoryId: map['category_id'] as String?,
       name: map['name'] as String,
@@ -314,6 +345,7 @@ class Product {
     return {
       'id': id,
       'tenant_id': tenantId,
+      'branch_id': branchId,
       'item_group_id': itemGroupId,
       'category_id': categoryId,
       'name': name,

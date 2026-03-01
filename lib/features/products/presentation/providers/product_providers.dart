@@ -25,7 +25,8 @@ final allItemGroupsProvider = StreamProvider.autoDispose<List<ItemGroup>>((
 /// ─────────────────────────────────────────
 final allProductsProvider = StreamProvider.autoDispose<List<Product>>((ref) {
   final repository = ref.watch(repositoryProvider);
-  return repository.watchProducts();
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repository.watchProducts(branchId: branchId);
 });
 
 /// ─────────────────────────────────────────
@@ -42,5 +43,6 @@ final stockProvider = StreamProvider.autoDispose.family<Stock?, String>((
 final stockHistoryProvider = StreamProvider.autoDispose
     .family<List<StockAdjustment>, String>((ref, productId) {
       final repository = ref.watch(repositoryProvider);
-      return repository.watchProductStockHistory(productId);
+      final branchId = ref.watch(currentBranchIdProvider);
+      return repository.watchProductStockHistory(productId, branchId: branchId);
     });

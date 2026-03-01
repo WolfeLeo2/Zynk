@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 
@@ -17,6 +18,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
+  String _phone = '';
   bool _isLoading = false;
 
   @override
@@ -40,6 +42,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
         tenantId: tenantId,
         name: _nameController.text.trim(),
         address: _addressController.text.trim(),
+        phone: _phone,
       );
 
       await ref.read(repositoryProvider).createBranch(newBranch);
@@ -150,7 +153,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
 
             // Address Field
             Text(
-              'Location / Address (Optional)',
+              'Location / Address',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -174,6 +177,42 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
                 filled: true,
                 fillColor: colorScheme.surface,
               ),
+              validator: (value) {
+                if (value == null || value.trim().isEmpty) {
+                  return 'Please enter a branch address';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+
+            // Phone Field
+            Text(
+              'Branch Phone',
+              style: theme.textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            IntlPhoneField(
+              decoration: InputDecoration(
+                hintText: 'e.g. 700 123 456',
+                prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide(color: colorScheme.outlineVariant),
+                ),
+                filled: true,
+                fillColor: colorScheme.surface,
+              ),
+              initialCountryCode: 'KE',
+              onChanged: (phone) {
+                _phone = phone.completeNumber;
+              },
             ),
             const SizedBox(height: 48),
 

@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 // ENUMS
 // ─────────────────────────────────────────────────────────────────────────────
 
-enum ChartType { line, bar, area, pie }
+enum ChartType { line, bar, pie }
 
 enum MetricType { revenue, orders, lowStock, aov, conversion, customers }
 

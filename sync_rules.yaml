@@ -18,5 +18,5 @@ bucket_definitions:
       - SELECT * FROM branches WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM sales WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM sale_items WHERE tenant_id = bucket.tenant_id
-      - SELECT * FROM payments WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM sale_payments WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM credit_notes WHERE tenant_id = bucket.tenant_id

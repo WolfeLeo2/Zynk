@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/services/app_logger.dart';
+import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 
@@ -14,12 +15,16 @@ final _log = AppLogger('Checkout');
 class CheckoutSheet extends ConsumerStatefulWidget {
   final List<PosCartItem> items;
   final double total;
+  final Customer? customer;
+  final String? salespersonName;
   final VoidCallback onComplete;
 
   const CheckoutSheet({
     super.key,
     required this.items,
     required this.total,
+    this.customer,
+    this.salespersonName,
     required this.onComplete,
   });
 
@@ -111,11 +116,17 @@ class _CheckoutSheetState extends ConsumerState<CheckoutSheet>
         );
       }
 
+      if (branchId == 'all') {
+        throw Exception('Please select a specific branch to complete a sale.');
+      }
+
       final salesService = ref.read(salesServiceProvider);
 
       final result = await salesService.completePOSSale(
         tenantId: tenantId,
         branchId: branchId,
+        customerId: widget.customer?.id,
+        salespersonName: widget.salespersonName,
         cartItems: widget.items,
         paymentMethod: _selectedPayment,
       );

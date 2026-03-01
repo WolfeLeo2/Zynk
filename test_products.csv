@@ -1,10 +1,10 @@
 name,category,selling_price,initial_stock,cost_price,sku,barcode,description
-Cotton T-Shirt,Clothes,15.99,100,8.00,TSHIRT-001,1234567890123,Comfortable 100% cotton t-shirt
-Denim Jeans,Clothes,49.99,50,20.00,JEANS-001,1234567890124,Classic blue denim jeans
-Ceramic Floor Tiles,Tiles,25.50,500,15.00,TILE-C-001,1234567890125,12x12 white ceramic tiles
-Paracetamol 500mg,Drugs,5.99,200,2.00,DRUG-PARA,1234567890126,Pain relief medication
-Amoxicillin 250mg,Drugs,12.50,150,5.00,DRUG-AMOX,1234567890127,Antibiotic medication
-Wireless Mouse,Electronics,29.99,75,12.00,ELEC-MOUSE,1234567890128,Ergonomic wireless mouse
-Bluetooth Headphones,Electronics,89.99,30,40.00,ELEC-HEAD,1234567890129,Noise-cancelling headphones
-A4 Printer Paper,Stationery,8.99,120,4.00,STAT-A4,1234567890130,500 sheets of A4 paper
-Blue Ballpoint Pens (Pack of 10),Stationery,4.50,200,1.50,STAT-PEN,1234567890131,Smooth writing pens
+Cotton T-Shirt,Clothes,150,100,8.00,TSHIRT-001,1234567890123,Comfortable 100% cotton t-shirt
+Denim Jeans,Clothes,1500,50,20.00,JEANS-001,1234567890124,Classic blue denim jeans
+Ceramic Floor Tiles,Tiles,250,500,15.00,TILE-C-001,1234567890125,12x12 white ceramic tiles
+Paracetamol 500mg,Drugs,120,200,2.00,DRUG-PARA,1234567890126,Pain relief medication
+Amoxicillin 250mg,Drugs,120,150,5.00,DRUG-AMOX,1234567890127,Antibiotic medication
+Wireless Mouse,Electronics,250,75,12.00,ELEC-MOUSE,1234567890128,Ergonomic wireless mouse
+Bluetooth Headphones,Electronics,150,30,40.00,ELEC-HEAD,1234567890129,Noise-cancelling headphones
+A4 Printer Paper,Stationery,130,120,4.00,STAT-A4,1234567890130,500 sheets of A4 paper
+Blue Ballpoint Pens (Pack of 10),Stationery,50,200,1.50,STAT-PEN,1234567890131,Smooth writing pens

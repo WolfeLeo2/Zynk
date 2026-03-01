@@ -18,9 +18,9 @@ class PosTicket extends ConsumerWidget {
 
   // Customer & Staff info
   final Customer? selectedCustomer;
-  final String? staffName;
+  final String? salespersonName;
   final VoidCallback? onSelectCustomer;
-  final ValueChanged<String>? onStaffNameChanged;
+  final ValueChanged<String>? onSalespersonNameChanged;
 
   const PosTicket({
     super.key,
@@ -30,9 +30,9 @@ class PosTicket extends ConsumerWidget {
     required this.onRemoveItem,
     required this.onClearTicket,
     this.selectedCustomer,
-    this.staffName,
+    this.salespersonName,
     this.onSelectCustomer,
-    this.onStaffNameChanged,
+    this.onSalespersonNameChanged,
   });
 
   @override
@@ -87,7 +87,7 @@ class PosTicket extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: TextField(
-                      onChanged: onStaffNameChanged,
+                      onChanged: onSalespersonNameChanged,
                       style: tt.bodyMedium,
                       decoration: InputDecoration(
                         prefixIcon: Icon(
@@ -95,7 +95,7 @@ class PosTicket extends ConsumerWidget {
                           color: cs.onSurfaceVariant,
                           size: 18,
                         ),
-                        hintText: 'Cashier name',
+                        hintText: 'Salesperson',
                         hintStyle: tt.bodyMedium?.copyWith(
                           color: cs.onSurfaceVariant.withValues(alpha: 0.5),
                         ),
@@ -376,7 +376,7 @@ class PosTicket extends ConsumerWidget {
                                   extra: {
                                     'cartItems': items,
                                     'customer': selectedCustomer,
-                                    'staffName': staffName,
+                                    'salespersonName': salespersonName,
                                   },
                                 );
                               },

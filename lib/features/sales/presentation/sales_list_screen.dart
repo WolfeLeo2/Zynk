@@ -9,7 +9,7 @@ import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:zynk/features/sales/presentation/sale_detail_screen.dart';
 
-/// Shopify-style sales list with status chip filters and swipeable cards.
+/// Shopify-style invoices list with status chip filters and swipeable cards.
 class SalesListScreen extends ConsumerStatefulWidget {
   const SalesListScreen({super.key});
 
@@ -18,7 +18,7 @@ class SalesListScreen extends ConsumerStatefulWidget {
 }
 
 class _SalesListScreenState extends ConsumerState<SalesListScreen> {
-  InvoiceStatus? _filter;
+  Object? _filter; // null = All, InvoiceStatus = exact, 'outstanding' = special
 
   @override
   Widget build(BuildContext context) {
@@ -28,7 +28,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sales'),
+        title: const Text('Sales & Invoices'),
         actions: [
           IconButton(
             icon: const PhosphorIcon(PhosphorIconsRegular.magnifyingGlass),
@@ -47,6 +47,14 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
               data: (sales) {
                 final filtered = _filter == null
                     ? sales
+                    : _filter == 'outstanding'
+                    ? sales
+                          .where(
+                            (s) =>
+                                s.status == InvoiceStatus.approved ||
+                                s.status == InvoiceStatus.partiallyPaid,
+                          )
+                          .toList()
                     : sales.where((s) => s.status == _filter).toList();
 
                 if (filtered.isEmpty) {
@@ -79,8 +87,10 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   }
 
   Widget _buildFilterBar(ThemeData theme, ColorScheme cs) {
+    // null = All, InvoiceStatus = exact match, 'outstanding' = special
     final filters = [
       (null, 'All', PhosphorIconsRegular.listBullets),
+      ('outstanding', 'Outstanding', PhosphorIconsRegular.warningCircle),
       (InvoiceStatus.draft, 'Drafts', PhosphorIconsRegular.pencilSimple),
       (InvoiceStatus.pendingApproval, 'Pending', PhosphorIconsRegular.clock),
       (InvoiceStatus.approved, 'Approved', PhosphorIconsRegular.sealCheck),
@@ -136,14 +146,14 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'No sales yet',
+            'No invoices yet',
             style: theme.textTheme.titleMedium?.copyWith(
               color: cs.onSurfaceVariant,
             ),
           ),
           const SizedBox(height: 4),
           Text(
-            'Complete a sale from POS to see it here',
+            'Complete a POS sale or create an invoice',
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurfaceVariant.withValues(alpha: 0.7),
             ),
@@ -205,12 +215,27 @@ class _SaleCard extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Type label: Receipt or Invoice
+                  Text(
+                    sale.saleType == 'pos_sale' ? 'Receipt' : 'Invoice',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: sale.saleType == 'pos_sale'
+                          ? cs.onSurfaceVariant
+                          : cs.primary,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 0.4,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
                   Row(
                     children: [
-                      Text(
-                        sale.invoiceNumber ?? '#—',
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
+                      Flexible(
+                        child: Text(
+                          sale.invoiceNumber ?? '#—',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       const SizedBox(width: 8),

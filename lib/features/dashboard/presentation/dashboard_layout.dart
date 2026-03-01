@@ -417,7 +417,8 @@ class BranchSelector extends ConsumerWidget {
     final selectionState = ref.watch(branchSelectionProvider);
 
     return branchesState.when(
-      data: (branches) {
+      data: (_) {
+        final branches = selectionState.availableBranches;
         if (branches.isEmpty) return const SizedBox.shrink();
 
         final selectedBranchId =

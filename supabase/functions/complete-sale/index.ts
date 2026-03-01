@@ -46,6 +46,7 @@ Deno.serve(async (req: Request) => {
       tenant_id,
       branch_id,
       customer_id,
+      salesperson,
       items,
       payment_method,
       payment_reference,
@@ -72,7 +73,7 @@ Deno.serve(async (req: Request) => {
       "next_invoice_number",
       {
         p_tenant_id: tenant_id,
-        p_prefix: "INV",
+        p_prefix: "RCT",
         p_year: currentYear,
       }
     );
@@ -80,13 +81,13 @@ Deno.serve(async (req: Request) => {
     if (counterError) {
       console.error("Counter error:", counterError);
       return new Response(
-        JSON.stringify({ error: `Invoice number generation failed: ${counterError.message}` }),
+        JSON.stringify({ error: `Receipt number generation failed: ${counterError.message}` }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
     const seq = counterData as number;
-    const invoiceNumber = `INV-${currentYear}-${String(seq).padStart(5, "0")}`;
+    const invoiceNumber = `RCT-${currentYear}-${String(seq).padStart(5, "0")}`;
 
     // ── Generate UUIDv7 ──
     const saleId = crypto.randomUUID(); // Deno uses v4; for v7 we'd need a lib, using v4 for now
@@ -102,6 +103,7 @@ Deno.serve(async (req: Request) => {
       invoice_number: invoiceNumber,
       sale_type: "pos_sale",
       created_by: user.id,
+      salesperson: salesperson || null,
       subtotal: subtotal || 0,
       tax_amount: tax_amount || 0,
       discount_amount: discount_amount || 0,
@@ -154,13 +156,13 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Insert payment record ──
     const { error: paymentError } = await supabase
       .from("sale_payments")
       .insert({
         id: crypto.randomUUID(),
         sale_id: saleId,
         tenant_id,
+        branch_id,
         amount: grand_total || 0,
         payment_method,
         reference_number: null,

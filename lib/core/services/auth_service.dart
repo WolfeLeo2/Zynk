@@ -29,19 +29,25 @@ class AuthService {
   User? get currentUser => _supabase.auth.currentUser;
 
   /// Owner Sign Up - Creates a new tenant
-  Future<void> signUpOwner({
+  Future<AuthResponse> signUpOwner({
     required String email,
     required String password,
     required String shopName,
     required String ownerName,
+    String? businessAddress,
+    String? businessPhone,
+    String? logoUrl,
   }) async {
-    await _supabase.auth.signUp(
+    return await _supabase.auth.signUp(
       email: email,
       password: password,
       data: {
-        'display_name': ownerName,
-        'shop_name': shopName,
         'is_owner': true,
+        'shop_name': shopName,
+        'display_name': ownerName,
+        'business_address': businessAddress,
+        'business_phone': businessPhone,
+        'logo_url': logoUrl,
       },
     );
   }
@@ -66,6 +72,8 @@ class AuthService {
     required String email,
     required String password,
     required String name,
+    required String phone,
+    required String address,
     String? branchId,
     String role = 'Cashier',
   }) async {
@@ -75,6 +83,8 @@ class AuthService {
         'email': email,
         'password': password,
         'name': name,
+        'phone': phone,
+        'address': address,
         'branch_id': branchId,
         'role': role,
       },

@@ -117,7 +117,7 @@ class AppShell extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: const PhosphorIcon(
-                    PhosphorIconsBold.infinity,
+                    PhosphorIconsDuotone.storefront,
                     color: Colors.white,
                     size: 24,
                   ),
@@ -276,7 +276,7 @@ class AppShell extends ConsumerWidget {
       ),
     );
 
-    // 2. Sales
+    // 2. Invoices
     dests.add(
       _SidebarDestination(
         icon: PhosphorIcon(PhosphorIconsDuotone.receipt),
@@ -284,7 +284,7 @@ class AppShell extends ConsumerWidget {
           PhosphorIconsFill.receipt,
           color: Colors.black87,
         ),
-        label: 'Sales',
+        label: 'Invoices',
       ),
     );
 

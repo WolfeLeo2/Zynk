@@ -5,17 +5,21 @@ import 'dart:convert';
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum FulfillmentStatus {
-  unfulfilled,
-  fulfilled;
+  unreleased,
+  released;
 
+  /// DB value — kept stable (do NOT change these)
   String get value =>
-      this == FulfillmentStatus.unfulfilled ? 'unfulfilled' : 'fulfilled';
+      this == FulfillmentStatus.unreleased ? 'unfulfilled' : 'fulfilled';
+
+  String get displayName =>
+      this == FulfillmentStatus.released ? 'Released' : 'Unreleased';
 
   static FulfillmentStatus fromString(String? status) {
     if (status?.toLowerCase() == 'fulfilled') {
-      return FulfillmentStatus.fulfilled;
+      return FulfillmentStatus.released;
     }
-    return FulfillmentStatus.unfulfilled;
+    return FulfillmentStatus.unreleased;
   }
 }
 
@@ -121,6 +125,7 @@ class Sale {
   final String? invoiceNumber;
   final String saleType;
   final String? createdBy;
+  final String? salespersonName;
   final String? approvedBy;
   final double totalAmount;
   final double subtotal;
@@ -148,6 +153,7 @@ class Sale {
     this.invoiceNumber,
     this.saleType = 'sale',
     this.createdBy,
+    this.salespersonName,
     this.approvedBy,
     this.totalAmount = 0,
     this.subtotal = 0,
@@ -157,7 +163,7 @@ class Sale {
     this.amountPaid = 0,
     this.paymentMethod,
     this.status = InvoiceStatus.draft,
-    this.fulfillmentStatus = FulfillmentStatus.unfulfilled,
+    this.fulfillmentStatus = FulfillmentStatus.unreleased,
     this.notes,
     this.dueDate,
     this.completedAt,
@@ -180,6 +186,7 @@ class Sale {
       invoiceNumber: map['invoice_number'] as String?,
       saleType: map['sale_type'] as String? ?? 'sale',
       createdBy: map['created_by'] as String?,
+      salespersonName: map['salesperson'] as String?,
       approvedBy: map['approved_by'] as String?,
       totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0,
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
@@ -212,6 +219,7 @@ class Sale {
       'invoice_number': invoiceNumber,
       'sale_type': saleType,
       'created_by': createdBy,
+      'salesperson': salespersonName,
       'approved_by': approvedBy,
       'total_amount': totalAmount,
       'subtotal': subtotal,
@@ -375,6 +383,7 @@ enum PaymentMethod {
 class Payment {
   final String id;
   final String tenantId;
+  final String? branchId;
   final String saleId;
   final double amount;
   final PaymentMethod paymentMethod;
@@ -386,6 +395,7 @@ class Payment {
   Payment({
     required this.id,
     required this.tenantId,
+    this.branchId,
     required this.saleId,
     required this.amount,
     required this.paymentMethod,
@@ -399,6 +409,7 @@ class Payment {
     return Payment(
       id: map['id'] as String,
       tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String?,
       saleId: map['sale_id'] as String,
       amount: (map['amount'] as num?)?.toDouble() ?? 0,
       paymentMethod: PaymentMethod.fromString(map['payment_method'] as String?),
@@ -413,6 +424,7 @@ class Payment {
     return {
       'id': id,
       'tenant_id': tenantId,
+      'branch_id': branchId,
       'sale_id': saleId,
       'amount': amount,
       'payment_method': paymentMethod.value,

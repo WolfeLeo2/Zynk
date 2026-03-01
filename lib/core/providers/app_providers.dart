@@ -138,6 +138,15 @@ class BranchSelectionState {
 /// 3. Falls back to first available branch
 class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
   static const _prefsKey = 'selected_branch_id';
+  // Dummy branch representing "All Branches"
+  static final allBranchesOption = Branch(
+    id: 'all',
+    tenantId: 'all',
+    name: 'All Branches',
+    address: 'All',
+    createdAt: DateTime.now(),
+    updatedAt: DateTime.now(),
+  );
 
   @override
   BranchSelectionState build() {
@@ -145,7 +154,11 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
     ref.listen(branchesProvider, (prev, next) {
       next.whenData((branches) {
         _log.d('branchesProvider delivered ${branches.length} branches');
-        setAvailableBranches(branches);
+
+        final isOwner = ref.read(isOwnerProvider);
+        final branchesWithAll = [if (isOwner) allBranchesOption, ...branches];
+
+        setAvailableBranches(branchesWithAll);
       });
     });
 
@@ -266,7 +279,10 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
       final repo = ref.read(repositoryProvider);
       final branches = await repo.getBranches(tenantId);
 
-      setAvailableBranches(branches);
+      final isOwner = ref.read(isOwnerProvider);
+      final branchesWithAll = [if (isOwner) allBranchesOption, ...branches];
+
+      setAvailableBranches(branchesWithAll);
       state = state.copyWith(isLoading: false);
     } catch (e) {
       state = state.copyWith(
