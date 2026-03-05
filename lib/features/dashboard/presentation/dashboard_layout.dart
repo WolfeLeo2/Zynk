@@ -21,7 +21,6 @@ import 'widgets/charts.dart';
 import 'widgets/orders_list.dart';
 import 'widgets/products_list.dart';
 import 'widgets/quick_actions.dart';
-import 'widgets/metric_detail_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN DASHBOARD LAYOUT
@@ -109,16 +108,6 @@ class _DesktopDashboard extends StatelessWidget {
     required this.onRefresh,
   });
 
-  void _showMetricDetail(BuildContext context, MetricDetailData data) {
-    HapticFeedback.mediumImpact();
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => MetricDetailSheet(data: data),
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -153,7 +142,6 @@ class _DesktopDashboard extends StatelessWidget {
                     DesktopMetricsGrid(
                       salesAsync: salesAsync,
                       colorScheme: colorScheme,
-                      onMetricTap: (data) => _showMetricDetail(context, data),
                     ),
                     const SizedBox(height: 24),
                     Row(

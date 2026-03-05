@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/features/auth/providers/biometric_provider.dart';
 
 import 'package:zynk/core/theme/app_tokens.dart';
 
@@ -184,6 +185,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
+    final theme = Theme.of(context);
+    final isBiometricSupported =
+        ref.watch(biometricSupportedProvider).value ?? false;
+    final isBiometricEnabled = ref.watch(biometricEnabledProvider);
+
     final profileAsync = ref.watch(currentUserProfileProvider);
 
     return Scaffold(
@@ -355,6 +361,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                       );
                     },
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(PhosphorIconsDuotone.fingerprint),
+                    title: const Text('Biometrics / Face ID'),
+                    subtitle: Text(
+                      isBiometricSupported
+                          ? (isBiometricEnabled
+                                ? 'Enabled. Tap to disable or configure.'
+                                : 'Require authentication to open app')
+                          : 'Not supported or no fingerprints enrolled',
+                    ),
+                    trailing: Switch.adaptive(
+                      value: isBiometricEnabled,
+                      activeTrackColor: theme.colorScheme.primary,
+                      onChanged: isBiometricSupported
+                          ? (value) {
+                              if (value) {
+                                context.push('/biometric-setup');
+                              } else {
+                                ref
+                                    .read(biometricEnabledProvider.notifier)
+                                    .setEnabled(false);
+                              }
+                            }
+                          : null,
+                    ),
                   ),
                 ],
               ),

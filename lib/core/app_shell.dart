@@ -18,6 +18,8 @@ class AppShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Eagerly initialize branch selection — triggers load from SharedPreferences
     ref.watch(branchSelectionProvider);
+    // Activate branch stream sync — reacts to branchesProvider changes safely
+    ref.watch(branchSyncProvider);
 
     final role = ref.watch(userRoleProvider);
     final destinations = _buildDestinations(role);

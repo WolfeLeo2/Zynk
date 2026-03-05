@@ -259,11 +259,12 @@ class _TimeRangeSelector extends ConsumerWidget {
 // ─────────────────────────────────────────────────────────────────────────────
 
 String _dayLabel(String iso) {
+  if (iso.isEmpty) return '';
   try {
     final d = DateTime.parse(iso);
     return DateFormat('E').format(d); // Mon, Tue, …
   } catch (_) {
-    return iso.substring(5); // MM-DD fallback
+    return iso.length > 5 ? iso.substring(5) : iso; // MM-DD fallback
   }
 }
 
@@ -315,7 +316,7 @@ class _LineChart extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    _dayLabel(data[i]['day'] as String),
+                    _dayLabel((data[i]['day'] as String?) ?? ''),
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
                       fontSize: 11,
@@ -369,7 +370,7 @@ class _LineChart extends StatelessWidget {
               return touchedSpots.map((spot) {
                 final i = spot.x.toInt();
                 final day = i < data.length
-                    ? _dayLabel(data[i]['day'] as String)
+                    ? _dayLabel((data[i]['day'] as String?) ?? '')
                     : '';
                 return LineTooltipItem(
                   '$day\nKsh ${_chartFormat(spot.y)}',
@@ -433,7 +434,7 @@ class _BarChart extends StatelessWidget {
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
                   child: Text(
-                    _dayLabel(data[i]['day'] as String),
+                    _dayLabel((data[i]['day'] as String?) ?? ''),
                     style: TextStyle(
                       color: colorScheme.onSurfaceVariant,
                       fontSize: 11,
@@ -472,7 +473,7 @@ class _BarChart extends StatelessWidget {
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
               final i = group.x;
               final day = i < data.length
-                  ? _dayLabel(data[i]['day'] as String)
+                  ? _dayLabel((data[i]['day'] as String?) ?? '')
                   : '';
               final orders = i < data.length
                   ? (data[i]['order_count'] as num?)?.toInt() ?? 0

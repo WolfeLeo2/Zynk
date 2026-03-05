@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -150,18 +151,7 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
 
   @override
   BranchSelectionState build() {
-    // Listen to branches stream to auto-populate and auto-select
-    ref.listen(branchesProvider, (prev, next) {
-      next.whenData((branches) {
-        _log.d('branchesProvider delivered ${branches.length} branches');
-
-        final isOwner = ref.read(isOwnerProvider);
-        final branchesWithAll = [if (isOwner) allBranchesOption, ...branches];
-
-        setAvailableBranches(branchesWithAll);
-      });
-    });
-
+    // Schedule async initialization after the first frame
     Future.microtask(() => _initBranch());
     return const BranchSelectionState(isLoading: true);
   }
@@ -306,9 +296,29 @@ final currentBranchProvider = Provider<Branch?>((ref) {
   return ref.watch(branchSelectionProvider).selectedBranch;
 });
 
-// ============================================
-// UI State Providers
-// ============================================
+/// Side-effect provider: reacts to branchesProvider stream updates and
+/// propagates them to BranchSelectionNotifier safely.
+/// Uses ref.watch (NOT ref.listen) so it never fires synchronously during build.
+/// addPostFrameCallback guarantees state mutation happens strictly after build.
+/// Must be watched by an always-alive widget (e.g. AppShell).
+final branchSyncProvider = Provider<void>((ref) {
+  final branchesAsync = ref.watch(branchesProvider);
+  branchesAsync.whenData((branches) {
+    final isOwner = ref.read(isOwnerProvider);
+    final branchesWithAll = [
+      if (isOwner) BranchSelectionNotifier.allBranchesOption,
+      ...branches,
+    ];
+    // addPostFrameCallback guarantees this runs AFTER the current frame
+    // completes — far safer than Future.microtask which can still fire
+    // during a build phase in some Flutter internals.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref
+          .read(branchSelectionProvider.notifier)
+          .setAvailableBranches(branchesWithAll);
+    });
+  });
+});
 
 class LoadingNotifier extends Notifier<Map<String, bool>> {
   @override

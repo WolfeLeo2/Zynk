@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:local_auth/local_auth.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'providers/biometric_provider.dart';
+import 'widgets/auth_pin_pad.dart';
 
 /// Shown after sign-in when the user has biometrics / PIN set up.
 /// Provides two unlock paths:
@@ -9,7 +12,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 ///   2. 6-digit PIN fallback
 ///
 /// On success, calls [onUnlocked].
-class BiometricLockScreen extends StatefulWidget {
+class BiometricLockScreen extends ConsumerStatefulWidget {
   final VoidCallback onUnlocked;
   final bool hasBiometrics;
 
@@ -20,10 +23,11 @@ class BiometricLockScreen extends StatefulWidget {
   });
 
   @override
-  State<BiometricLockScreen> createState() => _BiometricLockScreenState();
+  ConsumerState<BiometricLockScreen> createState() =>
+      _BiometricLockScreenState();
 }
 
-class _BiometricLockScreenState extends State<BiometricLockScreen>
+class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen>
     with SingleTickerProviderStateMixin {
   final LocalAuthentication _auth = LocalAuthentication();
   final List<int> _pin = [];
@@ -34,10 +38,6 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
   bool _pinError = false;
   late AnimationController _shakeController;
   late Animation<double> _shakeAnimation;
-
-  // In a real app, this would come from secure storage
-  // For demo purposes we use a fixed PIN
-  static const String _correctPin = '123456';
 
   @override
   void initState() {
@@ -62,58 +62,63 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
 
   Future<void> _authenticateBio() async {
     if (_isAuthenticating) return;
-    setState(() => _isAuthenticating = true);
+    setState(() {
+      _isAuthenticating = true;
+      _pinError = false;
+    });
 
     try {
-      final bool canAuth =
-          await _auth.canCheckBiometrics || await _auth.isDeviceSupported();
-      if (!canAuth) {
-        setState(() {
-          _isAuthenticating = false;
-          _showPin = true;
-        });
-        return;
-      }
-
-      final bool didAuth = await _auth.authenticate(
-        localizedReason: 'Authenticate to access Zynk',
-        biometricOnly: false,
+      final authenticated = await _auth.authenticate(
+        localizedReason: 'Please authenticate to unlock Zynk',
+        biometricOnly: true,
       );
 
-      if (didAuth && mounted) {
+      if (authenticated && mounted) {
         widget.onUnlocked();
       }
-    } on PlatformException catch (e) {
-      debugPrint('Biometric auth error: $e');
-      if (mounted) setState(() => _showPin = true);
+    } on PlatformException catch (_) {
+      // Ignored for fallback
     } finally {
-      if (mounted) setState(() => _isAuthenticating = false);
+      if (mounted) {
+        setState(() {
+          _isAuthenticating = false;
+        });
+      }
     }
   }
 
-  void _onKeyPress(int digit) {
-    if (_pin.length >= _pinLength) return;
-    setState(() {
-      _pin.add(digit);
-      _pinError = false;
-    });
-    if (_pin.length == _pinLength) {
-      _verifyPin();
+  void _onNumberTap(int number) {
+    if (_pin.length < _pinLength) {
+      setState(() {
+        _pin.add(number);
+        _pinError = false;
+      });
+
+      if (_pin.length == _pinLength) {
+        _verifyPin();
+      }
     }
   }
 
-  void _onDelete() {
-    if (_pin.isEmpty) return;
-    setState(() {
-      _pin.removeLast();
-      _pinError = false;
-    });
+  void _onDeleteTap() {
+    if (_pin.isNotEmpty) {
+      setState(() {
+        _pin.removeLast();
+        _pinError = false;
+      });
+    }
   }
 
   void _verifyPin() {
-    final entered = _pin.join();
-    if (entered == _correctPin) {
-      widget.onUnlocked();
+    final correctPin = ref.read(pinProvider);
+    final enteredPin = _pin.join();
+
+    if (correctPin != null && enteredPin == correctPin) {
+      Future.delayed(const Duration(milliseconds: 200), () {
+        if (mounted) {
+          widget.onUnlocked();
+        }
+      });
     } else {
       _shakeController.forward(from: 0);
       setState(() {
@@ -139,31 +144,14 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
               child: Row(
                 children: [
-                  // Step progress dots (4 segments, last active)
-                  Row(
-                    children: List.generate(4, (i) {
-                      final isActive = i == 3;
-                      return Container(
-                        margin: const EdgeInsets.only(right: 6),
-                        width: 28,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isActive
-                              ? successColor
-                              : Theme.of(context).colorScheme.outline,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      );
-                    }),
-                  ),
                   const Spacer(),
                   if (!_showPin)
                     TextButton(
                       onPressed: () => setState(() => _showPin = true),
                       style: TextButton.styleFrom(
-                        foregroundColor: successColor,
+                        foregroundColor: theme.colorScheme.onSurface,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
+                          horizontal: 16,
                           vertical: 6,
                         ),
                       ),
@@ -198,8 +186,8 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
 
             // ── TITLE ──
             Text(
-              'Secure Your Account',
-              style: theme.textTheme.headlineSmall?.copyWith(
+              'Unlock Zynk',
+              style: theme.textTheme.headlineMedium?.copyWith(
                 color: theme.colorScheme.onSurface,
                 fontWeight: FontWeight.w700,
               ),
@@ -265,28 +253,7 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
                 'Incorrect PIN. Try again.',
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: theme.colorScheme.error,
-                ),
-              ),
-            ],
-
-            if (_showPin) ...[
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: () => setState(() => _showPin = false),
-                style: TextButton.styleFrom(foregroundColor: successColor),
-                child: const Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    PhosphorIcon(PhosphorIconsDuotone.eyeSlash, size: 16),
-                    SizedBox(width: 6),
-                    Text(
-                      'SHOW PIN',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                  ],
+                  fontWeight: FontWeight.w600,
                 ),
               ),
             ],
@@ -294,172 +261,18 @@ class _BiometricLockScreenState extends State<BiometricLockScreen>
             const Spacer(),
 
             // ── KEYPAD ──
-            if (_showPin) ...[
-              _Keypad(
-                onDigit: _onKeyPress,
-                onDelete: _onDelete,
-                onBiometric: widget.hasBiometrics ? _authenticateBio : null,
-              ),
-              const SizedBox(height: 24),
-            ] else ...[
-              // Biometric prompt button
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 48),
-                child: OutlinedButton.icon(
-                  onPressed: _isAuthenticating ? null : _authenticateBio,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: successColor,
-                    side: BorderSide(color: successColor),
-                    minimumSize: const Size(double.infinity, 52),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  icon: _isAuthenticating
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            color: successColor,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : PhosphorIcon(PhosphorIconsDuotone.fingerprint),
-                  label: Text(
-                    _isAuthenticating ? 'Authenticating…' : 'Authenticate',
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 48),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ── NUMERIC KEYPAD ──
-class _Keypad extends StatelessWidget {
-  final void Function(int) onDigit;
-  final VoidCallback onDelete;
-  final VoidCallback? onBiometric;
-
-  const _Keypad({
-    required this.onDigit,
-    required this.onDelete,
-    this.onBiometric,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Column(
-        children: [
-          _keyRow(context, [1, 2, 3]),
-          const SizedBox(height: 12),
-          _keyRow(context, [4, 5, 6]),
-          const SizedBox(height: 12),
-          _keyRow(context, [7, 8, 9]),
-          const SizedBox(height: 12),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              // Biometric or empty
-              SizedBox(
-                width: 72,
-                height: 72,
-                child: onBiometric != null
-                    ? _KeyButton(
-                        onTap: onBiometric!,
-                        child: PhosphorIcon(
-                          PhosphorIconsDuotone.fingerprint,
-                          color: Theme.of(context).colorScheme.secondary,
-                          size: 28,
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
-              // 0
-              SizedBox(
-                width: 72,
-                height: 72,
-                child: _KeyButton(
-                  onTap: () => onDigit(0),
-                  child: Text(
-                    '0',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                ),
-              ),
-              // Delete
-              SizedBox(
-                width: 72,
-                height: 72,
-                child: _KeyButton(
-                  onTap: onDelete,
-                  child: PhosphorIcon(
-                    PhosphorIconsDuotone.backspace,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    size: 22,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _keyRow(BuildContext context, List<int> digits) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: digits
-          .map(
-            (d) => SizedBox(
-              width: 72,
-              height: 72,
-              child: _KeyButton(
-                onTap: () => onDigit(d),
-                child: Text(
-                  '$d',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: Theme.of(context).colorScheme.onSurface,
-                  ),
-                ),
+            const SizedBox(height: 32),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 32.0),
+              child: AuthPinPad(
+                showBiometricIcon: widget.hasBiometrics,
+                onBiometricTap: _authenticateBio,
+                onNumberTap: _onNumberTap,
+                onDeleteTap: _onDeleteTap,
               ),
             ),
-          )
-          .toList(),
-    );
-  }
-}
-
-class _KeyButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final Widget child;
-
-  const _KeyButton({required this.onTap, required this.child});
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Theme.of(context).colorScheme.surface,
-      borderRadius: BorderRadius.circular(36),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(36),
-        splashColor: Theme.of(
-          context,
-        ).colorScheme.primary.withValues(alpha: 0.2),
-        child: Center(child: child),
+          ],
+        ),
       ),
     );
   }

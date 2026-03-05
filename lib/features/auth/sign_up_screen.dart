@@ -11,6 +11,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/theme/app_tokens.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:zynk/features/auth/widgets/auth_nav_button.dart';
+import 'package:zynk/features/auth/widgets/auth_progress_bar.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -37,7 +39,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   bool _obscurePassword = true;
   int _currentStep = 0;
 
-  static const int _totalSteps = 2;
+  static const int _totalSteps = 4;
 
   @override
   void dispose() {
@@ -51,7 +53,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
   }
 
   void _nextStep() {
-    if (_currentStep < _totalSteps - 1) {
+    if (_currentStep < 1) {
+      // Only steps 0 and 1 are in the PageView
       _pageController.nextPage(
         duration: const Duration(milliseconds: 350),
         curve: Curves.easeInOut,
@@ -124,7 +127,8 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             ),
           ),
         );
-        context.go('/biometric-setup');
+        // Proceed to Email Verification step
+        context.go('/verify-email', extra: _emailController.text);
       }
     } catch (e) {
       if (mounted) {
@@ -158,7 +162,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
               child: Row(
                 children: [
                   // Back button
-                  _NavButton(
+                  AuthNavButton(
                     icon: PhosphorIconsDuotone.arrowLeft,
                     onTap: _prevStep,
                   ),
@@ -180,7 +184,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
             // ── PROGRESS BAR ──
             Padding(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-              child: _StepProgressBar(
+              child: AuthProgressBar(
                 currentStep: _currentStep,
                 totalSteps: _totalSteps,
               ),
@@ -247,7 +251,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 Text(
-                                  _currentStep < _totalSteps - 1
+                                  _currentStep < 1
                                       ? 'Continue'
                                       : 'Create My Shop',
                                 ),
@@ -576,60 +580,6 @@ class _StepTwo extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
         ],
-      ),
-    );
-  }
-}
-
-// ── STEP PROGRESS BAR ──
-class _StepProgressBar extends StatelessWidget {
-  final int currentStep;
-  final int totalSteps;
-
-  const _StepProgressBar({required this.currentStep, required this.totalSteps});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: List.generate(totalSteps, (i) {
-        final isActive = i <= currentStep;
-        return Expanded(
-          child: Container(
-            margin: EdgeInsets.only(right: i < totalSteps - 1 ? 6 : 0),
-            height: 4,
-            decoration: BoxDecoration(
-              color: isActive
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.outline,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-// ── NAV BUTTON ──
-class _NavButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _NavButton({required this.icon, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 40,
-        height: 40,
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).colorScheme.outline),
-        ),
-        child: PhosphorIcon(icon, size: 18),
       ),
     );
   }

@@ -5,7 +5,9 @@ import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/features/auth/biometric_lock_screen.dart';
 import 'package:zynk/features/auth/sign_in_screen.dart';
 import 'package:zynk/features/auth/sign_up_screen.dart';
+import 'package:zynk/features/auth/verify_email_screen.dart';
 import 'package:zynk/features/auth/biometric_setup_screen.dart';
+import 'package:zynk/features/auth/providers/biometric_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zynk/features/design_system/gallery_page.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
@@ -30,20 +32,54 @@ final rootNavigatorKey = GlobalKey<NavigatorState>();
 final shellNavigatorKey = GlobalKey<NavigatorState>();
 
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
-
   return GoRouter(
     navigatorKey: rootNavigatorKey,
     initialLocation: '/',
     refreshListenable: AuthListenable(ref),
     redirect: (context, state) {
+      final authState = ref.read(authStateProvider);
       final isLoggedIn = authState.value != null;
-      final isLoggingIn =
-          state.matchedLocation == '/login' ||
-          state.matchedLocation == '/signup';
+      final biometricEnabled = ref.read(biometricEnabledProvider);
+      final biometricChecked = ref.read(biometricCheckedProvider);
+      final pin = ref.read(pinProvider);
+      final hasPin = pin != null;
 
-      if (!isLoggedIn && !isLoggingIn) return '/login';
-      if (isLoggedIn && isLoggingIn) return '/';
+      final loc = state.matchedLocation;
+      final isOnAuthRoute =
+          loc == '/login' || loc == '/signup' || loc == '/verify-email';
+      final isOnSetupRoute = loc == '/biometric-setup';
+      final isOnLockRoute = loc == '/biometric-lock';
+
+      // 1. If not logged in, must be on auth screen
+      if (!isLoggedIn) {
+        return isOnAuthRoute ? null : '/login';
+      }
+
+      // --- Logged-in cases ---
+
+      // 2. Just verified email — push them forward to biometric/PIN setup
+      if (loc == '/verify-email') {
+        return '/biometric-setup';
+      }
+
+      // 3. If they don't have a PIN yet, keep them on /biometric-setup
+      //    (BiometricSetupScreen handles completion itself via context.go('/'))
+      if (!hasPin && !isOnSetupRoute) {
+        return '/biometric-setup';
+      }
+
+      // 4. If they have a PIN and are on an auth-flow route, send them home
+      if (hasPin && (isOnAuthRoute || isOnSetupRoute)) {
+        return '/';
+      }
+
+      // 5. At app start: if biometrics are ON and not yet checked this session,
+      //    force the lock screen. Only applies when not already on the lock screen.
+      if (hasPin && biometricEnabled && !biometricChecked && !isOnLockRoute) {
+        return '/biometric-lock';
+      }
+
+      // 6. No redirect needed
       return null;
     },
     routes: [
@@ -57,9 +93,22 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const SignUpScreen(),
       ),
       GoRoute(
+        path: '/verify-email',
+        builder: (context, state) {
+          final email = state.extra as String?;
+          return VerifyEmailScreen(email: email);
+        },
+      ),
+      GoRoute(
         path: '/biometric-lock',
-        builder: (context, state) =>
-            BiometricLockScreen(onUnlocked: () => context.go('/')),
+        builder: (context, state) => Consumer(
+          builder: (context, ref, _) => BiometricLockScreen(
+            onUnlocked: () {
+              ref.read(biometricCheckedProvider.notifier).markChecked();
+              context.go('/');
+            },
+          ),
+        ),
       ),
       GoRoute(
         path: '/biometric-setup',
@@ -206,6 +255,37 @@ class AuthListenable extends ChangeNotifier {
         notifyListeners();
       }
     });
+  }
+}
+
+class BiometricToggleListenable extends ChangeNotifier {
+  final Ref ref;
+
+  BiometricToggleListenable(this.ref) {
+    ref.listen<bool>(biometricEnabledProvider, (_, __) {
+      notifyListeners();
+    });
+    ref.listen<String?>(pinProvider, (_, __) {
+      notifyListeners();
+    });
+  }
+}
+
+class CombinedListenable extends ChangeNotifier {
+  final List<Listenable> _listenables;
+
+  CombinedListenable(this._listenables) {
+    for (var listenable in _listenables) {
+      listenable.addListener(notifyListeners);
+    }
+  }
+
+  @override
+  void dispose() {
+    for (var listenable in _listenables) {
+      listenable.removeListener(notifyListeners);
+    }
+    super.dispose();
   }
 }
 
