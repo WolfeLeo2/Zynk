@@ -1,4 +1,4 @@
-import 'dart:convert';
+// NOTE: 'dart:convert' no longer needed — credit note items use a junction table.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENUMS
@@ -575,22 +575,9 @@ class CreditNote {
   });
 
   factory CreditNote.fromMap(Map<String, dynamic> map) {
-    List<CreditNoteItem> parsedItems = [];
-    final rawItems = map['items'];
-    if (rawItems != null) {
-      List<dynamic> itemsList;
-      if (rawItems is String) {
-        itemsList = jsonDecode(rawItems) as List<dynamic>;
-      } else if (rawItems is List) {
-        itemsList = rawItems;
-      } else {
-        itemsList = [];
-      }
-      parsedItems = itemsList
-          .map((e) => CreditNoteItem.fromMap(e as Map<String, dynamic>))
-          .toList();
-    }
-
+    // Items are now loaded separately from credit_note_items table.
+    // When building a CreditNote via a direct DB query that joins items,
+    // call fromMap with an explicit items list.
     return CreditNote(
       id: map['id'] as String,
       tenantId: map['tenant_id'] as String,
@@ -600,7 +587,9 @@ class CreditNote {
       status: CreditNoteStatus.fromString(map['status'] as String?),
       restockItems: map['restock_items'] == 1 || map['restock_items'] == true,
       reason: map['reason'] as String? ?? '',
-      items: parsedItems,
+      items: (map['items'] as List<dynamic>? ?? [])
+          .map((e) => CreditNoteItem.fromMap(e as Map<String, dynamic>))
+          .toList(),
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
       taxAmount: (map['tax_amount'] as num?)?.toDouble() ?? 0,
       total: (map['total'] as num?)?.toDouble() ?? 0,
@@ -622,7 +611,7 @@ class CreditNote {
       'status': status.value,
       'restock_items': restockItems ? 1 : 0,
       'reason': reason,
-      'items': jsonEncode(items.map((e) => e.toMap()).toList()),
+      // 'items' is now a junction table; do not serialize here
       'subtotal': subtotal,
       'tax_amount': taxAmount,
       'total': total,

@@ -2,14 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zynk/core/app_shell.dart';
 import 'package:zynk/core/services/auth_service.dart';
-import 'package:zynk/features/auth/biometric_lock_screen.dart';
 import 'package:zynk/features/auth/sign_in_screen.dart';
 import 'package:zynk/features/auth/sign_up_screen.dart';
 import 'package:zynk/features/auth/verify_email_screen.dart';
-import 'package:zynk/features/auth/biometric_setup_screen.dart';
-import 'package:zynk/features/auth/providers/biometric_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:zynk/features/design_system/gallery_page.dart';
+
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/features/dashboard/presentation/dashboard_layout.dart';
 import 'package:zynk/features/pos/presentation/pos_screen.dart';
@@ -26,6 +23,7 @@ import 'package:zynk/features/settings/presentation/branches_screen.dart';
 import 'package:zynk/features/settings/presentation/add_branch_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_screen.dart';
 import 'package:zynk/features/settings/presentation/add_staff_screen.dart';
+import 'package:zynk/core/widgets/branch_required_guard.dart';
 
 // Keys
 final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -39,47 +37,22 @@ final routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) {
       final authState = ref.read(authStateProvider);
       final isLoggedIn = authState.value != null;
-      final biometricEnabled = ref.read(biometricEnabledProvider);
-      final biometricChecked = ref.read(biometricCheckedProvider);
-      final pin = ref.read(pinProvider);
-      final hasPin = pin != null;
 
       final loc = state.matchedLocation;
       final isOnAuthRoute =
           loc == '/login' || loc == '/signup' || loc == '/verify-email';
-      final isOnSetupRoute = loc == '/biometric-setup';
-      final isOnLockRoute = loc == '/biometric-lock';
 
-      // 1. If not logged in, must be on auth screen
+      // Not logged in → must be on an auth screen
       if (!isLoggedIn) {
         return isOnAuthRoute ? null : '/login';
       }
 
-      // --- Logged-in cases ---
+      // Logged in → after email verification, go straight to app
+      if (loc == '/verify-email') return '/';
 
-      // 2. Just verified email — push them forward to biometric/PIN setup
-      if (loc == '/verify-email') {
-        return '/biometric-setup';
-      }
+      // Logged in → don't stay on auth screens
+      if (isOnAuthRoute) return '/';
 
-      // 3. If they don't have a PIN yet, keep them on /biometric-setup
-      //    (BiometricSetupScreen handles completion itself via context.go('/'))
-      if (!hasPin && !isOnSetupRoute) {
-        return '/biometric-setup';
-      }
-
-      // 4. If they have a PIN and are on an auth-flow route, send them home
-      if (hasPin && (isOnAuthRoute || isOnSetupRoute)) {
-        return '/';
-      }
-
-      // 5. At app start: if biometrics are ON and not yet checked this session,
-      //    force the lock screen. Only applies when not already on the lock screen.
-      if (hasPin && biometricEnabled && !biometricChecked && !isOnLockRoute) {
-        return '/biometric-lock';
-      }
-
-      // 6. No redirect needed
       return null;
     },
     routes: [
@@ -99,27 +72,15 @@ final routerProvider = Provider<GoRouter>((ref) {
           return VerifyEmailScreen(email: email);
         },
       ),
-      GoRoute(
-        path: '/biometric-lock',
-        builder: (context, state) => Consumer(
-          builder: (context, ref, _) => BiometricLockScreen(
-            onUnlocked: () {
-              ref.read(biometricCheckedProvider.notifier).markChecked();
-              context.go('/');
-            },
-          ),
-        ),
-      ),
-      GoRoute(
-        path: '/biometric-setup',
-        builder: (context, state) => const BiometricSetupScreen(),
-      ),
 
       GoRoute(
         path: '/add-product',
         builder: (context, state) {
           final product = state.extra as Product?;
-          return AddProductScreen(existingProduct: product);
+          return BranchRequiredGuard(
+            actionLabel: 'adding products',
+            child: AddProductScreen(existingProduct: product),
+          );
         },
       ),
 
@@ -166,7 +127,10 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/pos',
-                builder: (context, state) => const PosScreen(),
+                builder: (context, state) => const BranchRequiredGuard(
+                  actionLabel: 'the Point of Sale',
+                  child: PosScreen(),
+                ),
               ),
             ],
           ),
@@ -181,10 +145,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'create-invoice',
                     builder: (context, state) {
                       final extra = state.extra as Map<String, dynamic>? ?? {};
-                      return CreateInvoiceScreen(
-                        cartItems: extra['cartItems'] ?? [],
-                        customer: extra['customer'],
-                        salespersonName: extra['salespersonName'],
+                      return BranchRequiredGuard(
+                        actionLabel: 'creating invoices',
+                        child: CreateInvoiceScreen(
+                          cartItems: extra['cartItems'] ?? [],
+                          customer: extra['customer'],
+                          salespersonName: extra['salespersonName'],
+                        ),
                       );
                     },
                   ),
@@ -199,12 +166,11 @@ final routerProvider = Provider<GoRouter>((ref) {
               ),
             ],
           ),
-          // Settings Branch (Placeholder)
+          // 3: Settings
           StatefulShellBranch(
             routes: [
               GoRoute(
                 path: '/settings',
-                // Use the wrapper to ensure profile data is loaded
                 builder: (context, state) => const _SettingsScreenWrapper(),
                 routes: [
                   GoRoute(
@@ -221,18 +187,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'add-staff',
-                    builder: (context, state) => const AddStaffScreen(),
+                    builder: (context, state) => const BranchRequiredGuard(
+                      actionLabel: 'adding staff',
+                      child: AddStaffScreen(),
+                    ),
                   ),
                 ],
-              ),
-            ],
-          ),
-          // Design System Gallery Branch
-          StatefulShellBranch(
-            routes: [
-              GoRoute(
-                path: '/design-gallery',
-                builder: (context, state) => const DesignSystemGalleryPage(),
               ),
             ],
           ),
@@ -242,6 +202,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
+/// Triggers router re-evaluation on auth state changes only.
 class AuthListenable extends ChangeNotifier {
   final Ref ref;
   late bool _wasLoggedIn;
@@ -258,43 +219,11 @@ class AuthListenable extends ChangeNotifier {
   }
 }
 
-class BiometricToggleListenable extends ChangeNotifier {
-  final Ref ref;
-
-  BiometricToggleListenable(this.ref) {
-    ref.listen<bool>(biometricEnabledProvider, (_, __) {
-      notifyListeners();
-    });
-    ref.listen<String?>(pinProvider, (_, __) {
-      notifyListeners();
-    });
-  }
-}
-
-class CombinedListenable extends ChangeNotifier {
-  final List<Listenable> _listenables;
-
-  CombinedListenable(this._listenables) {
-    for (var listenable in _listenables) {
-      listenable.addListener(notifyListeners);
-    }
-  }
-
-  @override
-  void dispose() {
-    for (var listenable in _listenables) {
-      listenable.removeListener(notifyListeners);
-    }
-    super.dispose();
-  }
-}
-
 class _SettingsScreenWrapper extends ConsumerWidget {
   const _SettingsScreenWrapper();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Watch profile to ensure it's loaded
     ref.watch(currentUserProfileProvider);
     return const SettingsScreen();
   }

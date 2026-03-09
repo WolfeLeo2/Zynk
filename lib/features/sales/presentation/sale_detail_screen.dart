@@ -14,6 +14,7 @@ import 'package:zynk/features/pos/providers/customer_providers.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_template.dart';
 import 'package:zynk/features/sales/presentation/printing/receipt_template.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Zoho-inspired sale detail screen with sections for items, payments,
 /// timeline, and action buttons (approve / void / record payment / credit note).
@@ -139,10 +140,7 @@ class SaleDetailScreen extends ConsumerWidget {
           bottomNavigationBar: _buildBottomActions(context, ref, sale),
         );
       },
-      loading: () => Scaffold(
-        appBar: AppBar(),
-        body: const Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => _SaleDetailSkeleton(),
       error: (e, _) => Scaffold(
         appBar: AppBar(),
         body: Center(child: Text('Error: $e')),
@@ -680,10 +678,7 @@ class _ItemsList extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const SizedBox(
-        height: 60,
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => _ShimmerSection(height: 60),
       error: (e, _) => Text('Error: $e'),
     );
   }
@@ -853,10 +848,7 @@ class _PaymentsList extends ConsumerWidget {
           }).toList(),
         );
       },
-      loading: () => const SizedBox(
-        height: 50,
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => _ShimmerSection(height: 50),
       error: (e, _) => Text('Error: $e'),
     );
   }
@@ -959,10 +951,7 @@ class _CreditNotesList extends ConsumerWidget {
           }).toList(),
         );
       },
-      loading: () => const SizedBox(
-        height: 50,
-        child: Center(child: CircularProgressIndicator()),
-      ),
+      loading: () => _ShimmerSection(height: 50),
       error: (e, _) => Text('Error: $e'),
     );
   }
@@ -1630,4 +1619,77 @@ String _formatFull(DateTime? date) {
   final hour = date.hour > 12 ? date.hour - 12 : date.hour;
   final amPm = date.hour >= 12 ? 'PM' : 'AM';
   return '${months[date.month]} ${date.day}, ${date.year} · $hour:${date.minute.toString().padLeft(2, '0')} $amPm';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SHIMMER HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ShimmerSection extends StatelessWidget {
+  final double height;
+  const _ShimmerSection({this.height = 50});
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+      highlightColor: cs.surfaceContainerHighest.withValues(alpha: 0.7),
+      child: Container(
+        height: height,
+        margin: const EdgeInsets.symmetric(vertical: 4),
+        decoration: BoxDecoration(
+          color: cs.surface,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+}
+
+class _SaleDetailSkeleton extends StatelessWidget {
+  const _SaleDetailSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return Scaffold(
+      appBar: AppBar(),
+      body: Shimmer.fromColors(
+        baseColor: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+        highlightColor: cs.surfaceContainerHighest.withValues(alpha: 0.7),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                height: 120,
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                height: 100,
+                decoration: BoxDecoration(
+                  color: cs.surface,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

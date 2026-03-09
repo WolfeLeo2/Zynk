@@ -302,18 +302,6 @@ class AppShell extends ConsumerWidget {
       ),
     );
 
-    // 4. Design Gallery (Dev only)
-    dests.add(
-      _SidebarDestination(
-        icon: PhosphorIcon(PhosphorIconsDuotone.palette),
-        selectedIcon: PhosphorIcon(
-          PhosphorIconsFill.palette,
-          color: Colors.black87,
-        ),
-        label: 'Design',
-      ),
-    );
-
     return dests;
   }
 }

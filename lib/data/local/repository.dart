@@ -468,14 +468,42 @@ class PowerSyncRepository {
         .map((rows) => rows.map((row) => CreditNote.fromMap(row)).toList());
   }
 
-  /// Watch credit notes for a specific sale
+  /// Watch credit notes for a specific sale, including items from the junction table
   Stream<List<CreditNote>> watchCreditNotesForSale(String saleId) {
-    return _db
-        .watch(
-          'SELECT * FROM credit_notes WHERE original_sale_id = ? ORDER BY created_at DESC',
-          parameters: [saleId],
-        )
-        .map((rows) => rows.map((row) => CreditNote.fromMap(row)).toList());
+    // Watch credit notes
+    final notesStream = _db.watch(
+      'SELECT * FROM credit_notes WHERE original_sale_id = ? ORDER BY created_at DESC',
+      parameters: [saleId],
+    );
+
+    // Combine both streams — asyncMap re-fetches items on every notes change
+    return notesStream.asyncMap((noteRows) async {
+      // Get current items snapshot
+      final itemRows = await _db.getAll(
+        '''
+        SELECT cni.* FROM credit_note_items cni
+        INNER JOIN credit_notes cn ON cni.credit_note_id = cn.id
+        WHERE cn.original_sale_id = ?
+        ''',
+        [saleId],
+      );
+
+      // Group items by credit_note_id
+      final itemsByNote = <String, List<CreditNoteItem>>{};
+      for (final row in itemRows) {
+        final noteId = row['credit_note_id'] as String;
+        itemsByNote.putIfAbsent(noteId, () => []);
+        itemsByNote[noteId]!.add(CreditNoteItem.fromMap(row));
+      }
+
+      return noteRows.map((row) {
+        final noteId = row['id'] as String;
+        return CreditNote.fromMap({
+          ...row,
+          'items': itemsByNote[noteId]?.map((i) => i.toMap()).toList() ?? [],
+        });
+      }).toList();
+    });
   }
 
   // --- Dashboard Aggregates ---

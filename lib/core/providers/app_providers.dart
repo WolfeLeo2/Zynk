@@ -130,6 +130,10 @@ class BranchSelectionState {
       return null;
     }
   }
+
+  /// True when the user has chosen the aggregated "All Branches" view.
+  /// Create/write actions should be blocked when this is true.
+  bool get isAllBranchesSelected => selectedBranchId == 'all';
 }
 
 /// Branch selection notifier using Riverpod 3.x Notifier class
@@ -256,29 +260,6 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
       } else if (!stillValid) {
         clearSelection();
       }
-    }
-  }
-
-  Future<void> refreshBranches() async {
-    final tenantId = ref.read(tenantIdProvider);
-    if (tenantId == null) return;
-
-    state = state.copyWith(isLoading: true, error: null);
-
-    try {
-      final repo = ref.read(repositoryProvider);
-      final branches = await repo.getBranches(tenantId);
-
-      final isOwner = ref.read(isOwnerProvider);
-      final branchesWithAll = [if (isOwner) allBranchesOption, ...branches];
-
-      setAvailableBranches(branchesWithAll);
-      state = state.copyWith(isLoading: false);
-    } catch (e) {
-      state = state.copyWith(
-        error: 'Failed to load branches: $e',
-        isLoading: false,
-      );
     }
   }
 }

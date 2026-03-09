@@ -197,7 +197,6 @@ final schema = Schema([
     Column.text('credit_number'),
     Column.text('status'),
     Column.text('reason'),
-    Column.text('items'),
     Column.real('subtotal'),
     Column.real('tax_amount'),
     Column.real('total'),
@@ -207,6 +206,19 @@ final schema = Schema([
     Column.integer('restock_items'),
     Column.text('created_at'),
     Column.text('updated_at'),
+  ]),
+
+  // Credit Note Items (junction table — was previously a JSON blob)
+  const Table('credit_note_items', [
+    Column.text('credit_note_id'),
+    Column.text('product_id'),
+    Column.text('product_name'),
+    Column.integer('quantity'),
+    Column.real('unit_price'),
+    Column.real('tax_amount'),
+    Column.real('total'),
+    Column.text('tenant_id'),
+    Column.text('created_at'),
   ]),
 ]);
 

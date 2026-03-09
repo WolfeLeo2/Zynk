@@ -7,7 +7,7 @@ import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
-import 'package:zynk/features/sales/presentation/sale_detail_screen.dart';
+import 'package:shimmer/shimmer.dart';
 
 /// Shopify-style invoices list with status chip filters and swipeable cards.
 class SalesListScreen extends ConsumerStatefulWidget {
@@ -68,7 +68,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                   itemBuilder: (_, i) => _SaleCard(sale: filtered[i]),
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => _SalesListSkeleton(),
               error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
@@ -165,6 +165,35 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SKELETON LOADER
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SalesListSkeleton extends StatelessWidget {
+  const _SalesListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListView.separated(
+      padding: const EdgeInsets.all(16),
+      itemCount: 6,
+      separatorBuilder: (_, _) => const SizedBox(height: 10),
+      itemBuilder: (_, _) => Shimmer.fromColors(
+        baseColor: cs.surfaceContainerHighest.withValues(alpha: 0.4),
+        highlightColor: cs.surfaceContainerHighest.withValues(alpha: 0.7),
+        child: Container(
+          height: 80,
+          decoration: BoxDecoration(
+            color: cs.surface,
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // SALE CARD (Shopify-style)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -178,10 +207,7 @@ class _SaleCard extends StatelessWidget {
     final cs = theme.colorScheme;
 
     return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (_) => SaleDetailScreen(saleId: sale.id)),
-      ),
+      onTap: () => context.push('/sales/${sale.id}'),
       borderRadius: BorderRadius.circular(14),
       child: Container(
         padding: const EdgeInsets.all(16),

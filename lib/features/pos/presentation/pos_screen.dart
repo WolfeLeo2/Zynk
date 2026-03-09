@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/pos/providers/customer_providers.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/presentation/components/pos_product_card.dart';
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:zynk/features/pos/presentation/components/checkout_sheet.dart';
@@ -22,7 +23,7 @@ class PosScreen extends ConsumerStatefulWidget {
 
 class _PosScreenState extends ConsumerState<PosScreen>
     with SingleTickerProviderStateMixin {
-  final List<PosCartItem> _cart = [];
+  // No local cart state — use cartProvider instead (persists across navigation)
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -51,12 +52,14 @@ class _PosScreenState extends ConsumerState<PosScreen>
       final stockState = ref.read(stockProvider(product.id)).value;
       final availableStock = stockState?.quantity ?? 0;
 
-      final existingIndex = _cart.indexWhere(
-        (item) => item.product.id == product.id,
-      );
-      final currentCartQty = existingIndex != -1
-          ? _cart[existingIndex].quantity
-          : 0;
+      final currentCartQty = ref
+          .read(cartProvider)
+          .items
+          .firstWhere(
+            (item) => item.product.id == product.id,
+            orElse: () => PosCartItem(product: product, quantity: 0),
+          )
+          .quantity;
 
       if (currentCartQty + 1 > availableStock) {
         ScaffoldMessenger.of(context).clearSnackBars();
@@ -73,16 +76,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
       }
     }
 
-    setState(() {
-      final existingIndex = _cart.indexWhere(
-        (item) => item.product.id == product.id,
-      );
-      if (existingIndex != -1) {
-        _cart[existingIndex].quantity++;
-      } else {
-        _cart.add(PosCartItem(product: product));
-      }
-    });
+    ref.read(cartProvider.notifier).addItem(product);
 
     final isMobile = MediaQuery.of(context).size.width <= 900;
     if (isMobile) {
@@ -98,13 +92,11 @@ class _PosScreenState extends ConsumerState<PosScreen>
   }
 
   void _removeFromCart(PosCartItem item) {
-    setState(() {
-      _cart.removeWhere((i) => i.product.id == item.product.id);
-    });
+    ref.read(cartProvider.notifier).removeItem(item.product.id);
   }
 
   void _clearCart() {
-    setState(() => _cart.clear());
+    ref.read(cartProvider.notifier).clear();
   }
 
   void _showCheckout() {
@@ -136,13 +128,13 @@ class _PosScreenState extends ConsumerState<PosScreen>
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (_) => CheckoutSheet(
-        items: List.from(_cart),
-        total: _total,
+        items: List.from(ref.read(cartProvider).items),
+        total: ref.read(cartProvider).total,
         customer: _selectedCustomer,
         salespersonName: _salespersonName,
         onComplete: () {
-          setState(() => _cart.clear());
-          _selectedCustomer = null;
+          ref.read(cartProvider.notifier).clear();
+          setState(() => _selectedCustomer = null);
         },
       ),
     );
@@ -184,12 +176,14 @@ class _PosScreenState extends ConsumerState<PosScreen>
     );
   }
 
-  double get _total => _cart.fold(0, (sum, item) => sum + item.total);
+  double get _total => ref.watch(cartProvider).total;
 
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(allProductsProvider);
     final categoriesAsync = ref.watch(allCategoriesProvider);
+    final cart = ref.watch(cartProvider);
+    final cartItems = cart.items;
 
     final isMobile = MediaQuery.of(context).size.width <= 900;
 
@@ -236,7 +230,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
                 Expanded(
                   flex: 1,
                   child: PosTicket(
-                    items: _cart,
+                    items: cartItems,
                     total: _total,
                     onCharge: _showCheckout,
                     onRemoveItem: _removeFromCart,
@@ -273,10 +267,10 @@ class _PosScreenState extends ConsumerState<PosScreen>
                         icon: Icon(PhosphorIconsDuotone.gridFour),
                       ),
                       Tab(
-                        text: 'Ticket (${_cart.length})',
+                        text: 'Ticket (${cartItems.length})',
                         icon: Badge(
-                          isLabelVisible: _cart.isNotEmpty,
-                          label: Text('${_cart.length}'),
+                          isLabelVisible: cartItems.isNotEmpty,
+                          label: Text('${cartItems.length}'),
                           child: const Icon(PhosphorIconsDuotone.receipt),
                         ),
                       ),
@@ -300,7 +294,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   onAddToCart: _addToCart,
                 ),
                 PosTicket(
-                  items: _cart,
+                  items: cartItems,
                   total: _total,
                   onCharge: _showCheckout,
                   onRemoveItem: _removeFromCart,
