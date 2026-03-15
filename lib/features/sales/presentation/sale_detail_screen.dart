@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:pdf/widgets.dart' as pw;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -55,7 +56,7 @@ class SaleDetailScreen extends ConsumerWidget {
               ),
               if (sale.status.canBeVoided ||
                   sale.status.canBeApproved ||
-                  sale.status == InvoiceStatus.draft)
+                  sale.status == InvoiceStatus.pendingApproval)
                 Builder(
                   builder: (ctx) {
                     final canApprove = ref.watch(
@@ -68,8 +69,16 @@ class SaleDetailScreen extends ConsumerWidget {
                       onSelected: (action) =>
                           _handleAction(context, ref, sale, action),
                       itemBuilder: (_) => [
+                         // Edit invoice — only for draft/pending with no payments
+                         if ((sale.status == InvoiceStatus.draft ||
+                                 sale.status == InvoiceStatus.pendingApproval) &&
+                             sale.amountPaid <= 0)
+                           const PopupMenuItem(
+                             value: 'edit',
+                             child: Text('Edit Invoice'),
+                           ),
                         if ((sale.status.canBeApproved ||
-                                sale.status == InvoiceStatus.draft) &&
+                                sale.status == InvoiceStatus.pendingApproval) &&
                             canApprove)
                           const PopupMenuItem(
                             value: 'approve',
@@ -84,9 +93,9 @@ class SaleDetailScreen extends ConsumerWidget {
                             value: 'void',
                             child: Text('Void Sale'),
                           ),
-                        if ((sale.status == InvoiceStatus.paid ||
+                        if ((sale.status == InvoiceStatus.approved ||
                                 sale.status == InvoiceStatus.partiallyPaid ||
-                                sale.status == InvoiceStatus.approved ||
+                                sale.status == InvoiceStatus.paid ||
                                 sale.status == InvoiceStatus.completed) &&
                             sale.fulfillmentStatus ==
                                 FulfillmentStatus.unreleased &&
@@ -94,6 +103,15 @@ class SaleDetailScreen extends ConsumerWidget {
                           const PopupMenuItem(
                             value: 'fulfill',
                             child: Text('Release Goods'),
+                          ),
+                        // Admin-only: Delete invoice (blocked when payments exist)
+                        if (canApprove && sale.amountPaid <= 0)
+                          const PopupMenuItem(
+                            value: 'delete_sale',
+                            child: Text(
+                              'Delete Invoice',
+                              style: TextStyle(color: Colors.red),
+                            ),
                           ),
                       ],
                     );
@@ -188,7 +206,7 @@ class SaleDetailScreen extends ConsumerWidget {
       );
     }
 
-    if (sale.status.canAcceptPayment && canPay) {
+    if (sale.canAcceptPayment && canPay) {
       actions.add(
         Expanded(
           child: FilledButton.icon(
@@ -339,12 +357,18 @@ class SaleDetailScreen extends ConsumerWidget {
     final service = ref.read(salesServiceProvider);
     try {
       switch (action) {
+        case 'edit':
+          if (context.mounted) {
+            context.push('/sales/${sale.id}/edit');
+          }
+          return;
         case 'submit_for_approval':
           await service.submitForApproval(sale.id, tenantId: sale.tenantId);
           break;
         case 'approve':
           await service.approveSale(sale.id, tenantId: sale.tenantId);
           break;
+
         case 'reject':
           await service.rejectSale(
             sale.id,
@@ -389,6 +413,37 @@ class SaleDetailScreen extends ConsumerWidget {
               tenantId: sale.tenantId,
               reason: 'Voided by user',
             );
+          }
+          break;
+        case 'delete_sale':
+          final confirmed = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Delete Invoice?'),
+              content: const Text(
+                'This will permanently delete the invoice, all payments, and reverse stock. This action cannot be undone.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red),
+                  child: const Text('Delete'),
+                ),
+              ],
+            ),
+          );
+          if (confirmed == true) {
+            await service.deleteSale(saleId: sale.id, tenantId: sale.tenantId);
+            if (context.mounted) {
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Invoice deleted')));
+              context.pop();
+            }
           }
           break;
       }
@@ -531,7 +586,7 @@ class _StatusHero extends StatelessWidget {
                         borderRadius: BorderRadius.circular(6),
                       ),
                       child: Text(
-                        _paymentBadgeLabel(sale),
+                        sale.paymentStatus.displayName.toUpperCase(),
                         style: theme.textTheme.labelSmall?.copyWith(
                           color: _paymentBadgeColor(sale),
                           fontWeight: FontWeight.bold,
@@ -569,19 +624,14 @@ class _StatusHero extends StatelessWidget {
   }
 
   Color _paymentBadgeColor(Sale sale) {
-    if (sale.amountPaid >= sale.grandTotal && sale.grandTotal > 0) {
-      return Colors.green;
+    switch (sale.paymentStatus) {
+      case PaymentStatus.paid:
+        return Colors.green;
+      case PaymentStatus.partiallyPaid:
+        return const Color(0xFFFFA726); // Orange
+      case PaymentStatus.unpaid:
+        return Colors.red;
     }
-    if (sale.amountPaid > 0) return const Color(0xFFFFA726); // Orange
-    return Colors.red;
-  }
-
-  String _paymentBadgeLabel(Sale sale) {
-    if (sale.amountPaid >= sale.grandTotal && sale.grandTotal > 0) {
-      return 'PAID';
-    }
-    if (sale.amountPaid > 0) return 'PARTIAL';
-    return 'UNPAID';
   }
 }
 
@@ -782,6 +832,9 @@ class _PaymentsList extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final paymentsAsync = ref.watch(salePaymentsProvider(saleId));
+    final isAdmin = ref.watch(
+      hasPermissionProvider(Permission.approveInvoices),
+    );
 
     return paymentsAsync.when(
       data: (payments) {
@@ -842,6 +895,65 @@ class _PaymentsList extends ConsumerWidget {
                       color: const Color(0xFF66BB6A),
                     ),
                   ),
+                  // Admin-only delete button
+                  if (isAdmin)
+                    IconButton(
+                      icon: PhosphorIcon(
+                        PhosphorIconsRegular.trash,
+                        size: 18,
+                        color: cs.error,
+                      ),
+                      tooltip: 'Delete payment',
+                      onPressed: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (dialogContext) => AlertDialog(
+                            title: const Text('Delete Payment?'),
+                            content: const Text(
+                              'This will reverse the payment amount and may change the invoice status. Continue?',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, false),
+                                child: const Text('Cancel'),
+                              ),
+                              FilledButton(
+                                onPressed: () =>
+                                    Navigator.pop(dialogContext, true),
+                                style: FilledButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                ),
+                                child: const Text('Delete'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirmed == true && context.mounted) {
+                          try {
+                            final service = ref.read(salesServiceProvider);
+                            await service.deletePayment(
+                              saleId: saleId,
+                              paymentId: p.id,
+                              tenantId: p.tenantId,
+                            );
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Payment deleted'),
+                                ),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            }
+                          }
+                        }
+                      },
+                    ),
                 ],
               ),
             );
@@ -990,17 +1102,31 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
   }
 
   Future<void> _submit() async {
+    final amount = double.tryParse(_amountController.text) ?? 0;
+    if (amount <= 0) return;
+
+    if (['mpesa', 'card', 'bank_transfer'].contains(_method)) {
+      if (_refController.text.trim().isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content:
+                    Text('Reference number is required for this payment method')),
+          );
+        }
+        return;
+      }
+    }
+
     setState(() => _loading = true);
     try {
-      await ref
-          .read(salesServiceProvider)
-          .recordPayment(
+      await ref.read(salesServiceProvider).recordPayment(
             saleId: widget.sale.id,
-            amount: double.tryParse(_amountController.text) ?? 0,
+            amount: amount,
             paymentMethod: _method,
-            referenceNumber: _refController.text.isEmpty
+            referenceNumber: _refController.text.trim().isEmpty
                 ? null
-                : _refController.text,
+                : _refController.text.trim(),
           );
       if (mounted) Navigator.pop(context);
     } catch (e) {
@@ -1084,8 +1210,10 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
             const SizedBox(height: 14),
             TextField(
               controller: _refController,
-              decoration: const InputDecoration(
-                labelText: 'Reference (optional)',
+              decoration: InputDecoration(
+                labelText: ['mpesa', 'card', 'bank_transfer'].contains(_method)
+                    ? 'Reference (Required)'
+                    : 'Reference (Optional)',
                 hintText: 'M-Pesa code, cheque number, etc.',
               ),
             ),
@@ -1466,30 +1594,22 @@ class _DetailsSection extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    final staffAsync = ref.watch(staffProvider);
     final customersAsync = ref.watch(allCustomersProvider);
 
-    String staffName = sale.salespersonName ?? 'Unknown Staff';
-    if (staffName == 'Unknown Staff' &&
-        staffAsync.hasValue &&
-        staffAsync.value != null) {
-      try {
-        staffName =
-            staffAsync.value!
-                .firstWhere((s) => s.userId == sale.createdBy)
-                .displayName ??
-            'Unknown Staff';
-      } catch (_) {}
-    }
+    // Use salesperson name as-is. Do NOT fallback to account displayName.
+    final String staffName = sale.salespersonName ?? 'Not Assigned';
 
     String customerName = 'Walk-in Customer';
+    String? customerPhone;
     if (customersAsync.hasValue &&
         customersAsync.value != null &&
         sale.customerId != null) {
       try {
-        customerName = customersAsync.value!
-            .firstWhere((c) => c.id == sale.customerId)
-            .name;
+        final customer = customersAsync.value!.firstWhere(
+          (c) => c.id == sale.customerId,
+        );
+        customerName = customer.name;
+        customerPhone = customer.phone;
       } catch (_) {}
     }
 
@@ -1503,6 +1623,18 @@ class _DetailsSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           _buildRow(theme, PhosphorIconsRegular.user, 'Customer', customerName),
+          if (customerPhone != null && customerPhone.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.only(left: 32),
+              child: Text(
+                customerPhone,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 12),
           _buildRow(
             theme,

@@ -348,7 +348,7 @@ class ProductDetailsScreen extends ConsumerWidget {
                             size: 18,
                           ),
                           label: const Text('Adjust'),
-                      ),
+                        ),
                     ],
                   ),
                   const Divider(height: 16),
@@ -366,8 +366,8 @@ class ProductDetailsScreen extends ConsumerWidget {
                           builder: (context, ref, child) {
                             if (product.isService) {
                               return _buildInfoItem(
-                          theme,
-                          'Current Stock',
+                                theme,
+                                'Current Stock',
                                 'N/A',
                               );
                             }

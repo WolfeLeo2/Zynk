@@ -21,6 +21,7 @@ All contributors (human and AI) must follow these rules.
 - Never show empty screens — always shimmer, error state, or empty state illustration
 - Remote images: `cached_network_image` with team color gradient placeholder
 - Complex list items: wrap in `RepaintBoundary`
+- Do not use if blocks if it is a simple Null check. Dart is null aware. Use that to your advantage
 
 
 

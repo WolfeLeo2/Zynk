@@ -150,6 +150,7 @@ final schema = Schema([
     Column.real('amount_paid'),
     Column.text('payment_method'),
     Column.text('status'),
+    Column.text('payment_status'),
     Column.text('notes'),
     Column.text('due_date'),
     Column.text('completed_at'),

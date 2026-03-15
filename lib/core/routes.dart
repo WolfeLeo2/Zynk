@@ -14,9 +14,11 @@ import 'package:zynk/features/products/presentation/add_product_screen.dart';
 import 'package:zynk/features/products/presentation/products_screen.dart';
 import 'package:zynk/features/products/presentation/product_details_screen.dart';
 import 'package:zynk/features/products/presentation/group_details_screen.dart';
+import 'package:zynk/features/products/presentation/batch_adjust_stock_screen.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/sales/presentation/sales_list_screen.dart';
 import 'package:zynk/features/sales/presentation/create_invoice_screen.dart';
+import 'package:zynk/features/sales/presentation/edit_invoice_screen.dart';
 import 'package:zynk/features/sales/presentation/sale_detail_screen.dart';
 import 'package:zynk/features/settings/presentation/settings_screen.dart';
 import 'package:zynk/features/settings/presentation/branches_screen.dart';
@@ -110,6 +112,13 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => const ProductsScreen(),
                     routes: [
                       GoRoute(
+                        path: 'batch-adjust',
+                        builder: (context, state) => const BranchRequiredGuard(
+                          actionLabel: 'adjusting stock batches',
+                          child: BatchAdjustStockScreen(),
+                        ),
+                      ),
+                      GoRoute(
                         path: 'groups/:id',
                         builder: (context, state) {
                           final group = state.extra as ItemGroup;
@@ -161,6 +170,15 @@ final routerProvider = Provider<GoRouter>((ref) {
                       final saleId = state.pathParameters['id']!;
                       return SaleDetailScreen(saleId: saleId);
                     },
+                    routes: [
+                      GoRoute(
+                        path: 'edit',
+                        builder: (context, state) {
+                          final saleId = state.pathParameters['id']!;
+                          return EditInvoiceScreen(saleId: saleId);
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -466,3 +466,15 @@ class StockAdjustment {
     };
   }
 }
+
+class BatchAdjustmentItem {
+  final String productId;
+  final int quantityChange;
+  final String? notes;
+
+  BatchAdjustmentItem({
+    required this.productId,
+    required this.quantityChange,
+    this.notes,
+  });
+}

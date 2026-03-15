@@ -4,12 +4,12 @@ import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
 
-/// Shopify-style invoices list with status chip filters and swipeable cards.
 class SalesListScreen extends ConsumerStatefulWidget {
   const SalesListScreen({super.key});
 
@@ -19,6 +19,8 @@ class SalesListScreen extends ConsumerStatefulWidget {
 
 class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   Object? _filter; // null = All, InvoiceStatus = exact, 'outstanding' = special
+  String?
+  _branchFilter; // null = current branch selection, specific branchId = filter
 
   @override
   Widget build(BuildContext context) {
@@ -45,17 +47,22 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           Expanded(
             child: salesAsync.when(
               data: (sales) {
+                // Apply branch filter client-side
+                var branchFiltered = _branchFilter == null
+                    ? sales
+                    : sales.where((s) => s.branchId == _branchFilter).toList();
+
                 final filtered = _filter == null
-                    ? sales
+                    ? branchFiltered
                     : _filter == 'outstanding'
-                    ? sales
+                    ? branchFiltered
                           .where(
                             (s) =>
                                 s.status == InvoiceStatus.approved ||
                                 s.status == InvoiceStatus.partiallyPaid,
                           )
                           .toList()
-                    : sales.where((s) => s.status == _filter).toList();
+                    : branchFiltered.where((s) => s.status == _filter).toList();
 
                 if (filtered.isEmpty) {
                   return _buildEmpty(theme, cs);
@@ -99,37 +106,117 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
       (InvoiceStatus.voided, 'Voided', PhosphorIconsRegular.prohibit),
     ];
 
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: filters.map((f) {
-          final isActive = _filter == f.$1;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
-              selected: isActive,
-              showCheckmark: false,
-              avatar: PhosphorIcon(
-                f.$3,
-                size: 16,
-                color: isActive ? cs.onPrimary : cs.onSurface,
-              ),
-              label: Text(f.$2),
-              labelStyle: TextStyle(
-                fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-                color: isActive ? cs.onPrimary : cs.onSurface,
-              ),
-              selectedColor: cs.primary,
-              side: BorderSide(
-                color: isActive
-                    ? cs.primary
-                    : cs.outline.withValues(alpha: 0.3),
-              ),
-              onSelected: (_) => setState(() => _filter = f.$1),
-            ),
-          );
-        }).toList(),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Branch filter (only visible when "All Branches" is selected)
+        Consumer(
+          builder: (context, ref, _) {
+            final branchesAsync = ref.watch(branchesProvider);
+            final currentBranch = ref.watch(currentBranchIdProvider);
+            final isAllBranches =
+                currentBranch == null || currentBranch == 'all';
+
+            if (!isAllBranches) return const SizedBox.shrink();
+
+            return branchesAsync.when(
+              data: (branches) {
+                if (branches.length <= 1) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: Row(
+                    children: [
+                      PhosphorIcon(
+                        PhosphorIconsRegular.storefront,
+                        size: 16,
+                        color: cs.onSurfaceVariant,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            children: [
+                              _branchChip(theme, cs, null, 'All Branches'),
+                              ...branches.map(
+                                (b) => _branchChip(theme, cs, b.id, b.name),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
+            );
+          },
+        ),
+        // Status filter chips
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+          child: Row(
+            children: filters.map((f) {
+              final isActive = _filter == f.$1;
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  selected: isActive,
+                  showCheckmark: false,
+                  avatar: PhosphorIcon(
+                    f.$3,
+                    size: 16,
+                    color: isActive ? cs.onPrimary : cs.onSurface,
+                  ),
+                  label: Text(f.$2),
+                  labelStyle: TextStyle(
+                    fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+                    color: isActive ? cs.onPrimary : cs.onSurface,
+                  ),
+                  selectedColor: cs.primary,
+                  side: BorderSide(
+                    color: isActive
+                        ? cs.primary
+                        : cs.outline.withValues(alpha: 0.3),
+                  ),
+                  onSelected: (_) => setState(() => _filter = f.$1),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _branchChip(
+    ThemeData theme,
+    ColorScheme cs,
+    String? branchId,
+    String label,
+  ) {
+    final isActive = _branchFilter == branchId;
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: ChoiceChip(
+        selected: isActive,
+        showCheckmark: false,
+        label: Text(
+          label,
+          style: TextStyle(
+            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
+            color: isActive ? cs.onSecondary : cs.onSurface,
+            fontSize: 12,
+          ),
+        ),
+        selectedColor: cs.secondary,
+        side: BorderSide(
+          color: isActive ? cs.secondary : cs.outline.withValues(alpha: 0.2),
+        ),
+        onSelected: (_) => setState(() => _branchFilter = branchId),
       ),
     );
   }

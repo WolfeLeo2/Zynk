@@ -152,7 +152,7 @@ class _DesktopDashboard extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              InteractiveSalesChart(),
+                              RevenueBarChart(),
                               SizedBox(height: 24),
                               RecentOrdersTable(),
                             ],
@@ -245,7 +245,7 @@ class _MobileDashboard extends StatelessWidget {
                     const SizedBox(height: 24),
                     const MobileMetricsGrid(),
                     const SizedBox(height: 24),
-                    const InteractiveSalesChart(),
+                    const RevenueBarChart(),
                     const SizedBox(height: 24),
                     const PaymentMethodsChart(),
                     const SizedBox(height: 24),

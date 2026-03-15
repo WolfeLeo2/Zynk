@@ -11,7 +11,6 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/presentation/components/pos_product_card.dart';
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
-import 'package:zynk/features/pos/presentation/components/checkout_sheet.dart';
 import 'package:uuid/uuid.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
@@ -99,46 +98,8 @@ class _PosScreenState extends ConsumerState<PosScreen>
     ref.read(cartProvider.notifier).clear();
   }
 
-  void _showCheckout() {
-    // Validate staff name and customer before allowing checkout
-    if (_salespersonName.trim().isEmpty) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please enter staff name before charging'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
-    }
-    if (_selectedCustomer == null) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select a customer before charging'),
-          behavior: SnackBarBehavior.floating,
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
-    }
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => CheckoutSheet(
-        items: List.from(ref.read(cartProvider).items),
-        total: ref.read(cartProvider).total,
-        customer: _selectedCustomer,
-        salespersonName: _salespersonName,
-        onComplete: () {
-          ref.read(cartProvider.notifier).clear();
-          setState(() => _selectedCustomer = null);
-        },
-      ),
-    );
-  }
+  // All sales now go through the invoice flow.
+  // The PosTicket's 'Create Invoice' button handles navigation.
 
   void _showCustomerSelector() {
     showModalBottomSheet(
@@ -232,7 +193,6 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   child: PosTicket(
                     items: cartItems,
                     total: _total,
-                    onCharge: _showCheckout,
                     onRemoveItem: _removeFromCart,
                     onClearTicket: _clearCart,
                     selectedCustomer: _selectedCustomer,
@@ -296,7 +256,6 @@ class _PosScreenState extends ConsumerState<PosScreen>
                 PosTicket(
                   items: cartItems,
                   total: _total,
-                  onCharge: _showCheckout,
                   onRemoveItem: _removeFromCart,
                   onClearTicket: _clearCart,
                   selectedCustomer: _selectedCustomer,

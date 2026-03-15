@@ -64,6 +64,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       importCsv(context);
                     } else if (value == 'product') {
                       context.push('/add-product');
+                    } else if (value == 'batch-adjust') {
+                      context.push('/products/batch-adjust');
                     }
                   },
                   itemBuilder: (context) => [
@@ -74,6 +76,16 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                           Icon(PhosphorIconsBold.plus, size: 20),
                           SizedBox(width: 12),
                           Text('Add Product'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'batch-adjust',
+                      child: Row(
+                        children: [
+                          Icon(PhosphorIconsDuotone.stackPlus, size: 20),
+                          SizedBox(width: 12),
+                          Text('Batch Adjust Stock'),
                         ],
                       ),
                     ),
@@ -127,129 +139,154 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             ),
           ],
         ),
-      body: Consumer(
-        builder: (context, ref, child) {
-          final productsAsync = ref.watch(allProductsProvider);
-          final categoriesAsync = ref.watch(allCategoriesProvider);
-          final categories = categoriesAsync.value ?? [];
+        body: Consumer(
+          builder: (context, ref, child) {
+            final productsAsync = ref.watch(allProductsProvider);
+            final categoriesAsync = ref.watch(allCategoriesProvider);
+            final categories = categoriesAsync.value ?? [];
 
-          return TabBarView(
-            children: [
-              // Tab 1: All Products
-              Column(
-                children: [
-                  // Search Bar
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
-                  child: TextField(
-                    decoration: InputDecoration(
-                      hintText: 'Search products by name...',
-                      prefixIcon: const Icon(
-                        PhosphorIconsDuotone.magnifyingGlass,
-                      ),
-                      filled: true,
-                      fillColor: theme.colorScheme.surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.outlineVariant,
-                        ),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide(
-                          color: theme.colorScheme.primary,
-                        ),
-                      ),
-                    ),
-                    onChanged: (val) {
-                      setState(() {
-                        _searchQuery = val;
-                      });
-                    },
-                  ),
-                ),
-                
-                // Category Filter Chips
-                  if (categories.isNotEmpty)
-                    SizedBox(
-                      height: 48,
-                      child: ListView(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        children: [
-                          Padding(
-                            padding: const EdgeInsets.only(right: 8),
-                            child: FilterChip(
-                              label: const Text('All Categories'),
-                              selected: _selectedCategoryId == null,
-                              onSelected: (_) => setState(() => _selectedCategoryId = null),
+            return TabBarView(
+              children: [
+                // Tab 1: All Products
+                Column(
+                  children: [
+                    // Search Bar
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+                      child: TextField(
+                        decoration: InputDecoration(
+                          hintText: 'Search products by name...',
+                          prefixIcon: const Icon(
+                            PhosphorIconsDuotone.magnifyingGlass,
+                          ),
+                          filled: true,
+                          fillColor: theme.colorScheme.surface,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
                             ),
                           ),
-                          ...categories.map(
-                            (cat) => Padding(
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.outlineVariant,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(16),
+                            borderSide: BorderSide(
+                              color: theme.colorScheme.primary,
+                            ),
+                          ),
+                        ),
+                        onChanged: (val) {
+                          setState(() {
+                            _searchQuery = val;
+                          });
+                        },
+                      ),
+                    ),
+
+                    // Category Filter Chips
+                    if (categories.isNotEmpty)
+                      SizedBox(
+                        height: 48,
+                        child: ListView(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          children: [
+                            Padding(
                               padding: const EdgeInsets.only(right: 8),
                               child: FilterChip(
-                                label: Text(cat.name),
-                                selected: _selectedCategoryId == cat.id,
-                                onSelected: (_) => setState(() => _selectedCategoryId = _selectedCategoryId == cat.id ? null : cat.id),
+                                label: const Text('All Categories'),
+                                selected: _selectedCategoryId == null,
+                                onSelected: (_) =>
+                                    setState(() => _selectedCategoryId = null),
                               ),
                             ),
-                          ),
-                        ],
+                            ...categories.map(
+                              (cat) => Padding(
+                                padding: const EdgeInsets.only(right: 8),
+                                child: FilterChip(
+                                  label: Text(cat.name),
+                                  selected: _selectedCategoryId == cat.id,
+                                  onSelected: (_) => setState(
+                                    () => _selectedCategoryId =
+                                        _selectedCategoryId == cat.id
+                                        ? null
+                                        : cat.id,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Main Content
+                    Expanded(
+                      child: productsAsync.when(
+                        data: (products) {
+                          var filtered = products.toList();
+                          if (_selectedCategoryId != null) {
+                            filtered = filtered
+                                .where(
+                                  (p) => p.categoryId == _selectedCategoryId,
+                                )
+                                .toList();
+                          }
+                          if (_searchQuery.isNotEmpty) {
+                            filtered = filtered
+                                .where(
+                                  (p) => p.name.toLowerCase().contains(
+                                    _searchQuery.toLowerCase(),
+                                  ),
+                                )
+                                .toList();
+                          }
+
+                          if (filtered.isEmpty) {
+                            return _buildEmptyState(theme);
+                          }
+                          return LayoutBuilder(
+                            builder: (context, constraints) {
+                              if (constraints.maxWidth > 800) {
+                                // Desktop/Tablet Grid
+                                return _buildGridView(
+                                  filtered,
+                                  crossAxisCount: 4,
+                                );
+                              } else if (constraints.maxWidth > 600) {
+                                // Small Tablet Grid
+                                return _buildGridView(
+                                  filtered,
+                                  crossAxisCount: 3,
+                                );
+                              } else {
+                                // Mobile List
+                                return _buildGridView(
+                                  filtered,
+                                  crossAxisCount: 2,
+                                );
+                              }
+                            },
+                          );
+                        },
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (e, s) => Center(child: Text('Error: $e')),
                       ),
                     ),
-                  
-                  // Main Content
-                  Expanded(
-                    child: productsAsync.when(
-                      data: (products) {
-                        var filtered = products.toList();
-                        if (_selectedCategoryId != null) {
-                          filtered = filtered.where((p) => p.categoryId == _selectedCategoryId).toList();
-                        }
-                        if (_searchQuery.isNotEmpty) {
-                          filtered = filtered.where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
-                        }
-
-                        if (filtered.isEmpty) {
-                          return _buildEmptyState(theme);
-                        }
-                        return LayoutBuilder(
-                          builder: (context, constraints) {
-                            if (constraints.maxWidth > 800) {
-                              // Desktop/Tablet Grid
-                              return _buildGridView(filtered, crossAxisCount: 4);
-                            } else if (constraints.maxWidth > 600) {
-                              // Small Tablet Grid
-                              return _buildGridView(filtered, crossAxisCount: 3);
-                            } else {
-                              // Mobile List
-                              return _buildGridView(filtered, crossAxisCount: 2);
-                            }
-                          },
-                        );
-                      },
-                      loading: () =>
-                          const Center(child: CircularProgressIndicator()),
-                      error: (e, s) => Center(child: Text('Error: $e')),
-                    ),
-                  ),
-                ],
-              ),
-            // Tab 2: Item Groups
-            const ItemGroupsView(),
-          ],
-        );
-      },
-      )
-      )
+                  ],
+                ),
+                // Tab 2: Item Groups
+                const ItemGroupsView(),
+              ],
+            );
+          },
+        ),
+      ),
     );
   }
 

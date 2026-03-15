@@ -252,6 +252,61 @@ class PowerSyncRepository {
     });
   }
 
+  Future<void> batchAdjustStock({
+    required String tenantId,
+    required String branchId,
+    required String adjustmentType, // 'addition', 'reduction', 'damage'
+    required List<BatchAdjustmentItem> items,
+    required String createdBy,
+    String? referenceNumber,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      final now = DateTime.now().toIso8601String();
+
+      for (final item in items) {
+        // 1. Get current stock
+        final stockResult = await tx.getAll(
+          'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+          [item.productId, branchId],
+        );
+
+        if (stockResult.isEmpty) {
+          await tx.execute(
+            '''INSERT INTO stock (
+              id, tenant_id, branch_id, product_id, quantity, reorder_level, 
+              last_updated
+            ) VALUES (uuid(), ?, ?, ?, ?, 0, ?)''',
+            [tenantId, branchId, item.productId, item.quantityChange, now],
+          );
+        } else {
+          await tx.execute(
+            'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ? AND branch_id = ?',
+            [item.quantityChange, now, item.productId, branchId],
+          );
+        }
+
+        // 2. Insert stock adjustment log
+        await tx.execute(
+          '''INSERT INTO stock_adjustments (
+            id, tenant_id, branch_id, product_id, adjustment_type, quantity, 
+            reference_number, notes, created_by, created_at
+          ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          [
+            tenantId,
+            branchId,
+            item.productId,
+            adjustmentType,
+            item.quantityChange,
+            referenceNumber,
+            item.notes,
+            createdBy,
+            now,
+          ],
+        );
+      }
+    });
+  }
+
   // --- Categories ---
   Stream<List<Category>> watchCategories() {
     return _db
@@ -387,6 +442,19 @@ class PowerSyncRepository {
     );
   }
 
+  Future<void> updateCustomer(Customer customer) async {
+    await _db.execute(
+      'UPDATE customers SET name = ?, phone = ?, email = ?, updated_at = ? WHERE id = ?',
+      [
+        customer.name,
+        customer.phone,
+        customer.email,
+        DateTime.now().toIso8601String(),
+        customer.id,
+      ],
+    );
+  }
+
   // --- Sales / Invoices ---
 
   /// Watch all sales for a tenant, optionally filtered by status and/or branch
@@ -440,7 +508,59 @@ class PowerSyncRepository {
         .map((rows) => rows.map((row) => SaleItem.fromMap(row)).toList());
   }
 
+  /// Updates an existing draft/pending_approval invoice header and replaces its items.
+  /// Only allowed on unpaid sales with no recorded payments.
+  Future<void> updateSaleDraft({
+    required String saleId,
+    required String customerId,
+    required String tenantId,
+    required List<SaleItem> items,
+    String? notes,
+    String? dueDate,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      final now = DateTime.now().toIso8601String();
+
+      // Recalculate totals from updated items
+      double subtotal = 0;
+      for (final item in items) {
+        subtotal += item.total;
+      }
+      final grandTotal = subtotal;
+
+      // Update sale header
+      await tx.execute(
+        '''UPDATE sales SET customer_id = ?, subtotal = ?, total_amount = ?, grand_total = ?, notes = ?, due_date = ?, updated_at = ? WHERE id = ?''',
+        [customerId, subtotal, grandTotal, grandTotal, notes, dueDate, now, saleId],
+      );
+
+      // Delete existing items and re-insert
+      await tx.execute('DELETE FROM sale_items WHERE sale_id = ?', [saleId]);
+      for (final item in items) {
+        await tx.execute(
+          '''INSERT INTO sale_items (id, sale_id, product_id, tenant_id, quantity, unit_price, cost_price, tax_amount, discount, total, created_at, updated_at)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          [
+            item.id,
+            saleId,
+            item.productId,
+            tenantId,
+            item.quantity,
+            item.unitPrice,
+            item.costPrice,
+            item.taxAmount,
+            item.discount,
+            item.total,
+            now,
+            now,
+          ],
+        );
+      }
+    });
+  }
+
   // --- Payments ---
+
 
   /// Watch all payments for a specific sale
   Stream<List<Payment>> watchPaymentsForSale(String saleId) {
@@ -450,6 +570,79 @@ class PowerSyncRepository {
           parameters: [saleId],
         )
         .map((rows) => rows.map((row) => Payment.fromMap(row)).toList());
+  }
+
+  /// Record payment offline locally and auto-update sale status / amount paid
+  Future<void> recordPaymentLocally({
+    required String saleId,
+    required double amount,
+    required String paymentMethod,
+    String? referenceNumber,
+    String? notes,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      // 1. Fetch current sale
+      final saleRow =
+          await tx.getOptional('SELECT * FROM sales WHERE id = ?', [saleId]);
+      if (saleRow == null) throw Exception('Sale not found locally');
+      final sale = Sale.fromMap(saleRow);
+
+      // 2. Insert payment
+      final paymentId = uuid.v4();
+      final now = DateTime.now().toIso8601String();
+      await tx.execute(
+        'INSERT INTO sale_payments (id, tenant_id, branch_id, sale_id, amount, payment_method, reference_number, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          paymentId,
+          sale.tenantId,
+          sale.branchId,
+          sale.id,
+          amount,
+          paymentMethod,
+          referenceNumber,
+          notes,
+          now,
+          now,
+        ],
+      );
+
+      // 3. Update sale totals & status
+      final newAmountPaid = sale.amountPaid + amount;
+      var newPaymentStatus = PaymentStatus.partiallyPaid;
+      if (newAmountPaid >= sale.grandTotal) {
+        newPaymentStatus = PaymentStatus.paid;
+      }
+
+      String? completedAtStr = sale.completedAt?.toIso8601String();
+      var newStatus = sale.status;
+
+      // Auto-complete logic
+      if (newPaymentStatus == PaymentStatus.paid) {
+        if (sale.status == InvoiceStatus.approved) {
+           newStatus = InvoiceStatus.completed;
+           completedAtStr = now;
+        } else if (sale.status == InvoiceStatus.draft) {
+           // Should technically not happen as draft -> pending_approval on save
+           // but if a retail cashier completes a draft immediately, it bypasses approval
+           newStatus = InvoiceStatus.completed;
+           completedAtStr = now;
+        }
+        // If it was pendingApproval, it remains pendingApproval (until explicitly approved)
+      }
+
+      await tx.execute(
+        'UPDATE sales SET amount_paid = ?, status = ?, payment_status = ?, payment_method = ?, updated_at = ?, completed_at = ? WHERE id = ?',
+        [
+          newAmountPaid,
+          newStatus.value,
+          newPaymentStatus.value,
+          paymentMethod,
+          now,
+          completedAtStr,
+          sale.id,
+        ],
+      );
+    });
   }
 
   // --- Credit Notes ---
@@ -571,13 +764,11 @@ class PowerSyncRepository {
     });
   }
 
-  /// Watch average order value (valid sales created today)
-  Stream<double> watchAverageOrderValue({String? branchId}) {
-    final todayUtc = DateTime.now().toUtc().toIso8601String().substring(0, 10);
-
+  /// Watch pending approvals count
+  Stream<int> watchPendingApprovalsCount({String? branchId}) {
     var sql =
-        "SELECT COALESCE(AVG(grand_total), 0) as avg FROM sales WHERE status NOT IN ('draft', 'voided', 'rejected', 'pending_approval') AND created_at >= ?";
-    final params = <dynamic>['${todayUtc}T00:00:00'];
+        "SELECT COUNT(*) as count FROM sales WHERE status = 'pending_approval'";
+    final params = <dynamic>[];
 
     if (branchId != null && branchId != 'all') {
       sql += ' AND branch_id = ?';
@@ -585,8 +776,8 @@ class PowerSyncRepository {
     }
 
     return _db.watch(sql, parameters: params).map((results) {
-      if (results.isEmpty || results.first['avg'] == null) return 0.0;
-      return (results.first['avg'] as num).toDouble();
+      if (results.isEmpty) return 0;
+      return (results.first['count'] as num).toInt();
     });
   }
 

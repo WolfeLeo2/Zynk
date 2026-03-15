@@ -160,9 +160,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                       ),
                       child: const Text(
                         'Forgot password?',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: TextStyle(fontWeight: FontWeight.w600),
                       ),
                     ),
                   ),

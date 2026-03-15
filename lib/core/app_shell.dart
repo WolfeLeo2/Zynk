@@ -31,6 +31,7 @@ class AppShell extends ConsumerWidget {
           return Scaffold(
             body: navigationShell,
             bottomNavigationBar: NavigationBar(
+              height: 72,
               selectedIndex: navigationShell.currentIndex,
               onDestinationSelected: (index) => navigationShell.goBranch(
                 index,

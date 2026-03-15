@@ -24,6 +24,50 @@ enum FulfillmentStatus {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// PAYMENT STATUS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum PaymentStatus {
+  unpaid,
+  partiallyPaid,
+  paid;
+
+  String get value {
+    switch (this) {
+      case PaymentStatus.unpaid:
+        return 'unpaid';
+      case PaymentStatus.partiallyPaid:
+        return 'partially_paid';
+      case PaymentStatus.paid:
+        return 'paid';
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case PaymentStatus.unpaid:
+        return 'Unpaid';
+      case PaymentStatus.partiallyPaid:
+        return 'Partially Paid';
+      case PaymentStatus.paid:
+        return 'Paid';
+    }
+  }
+
+  static PaymentStatus fromString(String? status) {
+    switch (status?.toLowerCase()) {
+      case 'partially_paid':
+        return PaymentStatus.partiallyPaid;
+      case 'paid':
+        return PaymentStatus.paid;
+      case 'unpaid':
+      default:
+        return PaymentStatus.unpaid;
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // INVOICE STATUS
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -32,8 +76,8 @@ enum InvoiceStatus {
   pendingApproval,
   approved,
   rejected,
-  partiallyPaid,
-  paid,
+  partiallyPaid, // Legacy, kept for safe parsing
+  paid,          // Legacy, kept for safe parsing
   completed,
   voided;
 
@@ -69,9 +113,9 @@ enum InvoiceStatus {
       case InvoiceStatus.rejected:
         return 'Rejected';
       case InvoiceStatus.partiallyPaid:
-        return 'Partially Paid';
+        return 'Partially Paid (Legacy)';
       case InvoiceStatus.paid:
-        return 'Paid';
+        return 'Paid (Legacy)';
       case InvoiceStatus.completed:
         return 'Completed';
       case InvoiceStatus.voided:
@@ -82,12 +126,14 @@ enum InvoiceStatus {
   bool get isTerminal =>
       this == InvoiceStatus.completed || this == InvoiceStatus.voided;
 
-  bool get canAcceptPayment =>
-      this == InvoiceStatus.approved || this == InvoiceStatus.partiallyPaid;
-
   bool get canBeApproved => this == InvoiceStatus.pendingApproval;
 
-  bool get canBeVoided => !isTerminal;
+  /// Paid and completed invoices cannot be voided.
+  /// Admin must delete payments first to unlock voiding.
+  bool get canBeVoided =>
+      this != InvoiceStatus.paid &&
+      this != InvoiceStatus.completed &&
+      this != InvoiceStatus.voided;
 
   static InvoiceStatus fromString(String? status) {
     switch (status?.toLowerCase()) {
@@ -135,6 +181,7 @@ class Sale {
   final double amountPaid;
   final String? paymentMethod;
   final InvoiceStatus status;
+  final PaymentStatus paymentStatus;
   final FulfillmentStatus fulfillmentStatus;
   final String? notes;
   final DateTime? dueDate;
@@ -163,6 +210,7 @@ class Sale {
     this.amountPaid = 0,
     this.paymentMethod,
     this.status = InvoiceStatus.draft,
+    this.paymentStatus = PaymentStatus.unpaid,
     this.fulfillmentStatus = FulfillmentStatus.unreleased,
     this.notes,
     this.dueDate,
@@ -176,6 +224,9 @@ class Sale {
 
   double get remainingBalance => grandTotal - amountPaid;
   bool get isFullyPaid => amountPaid >= grandTotal;
+  
+  // Can only accept payment if it's not fully paid and not voided.
+  bool get canAcceptPayment => paymentStatus != PaymentStatus.paid && status != InvoiceStatus.voided && status != InvoiceStatus.rejected;
 
   factory Sale.fromMap(Map<String, dynamic> map) {
     return Sale(
@@ -196,6 +247,7 @@ class Sale {
       amountPaid: (map['amount_paid'] as num?)?.toDouble() ?? 0,
       paymentMethod: map['payment_method'] as String?,
       status: InvoiceStatus.fromString(map['status'] as String?),
+      paymentStatus: PaymentStatus.fromString(map['payment_status'] as String?),
       fulfillmentStatus: FulfillmentStatus.fromString(
         map['fulfillment_status'] as String?,
       ),
@@ -229,6 +281,7 @@ class Sale {
       'amount_paid': amountPaid,
       'payment_method': paymentMethod,
       'status': status.value,
+      'payment_status': paymentStatus.value,
       'fulfillment_status': fulfillmentStatus.value,
       'notes': notes,
       'due_date': dueDate?.toIso8601String(),

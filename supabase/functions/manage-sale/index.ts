@@ -146,11 +146,14 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Sale must be draft or pending approval to be approved");
                 }
 
+                // If the invoice is already fully paid, and we are approving it, transition it to completed.
+                const newStatus = sale.payment_status === "paid" ? "completed" : "approved";
+
                 // Update status
                 const { error } = await supabase
                     .from("sales")
                     .update({
-                        status: "approved",
+                        status: newStatus,
                         approved_by: user.id,
                         updated_at: now,
                     })
@@ -158,7 +161,7 @@ Deno.serve(async (req: Request) => {
 
                 if (error) throw new Error(`Approve failed: ${error.message}`);
 
-                return jsonResponse({ status: "approved", sale_id: saleId });
+                return jsonResponse({ status: newStatus, sale_id: saleId });
             }
 
             case "fulfill_sale": {
@@ -271,12 +274,10 @@ Deno.serve(async (req: Request) => {
 
                 if (!sale) throw new Error("Sale not found. Ensure the invoice has synced before recording payment.");
 
-                const validStatuses = ["approved", "partially_paid"];
-                if (!validStatuses.includes(sale.status)) {
-                    throw new Error(`Cannot record payment on ${sale.status} sale`);
+                // Can only accept payment if it's not fully paid and not voided.
+                if (sale.payment_status === "paid" || sale.status === "voided" || sale.status === "rejected") {
+                    throw new Error(`Cannot record payment on ${sale.status} sale or an already paid sale`);
                 }
-
-                // Update sale totals directly without sale_payments
 
                 // Insert payment
                 const { error: payError } = await supabase
@@ -295,25 +296,31 @@ Deno.serve(async (req: Request) => {
                     });
 
                 if (payError) throw new Error(`Payment failed: ${payError.message}`);
+                
                 // Update sale totals
                 const newAmountPaid = (sale.amount_paid || 0) + amount;
                 const grandTotal = sale.grand_total || 0;
 
-                let newStatus = "partially_paid";
+                let newPaymentStatus = "partially_paid";
                 if (newAmountPaid >= grandTotal) {
-                    newStatus = "paid";
+                    newPaymentStatus = "paid";
                 }
 
-                // Auto-complete if fully paid
+                let newStatus = sale.status;
                 const updateData: any = {
                     amount_paid: newAmountPaid,
-                    status: newStatus,
+                    payment_status: newPaymentStatus,
                     updated_at: now,
                     payment_method: payment_method,
                 };
-                if (newStatus === "paid") {
+                
+                // Auto-complete logic
+                if (newPaymentStatus === "paid") {
                     updateData.completed_at = now;
-                    updateData.status = "completed";
+                    if (sale.status === "approved" || sale.status === "draft") {
+                        updateData.status = "completed";
+                        newStatus = "completed";
+                    }
                 }
 
                 const { error: updateError } = await supabase
@@ -325,7 +332,8 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Status update failed: ${updateError.message}`);
 
                 return jsonResponse({
-                    status: updateData.status,
+                    status: newStatus,
+                    payment_status: newPaymentStatus,
                     amount_paid: newAmountPaid,
                     sale_id: saleId,
                 });

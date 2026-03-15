@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
+import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 
 /// Screen for creating a new B2B invoice (starts as draft).
-/// This receives pre-filled data directly from the POS cart.
+/// Received pre-filled data from POS cart and allows editing before submission.
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final List<PosCartItem> cartItems;
   final Customer customer;
@@ -32,15 +34,52 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   DateTime? _dueDate;
   bool _isLoading = false;
 
+  // Editable customer fields
+  late TextEditingController _customerNameCtrl;
+  late TextEditingController _customerPhoneCtrl;
+
+  // Editable item fields (parallel lists)
+  late List<TextEditingController> _itemNameCtrls;
+  late List<TextEditingController> _itemPriceCtrls;
+  late List<TextEditingController> _itemQtyCtrls;
+
+  @override
+  void initState() {
+    super.initState();
+    _customerNameCtrl = TextEditingController(text: widget.customer.name);
+    _customerPhoneCtrl = TextEditingController(text: widget.customer.phone ?? '');
+
+    _itemNameCtrls = widget.cartItems
+        .map((i) => TextEditingController(text: i.effectiveName))
+        .toList();
+    _itemPriceCtrls = widget.cartItems
+        .map((i) => TextEditingController(text: i.effectivePrice.toStringAsFixed(0)))
+        .toList();
+    _itemQtyCtrls = widget.cartItems
+        .map((i) => TextEditingController(text: i.quantity.toString()))
+        .toList();
+  }
+
   @override
   void dispose() {
     _notesController.dispose();
+    _customerNameCtrl.dispose();
+    _customerPhoneCtrl.dispose();
+    for (final c in _itemNameCtrls) c.dispose();
+    for (final c in _itemPriceCtrls) c.dispose();
+    for (final c in _itemQtyCtrls) c.dispose();
     super.dispose();
   }
 
-  double get _subtotal => widget.cartItems.fold(0, (sum, li) => sum + li.total);
-
-  double get _grandTotal => _subtotal;
+  double _computeSubtotal() {
+    double subtotal = 0;
+    for (var i = 0; i < widget.cartItems.length; i++) {
+      final price = double.tryParse(_itemPriceCtrls[i].text) ?? widget.cartItems[i].effectivePrice;
+      final qty = int.tryParse(_itemQtyCtrls[i].text) ?? widget.cartItems[i].quantity;
+      subtotal += price * qty;
+    }
+    return subtotal;
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -50,35 +89,99 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     try {
       final tenantId = ref.read(tenantIdProvider);
       final branchId = ref.read(currentBranchIdProvider);
+      final repo = ref.read(repositoryProvider);
 
       if (tenantId == null || branchId == null) {
         throw Exception('Missing tenant or branch context');
       }
 
-      await ref
-          .read(salesServiceProvider)
-          .createDraftInvoiceLocal(
+      // Apply edits back onto cartItems before submitting
+      final editedItems = <PosCartItem>[];
+      for (var i = 0; i < widget.cartItems.length; i++) {
+        final item = widget.cartItems[i];
+        final qty = int.tryParse(_itemQtyCtrls[i].text) ?? item.quantity;
+        if (qty <= 0) continue;
+
+        final price = double.tryParse(_itemPriceCtrls[i].text) ?? item.effectivePrice;
+        final name = _itemNameCtrls[i].text.trim().isEmpty
+            ? item.effectiveName
+            : _itemNameCtrls[i].text.trim();
+
+        // Stock validation — prevent overselling
+        if (!item.product.isService) {
+          final stockResult = await repo.db.get(
+            'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+            [item.product.id, branchId],
+          );
+          final availableStock = (stockResult['quantity'] as num?)?.toInt() ?? 0;
+          if (qty > availableStock) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                    'Insufficient stock for "$name". Available: $availableStock',
+                  ),
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            }
+            setState(() => _isLoading = false);
+            return;
+          }
+        }
+
+        editedItems.add(
+          PosCartItem(
+            product: item.product,
+            quantity: qty,
+            overrideName: name != item.product.name ? name : null,
+            overridePrice: price != item.product.basePrice ? price : null,
+          ),
+        );
+      }
+
+      if (editedItems.isEmpty) {
+        throw Exception('No valid items to submit.');
+      }
+
+      // Update customer name/phone if changed
+      final newName = _customerNameCtrl.text.trim();
+      final newPhone = _customerPhoneCtrl.text.trim();
+      if (newName != widget.customer.name || newPhone != (widget.customer.phone ?? '')) {
+        final updatedCustomer = Customer(
+          id: widget.customer.id,
+          tenantId: widget.customer.tenantId,
+          branchId: widget.customer.branchId,
+          name: newName.isEmpty ? widget.customer.name : newName,
+          phone: newPhone.isEmpty ? null : newPhone,
+          email: widget.customer.email,
+        );
+        await repo.updateCustomer(updatedCustomer);
+      }
+
+      await ref.read(salesServiceProvider).createDraftInvoiceLocal(
             tenantId: tenantId,
             branchId: branchId,
             customerId: widget.customer.id,
-            cartItems: widget.cartItems,
+            cartItems: editedItems,
+            salespersonName: widget.salespersonName,
             notes: _notesController.text.isEmpty ? null : _notesController.text,
             dueDate: _dueDate?.toIso8601String(),
           );
 
       if (mounted) {
-        context.pop(); // Pop Create Invoice Screen
-        context
-            .pop(); // Pop POS Screen Checkout Sheet (if needed) -> usually handled by router architecture.
+        ref.read(cartProvider.notifier).clear();
+        context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Draft invoice saved offline!')),
+          const SnackBar(content: Text('Invoice submitted for approval!')),
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -89,10 +192,6 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final totalItems = widget.cartItems.fold<int>(
-      0,
-      (sum, item) => sum + item.quantity,
-    );
 
     return Scaffold(
       appBar: AppBar(
@@ -105,114 +204,56 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       ),
       body: Form(
         key: _formKey,
+        onChanged: () => setState(() {}),
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
             // ── Staff Details ──
-            if (widget.salespersonName != null &&
-                widget.salespersonName!.isNotEmpty) ...[
-              Text(
-                'Salesperson',
-                style: theme.textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            if (widget.salespersonName != null && widget.salespersonName!.isNotEmpty) ...[
+              _SectionLabel('Salesperson'),
               const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: cs.outlineVariant.withValues(alpha: 0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    PhosphorIcon(
-                      PhosphorIconsRegular.user,
-                      color: cs.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      widget.salespersonName!,
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
+              _ReadOnlyRow(
+                icon: PhosphorIconsRegular.user,
+                text: widget.salespersonName!,
+                cs: cs,
+                theme: theme,
               ),
               const SizedBox(height: 24),
             ],
 
-            // ── Customer Details ──
-            Text(
-              'Billed To',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            // ── Customer Details (Editable) ──
+            _SectionLabel('Billed To'),
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
+                color: cs.surfaceContainerHighest.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: cs.outlineVariant.withValues(alpha: 0.2),
-                ),
+                border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
               ),
-              child: Row(
+              child: Column(
                 children: [
-                  Container(
-                    width: 48,
-                    height: 48,
-                    decoration: BoxDecoration(
-                      color: cs.primary.withValues(alpha: 0.15),
-                      shape: BoxShape.circle,
+                  TextFormField(
+                    controller: _customerNameCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Customer Name',
+                      prefixIcon: const Icon(PhosphorIconsRegular.user),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      isDense: true,
                     ),
-                    child: Center(
-                      child: Text(
-                        widget.customer.name.isNotEmpty
-                            ? widget.customer.name[0].toUpperCase()
-                            : '?',
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          color: cs.primary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
+                    textCapitalization: TextCapitalization.words,
+                    validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          widget.customer.name,
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        if (widget.customer.phone != null ||
-                            widget.customer.email != null) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            [
-                              widget.customer.phone,
-                              widget.customer.email,
-                            ].whereType<String>().join(' • '),
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ],
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _customerPhoneCtrl,
+                    decoration: InputDecoration(
+                      labelText: 'Phone (optional)',
+                      prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      isDense: true,
                     ),
+                    keyboardType: TextInputType.phone,
                   ),
                 ],
               ),
@@ -220,12 +261,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             const SizedBox(height: 24),
 
             // ── Due Date ──
-            Text(
-              'Due Date (Optional)',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            _SectionLabel('Due Date (Optional)'),
             const SizedBox(height: 8),
             InkWell(
               onTap: () async {
@@ -239,10 +275,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               },
               borderRadius: BorderRadius.circular(12),
               child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 decoration: BoxDecoration(
                   color: cs.surface,
                   borderRadius: BorderRadius.circular(12),
@@ -250,19 +283,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 ),
                 child: Row(
                   children: [
-                    PhosphorIcon(
-                      PhosphorIconsRegular.calendar,
-                      color: cs.onSurfaceVariant,
-                    ),
+                    PhosphorIcon(PhosphorIconsRegular.calendar, color: cs.onSurfaceVariant),
                     const SizedBox(width: 12),
                     Text(
                       _dueDate != null
                           ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
                           : 'Select due date',
                       style: theme.textTheme.bodyLarge?.copyWith(
-                        color: _dueDate != null
-                            ? cs.onSurface
-                            : cs.onSurfaceVariant,
+                        color: _dueDate != null ? cs.onSurface : cs.onSurfaceVariant,
                       ),
                     ),
                   ],
@@ -271,83 +299,28 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             ),
             const SizedBox(height: 24),
 
-            // ── Invoice Items ──
+            // ── Invoice Items (Editable) ──
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
+                _SectionLabel('Items'),
                 Text(
-                  'Items',
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                Text(
-                  '$totalItems items total',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
+                  '${widget.cartItems.length} product${widget.cartItems.length != 1 ? 's' : ''}',
+                  style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
                 ),
               ],
             ),
             const SizedBox(height: 8),
 
-            ...widget.cartItems.map((li) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 8),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: cs.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Center(
-                        child: Text(
-                          '${li.quantity}',
-                          style: theme.textTheme.labelLarge?.copyWith(
-                            color: cs.onPrimaryContainer,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            li.product.name,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Ksh ${li.product.basePrice.toStringAsFixed(0)} each',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    Text(
-                      'Ksh ${li.total.toStringAsFixed(0)}',
-                      style: theme.textTheme.bodyLarge?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
+            ...List.generate(widget.cartItems.length, (i) {
+              return _EditableItemRow(
+                index: i,
+                cs: cs,
+                theme: theme,
+                nameCtr: _itemNameCtrls[i],
+                priceCtr: _itemPriceCtrls[i],
+                qtyCtr: _itemQtyCtrls[i],
+                onChanged: () => setState(() {}),
               );
             }),
             const SizedBox(height: 16),
@@ -364,12 +337,10 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 children: [
                   Text(
                     'Estimate Total',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
                   ),
                   Text(
-                    'Ksh ${_grandTotal.toStringAsFixed(0)}',
+                    'Ksh ${_computeSubtotal().toStringAsFixed(0)}',
                     style: theme.textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: cs.primary,
@@ -381,21 +352,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             const SizedBox(height: 24),
 
             // ── Notes ──
-            Text(
-              'Notes (Optional)',
-              style: theme.textTheme.titleSmall?.copyWith(
-                fontWeight: FontWeight.w600,
-              ),
-            ),
+            _SectionLabel('Notes (Optional)'),
             const SizedBox(height: 8),
             TextFormField(
               controller: _notesController,
               maxLines: 3,
               decoration: InputDecoration(
                 hintText: 'e.g., Net 30 payment terms',
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                 filled: true,
                 fillColor: cs.surface,
               ),
@@ -409,29 +373,176 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                   ? const SizedBox(
                       width: 20,
                       height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                     )
                   : const PhosphorIcon(PhosphorIconsBold.fileText),
               label: Text(
-                _isLoading ? 'Saving...' : 'Save Draft Invoice',
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                _isLoading ? 'Submitting...' : 'Submit Invoice',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
               ),
             ),
             const SizedBox(height: 48),
           ],
         ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _SectionLabel extends StatelessWidget {
+  final String text;
+  const _SectionLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      text,
+      style: Theme.of(context).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+    );
+  }
+}
+
+class _ReadOnlyRow extends StatelessWidget {
+  final IconData icon;
+  final String text;
+  final ColorScheme cs;
+  final ThemeData theme;
+
+  const _ReadOnlyRow({required this.icon, required this.text, required this.cs, required this.theme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
+      ),
+      child: Row(
+        children: [
+          PhosphorIcon(icon, color: cs.onSurfaceVariant),
+          const SizedBox(width: 12),
+          Text(text, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+}
+
+class _EditableItemRow extends StatelessWidget {
+  final int index;
+  final ColorScheme cs;
+  final ThemeData theme;
+  final TextEditingController nameCtr;
+  final TextEditingController priceCtr;
+  final TextEditingController qtyCtr;
+  final VoidCallback onChanged;
+
+  const _EditableItemRow({
+    required this.index,
+    required this.cs,
+    required this.theme,
+    required this.nameCtr,
+    required this.priceCtr,
+    required this.qtyCtr,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Item name
+          TextFormField(
+            controller: nameCtr,
+            onChanged: (_) => onChanged(),
+            decoration: InputDecoration(
+              labelText: 'Product Name',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+            textCapitalization: TextCapitalization.words,
+          ),
+          const SizedBox(height: 10),
+
+          Row(
+            children: [
+              // Quantity
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: qtyCtr,
+                  onChanged: (_) => onChanged(),
+                  decoration: InputDecoration(
+                    labelText: 'Qty',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  validator: (v) {
+                    final qty = int.tryParse(v ?? '');
+                    if (qty == null || qty <= 0) return 'Invalid';
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Unit price
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: priceCtr,
+                  onChanged: (_) => onChanged(),
+                  decoration: InputDecoration(
+                    labelText: 'Unit Price (Ksh)',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+                  validator: (v) {
+                    final price = double.tryParse(v ?? '');
+                    if (price == null || price < 0) return 'Invalid price';
+                    return null;
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Line total
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text('Total', style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+                  const SizedBox(height: 2),
+                  Text(
+                    'Ksh ${((double.tryParse(priceCtr.text) ?? 0) * (int.tryParse(qtyCtr.text) ?? 0)).toStringAsFixed(0)}',
+                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

@@ -8,11 +8,12 @@ import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
+import 'package:zynk/features/pos/providers/cart_provider.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 
 class PosTicket extends ConsumerWidget {
   final List<PosCartItem> items;
   final double total;
-  final VoidCallback onCharge;
   final Function(PosCartItem) onRemoveItem;
   final VoidCallback onClearTicket;
 
@@ -26,7 +27,6 @@ class PosTicket extends ConsumerWidget {
     super.key,
     required this.items,
     required this.total,
-    required this.onCharge,
     required this.onRemoveItem,
     required this.onClearTicket,
     this.selectedCustomer,
@@ -324,87 +324,50 @@ class PosTicket extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: SizedBox(
-                      height: 52,
-                      child: FilledButton.icon(
-                        onPressed: items.isEmpty || selectedCustomer == null
-                            ? null
-                            : onCharge,
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          backgroundColor: cs.secondary,
-                          foregroundColor: cs.onSecondary,
-                          textStyle: tt.labelLarge?.copyWith(
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        icon: const PhosphorIcon(
-                          PhosphorIconsBold.creditCard,
-                          size: 20,
-                        ),
-                        label: const Text('Charge'),
-                      ),
-                    ),
-                  ),
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final canCreateInvoice = ref.watch(
-                        hasPermissionProvider(Permission.createInvoices),
-                      );
+              Consumer(
+                builder: (context, ref, child) {
+                  final canCreateInvoice = ref.watch(
+                    hasPermissionProvider(Permission.createInvoices),
+                  );
 
-                      if (selectedCustomer == null ||
+                  return SizedBox(
+                    width: double.infinity,
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed:
                           items.isEmpty ||
-                          !canCreateInvoice) {
-                        return const SizedBox.shrink();
-                      }
-
-                      return Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(left: 8.0),
-                          child: SizedBox(
-                            height: 52,
-                            child: FilledButton.icon(
-                              onPressed: () {
-                                GoRouter.of(context).push(
-                                  '/sales/create-invoice',
-                                  extra: {
-                                    'cartItems': items,
-                                    'customer': selectedCustomer,
-                                    'salespersonName': salespersonName,
-                                  },
-                                );
-                              },
-                              style: FilledButton.styleFrom(
-                                padding: const EdgeInsets.symmetric(
-                                  vertical: 14,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                backgroundColor: cs.primary,
-                                foregroundColor: cs.onPrimary,
-                                textStyle: tt.labelLarge?.copyWith(
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                              icon: PhosphorIcon(
-                                PhosphorIconsBold.fileText,
-                                size: 20,
-                              ),
-                              label: Text('Invoice'),
-                            ),
-                          ),
+                              selectedCustomer == null ||
+                              !canCreateInvoice
+                          ? null
+                          : () {
+                              GoRouter.of(context).push(
+                                '/sales/create-invoice',
+                                extra: {
+                                  'cartItems': items,
+                                  'customer': selectedCustomer,
+                                  'salespersonName': salespersonName,
+                                },
+                              );
+                            },
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
                         ),
-                      );
-                    },
-                  ),
-                ],
+                        backgroundColor: cs.primary,
+                        foregroundColor: cs.onPrimary,
+                        textStyle: tt.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsBold.fileText,
+                        size: 20,
+                      ),
+                      label: const Text('Create Invoice'),
+                    ),
+                  );
+                },
               ),
             ],
           ),
@@ -418,7 +381,7 @@ class PosTicket extends ConsumerWidget {
 // TICKET ITEM ROW
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _TicketItemRow extends StatelessWidget {
+class _TicketItemRow extends ConsumerWidget {
   final PosCartItem item;
   final ColorScheme cs;
   final TextTheme tt;
@@ -432,7 +395,7 @@ class _TicketItemRow extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Dismissible(
       key: ValueKey(item.product.id),
       direction: DismissDirection.endToStart,
@@ -459,25 +422,6 @@ class _TicketItemRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            // Quantity badge
-            Container(
-              width: 30,
-              height: 30,
-              decoration: BoxDecoration(
-                color: cs.primaryContainer.withValues(alpha: 0.7),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: Text(
-                  '${item.quantity}',
-                  style: tt.labelMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: cs.onPrimaryContainer,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
             // Product name + unit price
             Expanded(
               child: Column(
@@ -499,10 +443,74 @@ class _TicketItemRow extends StatelessWidget {
                 ],
               ),
             ),
+            
+            // Quantity controls
+            Container(
+              decoration: BoxDecoration(
+                color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () {
+                      ref.read(cartProvider.notifier).setQuantity(item.product.id, item.quantity - 1);
+                    },
+                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      child: Icon(PhosphorIconsBold.minus, size: 16, color: cs.primary),
+                    ),
+                  ),
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 32),
+                    alignment: Alignment.center,
+                    child: Text(
+                      '${item.quantity}',
+                      style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  InkWell(
+                    onTap: () {
+                      if (!item.product.isService) {
+                        final stockState = ref.read(stockProvider(item.product.id)).value;
+                        final availableStock = stockState?.quantity ?? 0;
+                        if (item.quantity + 1 > availableStock) {
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Cannot add ${item.product.name}. Only $availableStock in stock.'),
+                              backgroundColor: cs.error,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                      }
+                      ref.read(cartProvider.notifier).setQuantity(item.product.id, item.quantity + 1);
+                    },
+                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      child: Icon(PhosphorIconsBold.plus, size: 16, color: cs.primary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            
+            const SizedBox(width: 12),
+            
             // Line total
-            Text(
-              'Ksh ${item.total.toStringAsFixed(0)}',
-              style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+            SizedBox(
+              width: 70,
+              child: Text(
+                'Ksh ${item.total.toStringAsFixed(0)}',
+                style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                textAlign: TextAlign.right,
+              ),
             ),
           ],
         ),

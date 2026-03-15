@@ -55,12 +55,12 @@ final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
   return repo.watchTodaysOrderCount(branchId: branchId);
 });
 
-/// Average order value (today)
-final averageOrderValueProvider = StreamProvider.autoDispose<double>((ref) {
+/// Pending Approvals Count
+final pendingApprovalsCountProvider = StreamProvider.autoDispose<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchAverageOrderValue(branchId: branchId);
+  return repo.watchPendingApprovalsCount(branchId: branchId);
 });
 
 /// Low stock item count
@@ -291,14 +291,10 @@ final chartTimeRangeProvider = NotifierProvider<ChartTimeRangeNotifier, String>(
 /// Convert time range label to days
 int _rangeToDays(String range) {
   switch (range) {
-    case 'Today':
-      return 1;
     case 'This Week':
       return 7;
     case 'This Month':
       return 30;
-    case 'This Year':
-      return 365;
     default:
       return 7;
   }

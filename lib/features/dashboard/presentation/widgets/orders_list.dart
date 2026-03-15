@@ -201,7 +201,6 @@ class _TableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurfaceVariant,
-             
               ),
             ),
           ),
@@ -212,7 +211,6 @@ class _TableHeader extends StatelessWidget {
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 color: colorScheme.onSurfaceVariant,
-             
               ),
             ),
           ),

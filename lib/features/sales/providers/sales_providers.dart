@@ -9,7 +9,7 @@ import 'package:zynk/core/services/sales_service.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 final salesServiceProvider = Provider<SalesService>((ref) {
-  return SalesService(Supabase.instance.client);
+  return SalesService(Supabase.instance.client, ref.watch(repositoryProvider));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,11 +101,7 @@ final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
   return repo.watchTodaysOrderCount(branchId: branchId);
 });
 
-final averageOrderValueProvider = StreamProvider.autoDispose<double>((ref) {
-  final repo = ref.watch(repositoryProvider);
-  final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchAverageOrderValue(branchId: branchId);
-});
+// Removed average order value provider
 
 final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
   final repo = ref.watch(repositoryProvider);

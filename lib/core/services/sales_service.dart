@@ -5,6 +5,8 @@ import 'package:zynk/core/config/powersync.dart';
 import 'package:zynk/core/services/app_logger.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 
+import 'package:zynk/data/local/repository.dart';
+
 final _log = AppLogger('SalesService');
 
 /// Thin client service that delegates heavy operations to Supabase edge functions.
@@ -13,8 +15,9 @@ final _log = AppLogger('SalesService');
 /// **Server-side (edge):** complete-sale, record-payment, manage-sale (approve/void/credit).
 class SalesService {
   final SupabaseClient _supabase;
+  final PowerSyncRepository _repository;
 
-  SalesService(this._supabase);
+  SalesService(this._supabase, this._repository);
 
   /// Ensures the session is fresh before making edge function calls.
   Future<void> _ensureSession() async {
@@ -41,86 +44,10 @@ class SalesService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // POS: COMPLETE A WALK-IN SALE (one-tap, auto-flows all states)
+  // POS: All sales now go through the invoice flow.
+  // The complete-sale edge function is kept for API/backward compatibility
+  // but is no longer called from the Flutter app.
   // ─────────────────────────────────────────────────────────────────────────
-
-  /// Creates a completed sale with payment and stock decrement in one atomic
-  /// server-side operation. Called when the cashier taps "Charge".
-  Future<Map<String, dynamic>> completePOSSale({
-    required String tenantId,
-    required String branchId,
-    String? customerId,
-    String? salespersonName,
-    required List<PosCartItem> cartItems,
-    required String paymentMethod,
-    String? paymentReference,
-    String? notes,
-  }) async {
-    // Calculate totals client-side for the request
-    double subtotal = 0;
-    double taxAmount = 0;
-    double discountAmount = 0;
-
-    final items = cartItems.map((item) {
-      final lineTotal = item.product.basePrice * item.quantity;
-      subtotal += lineTotal;
-
-      return {
-        'product_id': item.product.id,
-        'quantity': item.quantity,
-        'unit_price': item.product.basePrice,
-        'cost_price': item.product.costPrice ?? 0,
-        'tax_amount': 0.0, // TODO: calculate from tax_category
-        'discount': 0.0,
-        'total': lineTotal,
-      };
-    }).toList();
-
-    final grandTotal = subtotal + taxAmount - discountAmount;
-
-    await _ensureSession();
-
-    final payload = {
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'customer_id': customerId,
-      'salesperson': salespersonName,
-      'items': items,
-      'payment_method': paymentMethod,
-      'payment_reference': paymentReference,
-      'notes': notes,
-      'subtotal': subtotal,
-      'tax_amount': taxAmount,
-      'discount_amount': discountAmount,
-      'grand_total': grandTotal,
-    };
-
-    _log.i('Invoking complete-sale Edge Function...');
-    _log.d('Payload: branch_id=$branchId, items_count=${items.length}');
-    for (final i in items) {
-      _log.d(' - Product: ${i['product_id']}, Qty: ${i['quantity']}');
-    }
-
-    final response = await _supabase.functions.invoke(
-      'complete-sale',
-      body: payload,
-    );
-
-    if (response.status >= 400) {
-      final error = response.data is Map
-          ? (response.data['error'] ?? 'Unknown error')
-          : response.data?.toString() ?? 'Unknown error';
-      _log.e('completePOSSale failed (${response.status}): $error');
-      throw Exception('Sale failed: $error');
-    }
-
-    _log.i(
-      'Sale completed: ${response.data['invoice_number']} '
-      '(${response.data['sale_id']})',
-    );
-
-    return response.data as Map<String, dynamic>;
-  }
 
   // ─────────────────────────────────────────────────────────────────────────
   // B2B: CREATE AN INVOICE (draft, no payment, no stock decrement)
@@ -191,7 +118,7 @@ class SalesService {
           grandTotal,
           0.0,
           null,
-          'draft',
+          'pending_approval',
           notes,
           dueDate,
           now,
@@ -240,23 +167,24 @@ class SalesService {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // RECORD PAYMENT (routed through manage-sale for permission checks)
+  // RECORD PAYMENT (Offline-first approach)
   // ─────────────────────────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> recordPayment({
+  Future<void> recordPayment({
     required String saleId,
     required double amount,
     required String paymentMethod,
     String? referenceNumber,
     String? notes,
   }) async {
-    return _manageSale('record_payment', {
-      'sale_id': saleId,
-      'amount': amount,
-      'payment_method': paymentMethod,
-      'reference_number': referenceNumber,
-      'notes': notes,
-    });
+    await _repository.recordPaymentLocally(
+      saleId: saleId,
+      amount: amount,
+      paymentMethod: paymentMethod,
+      referenceNumber: referenceNumber,
+      notes: notes,
+    );
+    _log.i('Payment of \$amount recorded locally for sale: \$saleId');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -315,6 +243,32 @@ class SalesService {
       'sale_id': saleId,
       'tenant_id': tenantId,
       'reason': reason,
+    });
+  }
+
+  /// Delete a payment from a sale (admin only).
+  /// Recalculates amount_paid and may reverse fulfillment.
+  Future<Map<String, dynamic>> deletePayment({
+    required String saleId,
+    required String paymentId,
+    required String tenantId,
+  }) async {
+    return _manageSale('delete_payment', {
+      'sale_id': saleId,
+      'payment_id': paymentId,
+      'tenant_id': tenantId,
+    });
+  }
+
+  /// Delete a sale entirely (admin only).
+  /// Reverses stock if fulfilled, removes all child records.
+  Future<Map<String, dynamic>> deleteSale({
+    required String saleId,
+    required String tenantId,
+  }) async {
+    return _manageSale('delete_sale', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
     });
   }
 
