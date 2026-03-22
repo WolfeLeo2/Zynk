@@ -233,7 +233,13 @@ class ProductDetailsScreen extends ConsumerWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 24),
+
+            // Variant Details Card
+            if (product.variantOptions?.isNotEmpty == true) ...[  
+              _buildVariantCard(context, theme, colorScheme),
+              const SizedBox(height: 24),
+            ],
 
             // Pricing & Margins Card
             Container(
@@ -483,6 +489,60 @@ class ProductDetailsScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildVariantCard(BuildContext context, ThemeData theme, ColorScheme cs) {
+    final opts = product.variantOptions!;
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+        boxShadow: [
+          BoxShadow(color: cs.shadow.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(PhosphorIconsDuotone.swatches, color: cs.primary, size: 20),
+            const SizedBox(width: 8),
+            Text('Variants', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+          ]),
+          const Divider(height: 24),
+          ...opts.entries.map((e) {
+            final values = e.value is List
+                ? (e.value as List).map((v) => v.toString()).toList()
+                : [e.value.toString()];
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 80,
+                    child: Text(e.key, style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant)),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Wrap(
+                      spacing: 6, runSpacing: 6,
+                      children: values.map((val) => Chip(
+                        label: Text(val, style: theme.textTheme.bodySmall),
+                        padding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                      )).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
+        ],
       ),
     );
   }

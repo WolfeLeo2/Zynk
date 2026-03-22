@@ -407,6 +407,20 @@ class _ProductGridCard extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  if (product.variantOptions?.isNotEmpty == true) ...[  
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: cs.secondaryContainer,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Has Variants',
+                        style: theme.textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 4),
                   Text(
                     'KES ${product.basePrice.toStringAsFixed(0)}',

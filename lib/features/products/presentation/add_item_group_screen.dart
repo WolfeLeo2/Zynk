@@ -153,12 +153,18 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
       final repo = ref.read(repositoryProvider);
 
       // 1. Create the item group
+      final attributeNames = _attributes
+          .map((a) => a.nameController.text.trim())
+          .where((n) => n.isNotEmpty)
+          .toList();
+
       final group = ItemGroup(
         id: _uuid.v4(),
         tenantId: tenantId,
         branchId: branchId,
         name: _nameController.text.trim(),
         description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+        attributes: attributeNames,
       );
       await repo.createItemGroup(group);
 

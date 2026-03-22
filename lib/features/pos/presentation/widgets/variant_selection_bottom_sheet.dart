@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
@@ -125,11 +126,15 @@ class _VariantSelectionSheetState extends State<_VariantSelectionSheet> {
                     runSpacing: 8,
                     children: entry.value.map((val) {
                       final isSelected = _selections[entry.key] == val;
+                      final imageUrl = widget.product.variantImages?[val] as String?;
                       return GestureDetector(
                         onTap: () => setState(() => _selections[entry.key] = val),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 150),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: imageUrl != null ? 8 : 16,
+                            vertical: imageUrl != null ? 6 : 10,
+                          ),
                           decoration: BoxDecoration(
                             color: isSelected ? cs.primary : cs.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(10),
@@ -138,12 +143,37 @@ class _VariantSelectionSheetState extends State<_VariantSelectionSheet> {
                               width: isSelected ? 2 : 1,
                             ),
                           ),
-                          child: Text(
-                            val,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: isSelected ? cs.onPrimary : cs.onSurface,
-                              fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (imageUrl != null) ...[
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(6),
+                                  child: CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    width: 32,
+                                    height: 32,
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) => Container(
+                                      width: 32, height: 32,
+                                      color: cs.surfaceContainerHighest,
+                                    ),
+                                    errorWidget: (_, __, ___) => Container(
+                                      width: 32, height: 32,
+                                      color: cs.errorContainer,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                              ],
+                              Text(
+                                val,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: isSelected ? cs.onPrimary : cs.onSurface,
+                                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       );

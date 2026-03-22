@@ -231,6 +231,7 @@ class ItemGroup {
   final String? description;
   final String? defaultCommissionType;
   final double? defaultCommissionValue;
+  final List<String> attributes; // Ordered attribute names this group defines
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -242,6 +243,7 @@ class ItemGroup {
     this.description,
     this.defaultCommissionType,
     this.defaultCommissionValue,
+    this.attributes = const [],
     this.createdAt,
     this.updatedAt,
   });
@@ -256,6 +258,18 @@ class ItemGroup {
       defaultCommissionType: map['default_commission_type'] as String?,
       defaultCommissionValue: (map['default_commission_value'] as num?)
           ?.toDouble(),
+      attributes: () {
+        final raw = map['attributes'];
+        if (raw == null) return <String>[];
+        if (raw is List) return raw.map((e) => e.toString()).toList();
+        if (raw is String) {
+          try {
+            final decoded = jsonDecode(raw);
+            if (decoded is List) return decoded.map((e) => e.toString()).toList();
+          } catch (_) {}
+        }
+        return <String>[];
+      }(),
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : null,
@@ -274,6 +288,7 @@ class ItemGroup {
       'description': description,
       'default_commission_type': defaultCommissionType,
       'default_commission_value': defaultCommissionValue,
+      'attributes': attributes,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -293,11 +308,16 @@ class Product {
   final String? imageUrl;
   final double basePrice;
   final double? costPrice; // Added
+  final double? weight;
+  final double? length;
+  final double? width;
+  final double? height;
   final String? taxCategory;
   final bool isService;
   final String? groupId;
   final String? uomId;
   final Map<String, dynamic>? variantOptions;
+  final Map<String, dynamic>? variantImages; // {"Red": "https://...", ...}
   final String productType;
   final DateTime? createdAt;
   final DateTime? updatedAt;
@@ -318,11 +338,16 @@ class Product {
     String? imageUrl,
     double? basePrice,
     double? costPrice,
+    double? weight,
+    double? length,
+    double? width,
+    double? height,
     String? taxCategory,
     bool? isService,
     String? groupId,
     String? uomId,
     Map<String, dynamic>? variantOptions,
+    Map<String, dynamic>? variantImages,
     String? productType,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -340,11 +365,16 @@ class Product {
       imageUrl: imageUrl ?? this.imageUrl,
       basePrice: basePrice ?? this.basePrice,
       costPrice: costPrice ?? this.costPrice,
+      weight: weight ?? this.weight,
+      length: length ?? this.length,
+      width: width ?? this.width,
+      height: height ?? this.height,
       taxCategory: taxCategory ?? this.taxCategory,
       isService: isService ?? this.isService,
       groupId: groupId ?? this.groupId,
       uomId: uomId ?? this.uomId,
       variantOptions: variantOptions ?? this.variantOptions,
+      variantImages: variantImages ?? this.variantImages,
       productType: productType ?? this.productType,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -364,11 +394,16 @@ class Product {
     this.imageUrl,
     required this.basePrice,
     this.costPrice, // Added
+    this.weight,
+    this.length,
+    this.width,
+    this.height,
     this.taxCategory,
     this.isService = false,
     this.groupId,
     this.uomId,
     this.variantOptions,
+    this.variantImages,
     this.productType = 'standard',
     this.createdAt,
     this.updatedAt,
@@ -404,6 +439,18 @@ class Product {
         }
         return null;
       }(),
+      variantImages: () {
+        final val = map['variant_images'];
+        if (val == null) return null;
+        if (val is Map<String, dynamic>) return val;
+        if (val is String) {
+          try {
+            final decoded = jsonDecode(val);
+            if (decoded is Map<String, dynamic>) return decoded;
+          } catch (_) {}
+        }
+        return null;
+      }(),
       productType: map['product_type'] as String? ?? 'standard',
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
@@ -428,11 +475,16 @@ class Product {
       'image_url': imageUrl,
       'base_price': basePrice,
       'cost_price': costPrice, // Added
+      'weight': weight,
+      'length': length,
+      'width': width,
+      'height': height,
       'tax_category': taxCategory,
       'is_service': isService ? 1 : 0,
       'group_id': groupId,
       'uom_id': uomId,
       'variant_options': variantOptions != null ? jsonEncode(variantOptions) : null,
+      'variant_images': variantImages != null ? jsonEncode(variantImages) : null,
       'product_type': productType,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
