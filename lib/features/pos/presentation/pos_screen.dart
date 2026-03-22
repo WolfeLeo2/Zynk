@@ -13,6 +13,7 @@ import 'package:zynk/features/pos/presentation/components/pos_product_card.dart'
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/features/pos/presentation/widgets/variant_selection_bottom_sheet.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -45,6 +46,23 @@ class _PosScreenState extends ConsumerState<PosScreen>
   }
 
   void _addToCart(Product product) {
+    // If product has variants, show selection sheet first
+    if (product.variantOptions?.isNotEmpty == true) {
+      showVariantSelectionSheet(context, product).then((selections) {
+        if (selections == null || !mounted) return;
+        _doAddToCart(
+          product.copyWith(
+            name: '${product.name} (${selections.values.join(", ")})',
+            variantOptions: selections.map((k, v) => MapEntry(k, v)),
+          ),
+        );
+      });
+      return;
+    }
+    _doAddToCart(product);
+  }
+
+  void _doAddToCart(Product product) {
     HapticFeedback.lightImpact();
 
     // Validate against current stock if the item is not a service

@@ -30,11 +30,16 @@ class AddProductController extends _$AddProductController {
     required String productType, // Added
     required double price,
     required double? costPrice, // Added
+    double? weight,
+    double? length,
+    double? width,
+    double? height,
     required String sku,
     required String barcode,
     required File? imageFile,
     int? initialStock, // Added for new products
     List<CompositeItemComponent>? components, // Added for composite items
+    Map<String, dynamic>? variantOptions, // Added for standard item variants
   }) async {
     state = const AsyncLoading();
 
@@ -85,9 +90,14 @@ class AddProductController extends _$AddProductController {
           imageUrl: imageUrl,
           basePrice: price,
           costPrice: costPrice,
+          weight: weight,
+          length: length,
+          width: width,
+          height: height,
           taxCategory: 'standard',
           isService: false,
           productType: productType, // Added
+          variantOptions: variantOptions, // Added
           createdAt: DateTime.now(), // Will be ignored by DB
           updatedAt: DateTime.now(),
         );
@@ -108,9 +118,14 @@ class AddProductController extends _$AddProductController {
           imageUrl: imageUrl,
           basePrice: price,
           costPrice: costPrice, // Added
+          weight: weight,
+          length: length,
+          width: width,
+          height: height,
           taxCategory: 'standard', // Default
           isService: false, // Default
           productType: productType, // Added
+          variantOptions: variantOptions, // Added
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );

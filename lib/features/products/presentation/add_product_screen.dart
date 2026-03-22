@@ -46,6 +46,23 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   bool _trackStock = true;
   String? _existingImageUrl;
 
+  // Item Group BottomSheet state
+  String _newGroupCommissionType = 'none';
+  final _newGroupDescController = TextEditingController();
+  final _newGroupCommissionValueController = TextEditingController();
+
+  // Logistics / Dimensions
+  final _weightController = TextEditingController();
+  final _lengthController = TextEditingController();
+  final _widthController = TextEditingController();
+  final _heightController = TextEditingController();
+
+  // Variants
+  bool _hasVariants = false;
+  final Map<String, List<String>> _variantOptions = {};
+  final _newVariantNameController = TextEditingController();
+  final _newVariantValuesController = TextEditingController();
+
   String get _productType {
     final type = GoRouterState.of(context).uri.queryParameters['type'];
     return type ?? 'single';
@@ -69,6 +86,21 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _selectedUomId = p.uomId;
       _existingImageUrl = p.imageUrl;
 
+      // Logistics
+      if (p.weight != null) _weightController.text = p.weight.toString();
+      if (p.length != null) _lengthController.text = p.length.toString();
+      if (p.width != null) _widthController.text = p.width.toString();
+      if (p.height != null) _heightController.text = p.height.toString();
+
+      if (p.variantOptions != null && p.variantOptions!.isNotEmpty) {
+        _hasVariants = true;
+        p.variantOptions!.forEach((key, value) {
+          if (value is List) {
+            _variantOptions[key] = value.map((e) => e.toString()).toList();
+          }
+        });
+      }
+
       if (p.isComposite) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           ref.read(compositeComponentsProvider(p.id).future).then((components) {
@@ -91,8 +123,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _skuController.dispose();
     _barcodeController.dispose();
     _stockController.dispose();
-    _costPriceController.dispose(); // Added
+    _costPriceController.dispose();
     _lowStockController.dispose();
+    _newGroupDescController.dispose();
+    _newGroupCommissionValueController.dispose();
+    _weightController.dispose();
+    _lengthController.dispose();
+    _widthController.dispose();
+    _heightController.dispose();
+    _newVariantNameController.dispose();
+    _newVariantValuesController.dispose();
     super.dispose();
   }
 
@@ -134,6 +174,20 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         return;
       }
 
+      if (_selectedItemGroupId == null && _productType == 'standard') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please select an Item Group',
+              style: TextStyle(color: Theme.of(context).colorScheme.onError),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
       final price = double.tryParse(_priceController.text) ?? 0.0;
       final costPrice = double.tryParse(_costPriceController.text);
 
@@ -155,11 +209,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             productType: _productType,
             price: price,
             costPrice: costPrice,
+            weight: double.tryParse(_weightController.text),
+            length: double.tryParse(_lengthController.text),
+            width: double.tryParse(_widthController.text),
+            height: double.tryParse(_heightController.text),
             sku: skuToSave,
             barcode: _barcodeController.text,
             imageFile: _selectedImage,
             initialStock: int.tryParse(_stockController.text),
             components: _productType == 'composite' ? _selectedComponents : null,
+            variantOptions: _hasVariants && _productType == 'standard' && _variantOptions.isNotEmpty ? _variantOptions : null,
           );
 
       if (mounted) {
@@ -334,50 +393,144 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
   }
 
-  Future<void> _showAddGroupDialog() async {
-    final controller = TextEditingController();
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('New Item Group'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Group Name',
-            hintText: 'e.g. Summer Collection',
-          ),
-          autofocus: true,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () async {
-              if (controller.text.isNotEmpty) {
-                final repo = ref.read(repositoryProvider);
-                final tenantId = ref.read(tenantIdProvider);
-                final branchId = ref.read(currentBranchIdProvider);
+  Future<void> _showAddGroupBottomSheet() async {
+    final nameController = TextEditingController();
+    _newGroupDescController.clear();
+    _newGroupCommissionValueController.clear();
+    setState(() => _newGroupCommissionType = 'none');
 
-                if (tenantId != null && branchId != null && branchId != 'all') {
-                  await repo.createItemGroup(
-                    ItemGroup(
-                      id: const Uuid().v4(),
-                      tenantId: tenantId,
-                      branchId: branchId,
-                      name: controller.text,
-                      createdAt: DateTime.now(),
-                      updatedAt: DateTime.now(),
-                    ),
-                  );
-                  if (context.mounted) Navigator.pop(context);
-                }
-              }
-            },
-            child: const Text('Create'),
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+            top: 32,
+            left: 24,
+            right: 24,
           ),
-        ],
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'New Item Group',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: nameController,
+                autofocus: true,
+                decoration: const InputDecoration(
+                  labelText: 'Group Name *',
+                  hintText: 'e.g. Beverages',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _newGroupDescController,
+                decoration: const InputDecoration(
+                  labelText: 'Description (Optional)',
+                  hintText: 'Short description of this group',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Commission',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Earned by staff when any item in this group is sold.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: _newGroupCommissionType,
+                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      items: const [
+                        DropdownMenuItem(value: 'none', child: Text('None')),
+                        DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount')),
+                        DropdownMenuItem(value: 'percent', child: Text('Percentage')),
+                      ],
+                      onChanged: (val) {
+                        setModalState(() => _newGroupCommissionType = val ?? 'none');
+                        setState(() => _newGroupCommissionType = val ?? 'none');
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _newGroupCommissionValueController,
+                      keyboardType: TextInputType.number,
+                      enabled: _newGroupCommissionType != 'none',
+                      decoration: InputDecoration(
+                        labelText: _newGroupCommissionType == 'percent' ? 'Rate (%)' : 'Amount',
+                        hintText: _newGroupCommissionType == 'percent' ? 'e.g. 5' : 'e.g. 100',
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    if (nameController.text.isEmpty) return;
+                    final repo = ref.read(repositoryProvider);
+                    final tenantId = ref.read(tenantIdProvider);
+                    final branchId = ref.read(currentBranchIdProvider);
+
+                    if (tenantId != null && branchId != null && branchId != 'all') {
+                      final commissionValue = double.tryParse(
+                        _newGroupCommissionValueController.text,
+                      );
+                      final newGroup = ItemGroup(
+                        id: const Uuid().v4(),
+                        tenantId: tenantId,
+                        branchId: branchId,
+                        name: nameController.text,
+                        description: _newGroupDescController.text.isEmpty
+                            ? null
+                            : _newGroupDescController.text,
+                        defaultCommissionType: _newGroupCommissionType == 'none'
+                            ? null
+                            : _newGroupCommissionType,
+                        defaultCommissionValue: _newGroupCommissionType == 'none'
+                            ? null
+                            : commissionValue,
+                        createdAt: DateTime.now(),
+                        updatedAt: DateTime.now(),
+                      );
+                      await repo.createItemGroup(newGroup);
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        setState(() => _selectedItemGroupId = newGroup.id);
+                      }
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: const Text('Create Group'),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -509,6 +662,149 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildVariantsSection() {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 32),
+        Row(
+          children: [
+            Icon(PhosphorIconsDuotone.swatches, color: theme.colorScheme.primary, size: 20),
+            const SizedBox(width: 8),
+            Text(
+              'Variants',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const Spacer(),
+            Switch(
+              value: _hasVariants,
+              onChanged: (val) => setState(() {
+                _hasVariants = val;
+                if (!val) _variantOptions.clear();
+              }),
+            ),
+          ],
+        ),
+        if (_hasVariants) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Define attributes like Size or Color. Each item in the cart will prompt the buyer to choose.',
+            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+          ),
+          const SizedBox(height: 16),
+
+          // Existing variant attributes
+          if (_variantOptions.isNotEmpty)
+            ..._variantOptions.entries.map((entry) {
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(entry.key, style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 4,
+                            children: entry.value
+                                .map((v) => Chip(
+                                      label: Text(v, style: theme.textTheme.bodySmall),
+                                      padding: EdgeInsets.zero,
+                                      visualDensity: VisualDensity.compact,
+                                    ))
+                                .toList(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => setState(() => _variantOptions.remove(entry.key)),
+                      icon: Icon(PhosphorIconsBold.trash, size: 18, color: theme.colorScheme.error),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              );
+            }),
+
+          // Add new attribute row
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                flex: 2,
+                child: TextFormField(
+                  controller: _newVariantNameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Attribute (e.g. Size)',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                flex: 3,
+                child: TextFormField(
+                  controller: _newVariantValuesController,
+                  decoration: const InputDecoration(
+                    labelText: 'Values (comma-separated)',
+                    hintText: 'S, M, L, XL',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                height: 48,
+                decoration: BoxDecoration(
+                  color: theme.colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: IconButton(
+                  onPressed: () {
+                    final name = _newVariantNameController.text.trim();
+                    final rawVals = _newVariantValuesController.text;
+                    if (name.isEmpty || rawVals.isEmpty) return;
+                    final values = rawVals
+                        .split(',')
+                        .map((v) => v.trim())
+                        .where((v) => v.isNotEmpty)
+                        .toList();
+                    if (values.isEmpty) return;
+                    setState(() {
+                      _variantOptions[name] = values;
+                      _newVariantNameController.clear();
+                      _newVariantValuesController.clear();
+                    });
+                  },
+                  icon: Icon(PhosphorIconsBold.plus, color: theme.colorScheme.onPrimaryContainer),
+                  tooltip: 'Add Attribute',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
     );
   }
 
@@ -755,6 +1051,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 const SizedBox(height: 16),
                 _buildStep1(),
                 if (_productType == 'composite') _buildCompositeSection(),
+                if (_productType == 'standard') _buildVariantsSection(),
                 const SizedBox(height: 32),
 
                 _buildSectionHeader(
@@ -933,25 +1230,25 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         groupsAsync.when(
           data: (groups) => _buildSearchableDropdown<ItemGroup>(
             key: const ValueKey('groups_data'),
-            label: 'Item Group (Optional)',
+            label: 'Item Group *',
             icon: PhosphorIconsDuotone.stackSimple,
             items: groups,
             itemLabel: (g) => g.name,
             itemId: (g) => g.id,
             selectedItemId: _selectedItemGroupId,
             onSelected: (g) => setState(() => _selectedItemGroupId = g?.id),
-            onAddPressed: _showAddGroupDialog,
+            onAddPressed: _showAddGroupBottomSheet,
           ),
           loading: () => _buildSearchableDropdown<ItemGroup>(
             key: const ValueKey('groups_loading'),
-            label: 'Item Group (Optional)',
+            label: 'Item Group *',
             icon: PhosphorIconsDuotone.stackSimple,
             items: const [],
             itemLabel: (g) => g.name,
             itemId: (g) => g.id,
             selectedItemId: _selectedItemGroupId,
             onSelected: (g) {},
-            onAddPressed: _showAddGroupDialog,
+            onAddPressed: _showAddGroupBottomSheet,
           ),
           error: (e, s) => const SizedBox(),
         ),
@@ -1020,6 +1317,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   // Step 3: Logistics
   Widget _buildStep3() {
+    final measurementSystem = ref.watch(measurementSystemProvider);
+    final isMetric = measurementSystem == MeasurementSystem.metric;
+    final lengthUnit = isMetric ? 'cm' : 'in';
+    final weightUnit = isMetric ? 'kg' : 'lb';
+
     return Column(
       children: [
         // SKU Section
@@ -1142,6 +1444,83 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     ],
                   ],
                 ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+
+        // Dimensions & Weight
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Physical Dimensions',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _weightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Weight',
+                        suffixText: weightUnit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                        controller: _lengthController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'Length',
+                          suffixText: lengthUnit,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _widthController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Width',
+                        suffixText: lengthUnit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                     child: TextFormField(
+                      controller: _heightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Height',
+                        suffixText: lengthUnit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
