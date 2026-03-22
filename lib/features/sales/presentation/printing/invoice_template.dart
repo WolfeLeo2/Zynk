@@ -287,8 +287,8 @@ class InvoiceTemplate {
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
               _infoRow('Status', sale.status.displayName),
-              if (sale.salespersonName != null)
-                _infoRow('Salesperson', sale.salespersonName!),
+              if (sale.salespersonId != null)
+                _infoRow('Salesperson ID', sale.salespersonId!),
               _infoRow(
                 'Payment',
                 sale.paymentMethod?.toUpperCase() ?? 'PENDING',

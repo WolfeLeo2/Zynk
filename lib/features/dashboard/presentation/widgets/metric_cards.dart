@@ -7,7 +7,7 @@ import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 import 'skeleton_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// DESKTOP METRICS GRID
+// DESKTOP METRICS GRID (Bento Style)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class DesktopMetricsGrid extends ConsumerWidget {
@@ -23,75 +23,135 @@ class DesktopMetricsGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final revenueAsync = ref.watch(todaysRevenueProvider);
     final ordersAsync = ref.watch(todaysOrderCountProvider);
+    final inventoryValueAsync = ref.watch(totalInventoryValueProvider);
+    final recentAdjAsync = ref.watch(recentAdjustmentsCountProvider);
     final pendingAsync = ref.watch(pendingApprovalsCountProvider);
     final lowStockAsync = ref.watch(lowStockCountProvider);
     final revenueSparkline = ref.watch(revenueSparklineProvider);
     final ordersSparkline = ref.watch(ordersSparklineProvider);
 
-    return Row(
-      children: [
+    return SizedBox(
+      height: 240, // Fixed height for the Bento row
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Large Promo/Main KPI Card (e.g. Revenue)
+          Expanded(
+            flex: 4,
+            child: revenueAsync.isLoading
+                ? SkeletonCard(colorScheme: colorScheme)
+                : MetricCardWithSparkline(
+                    title: 'Today\'s Revenue',
+                    value: 'Ksh ${_formatNumber(revenueAsync.value ?? 0)}',
+                    rawValue: revenueAsync.value ?? 0,
+                    icon: PhosphorIconsDuotone.moneyWavy,
+                    color: colorScheme.primary,
+                    sparklineData: revenueSparkline.value ?? [],
+                    isLargeCard: true,
+                  ),
+          ),
+        const SizedBox(width: 16),
+        // Stacked Medium KPIs
         Expanded(
-          child: revenueAsync.isLoading
-              ? SkeletonCard(colorScheme: colorScheme)
-              : MetricCardWithSparkline(
-                  title: 'Today\'s Revenue',
-                  value: 'Ksh ${_formatNumber(revenueAsync.value ?? 0)}',
-                  rawValue: revenueAsync.value ?? 0,
-                  icon: PhosphorIconsDuotone.moneyWavy,
-                  color: colorScheme.primary,
-                  sparklineData: revenueSparkline.value ?? [],
-                ),
+          flex: 3,
+          child: Column(
+            children: [
+              Expanded(
+                child: ordersAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Today\'s Orders',
+                        value: '${ordersAsync.value ?? 0}',
+                        rawValue: (ordersAsync.value ?? 0).toDouble(),
+                        icon: PhosphorIconsDuotone.receipt,
+                        color: colorScheme.secondary,
+                        sparklineData: ordersSparkline.value ?? [],
+                      ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: inventoryValueAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Total Inventory Value',
+                        value: 'Ksh ${_formatNumber(inventoryValueAsync.value ?? 0)}',
+                        rawValue: inventoryValueAsync.value ?? 0,
+                        icon: PhosphorIconsDuotone.package,
+                        color: const Color(0xFF6366F1), // Indigo
+                        sparklineData: const [],
+                      ),
+              ),
+            ],
+          ),
         ),
         const SizedBox(width: 16),
+        // Grouped Small KPIs
         Expanded(
-          child: ordersAsync.isLoading
-              ? SkeletonCard(colorScheme: colorScheme)
-              : MetricCardWithSparkline(
-                  title: 'Today\'s Orders',
-                  value: '${ordersAsync.value ?? 0}',
-                  rawValue: (ordersAsync.value ?? 0).toDouble(),
-                  icon: PhosphorIconsDuotone.receipt,
-                  color: colorScheme.secondary,
-                  sparklineData: ordersSparkline.value ?? [],
+          flex: 3,
+          child: Column(
+            children: [
+              Expanded(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: pendingAsync.isLoading
+                          ? SkeletonCard(colorScheme: colorScheme)
+                          : MetricCardWithSparkline(
+                              title: 'Pending Approvals',
+                              value: '${pendingAsync.value ?? 0}',
+                              rawValue: (pendingAsync.value ?? 0).toDouble(),
+                              icon: PhosphorIconsDuotone.clock,
+                              color: (pendingAsync.value ?? 0) > 0
+                                  ? colorScheme.error
+                                  : colorScheme.tertiary,
+                              sparklineData: const [],
+                              isSmallCard: true,
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: recentAdjAsync.isLoading
+                          ? SkeletonCard(colorScheme: colorScheme)
+                          : MetricCardWithSparkline(
+                              title: 'Recent Adjustments',
+                              value: '${recentAdjAsync.value ?? 0}',
+                              rawValue: (recentAdjAsync.value ?? 0).toDouble(),
+                              icon: PhosphorIconsDuotone.slidersHorizontal,
+                              color: colorScheme.secondary,
+                              sparklineData: const [],
+                              isSmallCard: true,
+                            ),
+                    ),
+                  ],
                 ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: pendingAsync.isLoading
-              ? SkeletonCard(colorScheme: colorScheme)
-              : MetricCardWithSparkline(
-                  title: 'Pending Approvals',
-                  value: '${pendingAsync.value ?? 0}',
-                  rawValue: (pendingAsync.value ?? 0).toDouble(),
-                  icon: PhosphorIconsDuotone.clock,
-                  color: (pendingAsync.value ?? 0) > 0
-                      ? colorScheme.error
-                      : colorScheme.tertiary,
-                  sparklineData: const [],
-                ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: lowStockAsync.isLoading
-              ? SkeletonCard(colorScheme: colorScheme)
-              : MetricCardWithSparkline(
-                  title: 'Low Stock Items',
-                  value: '${lowStockAsync.value ?? 0}',
-                  rawValue: (lowStockAsync.value ?? 0).toDouble(),
-                  icon: PhosphorIconsDuotone.warning,
-                  color: (lowStockAsync.value ?? 0) > 0
-                      ? colorScheme.error
-                      : Colors.green,
-                  sparklineData: const [],
-                ),
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: lowStockAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Low Stock Alerts',
+                        value: '${lowStockAsync.value ?? 0}',
+                        rawValue: (lowStockAsync.value ?? 0).toDouble(),
+                        icon: PhosphorIconsDuotone.warning,
+                        color: (lowStockAsync.value ?? 0) > 0
+                            ? colorScheme.error
+                            : Colors.green,
+                        sparklineData: const [],
+                        isWideCard: true,
+                      ),
+              ),
+            ],
+          ),
         ),
       ],
+      ),
     );
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MOBILE METRICS GRID
+// MOBILE METRICS GRID (Bento Style)
 // ─────────────────────────────────────────────────────────────────────────────
 
 class MobileMetricsGrid extends ConsumerWidget {
@@ -101,6 +161,8 @@ class MobileMetricsGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final revenueAsync = ref.watch(todaysRevenueProvider);
     final ordersAsync = ref.watch(todaysOrderCountProvider);
+    final inventoryValueAsync = ref.watch(totalInventoryValueProvider);
+    final recentAdjAsync = ref.watch(recentAdjustmentsCountProvider);
     final pendingAsync = ref.watch(pendingApprovalsCountProvider);
     final lowStockAsync = ref.watch(lowStockCountProvider);
     final revenueSparkline = ref.watch(revenueSparklineProvider);
@@ -109,32 +171,53 @@ class MobileMetricsGrid extends ConsumerWidget {
 
     return Column(
       children: [
+        SizedBox(
+          height: 180,
+          child: revenueAsync.isLoading
+              ? SkeletonCard(colorScheme: colorScheme)
+              : MetricCardWithSparkline(
+                  title: 'Today\'s Revenue',
+                  value: 'Ksh ${_formatNumber(revenueAsync.value ?? 0)}',
+                  rawValue: revenueAsync.value ?? 0,
+                  icon: PhosphorIconsDuotone.moneyWavy,
+                  color: colorScheme.primary,
+                  sparklineData: revenueSparkline.value ?? [],
+                  isLargeCard: true,
+                ),
+        ),
+        const SizedBox(height: 12),
         Row(
           children: [
             Expanded(
-              child: revenueAsync.isLoading
-                  ? SkeletonCard(colorScheme: colorScheme)
-                  : MetricCardWithSparkline(
-                      title: 'Today\'s Revenue',
-                      value: 'Ksh ${_formatNumber(revenueAsync.value ?? 0)}',
-                      rawValue: revenueAsync.value ?? 0,
-                      icon: PhosphorIconsDuotone.currencyDollar,
-                      color: colorScheme.primary,
-                      sparklineData: revenueSparkline.value ?? [],
-                    ),
+              child: SizedBox(
+                height: 140,
+                child: ordersAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Orders',
+                        value: '${ordersAsync.value ?? 0}',
+                        rawValue: (ordersAsync.value ?? 0).toDouble(),
+                        icon: PhosphorIconsDuotone.receipt,
+                        color: colorScheme.secondary,
+                        sparklineData: ordersSparkline.value ?? [],
+                      ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: ordersAsync.isLoading
-                  ? SkeletonCard(colorScheme: colorScheme)
-                  : MetricCardWithSparkline(
-                      title: 'Today\'s Orders',
-                      value: '${ordersAsync.value ?? 0}',
-                      rawValue: (ordersAsync.value ?? 0).toDouble(),
-                      icon: PhosphorIconsDuotone.receipt,
-                      color: colorScheme.secondary,
-                      sparklineData: ordersSparkline.value ?? [],
-                    ),
+              child: SizedBox(
+                height: 140,
+                child: inventoryValueAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Inventory Value',
+                        value: 'Ksh ${_formatNumber(inventoryValueAsync.value ?? 0)}',
+                        rawValue: inventoryValueAsync.value ?? 0,
+                        icon: PhosphorIconsDuotone.package,
+                        color: const Color(0xFF6366F1), // Indigo
+                        sparklineData: const [],
+                      ),
+              ),
             ),
           ],
         ),
@@ -142,33 +225,58 @@ class MobileMetricsGrid extends ConsumerWidget {
         Row(
           children: [
             Expanded(
-              child: pendingAsync.isLoading
-                  ? SkeletonCard(colorScheme: colorScheme)
-                  : MetricCardWithSparkline(
-                      title: 'Pending Approvals',
-                      value: '${pendingAsync.value ?? 0}',
-                      rawValue: (pendingAsync.value ?? 0).toDouble(),
-                      icon: PhosphorIconsDuotone.clock,
-                      color: (pendingAsync.value ?? 0) > 0
-                          ? colorScheme.error
-                          : colorScheme.tertiary,
-                      sparklineData: const [],
-                    ),
+              child: SizedBox(
+                height: 120,
+                child: pendingAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Pending',
+                        value: '${pendingAsync.value ?? 0}',
+                        rawValue: (pendingAsync.value ?? 0).toDouble(),
+                        icon: PhosphorIconsDuotone.clock,
+                        color: (pendingAsync.value ?? 0) > 0
+                            ? colorScheme.error
+                            : colorScheme.tertiary,
+                        sparklineData: const [],
+                        isSmallCard: true,
+                      ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
-              child: lowStockAsync.isLoading
-                  ? SkeletonCard(colorScheme: colorScheme)
-                  : MetricCardWithSparkline(
-                      title: 'Low Stock',
-                      value: '${lowStockAsync.value ?? 0}',
-                      rawValue: (lowStockAsync.value ?? 0).toDouble(),
-                      icon: PhosphorIconsDuotone.warning,
-                      color: (lowStockAsync.value ?? 0) > 0
-                          ? colorScheme.error
-                          : Colors.green,
-                      sparklineData: const [],
-                    ),
+              child: SizedBox(
+                height: 120,
+                child: recentAdjAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Adjustments',
+                        value: '${recentAdjAsync.value ?? 0}',
+                        rawValue: (recentAdjAsync.value ?? 0).toDouble(),
+                        icon: PhosphorIconsDuotone.slidersHorizontal,
+                        color: colorScheme.secondary,
+                        sparklineData: const [],
+                        isSmallCard: true,
+                      ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: SizedBox(
+                height: 120,
+                child: lowStockAsync.isLoading
+                    ? SkeletonCard(colorScheme: colorScheme)
+                    : MetricCardWithSparkline(
+                        title: 'Low Stock',
+                        value: '${lowStockAsync.value ?? 0}',
+                        rawValue: (lowStockAsync.value ?? 0).toDouble(),
+                        icon: PhosphorIconsDuotone.warning,
+                        color: (lowStockAsync.value ?? 0) > 0
+                            ? colorScheme.error
+                            : Colors.green,
+                        sparklineData: const [],
+                        isSmallCard: true,
+                      ),
+              ),
             ),
           ],
         ),
@@ -188,6 +296,9 @@ class MetricCardWithSparkline extends StatefulWidget {
   final IconData icon;
   final Color color;
   final List<double> sparklineData;
+  final bool isLargeCard;
+  final bool isSmallCard;
+  final bool isWideCard;
 
   const MetricCardWithSparkline({
     super.key,
@@ -197,6 +308,9 @@ class MetricCardWithSparkline extends StatefulWidget {
     required this.icon,
     required this.color,
     required this.sparklineData,
+    this.isLargeCard = false,
+    this.isSmallCard = false,
+    this.isWideCard = false,
   });
 
   @override
@@ -252,16 +366,23 @@ class _MetricCardWithSparklineState extends State<MetricCardWithSparkline>
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
 
+    final double padding = widget.isSmallCard ? 12 : (widget.isLargeCard ? 24 : 16);
+    final double iconSize = widget.isSmallCard ? 16 : (widget.isLargeCard ? 28 : 20);
+    final double iconBgSize = widget.isSmallCard ? 8 : (widget.isLargeCard ? 14 : 10);
+    final double titleFontSize = widget.isSmallCard ? 18 : (widget.isLargeCard ? 36 : 24);
+    final double labelFontSize = widget.isSmallCard ? 11 : (widget.isLargeCard ? 14 : 12);
+    // final double sparklineHeight = widget.isSmallCard ? 24 : (widget.isLargeCard ? 60 : 40);
+
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(padding),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [colorScheme.surface, widget.color.withValues(alpha: 0.04)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(widget.isSmallCard ? 16 : 24),
         border: Border.all(color: widget.color.withValues(alpha: 0.12)),
         boxShadow: [
           BoxShadow(
@@ -278,7 +399,7 @@ class _MetricCardWithSparklineState extends State<MetricCardWithSparkline>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: EdgeInsets.all(iconBgSize),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: [
@@ -286,13 +407,13 @@ class _MetricCardWithSparklineState extends State<MetricCardWithSparkline>
                       widget.color.withValues(alpha: 0.08),
                     ],
                   ),
-                  borderRadius: BorderRadius.circular(14),
+                  borderRadius: BorderRadius.circular(widget.isSmallCard ? 10 : 14),
                 ),
-                child: PhosphorIcon(widget.icon, color: widget.color, size: 20),
+                child: PhosphorIcon(widget.icon, color: widget.color, size: iconSize),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          Spacer(),
           if (widget.rawValue != null)
             AnimatedBuilder(
               animation: _animation,
@@ -304,6 +425,8 @@ class _MetricCardWithSparklineState extends State<MetricCardWithSparkline>
                     fontWeight: FontWeight.w800,
                     color: colorScheme.onSurface,
                     letterSpacing: -0.5,
+                    fontSize: titleFontSize,
+                    height: 1.2,
                   ),
                 );
               },
@@ -315,6 +438,8 @@ class _MetricCardWithSparklineState extends State<MetricCardWithSparkline>
                 fontWeight: FontWeight.w800,
                 color: colorScheme.onSurface,
                 letterSpacing: -0.5,
+                fontSize: titleFontSize,
+                height: 1.2,
               ),
             ),
           const SizedBox(height: 2),
@@ -323,15 +448,18 @@ class _MetricCardWithSparklineState extends State<MetricCardWithSparkline>
             style: theme.textTheme.bodySmall?.copyWith(
               color: colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w500,
+              fontSize: labelFontSize,
             ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 40,
-            child: widget.sparklineData.isNotEmpty
-                ? Sparkline(data: widget.sparklineData, color: widget.color)
-                : const SizedBox.shrink(),
-          ),
+          /* if (!widget.isSmallCard && widget.sparklineData.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            SizedBox(
+              height: sparklineHeight,
+              child: Sparkline(data: widget.sparklineData, color: widget.color),
+            ),
+          ] */
         ],
       ),
     );

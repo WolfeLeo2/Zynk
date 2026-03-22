@@ -8,6 +8,7 @@ import 'package:printing/printing.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
@@ -1596,8 +1597,20 @@ class _DetailsSection extends ConsumerWidget {
 
     final customersAsync = ref.watch(allCustomersProvider);
 
-    // Use salesperson name as-is. Do NOT fallback to account displayName.
-    final String staffName = sale.salespersonName ?? 'Not Assigned';
+    final staffAsync = ref.watch(humanStaffProvider);
+    // Look up the staff name by salespersonId
+    final String staffName = sale.salespersonId == null
+        ? 'Not Assigned'
+        : staffAsync.whenOrNull(
+              data: (staff) => staff
+                  .firstWhere(
+                    (s) => s.id == sale.salespersonId,
+                    orElse: () =>
+                        StaffMember(id: '', tenantId: '', name: 'Unknown'),
+                  )
+                  .name,
+            ) ??
+            'Loading...';
 
     String customerName = 'Walk-in Customer';
     String? customerPhone;

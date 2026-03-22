@@ -43,7 +43,7 @@ class QuickActionsRow extends StatelessWidget {
                 icon: PhosphorIconsBold.plus,
                 label: 'Add',
                 color: colorScheme.secondary,
-                onTap: () => context.push('/add-product'),
+                onTap: () => context.push('/products/add'),
               ),
               const SizedBox(width: 12),
               _MobileQuickAction(
@@ -142,7 +142,7 @@ class QuickActionsDesktop extends StatelessWidget {
       _ActionData(
         'Add Item',
         PhosphorIconsBold.plus,
-        () => context.push('/add-product'),
+        () => context.push('/products/add'),
       ),
     ];
 

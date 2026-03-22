@@ -45,8 +45,9 @@ class CsvImportService {
     final profile = ref.read(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? 'tenant_1';
     final branchId = ref.read(currentBranchIdProvider);
-    if (branchId == null)
+    if (branchId == null) {
       throw Exception('No branch selected. Please select a branch first.');
+    }
     final createdBy = profile?.userId ?? 'system';
 
     final categoriesSnapshot = await repo.watchCategories().first;

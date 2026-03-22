@@ -8,7 +8,7 @@ import 'skeleton_widgets.dart';
 import 'empty_error_states.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TOP SELLING PRODUCTS LIST
+// TOP SELLING ITEMS LIST
 // ─────────────────────────────────────────────────────────────────────────────
 
 class TopSellingProductsList extends ConsumerWidget {
@@ -20,12 +20,12 @@ class TopSellingProductsList extends ConsumerWidget {
     final productsAsync = ref.watch(topProductsProvider);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -35,7 +35,7 @@ class TopSellingProductsList extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Top Selling Products',
+                'Top Selling Items',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: colorScheme.onSurface,
@@ -124,143 +124,75 @@ class _TopProductItem extends StatelessWidget {
     final totalRevenue = (product['total_revenue'] as num?)?.toDouble() ?? 0;
     final basePrice = (product['base_price'] as num?)?.toDouble() ?? 0;
     final imageUrl = product['image_url'] as String?;
-    final progress = maxSold > 0 ? totalSold / maxSold : 0.0;
 
-    // Rank medal colors
-    final rankColors = [
-      const Color(0xFFFFD700), // Gold
-      const Color(0xFFC0C0C0), // Silver
-      const Color(0xFFCD7F32), // Bronze
-    ];
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colorScheme.surface.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      decoration: BoxDecoration(
+        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+      ),
+      child: Row(
+        children: [
+          // Product image or icon
+          Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: ClipOval(
+              child: imageUrl != null && imageUrl.isNotEmpty
+                  ? Image.network(
+                      imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (context, error, stackTrace) {
+                        return PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant, size: 20);
+                      },
+                    )
+                  : PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant, size: 20),
+            ),
           ),
-        ),
-        child: Row(
-          children: [
-            // Rank badge
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                gradient: index < 3
-                    ? LinearGradient(
-                        colors: [
-                          rankColors[index],
-                          rankColors[index].withValues(alpha: 0.7),
-                        ],
-                      )
-                    : null,
-                color: index >= 3 ? colorScheme.surfaceContainerHighest : null,
-                shape: BoxShape.circle,
-                boxShadow: index < 3
-                    ? [
-                        BoxShadow(
-                          color: rankColors[index].withValues(alpha: 0.3),
-                          blurRadius: 8,
-                        ),
-                      ]
-                    : null,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                Text(
+                  'KES ${basePrice.toStringAsFixed(0)}',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 16),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'KES ${_formatRevenue(totalRevenue)}',
+                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 14),
               ),
-              child: Center(
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
                 child: Text(
-                  '#${index + 1}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                    color: index < 3
-                        ? Colors.white
-                        : colorScheme.onSurfaceVariant,
-                  ),
+                  '$totalSold sold',
+                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 10, fontWeight: FontWeight.w600),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            // Product image or icon
-            Container(
-              width: 48,
-              height: 48,
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.5,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(
-                  color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-                ),
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: imageUrl != null && imageUrl.isNotEmpty
-                    ? Image.network(
-                        imageUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) {
-                          return PhosphorIcon(
-                            PhosphorIconsDuotone.package,
-                            color: colorScheme.onSurfaceVariant,
-                          );
-                        },
-                      )
-                    : PhosphorIcon(
-                        PhosphorIconsDuotone.package,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    name,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    '$totalSold sold • Ksh ${basePrice.toStringAsFixed(0)} each',
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: progress,
-                      backgroundColor: colorScheme.surfaceContainerHighest,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        index < 3
-                            ? rankColors[index].withValues(alpha: 0.7)
-                            : colorScheme.primary.withValues(alpha: 0.7),
-                      ),
-                      minHeight: 4,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 12),
-            Text(
-              'Ksh ${_formatRevenue(totalRevenue)}',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.primary,
-              ),
-            ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
   }

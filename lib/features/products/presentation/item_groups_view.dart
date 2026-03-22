@@ -40,7 +40,7 @@ class ItemGroupsView extends ConsumerWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Create item groups when adding products.',
+                  'Create item groups when adding items.',
                   style: theme.textTheme.bodyLarge?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),

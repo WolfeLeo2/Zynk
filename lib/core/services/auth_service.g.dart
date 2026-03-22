@@ -48,7 +48,7 @@ final class AuthServiceProvider
   }
 }
 
-String _$authServiceHash() => r'd213cc0221b69fb3cc809a82fbf540148774a1f2';
+String _$authServiceHash() => r'a4cb1e772dded525895674d67f6a087d0990cdaf';
 
 @ProviderFor(authState)
 final authStateProvider = AuthStateProvider._();

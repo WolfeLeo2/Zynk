@@ -102,12 +102,12 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                   color: Colors.red,
                 ),
                 title: const Text(
-                  'Delete Products',
+                  'Delete item',
                   style: TextStyle(color: Colors.red),
                 ),
                 onTap: () {
                   Navigator.pop(context);
-                  // Optional: full deletion of products.
+                  // TODO: Optional: full deletion of products.
                   // For now, let's keep it simple and just remove them from group.
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
@@ -138,7 +138,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
     if (availableProducts.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No other products available')),
+          const SnackBar(content: Text('No other items available')),
         );
       }
       return;
@@ -167,7 +167,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
                           Text(
-                            'Assign Products',
+                            'Assign items',
                             style: Theme.of(context).textTheme.titleLarge,
                           ),
                           TextButton(
@@ -247,7 +247,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: _showAssignProducts,
         icon: const Icon(PhosphorIconsRegular.plus),
-        label: const Text('Assign Products'),
+        label: const Text('Assign items'),
       ),
       body: CustomScrollView(
         slivers: [
@@ -360,7 +360,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
             ),
           ),
 
-          // Header for Products
+          // Header for Items
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(
@@ -370,7 +370,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
               child: Row(
                 children: [
                   Text(
-                    'Products in Group',
+                    'Items in Group',
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -403,7 +403,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                     child: Padding(
                       padding: const EdgeInsets.all(32.0),
                       child: Text(
-                        'No products in this group.',
+                        'No items in this group.',
                         style: theme.textTheme.bodyLarge?.copyWith(
                           color: theme.colorScheme.onSurfaceVariant,
                         ),

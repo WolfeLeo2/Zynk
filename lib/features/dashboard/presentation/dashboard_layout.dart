@@ -1,8 +1,6 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
@@ -10,17 +8,12 @@ import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/providers/app_providers.dart' hide userRoleProvider;
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 
-// Widget exports
-export 'package:zynk/features/dashboard/models/dashboard_models.dart';
-export 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
-
-// Widget imports
 import 'package:shimmer/shimmer.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
 import 'widgets/metric_cards.dart';
 import 'widgets/charts.dart';
 import 'widgets/orders_list.dart';
 import 'widgets/products_list.dart';
-import 'widgets/quick_actions.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN DASHBOARD LAYOUT
@@ -112,6 +105,7 @@ class _DesktopDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      drawer: const AppDrawer(),
       body: RefreshIndicator.adaptive(
         onRefresh: () async => onRefresh(),
         displacement: 40,
@@ -164,7 +158,6 @@ class _DesktopDashboard extends StatelessWidget {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              const QuickActionsDesktop(),
                               const SizedBox(height: 24),
                               const PaymentMethodsChart(),
                               const SizedBox(height: 24),
@@ -217,6 +210,7 @@ class _MobileDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
+      drawer: const AppDrawer(),
       body: RefreshIndicator.adaptive(
         onRefresh: () async => onRefresh(),
         displacement: 60,
@@ -241,8 +235,7 @@ class _MobileDashboard extends StatelessWidget {
                 padding: const EdgeInsets.all(16),
                 sliver: SliverList(
                   delegate: SliverChildListDelegate([
-                    const QuickActionsRow(),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 12),
                     const MobileMetricsGrid(),
                     const SizedBox(height: 24),
                     const RevenueBarChart(),
@@ -342,23 +335,10 @@ class DashboardSliverAppBar extends StatelessWidget {
       expandedHeight: 140,
       backgroundColor: colorScheme.surface,
       surfaceTintColor: colorScheme.primaryContainer,
-      leading: Padding(
-        padding: const EdgeInsets.only(left: 16),
-        child: InkWell(
-          onTap: () => context.push('/settings'),
-          borderRadius: BorderRadius.circular(50),
-          child: CircleAvatar(
-            backgroundColor: colorScheme.primaryContainer,
-            backgroundImage: photoUrl != null
-                ? CachedNetworkImageProvider(photoUrl!)
-                : null,
-            child: photoUrl == null
-                ? PhosphorIcon(
-                    PhosphorIconsDuotone.user,
-                    color: colorScheme.onPrimaryContainer,
-                  )
-                : null,
-          ),
+      leading: Builder(
+        builder: (context) => IconButton(
+          icon: const PhosphorIcon(PhosphorIconsDuotone.list),
+          onPressed: () => Scaffold.of(context).openDrawer(),
         ),
       ),
       leadingWidth: 56,

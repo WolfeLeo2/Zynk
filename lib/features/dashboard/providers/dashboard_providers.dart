@@ -71,6 +71,22 @@ final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
   return repo.watchLowStockCount(branchId: branchId);
 });
 
+/// Total Inventory Value
+final totalInventoryValueProvider = StreamProvider.autoDispose<double>((ref) {
+  ref.watch(dashboardRefreshTriggerProvider);
+  final repo = ref.watch(repositoryProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchTotalInventoryValue(branchId: branchId);
+});
+
+/// Recent Adjustments Count
+final recentAdjustmentsCountProvider = StreamProvider.autoDispose<int>((ref) {
+  ref.watch(dashboardRefreshTriggerProvider);
+  final repo = ref.watch(repositoryProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchRecentAdjustmentsCount(branchId: branchId);
+});
+
 /// Staff count
 final staffCountProvider = StreamProvider.autoDispose<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);

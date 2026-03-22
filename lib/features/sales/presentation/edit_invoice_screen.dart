@@ -33,6 +33,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
   Customer? _customer;
   bool _initialized = false;
   DateTime? _dueDate;
+  String? _salespersonId;
 
   @override
   void dispose() {
@@ -50,6 +51,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     _initialized = true;
     _sale = sale;
     _customer = customer;
+    _salespersonId = sale.salespersonId;
     _customerNameCtrl.text = customer?.name ?? '';
     _customerPhoneCtrl.text = customer?.phone ?? '';
     _notesCtrl.text = sale.notes ?? '';
@@ -83,6 +85,17 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     if (!_formKey.currentState!.validate()) return;
     final sale = _sale;
     if (sale == null) return;
+
+    if (_salespersonId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a salesperson before saving.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
     try {
@@ -171,6 +184,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
         customerId: sale.customerId ?? customer?.id ?? '',
         tenantId: tenantId,
         items: updatedItems,
+        salespersonId: _salespersonId,
         notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
         dueDate: _dueDate?.toIso8601String(),
       );
@@ -320,6 +334,48 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                           ],
                         ),
                       ),
+                    ),
+                    const SizedBox(height: 24),
+
+                    // ── Salesperson ──
+                    Text(
+                      'Salesperson (Optional)',
+                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 8),
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final staffAsync = ref.watch(humanStaffProvider);
+                        return staffAsync.when(
+                          data: (staffList) {
+                            if (staffList.isEmpty) return const SizedBox.shrink();
+                            return DropdownButtonFormField<String>(
+                              initialValue: _salespersonId,
+                              decoration: InputDecoration(
+                                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                isDense: true,
+                                filled: true,
+                                fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.2),
+                              ),
+                              hint: const Text('Select Salesperson (Optional)'),
+                              items: [
+                                const DropdownMenuItem<String>(
+                                  value: null,
+                                  child: Text('None'),
+                                ),
+                                ...staffList.map((s) => DropdownMenuItem<String>(
+                                  value: s.id,
+                                  child: Text(s.name),
+                                )),
+                              ],
+                              onChanged: (v) => setState(() => _salespersonId = v),
+                            );
+                          },
+                          loading: () => const LinearProgressIndicator(),
+                          error: (_, _) => const SizedBox.shrink(),
+                        );
+                      },
                     ),
                     const SizedBox(height: 24),
 

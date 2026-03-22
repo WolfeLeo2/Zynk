@@ -26,12 +26,15 @@ class AddProductController extends _$AddProductController {
     String? existingImageUrl, // For update mode
     required String? categoryId,
     required String? itemGroupId,
+    required String? uomId, // Added
+    required String productType, // Added
     required double price,
     required double? costPrice, // Added
     required String sku,
     required String barcode,
     required File? imageFile,
     int? initialStock, // Added for new products
+    List<CompositeItemComponent>? components, // Added for composite items
   }) async {
     state = const AsyncLoading();
 
@@ -49,7 +52,7 @@ class AddProductController extends _$AddProductController {
       if (imageFile != null) {
         final bytes = await imageFile.readAsBytes();
         final fileExt = imageFile.path.split('.').last;
-        final fileName = '\${DateTime.now().millisecondsSinceEpoch}.$fileExt';
+        final fileName = '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
         final path = 'products/$tenantId/$fileName';
 
         await Supabase.instance.client.storage
@@ -74,6 +77,7 @@ class AddProductController extends _$AddProductController {
           branchId: branchId,
           itemGroupId: itemGroupId,
           categoryId: categoryId,
+          uomId: uomId, // Added
           name: name,
           sku: sku.isNotEmpty ? sku : null,
           barcode: barcode.isNotEmpty ? barcode : null,
@@ -83,6 +87,7 @@ class AddProductController extends _$AddProductController {
           costPrice: costPrice,
           taxCategory: 'standard',
           isService: false,
+          productType: productType, // Added
           createdAt: DateTime.now(), // Will be ignored by DB
           updatedAt: DateTime.now(),
         );
@@ -95,20 +100,26 @@ class AddProductController extends _$AddProductController {
           branchId: branchId,
           itemGroupId: itemGroupId,
           categoryId: categoryId,
+          uomId: uomId, // Added
           name: name,
           sku: sku.isNotEmpty ? sku : null,
           barcode: barcode.isNotEmpty ? barcode : null,
-          description: null, // TODO: Add description field to form
+          description: null,
           imageUrl: imageUrl,
           basePrice: price,
           costPrice: costPrice, // Added
           taxCategory: 'standard', // Default
           isService: false, // Default
+          productType: productType, // Added
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
 
-        await repository.createProduct(newProduct);
+        if (productType == 'composite' && components != null) {
+          await repository.createCompositeProduct(newProduct, components);
+        } else {
+          await repository.createProduct(newProduct);
+        }
 
         // If initial stock is provided, create stock entry and adjustment log
         if (initialStock != null && initialStock > 0) {

@@ -10,10 +10,16 @@ bucket_definitions:
       - SELECT * FROM profiles WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM products WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM customers WHERE tenant_id = bucket.tenant_id
-      - SELECT * FROM item_groups WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM suppliers WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM categories WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM item_groups WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM stock_item_groups WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM composite_item_components WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM units_of_measurement WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM staff_members WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM stock WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM stock_adjustments WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM stock_adjustment_reasons WHERE tenant_id = bucket.tenant_id::text
       - SELECT * FROM locations WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM branches WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM sales WHERE tenant_id = bucket.tenant_id

@@ -6,8 +6,11 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/config/powersync.dart'; // Import global 'db'
 import '../../data/local/repository.dart';
 import '../../core/models/schema_models.dart';
+import '../models/staff_model.dart';
+
 import '../services/auth_service.dart';
 import '../services/app_logger.dart';
+
 
 final _log = AppLogger('AppProviders');
 
@@ -335,3 +338,17 @@ final itemsGroupsStreamProvider = StreamProvider<List<ItemGroup>>((ref) {
   final repo = ref.watch(repositoryProvider);
   return repo.watchItemGroups();
 });
+
+// -----------------------------------------------------------------------------
+// Human Staff Provider
+// -----------------------------------------------------------------------------
+
+final humanStaffProvider = StreamProvider<List<StaffMember>>((ref) {
+  final tenantId = ref.watch(tenantIdProvider);
+  if (tenantId == null) return const Stream.empty();
+  return db.watch(
+    "SELECT * FROM staff_members WHERE tenant_id = ? AND status = 'active' ORDER BY name ASC",
+    parameters: [tenantId],
+  ).map((rows) => rows.map((row) => StaffMember.fromJson(Map<String, dynamic>.from(row))).toList());
+});
+

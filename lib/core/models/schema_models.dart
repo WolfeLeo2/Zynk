@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:zynk/core/models/user_role.dart';
 
 class Tenant {
@@ -294,8 +295,61 @@ class Product {
   final double? costPrice; // Added
   final String? taxCategory;
   final bool isService;
+  final String? groupId;
+  final String? uomId;
+  final Map<String, dynamic>? variantOptions;
+  final String productType;
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  bool get isComposite => productType == 'composite';
+  bool get isGroup => productType == 'group';
+
+  Product copyWith({
+    String? id,
+    String? tenantId,
+    String? branchId,
+    String? itemGroupId,
+    String? categoryId,
+    String? name,
+    String? sku,
+    String? barcode,
+    String? description,
+    String? imageUrl,
+    double? basePrice,
+    double? costPrice,
+    String? taxCategory,
+    bool? isService,
+    String? groupId,
+    String? uomId,
+    Map<String, dynamic>? variantOptions,
+    String? productType,
+    DateTime? createdAt,
+    DateTime? updatedAt,
+  }) {
+    return Product(
+      id: id ?? this.id,
+      tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
+      itemGroupId: itemGroupId ?? this.itemGroupId,
+      categoryId: categoryId ?? this.categoryId,
+      name: name ?? this.name,
+      sku: sku ?? this.sku,
+      barcode: barcode ?? this.barcode,
+      description: description ?? this.description,
+      imageUrl: imageUrl ?? this.imageUrl,
+      basePrice: basePrice ?? this.basePrice,
+      costPrice: costPrice ?? this.costPrice,
+      taxCategory: taxCategory ?? this.taxCategory,
+      isService: isService ?? this.isService,
+      groupId: groupId ?? this.groupId,
+      uomId: uomId ?? this.uomId,
+      variantOptions: variantOptions ?? this.variantOptions,
+      productType: productType ?? this.productType,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
 
   Product({
     required this.id,
@@ -312,6 +366,10 @@ class Product {
     this.costPrice, // Added
     this.taxCategory,
     this.isService = false,
+    this.groupId,
+    this.uomId,
+    this.variantOptions,
+    this.productType = 'standard',
     this.createdAt,
     this.updatedAt,
   });
@@ -332,6 +390,21 @@ class Product {
       costPrice: (map['cost_price'] as num?)?.toDouble(), // Added
       taxCategory: map['tax_category'] as String?,
       isService: (map['is_service'] as int?) == 1,
+      groupId: map['group_id'] as String?,
+      uomId: map['uom_id'] as String?,
+      variantOptions: () {
+        final val = map['variant_options'];
+        if (val == null) return null;
+        if (val is Map<String, dynamic>) return val;
+        if (val is String) {
+          try {
+            final decoded = jsonDecode(val);
+            if (decoded is Map<String, dynamic>) return decoded;
+          } catch (_) {}
+        }
+        return null;
+      }(),
+      productType: map['product_type'] as String? ?? 'standard',
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : null,
@@ -357,6 +430,10 @@ class Product {
       'cost_price': costPrice, // Added
       'tax_category': taxCategory,
       'is_service': isService ? 1 : 0,
+      'group_id': groupId,
+      'uom_id': uomId,
+      'variant_options': variantOptions != null ? jsonEncode(variantOptions) : null,
+      'product_type': productType,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -414,24 +491,31 @@ class StockAdjustment {
   final String tenantId;
   final String branchId;
   final String productId;
-  final String adjustmentType;
+  final String? adjustmentType;
   final int quantity;
   final String? referenceNumber;
   final String? notes;
   final String? createdBy;
+  final String? reasonId;
   final DateTime? createdAt;
+  // Populated from JOIN queries — not stored:
+  final String? adjusterName;
+  final String? reasonLabel;
 
   StockAdjustment({
     required this.id,
     required this.tenantId,
     required this.branchId,
     required this.productId,
-    required this.adjustmentType,
+    this.adjustmentType,
     required this.quantity,
     this.referenceNumber,
     this.notes,
     this.createdBy,
+    this.reasonId,
     this.createdAt,
+    this.adjusterName,
+    this.reasonLabel,
   });
 
   factory StockAdjustment.fromMap(Map<String, dynamic> map) {
@@ -440,14 +524,17 @@ class StockAdjustment {
       tenantId: map['tenant_id'] as String,
       branchId: map['branch_id'] as String,
       productId: map['product_id'] as String,
-      adjustmentType: map['adjustment_type'] as String,
+      adjustmentType: map['adjustment_type'] as String?,
       quantity: (map['quantity'] as num?)?.toInt() ?? 0,
       referenceNumber: map['reference_number'] as String?,
       notes: map['notes'] as String?,
       createdBy: map['created_by'] as String?,
+      reasonId: map['reason_id'] as String?,
       createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
+          ? DateTime.parse(map['created_at'] as String)
           : null,
+      adjusterName: map['adjuster_display_name'] as String?,
+      reasonLabel: map['reason_label'] as String?,
     );
   }
 
@@ -462,6 +549,7 @@ class StockAdjustment {
       'reference_number': referenceNumber,
       'notes': notes,
       'created_by': createdBy,
+      'reason_id': reasonId,
       'created_at': createdAt?.toIso8601String(),
     };
   }
@@ -477,4 +565,144 @@ class BatchAdjustmentItem {
     required this.quantityChange,
     this.notes,
   });
+}
+
+class StockItemGroup {
+  final String id;
+  final String tenantId;
+  final String name;
+  final String? description;
+  final String? attributes; // Store as raw string from sqlite
+
+  StockItemGroup({
+    required this.id,
+    required this.tenantId,
+    required this.name,
+    this.description,
+    this.attributes,
+  });
+
+  factory StockItemGroup.fromMap(Map<String, dynamic> map) {
+    return StockItemGroup(
+      id: map['id'] as String,
+      tenantId: map['tenant_id'] as String,
+      name: map['name'] as String,
+      description: map['description'] as String?,
+      attributes: map['attributes'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'tenant_id': tenantId,
+      'name': name,
+      'description': description,
+      'attributes': attributes,
+    };
+  }
+}
+
+class CompositeItemComponent {
+  final String id;
+  final String tenantId;
+  final String branchId;
+  final String compositeProductId;
+  final String componentProductId;
+  final int quantity;
+
+  CompositeItemComponent({
+    required this.id,
+    required this.tenantId,
+    required this.branchId,
+    required this.compositeProductId,
+    required this.componentProductId,
+    required this.quantity,
+  });
+
+  factory CompositeItemComponent.fromMap(Map<String, dynamic> map) {
+    return CompositeItemComponent(
+      id: map['id'] as String? ?? '', // PowerSync might omit ID in certain local joins if not selected
+      tenantId: map['tenant_id'] as String,
+      branchId: map['branch_id'] as String? ?? '',
+      compositeProductId: map['composite_product_id'] as String,
+      componentProductId: map['component_product_id'] as String,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'tenant_id': tenantId,
+      'branch_id': branchId,
+      'composite_product_id': compositeProductId,
+      'component_product_id': componentProductId,
+      'quantity': quantity,
+    };
+  }
+
+  CompositeItemComponent copyWith({
+    String? id,
+    String? tenantId,
+    String? branchId,
+    String? compositeProductId,
+    String? componentProductId,
+    int? quantity,
+  }) {
+    return CompositeItemComponent(
+      id: id ?? this.id,
+      tenantId: tenantId ?? this.tenantId,
+      branchId: branchId ?? this.branchId,
+      compositeProductId: compositeProductId ?? this.compositeProductId,
+      componentProductId: componentProductId ?? this.componentProductId,
+      quantity: quantity ?? this.quantity,
+    );
+  }
+}
+
+class UnitOfMeasurement {
+  final String id;
+  final String tenantId;
+  final String label;
+  final String? abbreviation;
+  final String? baseUnitId;
+  final double conversionFactor;
+  final DateTime? createdAt;
+
+  UnitOfMeasurement({
+    required this.id,
+    required this.tenantId,
+    required this.label,
+    this.abbreviation,
+    this.baseUnitId,
+    this.conversionFactor = 1.0,
+    this.createdAt,
+  });
+
+  factory UnitOfMeasurement.fromMap(Map<String, dynamic> map) {
+    return UnitOfMeasurement(
+      id: map['id'] as String,
+      tenantId: map['tenant_id'] as String,
+      label: map['label'] as String,
+      abbreviation: map['abbreviation'] as String?,
+      baseUnitId: map['base_unit_id'] as String?,
+      conversionFactor: (map['conversion_factor'] as num?)?.toDouble() ?? 1.0,
+      createdAt: map['created_at'] != null
+          ? DateTime.parse(map['created_at'])
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'tenant_id': tenantId,
+      'label': label,
+      'abbreviation': abbreviation,
+      'base_unit_id': baseUnitId,
+      'conversion_factor': conversionFactor,
+      'created_at': createdAt?.toIso8601String(),
+    };
+  }
 }

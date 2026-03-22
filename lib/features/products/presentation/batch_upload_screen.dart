@@ -321,7 +321,7 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                   ),
-                  child: const Text('Import Products'),
+                  child: const Text('Import Items'),
                 ),
               ],
             ],

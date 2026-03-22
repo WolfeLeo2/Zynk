@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
 
 class BranchesScreen extends ConsumerWidget {
   const BranchesScreen({super.key});
@@ -16,6 +17,7 @@ class BranchesScreen extends ConsumerWidget {
     final branchesAsync = ref.watch(branchesProvider);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -27,9 +29,16 @@ class BranchesScreen extends ConsumerWidget {
             fontWeight: FontWeight.bold,
           ),
         ),
-        leading: IconButton(
-          icon: const PhosphorIcon(PhosphorIconsRegular.caretLeft),
-          onPressed: () => context.pop(),
+        leading: Builder(
+          builder: (context) {
+            if (MediaQuery.of(context).size.width < 840) {
+              return IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              );
+            }
+            return const SizedBox.shrink();
+          },
         ),
       ),
       body: branchesAsync.when(

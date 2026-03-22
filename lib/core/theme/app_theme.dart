@@ -64,17 +64,14 @@ class AppTheme {
           horizontal: 16,
           vertical: 16,
         ),
-        border: OutlineInputBorder(
-          borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.borderSubtleDark),
-        ),
+        border: InputBorder.none,
         enabledBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.borderSubtleDark),
+          borderSide: const BorderSide(color: Colors.transparent),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.borderFocus, width: 2),
+          borderSide: const BorderSide(color: AppTokens.brandPrimary, width: 1.5),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
@@ -144,10 +141,10 @@ class AppTheme {
 
       cardTheme: const CardThemeData(
         color: AppTokens.bgSurfaceLight,
-        elevation: 0,
+        elevation: 0, // Very soft minimal
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.roundedCard,
-          side: BorderSide(color: AppTokens.borderSubtleLight, width: 1),
+          side: BorderSide(color: AppTokens.borderSubtleLight, width: 0.5),
         ),
       ),
 
@@ -158,17 +155,14 @@ class AppTheme {
           horizontal: 16,
           vertical: 16,
         ),
-        border: OutlineInputBorder(
-          borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.borderSubtleLight),
-        ),
+        border: InputBorder.none,
         enabledBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.borderSubtleLight),
+          borderSide: const BorderSide(color: Colors.transparent),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.brandPrimary, width: 2),
+          borderSide: const BorderSide(color: AppTokens.brandPrimary, width: 1.5),
         ),
       ),
 

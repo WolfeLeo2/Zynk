@@ -33,11 +33,10 @@ class BatchStockNotifier extends Notifier<List<BatchItemState>> {
     if (state.any((item) => item.product.id == product.id)) {
       return; // Already added
     }
-    state = [...state, BatchItemState(product: product, quantityChange: 1)];
+    state = [...state, BatchItemState(product: product, quantityChange: 0)];
   }
 
   void updateQuantity(String productId, int newQuantity) {
-    if (newQuantity <= 0) return;
     state = state.map((item) {
       if (item.product.id == productId) {
         return item.copyWith(quantityChange: newQuantity);

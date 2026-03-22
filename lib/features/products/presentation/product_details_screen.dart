@@ -6,7 +6,6 @@ import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/features/products/presentation/components/adjust_stock_sheet.dart';
 
 class ProductDetailsScreen extends ConsumerWidget {
   final Product product;
@@ -24,7 +23,7 @@ class ProductDetailsScreen extends ConsumerWidget {
         actions: [
           IconButton(
             onPressed: () {
-              context.push('/add-product', extra: product);
+              context.push('/products/add', extra: product);
             },
             icon: const Icon(PhosphorIconsDuotone.pencilSimple),
           ),
@@ -337,18 +336,6 @@ class ProductDetailsScreen extends ConsumerWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const Spacer(),
-                      if (!product.isService)
-                        TextButton.icon(
-                          onPressed: () {
-                            AdjustStockSheet.show(context, product);
-                          },
-                          icon: const Icon(
-                            PhosphorIconsRegular.plusMinus,
-                            size: 18,
-                          ),
-                          label: const Text('Adjust'),
-                        ),
                     ],
                   ),
                   const Divider(height: 16),
@@ -429,6 +416,18 @@ class ProductDetailsScreen extends ConsumerWidget {
                               itemBuilder: (context, index) {
                                 final adj = history[index];
                                 final isPositive = adj.quantity > 0;
+                                final title = adj.reasonLabel ??
+                                    adj.adjustmentType?.toUpperCase() ??
+                                    'Adjustment';
+                                final adjuster = adj.adjusterName ??
+                                    adj.createdBy ??
+                                    'Unknown';
+                                final timeStr = adj.createdAt != null
+                                    ? adj.createdAt!
+                                        .toLocal()
+                                        .toString()
+                                        .substring(0, 16)
+                                    : '—';
                                 return ListTile(
                                   contentPadding: EdgeInsets.zero,
                                   leading: CircleAvatar(
@@ -446,15 +445,17 @@ class ProductDetailsScreen extends ConsumerWidget {
                                     ),
                                   ),
                                   title: Text(
-                                    adj.adjustmentType.toUpperCase(),
+                                    title,
                                     style: const TextStyle(
                                       fontWeight: FontWeight.w600,
                                     ),
                                   ),
                                   subtitle: Text(
-                                    adj.createdAt != null
-                                        ? '${adj.createdAt!.toLocal().toString().substring(0, 16)}'
-                                        : 'Unknown date',
+                                    '$adjuster · $timeStr',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
                                   ),
                                   trailing: Text(
                                     '${isPositive ? '+' : ''}${adj.quantity}',

@@ -1,6 +1,6 @@
-# AGENTS.md — Zynk Codebase Design Principles
+# GEMINI.md — Zynk Codebase Design Principles & Workflows
 
-This file defines the engineering standards for the Zynk codebase.
+This file defines the engineering standards for the Zynk codebase, as well as the behavior protocol for Gemini / AI agents.
 All contributors (human and AI) must follow these rules.
 
 ---
@@ -25,7 +25,7 @@ All contributors (human and AI) must follow these rules.
 - All screens need to be responsive
 - Do not use my AppTokens raw. Use them from referencing colorScheme. Raw AppTokens don't mutate according to theme
 
-
+---
 
 ## Core Design Principles
 
@@ -38,18 +38,6 @@ All contributors (human and AI) must follow these rules.
 - Database queries belong in `PowerSyncRepository` — never inline SQL in providers or widgets
 - Theme values come from `AppTokens` — never hardcode colors or spacing
 
-**Red flags:**
-```dart
-// ❌ Same SQL in 3 different providers
-final p1 = StreamProvider((ref) => ref.watch(repositoryProvider).db.watch('SELECT ...'));
-final p2 = StreamProvider((ref) => ref.watch(repositoryProvider).db.watch('SELECT ...'));
-
-// ✅ One method on the repository, called from providers
-final p1 = StreamProvider((ref) => ref.watch(repositoryProvider).watchProducts());
-```
-
----
-
 ### KISS — Keep It Simple, Stupid
 > The simplest solution that works is the correct one.
 
@@ -59,32 +47,9 @@ final p1 = StreamProvider((ref) => ref.watch(repositoryProvider).watchProducts()
 - Riverpod redirect functions must be **pure functions** — read state, return a path, nothing else
 - Avoid over-engineering state: if a `bool` works, don't use a `sealed class`
 
-**Red flags:**
-```dart
-// ❌ Notifier.build() with ref.listen + side effects + async init + validation
-class BranchNotifier extends Notifier<State> {
-  @override
-  State build() {
-    ref.listen(...); // ❌ fires during build
-    Future.microtask(() => _init()); // ❌ deferred side effect in build
-    return initialState;
-  }
-}
-
-// ✅ build() returns initial state only; side effects in separate providers
-class BranchNotifier extends Notifier<State> {
-  @override
-  State build() => const State(isLoading: true); // pure
-}
-```
-
----
-
 ### SOLID
-
 #### S — Single Responsibility
 Each class/file has **one reason to change**.
-
 | Layer | Responsibility |
 |-------|---------------|
 | `repository.dart` | Raw DB queries only |
@@ -99,7 +64,6 @@ Extend behavior without modifying existing code.
 - Add new routes in `routes.dart` without touching existing route definitions
 
 #### L — Liskov Substitution
-Not directly applicable to Flutter, but:
 - `ConsumerWidget` and `ConsumerStatefulWidget` should be interchangeable for the same use case
 - Prefer `ConsumerWidget` (stateless) unless you need `AnimationController` or `TextEditingController`
 
@@ -119,13 +83,11 @@ Not directly applicable to Flutter, but:
 **In practice:**
 - Don't add `refreshBranches()` to a notifier when a `StreamProvider` already handles freshness
 - Don't build a `CombinedListenable` unless you actually combine multiple listenables
-- Don't add `role`-based visibility to a feature before the role system is tested end-to-end
 - Delete dead code immediately — unused classes/providers are tech debt
 
 ---
 
 ## Riverpod-Specific Rules
-
 1. **`Notifier.build()` must be pure** — return initial state only. No `ref.listen`, no `Future.microtask`, no async calls.
 2. **Side effects that react to streams** belong in a dedicated `Provider` (not a `Notifier`), watched by an always-alive widget (e.g., `AppShell`).
 3. **Use `WidgetsBinding.addPostFrameCallback`** (not `Future.microtask`) to defer state mutations that happen during provider initialization.
@@ -136,7 +98,6 @@ Not directly applicable to Flutter, but:
 ---
 
 ## File Structure Rules
-
 ```
 lib/
   core/
@@ -155,17 +116,15 @@ lib/
       providers/    # Feature-specific providers
       presentation/ # Screens + widgets
 ```
-
 **Rules:**
-- No cross-feature imports (feature A must not import from feature B's `presentation/`)
-- Models never import Flutter — only `dart:core`
+- No cross-feature imports
+- Models never import Flutter
 - Services never import widgets
-- Providers never import `package:flutter/material.dart` (use `package:flutter/foundation.dart` if needed)
+- Providers never import `package:flutter/material.dart`
 
 ---
 
 ## Naming Conventions
-
 | Thing | Convention | Example |
 |-------|-----------|---------|
 | Provider | `camelCaseProvider` | `currentBranchIdProvider` |
@@ -180,7 +139,6 @@ lib/
 ## AI Agent Guidelines
 
 When making changes to this codebase:
-
 1. **Read before writing** — view the file and understand what exists before editing
 2. **Analyze before claiming done** — always run `dart analyze` before saying a task is complete
 3. **One concern per PR/task** — don't mix feature work with refactoring

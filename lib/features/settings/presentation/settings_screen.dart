@@ -8,7 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-
+import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -187,7 +187,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final profileAsync = ref.watch(currentUserProfileProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Settings')),
+      drawer: const AppDrawer(),
+      appBar: AppBar(
+        leading: Builder(
+          builder: (context) => IconButton(
+            icon: const PhosphorIcon(PhosphorIconsDuotone.list),
+            onPressed: () => Scaffold.of(context).openDrawer(),
+          ),
+        ),
+        title: const Text('Settings'),
+      ),
       body: profileAsync.when(
         data: (profile) {
           final displayName = profile?.displayName ?? user?.email ?? '';
@@ -328,6 +337,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       trailing: const Icon(PhosphorIconsRegular.caretRight),
                       onTap: () => context.push('/settings/branches'),
                     ),
+                    ListTile(
+                      leading: const Icon(PhosphorIconsDuotone.userList),
+                      title: const Text('People'),
+                      subtitle: const Text('Manage salespersons & adjusters'),
+                      trailing: const Icon(PhosphorIconsRegular.caretRight),
+                      onTap: () => context.push('/settings/staff-members'),
+                    ),
+                    const Divider(),
                     ListTile(
                       leading: const Icon(PhosphorIconsDuotone.users),
                       title: const Text('Staff'),

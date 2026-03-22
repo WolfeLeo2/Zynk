@@ -14,13 +14,13 @@ import 'package:zynk/features/sales/providers/sales_providers.dart';
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final List<PosCartItem> cartItems;
   final Customer customer;
-  final String? salespersonName;
+  final String? salespersonId;
 
   const CreateInvoiceScreen({
     super.key,
     required this.cartItems,
     required this.customer,
-    this.salespersonName,
+    this.salespersonId,
   });
 
   @override
@@ -43,9 +43,12 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   late List<TextEditingController> _itemPriceCtrls;
   late List<TextEditingController> _itemQtyCtrls;
 
+  String? _salespersonId;
+
   @override
   void initState() {
     super.initState();
+    _salespersonId = widget.salespersonId;
     _customerNameCtrl = TextEditingController(text: widget.customer.name);
     _customerPhoneCtrl = TextEditingController(text: widget.customer.phone ?? '');
 
@@ -65,9 +68,15 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     _notesController.dispose();
     _customerNameCtrl.dispose();
     _customerPhoneCtrl.dispose();
-    for (final c in _itemNameCtrls) c.dispose();
-    for (final c in _itemPriceCtrls) c.dispose();
-    for (final c in _itemQtyCtrls) c.dispose();
+    for (final c in _itemNameCtrls) {
+      c.dispose();
+    }
+    for (final c in _itemPriceCtrls) {
+      c.dispose();
+    }
+    for (final c in _itemQtyCtrls) {
+      c.dispose();
+    }
     super.dispose();
   }
 
@@ -83,6 +92,17 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+
+    if (_salespersonId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a salesperson before submitting.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
 
     setState(() => _isLoading = true);
 
@@ -165,7 +185,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             branchId: branchId,
             customerId: widget.customer.id,
             cartItems: editedItems,
-            salespersonName: widget.salespersonName,
+            salespersonId: _salespersonId,
             notes: _notesController.text.isEmpty ? null : _notesController.text,
             dueDate: _dueDate?.toIso8601String(),
           );
@@ -208,18 +228,44 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            // ── Staff Details ──
-            if (widget.salespersonName != null && widget.salespersonName!.isNotEmpty) ...[
-              _SectionLabel('Salesperson'),
-              const SizedBox(height: 8),
-              _ReadOnlyRow(
-                icon: PhosphorIconsRegular.user,
-                text: widget.salespersonName!,
-                cs: cs,
-                theme: theme,
-              ),
-              const SizedBox(height: 24),
-            ],
+            // ── Salesperson ──
+            _SectionLabel('Salesperson (Optional)'),
+            const SizedBox(height: 8),
+            Consumer(
+              builder: (context, ref, child) {
+                final staffAsync = ref.watch(humanStaffProvider);
+                return staffAsync.when(
+                  data: (staffList) {
+                    if (staffList.isEmpty) return const SizedBox.shrink();
+                    return DropdownButtonFormField<String>(
+                      initialValue: _salespersonId,
+                      decoration: InputDecoration(
+                        prefixIcon: const Icon(PhosphorIconsRegular.user),
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                        isDense: true,
+                        filled: true,
+                        fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.2),
+                      ),
+                      hint: const Text('Select Salesperson (Optional)'),
+                      items: [
+                        const DropdownMenuItem<String>(
+                          value: null,
+                          child: Text('None'),
+                        ),
+                        ...staffList.map((s) => DropdownMenuItem<String>(
+                          value: s.id,
+                          child: Text(s.name),
+                        )),
+                      ],
+                      onChanged: (v) => setState(() => _salespersonId = v),
+                    );
+                  },
+                  loading: () => const LinearProgressIndicator(),
+                  error: (_, _) => const SizedBox.shrink(),
+                );
+              },
+            ),
+            const SizedBox(height: 24),
 
             // ── Customer Details (Editable) ──
             _SectionLabel('Billed To'),
@@ -410,33 +456,7 @@ class _SectionLabel extends StatelessWidget {
   }
 }
 
-class _ReadOnlyRow extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  final ColorScheme cs;
-  final ThemeData theme;
 
-  const _ReadOnlyRow({required this.icon, required this.text, required this.cs, required this.theme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHighest.withValues(alpha: 0.25),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        children: [
-          PhosphorIcon(icon, color: cs.onSurfaceVariant),
-          const SizedBox(width: 12),
-          Text(text, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w500)),
-        ],
-      ),
-    );
-  }
-}
 
 class _EditableItemRow extends StatelessWidget {
   final int index;

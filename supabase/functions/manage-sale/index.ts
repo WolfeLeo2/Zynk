@@ -331,6 +331,35 @@ Deno.serve(async (req: Request) => {
                 if (updateError)
                     throw new Error(`Status update failed: ${updateError.message}`);
 
+                // Auto-fulfill on first payment: if the sale was unfulfilled when
+                // payment was recorded, mark it fulfilled and decrement stock now.
+                // This prevents selling stock that has already been committed via payment.
+                if (sale.fulfillment_status !== "fulfilled") {
+                    const { error: fulfillError } = await supabase
+                        .from("sales")
+                        .update({
+                            fulfillment_status: "fulfilled",
+                            updated_at: now,
+                        })
+                        .eq("id", saleId);
+
+                    if (fulfillError) throw new Error(`Fulfill on payment failed: ${fulfillError.message}`);
+
+                    // Fetch sale items to decrement stock
+                    const { data: saleItems } = await supabase
+                        .from("sale_items")
+                        .select("product_id, quantity")
+                        .eq("sale_id", saleId);
+
+                    for (const item of saleItems || []) {
+                        await supabase.rpc("decrement_stock", {
+                            p_product_id: item.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: item.quantity,
+                        });
+                    }
+                }
+
                 return jsonResponse({
                     status: newStatus,
                     payment_status: newPaymentStatus,

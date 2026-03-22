@@ -25,8 +25,8 @@ class AppTokens {
   static const Color _textMuted = Color(0xFF8B949E); // Muted Grey-Blue
 
   // Light Mode Equivalents (For future-proofing)
-  static const Color _lightCanvas = Color(0xFFFFFFFF);
-  static const Color _lightSurface = Color(0xFFF3F4F6);
+  static const Color _lightCanvas = Color(0xFFF9FAFB); // Soft Minimal off-white
+  static const Color _lightSurface = Color(0xFFFFFFFF); // Pure white cards
   static const Color _lightBorder = Color(0xFFE5E7EB);
   static const Color _lightTextPrimary = Color(0xFF111827);
 
@@ -48,10 +48,10 @@ class AppTokens {
   static const Color bgCanvasLight = _lightCanvas;
   static const Color bgSurfaceLight = _lightSurface;
 
-  // Text
   static const Color textPrimaryDark = _textPrimary;
   static const Color textMutedDark = _textMuted;
   static const Color textPrimaryLight = _lightTextPrimary;
+  static const Color textMutedLight = Color(0xFF6B7280); // Muted gray
 
   // Borders
   static const Color borderSubtleDark = _borderSubtle;
@@ -91,4 +91,56 @@ class AppTokens {
   static const List<BoxShadow> shadowSubtle = [
     BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
   ];
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 5. TYPOGRAPHY
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static const TextStyle heading1 = TextStyle(
+    fontSize: 32,
+    fontWeight: FontWeight.bold,
+    letterSpacing: -1.0,
+  );
+
+  static const TextStyle heading2 = TextStyle(
+    fontSize: 24,
+    fontWeight: FontWeight.bold,
+    letterSpacing: -0.5,
+  );
+
+  static const TextStyle heading3 = TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.bold,
+  );
+
+  static const TextStyle labelLarge = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+  );
+
+  static const TextStyle bodyLarge = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.normal,
+  );
+
+  static const TextStyle bodyMedium = TextStyle(
+    fontSize: 14,
+    fontWeight: FontWeight.normal,
+  );
+
+  static const TextStyle bodySmall = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.normal,
+  );
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // 6. ALIASES (Convenience)
+  // ─────────────────────────────────────────────────────────────────────────
+
+  static const Color electricBlue = _electricBlue;
+  static const Color neonLime = _neonLime;
+  static const Color textPrimary = _lightTextPrimary;
+  static const Color textSecondary = Color(0xFF6B7280);
+  static const Color textTertiary = Color(0xFF9CA3AF);
+  static const Color surfaceSecondary = Color(0xFFF3F4F6);
 }

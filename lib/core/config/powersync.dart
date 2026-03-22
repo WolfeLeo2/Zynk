@@ -65,6 +65,19 @@ final schema = Schema([
     Column.text('updated_at'),
   ]),
 
+  // Staff Members
+  const Table('staff_members', [
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('name'),
+    Column.text('phone'),
+    Column.text('email'),
+    Column.text('profile_picture_url'),
+    Column.text('status'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
   // Item Groups
   const Table('item_groups', [
     Column.text('tenant_id'),
@@ -75,6 +88,33 @@ final schema = Schema([
     Column.real('default_commission_value'),
     Column.text('created_at'),
     Column.text('updated_at'),
+  ]),
+
+  // Stock Item Groups
+  const Table('stock_item_groups', [
+    Column.text('tenant_id'),
+    Column.text('name'),
+    Column.text('description'),
+    Column.text('attributes'),
+  ]),
+
+  // Composite Item Components
+  const Table('composite_item_components', [
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('composite_product_id'),
+    Column.text('component_product_id'),
+    Column.integer('quantity'),
+  ]),
+
+  // Units of Measurement
+  const Table('units_of_measurement', [
+    Column.text('tenant_id'),
+    Column.text('label'),
+    Column.text('abbreviation'),
+    Column.text('base_unit_id'),
+    Column.real('conversion_factor'),
+    Column.text('created_at'),
   ]),
 
   // Products
@@ -92,6 +132,10 @@ final schema = Schema([
     Column.real('cost_price'), // Added
     Column.text('tax_category'),
     Column.integer('is_service'), // Boolean as Integer (0/1)
+    Column.text('group_id'),
+    Column.text('uom_id'),
+    Column.text('variant_options'),
+    Column.text('product_type'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -116,6 +160,14 @@ final schema = Schema([
     Column.text('reference_number'),
     Column.text('notes'),
     Column.text('created_by'),
+    Column.text('reason_id'),
+    Column.text('created_at'),
+  ]),
+
+  // Stock Adjustment Reasons
+  const Table('stock_adjustment_reasons', [
+    Column.text('tenant_id'),
+    Column.text('label'),
     Column.text('created_at'),
   ]),
 
@@ -137,10 +189,11 @@ final schema = Schema([
     Column.text('tenant_id'),
     Column.text('branch_id'),
     Column.text('customer_id'),
+    Column.text('customer_name'),
     Column.text('invoice_number'),
     Column.text('sale_type'),
     Column.text('created_by'),
-    Column.text('salesperson'),
+    Column.text('salesperson_id'),
     Column.text('approved_by'),
     Column.real('total_amount'),
     Column.real('subtotal'),
@@ -173,6 +226,7 @@ final schema = Schema([
     Column.real('tax_amount'),
     Column.real('discount'),
     Column.real('total'),
+    Column.text('product_name'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),

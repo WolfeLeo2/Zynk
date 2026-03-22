@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 import 'skeleton_widgets.dart';
@@ -22,7 +23,7 @@ class RevenueBarChart extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: colorScheme.outlineVariant.withValues(alpha: 0.2),
@@ -331,7 +332,7 @@ class PaymentMethodsChart extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
           color: colorScheme.outlineVariant.withValues(alpha: 0.2),
@@ -360,14 +361,25 @@ class PaymentMethodsChart extends ConsumerWidget {
                     ),
                   );
                 }
-                return PieChart(
-                  PieChartData(
-                    sections: sections
-                        .map((s) => s.copyWith(radius: 50))
-                        .toList(),
-                    centerSpaceRadius: 30,
-                    sectionsSpace: 2,
-                  ),
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(PhosphorIconsDuotone.wallet, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5), size: 24),
+                      ],
+                    ),
+                    PieChart(
+                      PieChartData(
+                        sections: sections
+                            .map((s) => s.copyWith(radius: 12, showTitle: false))
+                            .toList(),
+                        centerSpaceRadius: 40,
+                        sectionsSpace: 4,
+                      ),
+                    ),
+                  ],
                 );
               },
               loading: () => const Center(child: CircularProgressIndicator()),

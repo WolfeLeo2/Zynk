@@ -12,6 +12,7 @@ import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/presentation/components/pos_product_card.dart';
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:uuid/uuid.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -28,7 +29,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
   String _searchQuery = '';
   String? _selectedCategoryId;
   Customer? _selectedCustomer;
-  String _salespersonName = '';
+  String? _salespersonId;
 
   @override
   void initState() {
@@ -169,6 +170,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
         if (!isMobile) {
           return Scaffold(
+            drawer: const AppDrawer(),
             body: Row(
               children: [
                 // Product Grid Area
@@ -196,12 +198,10 @@ class _PosScreenState extends ConsumerState<PosScreen>
                     onRemoveItem: _removeFromCart,
                     onClearTicket: _clearCart,
                     selectedCustomer: _selectedCustomer,
-                    salespersonName: _salespersonName.isEmpty
-                        ? null
-                        : _salespersonName,
+                    salespersonId: _salespersonId,
                     onSelectCustomer: _showCustomerSelector,
-                    onSalespersonNameChanged: (name) =>
-                        setState(() => _salespersonName = name),
+                    onSalespersonIdChanged: (id) =>
+                        setState(() => _salespersonId = id),
                   ),
                 ),
               ],
@@ -211,10 +211,22 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
         // Mobile Layout (Tabbed)
         return Scaffold(
+          drawer: const AppDrawer(),
           body: NestedScrollView(
             headerSliverBuilder: (context, innerBoxIsScrolled) {
               return [
                 SliverAppBar(
+                  leading: Builder(
+                    builder: (context) {
+                      if (MediaQuery.of(context).size.width < 840) {
+                        return IconButton(
+                          icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                          onPressed: () => Scaffold.of(context).openDrawer(),
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
                   automaticallyImplyLeading: false,
                   title: const Text('POS'),
                   pinned: true,
@@ -223,7 +235,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
                     controller: _tabController,
                     tabs: [
                       const Tab(
-                        text: 'Products',
+                        text: 'Items',
                         icon: Icon(PhosphorIconsDuotone.gridFour),
                       ),
                       Tab(
@@ -259,12 +271,10 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   onRemoveItem: _removeFromCart,
                   onClearTicket: _clearCart,
                   selectedCustomer: _selectedCustomer,
-                  salespersonName: _salespersonName.isEmpty
-                      ? null
-                      : _salespersonName,
+                  salespersonId: _salespersonId,
                   onSelectCustomer: _showCustomerSelector,
-                  onSalespersonNameChanged: (name) =>
-                      setState(() => _salespersonName = name),
+                  onSalespersonIdChanged: (id) =>
+                      setState(() => _salespersonId = id),
                 ),
               ],
             ),
@@ -317,7 +327,7 @@ class _ProductGrid extends StatelessWidget {
               controller: searchController,
               onChanged: onSearchChanged,
               decoration: InputDecoration(
-                hintText: 'Search products...',
+                hintText: 'Search items...',
                 prefixIcon: const Icon(PhosphorIconsRegular.magnifyingGlass),
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest.withValues(
@@ -384,8 +394,8 @@ class _ProductGrid extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     searchController.text.isNotEmpty
-                        ? 'No products match "${searchController.text}"'
-                        : 'No products found',
+                        ? 'No items match "${searchController.text}"'
+                        : 'No items found',
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
                     ),
@@ -393,7 +403,7 @@ class _ProductGrid extends StatelessWidget {
                   if (searchController.text.isEmpty) ...[
                     const SizedBox(height: 8),
                     Text(
-                      'Add products from Settings to get started.',
+                      'Add items from to get started.',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: colorScheme.onSurfaceVariant.withValues(
                           alpha: 0.6,

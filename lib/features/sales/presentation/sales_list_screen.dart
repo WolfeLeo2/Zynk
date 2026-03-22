@@ -9,6 +9,7 @@ import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
 
 class SalesListScreen extends ConsumerStatefulWidget {
   const SalesListScreen({super.key});
@@ -29,7 +30,19 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     final salesAsync = ref.watch(salesListProvider);
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) {
+            if (MediaQuery.of(context).size.width < 840) {
+              return IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
         title: const Text('Sales & Invoices'),
         actions: [
           IconButton(
@@ -55,14 +68,28 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                 final filtered = _filter == null
                     ? branchFiltered
                     : _filter == 'outstanding'
-                    ? branchFiltered
-                          .where(
-                            (s) =>
-                                s.status == InvoiceStatus.approved ||
-                                s.status == InvoiceStatus.partiallyPaid,
-                          )
-                          .toList()
-                    : branchFiltered.where((s) => s.status == _filter).toList();
+                        ? branchFiltered
+                            .where(
+                              (s) =>
+                                  s.status != InvoiceStatus.voided &&
+                                  s.status != InvoiceStatus.completed &&
+                                  s.paymentStatus != PaymentStatus.paid,
+                            )
+                            .toList()
+                        : _filter is InvoiceStatus
+                            ? branchFiltered
+                                .where((s) => s.status == _filter)
+                                .toList()
+                            : _filter is PaymentStatus
+                                ? branchFiltered
+                                    .where((s) => s.paymentStatus == _filter)
+                                    .toList()
+                                : _filter is FulfillmentStatus
+                                    ? branchFiltered
+                                        .where((s) =>
+                                            s.fulfillmentStatus == _filter)
+                                        .toList()
+                                    : branchFiltered;
 
                 if (filtered.isEmpty) {
                   return _buildEmpty(theme, cs);
@@ -94,15 +121,17 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   }
 
   Widget _buildFilterBar(ThemeData theme, ColorScheme cs) {
-    // null = All, InvoiceStatus = exact match, 'outstanding' = special
+    // null = All, String = special, ENUM = exact match
     final filters = [
       (null, 'All', PhosphorIconsRegular.listBullets),
       ('outstanding', 'Outstanding', PhosphorIconsRegular.warningCircle),
       (InvoiceStatus.draft, 'Drafts', PhosphorIconsRegular.pencilSimple),
-      (InvoiceStatus.pendingApproval, 'Pending', PhosphorIconsRegular.clock),
+      (InvoiceStatus.pendingApproval, 'Pending Approval', PhosphorIconsRegular.clock),
       (InvoiceStatus.approved, 'Approved', PhosphorIconsRegular.sealCheck),
+      (PaymentStatus.unpaid, 'Unpaid', PhosphorIconsRegular.money),
+      (PaymentStatus.partiallyPaid, 'Partial', PhosphorIconsRegular.percent),
+      (PaymentStatus.paid, 'Paid', PhosphorIconsRegular.currencyCircleDollar),
       (InvoiceStatus.completed, 'Completed', PhosphorIconsRegular.checkCircle),
-      (InvoiceStatus.partiallyPaid, 'Partial', PhosphorIconsRegular.percent),
       (InvoiceStatus.voided, 'Voided', PhosphorIconsRegular.prohibit),
     ];
 

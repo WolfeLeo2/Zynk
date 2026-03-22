@@ -60,14 +60,14 @@ class SalesService {
     required final String branchId,
     required final String customerId,
     required final List<PosCartItem> cartItems,
-    final String? salespersonName,
+    final String? salespersonId,
     final String? notes,
     final String? dueDate,
   }) async {
     // 1. Calculate totals
     double subtotal = 0;
     for (final item in cartItems) {
-      subtotal += (item.product.basePrice * item.quantity);
+      subtotal += (item.effectivePrice * item.quantity);
     }
     // Hardcoded tax & discount mappings for now
     final double taxAmount = 0.0;
@@ -95,11 +95,11 @@ class SalesService {
         '''
         INSERT INTO sales (
           id, tenant_id, branch_id, customer_id, invoice_number, sale_type, 
-          created_by, salesperson, total_amount, subtotal, tax_amount, discount_amount, 
-          grand_total, amount_paid, payment_method, status, notes, due_date, 
+          created_by, salesperson_id, total_amount, subtotal, tax_amount, discount_amount, 
+          grand_total, amount_paid, payment_method, status, payment_status, notes, due_date, 
           created_at, updated_at
         ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
         )
         ''',
         [
@@ -110,7 +110,7 @@ class SalesService {
           tempInvoiceNumber,
           'invoice',
           userId,
-          salespersonName,
+          salespersonId,
           grandTotal,
           subtotal,
           taxAmount,
@@ -119,6 +119,7 @@ class SalesService {
           0.0,
           null,
           'pending_approval',
+          'unpaid',
           notes,
           dueDate,
           now,
@@ -129,7 +130,7 @@ class SalesService {
       // Insert Sale Items
       for (final item in cartItems) {
         final itemId = Uuid().v7();
-        final unitPrice = item.product.basePrice;
+        final unitPrice = item.effectivePrice;
         final costPrice = item.product.costPrice ?? 0.0;
         final lineTotal = unitPrice * item.quantity;
 
@@ -140,9 +141,9 @@ class SalesService {
           '''
           INSERT INTO sale_items (
             id, sale_id, product_id, tenant_id, quantity, unit_price, 
-            cost_price, tax_amount, discount, total, created_at, updated_at
+            cost_price, tax_amount, discount, total, product_name, created_at, updated_at
           ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
           )
           ''',
           [
@@ -156,6 +157,7 @@ class SalesService {
             0.0,
             0.0,
             lineTotal,
+            item.effectiveName,
             now,
             now,
           ],

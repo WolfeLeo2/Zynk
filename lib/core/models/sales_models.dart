@@ -171,7 +171,7 @@ class Sale {
   final String? invoiceNumber;
   final String saleType;
   final String? createdBy;
-  final String? salespersonName;
+  final String? salespersonId;
   final String? approvedBy;
   final double totalAmount;
   final double subtotal;
@@ -200,7 +200,7 @@ class Sale {
     this.invoiceNumber,
     this.saleType = 'sale',
     this.createdBy,
-    this.salespersonName,
+    this.salespersonId,
     this.approvedBy,
     this.totalAmount = 0,
     this.subtotal = 0,
@@ -237,7 +237,7 @@ class Sale {
       invoiceNumber: map['invoice_number'] as String?,
       saleType: map['sale_type'] as String? ?? 'sale',
       createdBy: map['created_by'] as String?,
-      salespersonName: map['salesperson'] as String?,
+      salespersonId: map['salesperson_id'] as String?,
       approvedBy: map['approved_by'] as String?,
       totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0,
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
@@ -271,7 +271,7 @@ class Sale {
       'invoice_number': invoiceNumber,
       'sale_type': saleType,
       'created_by': createdBy,
-      'salesperson': salespersonName,
+      'salesperson_id': salespersonId,
       'approved_by': approvedBy,
       'total_amount': totalAmount,
       'subtotal': subtotal,

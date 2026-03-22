@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart'; // Add uuid import
+import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/core/providers/app_providers.dart'; // for repositoryProvider
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
@@ -38,10 +39,17 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   String? _selectedCategoryId;
   String? _selectedItemGroupId;
+  String? _selectedUomId;
+  final List<CompositeItemComponent> _selectedComponents = [];
 
   bool _autoGenerateSku = true;
   bool _trackStock = true;
   String? _existingImageUrl;
+
+  String get _productType {
+    final type = GoRouterState.of(context).uri.queryParameters['type'];
+    return type ?? 'single';
+  }
 
   @override
   void initState() {
@@ -57,8 +65,22 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         _costPriceController.text = p.costPrice.toString();
       }
       _selectedCategoryId = p.categoryId;
-      _selectedItemGroupId = p.itemGroupId;
+      _selectedItemGroupId = p.groupId;
+      _selectedUomId = p.uomId;
       _existingImageUrl = p.imageUrl;
+
+      if (p.isComposite) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ref.read(compositeComponentsProvider(p.id).future).then((components) {
+            if (mounted) {
+              setState(() {
+                _selectedComponents.clear();
+                _selectedComponents.addAll(components);
+              });
+            }
+          });
+        });
+      }
     }
   }
 
@@ -129,12 +151,15 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             name: _nameController.text,
             categoryId: _selectedCategoryId,
             itemGroupId: _selectedItemGroupId,
+            uomId: _selectedUomId,
+            productType: _productType,
             price: price,
             costPrice: costPrice,
             sku: skuToSave,
             barcode: _barcodeController.text,
             imageFile: _selectedImage,
             initialStock: int.tryParse(_stockController.text),
+            components: _productType == 'composite' ? _selectedComponents : null,
           );
 
       if (mounted) {
@@ -357,6 +382,325 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
   }
 
+  Future<void> _showAddUomBottomSheet() async {
+    final labelController = TextEditingController();
+    final abbrController = TextEditingController();
+    final factorController = TextEditingController();
+    String? baseUnitId;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setModalState) => Container(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(context).viewInsets.bottom + 32,
+            top: 32,
+            left: 24,
+            right: 24,
+          ),
+          decoration: const BoxDecoration(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('New Unit of Measurement', style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 24),
+              TextFormField(
+                controller: labelController,
+                decoration: const InputDecoration(
+                  labelText: 'Unit Label (e.g. Box)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: abbrController,
+                decoration: const InputDecoration(
+                  labelText: 'Abbreviation (e.g. bx)',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Conversion (Optional)',
+                style: Theme.of(context).textTheme.labelLarge,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Define how many base units make up this unit(ie a Box can be 1X12 meaning 12 items make 1 box).',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+              const SizedBox(height: 16),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: factorController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Factor',
+                        hintText: '10',
+                        border: OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 12),
+                    child: Text('x'),
+                  ),
+                  Expanded(
+                    child: ref.watch(allUomProvider).when(
+                          data: (uoms) => DropdownButtonFormField<String>(
+                            value: baseUnitId,
+                            decoration: const InputDecoration(
+                              labelText: 'Base Unit',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: uoms
+                                .map((u) => DropdownMenuItem(
+                                      value: u.id,
+                                      child: Text(u.label),
+                                    ))
+                                .toList(),
+                            onChanged: (val) =>
+                                setModalState(() => baseUnitId = val),
+                          ),
+                          loading: () => const LinearProgressIndicator(),
+                          error: (_, __) => const Text('Error'),
+                        ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () async {
+                    if (labelController.text.isNotEmpty) {
+                      final uom = UnitOfMeasurement(
+                        id: const Uuid().v4(),
+                        tenantId: ref.read(tenantIdProvider)!,
+                        label: labelController.text,
+                        abbreviation: abbrController.text,
+                        baseUnitId: baseUnitId,
+                        conversionFactor:
+                            double.tryParse(factorController.text) ?? 1.0,
+                      );
+                      await ref
+                          .read(repositoryProvider)
+                          .createUnitOfMeasurement(uom);
+                      if (context.mounted) Navigator.pop(context);
+                    }
+                  },
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Save Unit'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCompositeSection() {
+    final productsAsync = ref.watch(allProductsProvider);
+    final theme = Theme.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SizedBox(height: 32),
+        _buildSectionHeader(
+            theme, 'Composite Components', PhosphorIconsDuotone.listChecks),
+        const SizedBox(height: 16),
+        Text(
+          'Select the items that make up this composite item and specify their quantities.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        productsAsync.when(
+          data: (products) => _buildSearchableDropdown<Product>(
+            key: const ValueKey('comp_items_data'),
+            label: 'Add Component Item',
+            icon: PhosphorIconsDuotone.plusCircle,
+            items: products
+                .where((p) =>
+                    p.id != widget.existingProduct?.id && !p.isComposite)
+                .toList(),
+            itemLabel: (p) => p.name,
+            itemId: (p) => p.id,
+            selectedItemId: null,
+            onSelected: (p) {
+              if (p != null) {
+                if (_selectedComponents
+                    .any((c) => c.componentProductId == p.id)) {
+                  return;
+                }
+                setState(() {
+                  _selectedComponents.add(CompositeItemComponent(
+                    id: const Uuid().v4(),
+                    tenantId: ref.read(tenantIdProvider)!,
+                    branchId: ref.read(currentBranchIdProvider) ?? '',
+                    compositeProductId: widget.existingProduct?.id ?? '',
+                    componentProductId: p.id,
+                    quantity: 1,
+                  ));
+                });
+              }
+            },
+            onAddPressed: () {},
+          ),
+          loading: () => const LinearProgressIndicator(),
+          error: (e, s) => Text('Error: $e'),
+        ),
+        const SizedBox(height: 16),
+        if (_selectedComponents.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              color: AppTokens.textPrimary.withOpacity(0.02),
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: AppTokens.textPrimary.withOpacity(0.05)),
+            ),
+            child: Column(
+              children: [
+                Icon(PhosphorIconsDuotone.package,
+                    size: 40, color: AppTokens.textSecondary.withOpacity(0.5)),
+                const SizedBox(height: 16),
+                Text(
+                  'No components added',
+                  style: AppTokens.labelLarge
+                      .copyWith(color: AppTokens.textSecondary),
+                ),
+                Text(
+                  'Use the search above to add items',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
+          )
+        else
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: _selectedComponents.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final component = _selectedComponents[index];
+              final product = productsAsync.value
+                  ?.firstWhere((p) => p.id == component.componentProductId);
+
+              return Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border:
+                      Border.all(color: AppTokens.textPrimary.withOpacity(0.08)),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.02),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                        color: AppTokens.electricBlue.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(PhosphorIconsDuotone.package,
+                          color: AppTokens.electricBlue, size: 20),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(product?.name ?? 'Unknown',
+                              style: AppTokens.labelLarge),
+                          Text('SKU: ${product?.sku ?? 'N/A'}',
+                              style: AppTokens.bodySmall
+                                  .copyWith(color: AppTokens.textSecondary)),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppTokens.textPrimary.withOpacity(0.03),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            onPressed: () {
+                              if (component.quantity > 1) {
+                                setState(() {
+                                  _selectedComponents[index] =
+                                      component.copyWith(
+                                          quantity: component.quantity - 1);
+                                });
+                              }
+                            },
+                            icon: const Icon(Icons.remove, size: 18),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            child: Text('${component.quantity}',
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600)),
+                          ),
+                          IconButton(
+                            onPressed: () {
+                              setState(() {
+                                _selectedComponents[index] =
+                                    component.copyWith(
+                                        quantity: component.quantity + 1);
+                              });
+                            },
+                            icon: const Icon(Icons.add, size: 18),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      onPressed: () {
+                        setState(() {
+                          _selectedComponents.removeAt(index);
+                        });
+                      },
+                      icon: const Icon(PhosphorIconsBold.trash,
+                          color: Colors.red, size: 20),
+                      visualDensity: VisualDensity.compact,
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -410,6 +754,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 ),
                 const SizedBox(height: 16),
                 _buildStep1(),
+                if (_productType == 'composite') _buildCompositeSection(),
                 const SizedBox(height: 32),
 
                 _buildSectionHeader(
@@ -610,6 +955,25 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
           error: (e, s) => const SizedBox(),
         ),
+
+        const SizedBox(height: 16),
+
+        // UOM Dropdown
+        ref.watch(allUomProvider).when(
+              data: (uoms) => _buildSearchableDropdown<UnitOfMeasurement>(
+                key: const ValueKey('uom_data'),
+                label: 'Unit of Measurement',
+                icon: PhosphorIconsDuotone.ruler,
+                items: uoms,
+                itemLabel: (u) => '${u.label} (${u.abbreviation})',
+                itemId: (u) => u.id,
+                selectedItemId: _selectedUomId,
+                onSelected: (u) => setState(() => _selectedUomId = u?.id),
+                onAddPressed: _showAddUomBottomSheet,
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (e, s) => Text('Error loading units: $e'),
+            ),
       ],
     );
   }

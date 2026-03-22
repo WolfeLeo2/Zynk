@@ -90,12 +90,12 @@ class ReceiptTemplate {
                   ),
                 ],
               ),
-              if (sale.salespersonName != null) ...[
+              if (sale.salespersonId != null) ...[
                 pw.SizedBox(height: 2),
                 pw.Row(
                   children: [
                     pw.Text(
-                      'Served by: ${sale.salespersonName}',
+                      'Served by: ${sale.salespersonId}',
                       style: const pw.TextStyle(fontSize: 8),
                     ),
                   ],

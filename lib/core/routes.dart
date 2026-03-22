@@ -12,9 +12,14 @@ import 'package:zynk/features/dashboard/presentation/dashboard_layout.dart';
 import 'package:zynk/features/pos/presentation/pos_screen.dart';
 import 'package:zynk/features/products/presentation/add_product_screen.dart';
 import 'package:zynk/features/products/presentation/products_screen.dart';
-import 'package:zynk/features/products/presentation/product_details_screen.dart';
 import 'package:zynk/features/products/presentation/group_details_screen.dart';
-import 'package:zynk/features/products/presentation/batch_adjust_stock_screen.dart';
+import 'package:zynk/features/products/presentation/inventory_adjustment_screen.dart';
+import 'package:zynk/features/products/presentation/product_details_screen.dart';
+import 'package:zynk/features/products/presentation/item_groups_screen.dart';
+import 'package:zynk/features/products/presentation/composite_items_screen.dart';
+import 'package:zynk/features/products/presentation/add_item_group_screen.dart';
+import 'package:zynk/features/products/presentation/add_composite_item_screen.dart';
+import 'package:zynk/features/products/presentation/composite_item_details_screen.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/sales/presentation/sales_list_screen.dart';
 import 'package:zynk/features/sales/presentation/create_invoice_screen.dart';
@@ -25,6 +30,8 @@ import 'package:zynk/features/settings/presentation/branches_screen.dart';
 import 'package:zynk/features/settings/presentation/add_branch_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_screen.dart';
 import 'package:zynk/features/settings/presentation/add_staff_screen.dart';
+import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
+
 import 'package:zynk/core/widgets/branch_required_guard.dart';
 
 // Keys
@@ -75,24 +82,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-      GoRoute(
-        path: '/add-product',
-        builder: (context, state) {
-          final product = state.extra as Product?;
-          return BranchRequiredGuard(
-            actionLabel: 'adding products',
-            child: AddProductScreen(existingProduct: product),
-          );
-        },
-      ),
 
-      GoRoute(
-        path: '/product-details',
-        builder: (context, state) {
-          final product = state.extra as Product;
-          return ProductDetailsScreen(product: product);
-        },
-      ),
 
       // App Shell
       StatefulShellRoute.indexedStack(
@@ -112,20 +102,67 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => const ProductsScreen(),
                     routes: [
                       GoRoute(
-                        path: 'batch-adjust',
+                        path: 'add',
                         builder: (context, state) => const BranchRequiredGuard(
-                          actionLabel: 'adjusting stock batches',
-                          child: BatchAdjustStockScreen(),
+                          actionLabel: 'adding products',
+                          child: AddProductScreen(),
                         ),
                       ),
                       GoRoute(
-                        path: 'groups/:id',
+                        path: 'groups',
+                        builder: (context, state) => const ItemGroupsScreen(),
+                        routes: [
+                          GoRoute(
+                            path: 'add',
+                            builder: (context, state) => const BranchRequiredGuard(
+                              actionLabel: 'creating item groups',
+                              child: AddItemGroupScreen(),
+                            ),
+                          ),
+                          GoRoute(
+                            path: ':id',
+                            builder: (context, state) {
+                              final group = state.extra as ItemGroup;
+                              return GroupDetailsScreen(group: group);
+                            },
+                          ),
+                        ],
+                      ),
+                      GoRoute(
+                        path: 'composite',
+                        builder: (context, state) => const CompositeItemsScreen(),
+                        routes: [
+                          GoRoute(
+                            path: 'add',
+                            builder: (context, state) => const BranchRequiredGuard(
+                              actionLabel: 'creating composite items',
+                              child: AddCompositeItemScreen(),
+                            ),
+                          ),
+                          GoRoute(
+                            path: ':id',
+                            builder: (context, state) {
+                              final id = state.pathParameters['id']!;
+                              return CompositeItemDetailsScreen(productId: id);
+                            },
+                          ),
+                        ],
+                      ),
+                      GoRoute(
+                        path: 'details',
                         builder: (context, state) {
-                          final group = state.extra as ItemGroup;
-                          return GroupDetailsScreen(group: group);
+                          final product = state.extra as Product;
+                          return ProductDetailsScreen(product: product);
                         },
                       ),
                     ],
+                  ),
+                  GoRoute(
+                    path: 'adjustments',
+                    builder: (context, state) => const BranchRequiredGuard(
+                      actionLabel: 'adjusting inventory',
+                      child: InventoryAdjustmentScreen(),
+                    ),
                   ),
                 ],
               ),
@@ -159,7 +196,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                         child: CreateInvoiceScreen(
                           cartItems: extra['cartItems'] ?? [],
                           customer: extra['customer'],
-                          salespersonName: extra['salespersonName'],
+                          salespersonId: extra['salespersonId'],
                         ),
                       );
                     },
@@ -209,6 +246,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                       actionLabel: 'adding staff',
                       child: AddStaffScreen(),
                     ),
+                  ),
+                  GoRoute(
+                    path: 'staff-members',
+                    builder: (context, state) => const StaffMembersScreen(),
                   ),
                 ],
               ),

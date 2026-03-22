@@ -19,9 +19,9 @@ class PosTicket extends ConsumerWidget {
 
   // Customer & Staff info
   final Customer? selectedCustomer;
-  final String? salespersonName;
+  final String? salespersonId;
   final VoidCallback? onSelectCustomer;
-  final ValueChanged<String>? onSalespersonNameChanged;
+  final ValueChanged<String?>? onSalespersonIdChanged;
 
   const PosTicket({
     super.key,
@@ -30,9 +30,9 @@ class PosTicket extends ConsumerWidget {
     required this.onRemoveItem,
     required this.onClearTicket,
     this.selectedCustomer,
-    this.salespersonName,
+    this.salespersonId,
     this.onSelectCustomer,
-    this.onSalespersonNameChanged,
+    this.onSalespersonIdChanged,
   });
 
   @override
@@ -42,6 +42,7 @@ class PosTicket extends ConsumerWidget {
     final tt = theme.textTheme;
     final itemCount = items.fold<int>(0, (sum, i) => sum + i.quantity);
     final branch = ref.watch(currentBranchProvider);
+    final staffAsync = ref.watch(humanStaffProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -86,33 +87,49 @@ class PosTicket extends ConsumerWidget {
               Row(
                 children: [
                   Expanded(
-                    child: TextField(
-                      onChanged: onSalespersonNameChanged,
-                      style: tt.bodyMedium,
-                      decoration: InputDecoration(
-                        prefixIcon: Icon(
-                          PhosphorIconsRegular.user,
-                          color: cs.onSurfaceVariant,
-                          size: 18,
-                        ),
-                        hintText: 'Salesperson',
-                        hintStyle: tt.bodyMedium?.copyWith(
-                          color: cs.onSurfaceVariant.withValues(alpha: 0.5),
-                        ),
-                        isDense: true,
-                        filled: true,
-                        fillColor: cs.surfaceContainerHighest.withValues(
-                          alpha: 0.3,
-                        ),
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                          borderSide: BorderSide.none,
-                        ),
-                      ),
+                    child: staffAsync.when(
+                      data: (staffList) {
+                        return Container(
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: cs.outline),
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          child: DropdownButtonHideUnderline(
+                            child: DropdownButton<String>(
+                              value: salespersonId,
+                              hint: Text(
+                                'Salesperson',
+                                style: tt.bodyMedium?.copyWith(
+                                  color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+                                ),
+                              ),
+                              isExpanded: true,
+                              icon: Icon(
+                                PhosphorIconsRegular.caretDown,
+                                size: 16,
+                                color: cs.onSurfaceVariant,
+                              ),
+                              items: [
+                                const DropdownMenuItem<String>(
+                                  value: null,
+                                  child: Text('None'),
+                                ),
+                                ...staffList.map(
+                                  (s) => DropdownMenuItem<String>(
+                                    value: s.id,
+                                    child: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+                                  ),
+                                ),
+                              ],
+                              onChanged: onSalespersonIdChanged,
+                            ),
+                          ),
+                        );
+                      },
+                      loading: () => const SizedBox.shrink(),
+                      error: (err, stack) => const Text('Error loading options'),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -260,7 +277,7 @@ class PosTicket extends ConsumerWidget {
                         ),
                         const SizedBox(height: 6),
                         Text(
-                          'Tap products to add them to this ticket',
+                          'Tap items to add them to this ticket',
                           style: tt.bodySmall?.copyWith(
                             color: cs.onSurfaceVariant.withValues(alpha: 0.6),
                           ),
@@ -340,12 +357,25 @@ class PosTicket extends ConsumerWidget {
                               !canCreateInvoice
                           ? null
                           : () {
+                              if (salespersonId == null) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: const Text(
+                                      'Please select a salesperson before creating an invoice.',
+                                    ),
+                                    backgroundColor:
+                                        Theme.of(context).colorScheme.error,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                                return;
+                              }
                               GoRouter.of(context).push(
                                 '/sales/create-invoice',
                                 extra: {
                                   'cartItems': items,
                                   'customer': selectedCustomer,
-                                  'salespersonName': salespersonName,
+                                  'salespersonId': salespersonId,
                                 },
                               );
                             },
@@ -396,6 +426,9 @@ class _TicketItemRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Watch the stock provider so that the value is actively cached for the synchronously tapped + button
+    final stockState = ref.watch(stockProvider(item.product.id)).value;
+
     return Dismissible(
       key: ValueKey(item.product.id),
       direction: DismissDirection.endToStart,
@@ -475,7 +508,6 @@ class _TicketItemRow extends ConsumerWidget {
                   InkWell(
                     onTap: () {
                       if (!item.product.isService) {
-                        final stockState = ref.read(stockProvider(item.product.id)).value;
                         final availableStock = stockState?.quantity ?? 0;
                         if (item.quantity + 1 > availableStock) {
                           ScaffoldMessenger.of(context).clearSnackBars();

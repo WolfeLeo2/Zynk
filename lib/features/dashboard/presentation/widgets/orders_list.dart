@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
+import 'package:zynk/core/theme/app_tokens.dart';
 import 'skeleton_widgets.dart';
 import 'empty_error_states.dart';
 
@@ -21,12 +22,12 @@ class RecentOrdersList extends ConsumerWidget {
     final salesAsync = ref.watch(recentSalesProvider);
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -106,10 +107,10 @@ class RecentOrdersTable extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+        color: colorScheme.surface,
         borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
         ),
       ),
       child: Column(
@@ -189,8 +190,8 @@ class _TableHeader extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(12),
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
         children: [
@@ -268,12 +269,13 @@ class _SaleListItem extends StatelessWidget {
         onTap: () => context.push('/sales/${sale.id}'),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            color: colorScheme.surface.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+            color: Colors.transparent,
+            border: Border(
+              bottom: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+              ),
             ),
           ),
           child: Row(
@@ -351,10 +353,12 @@ class _SaleTableRow extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         decoration: BoxDecoration(
-          color: index % 2 == 0
-              ? colorScheme.surface.withValues(alpha: 0.3)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(12),
+          color: Colors.transparent,
+          border: Border(
+            bottom: BorderSide(
+              color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+            ),
+          ),
         ),
         child: Row(
           children: [
