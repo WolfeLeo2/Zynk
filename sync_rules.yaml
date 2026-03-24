@@ -10,7 +10,7 @@ bucket_definitions:
       - SELECT * FROM profiles WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM products WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM customers WHERE tenant_id = bucket.tenant_id
-      - SELECT * FROM suppliers WHERE tenant_id = bucket.tenant_id
+     # - SELECT * FROM suppliers WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM categories WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM item_groups WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM stock_item_groups WHERE tenant_id = bucket.tenant_id

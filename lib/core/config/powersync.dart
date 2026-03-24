@@ -86,6 +86,7 @@ final schema = Schema([
     Column.text('description'),
     Column.text('default_commission_type'),
     Column.real('default_commission_value'),
+    Column.text('attributes'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),

@@ -237,7 +237,7 @@ class ProductDetailsScreen extends ConsumerWidget {
 
             // Variant Details Card
             if (product.variantOptions?.isNotEmpty == true) ...[  
-              _buildVariantCard(context, theme, colorScheme),
+              _buildVariantCard(context, theme, colorScheme, ref),
               const SizedBox(height: 24),
             ],
 
@@ -493,8 +493,12 @@ class ProductDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVariantCard(BuildContext context, ThemeData theme, ColorScheme cs) {
+  Widget _buildVariantCard(BuildContext context, ThemeData theme, ColorScheme cs, WidgetRef ref) {
     final opts = product.variantOptions!;
+    final variants = (ref.watch(allProductsProvider).value ?? [])
+        .where((p) => p.parentId == product.id)
+        .toList();
+
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -542,6 +546,79 @@ class ProductDetailsScreen extends ConsumerWidget {
               ),
             );
           }),
+          if (variants.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Text('Variant Items', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: variants.length,
+                separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
+                itemBuilder: (context, index) {
+                  final v = variants[index];
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                            image: v.imageUrl != null ? DecorationImage(
+                              image: CachedNetworkImageProvider(v.imageUrl!),
+                              fit: BoxFit.cover,
+                            ) : null,
+                          ),
+                          child: v.imageUrl == null ? Icon(PhosphorIconsDuotone.image, size: 20, color: cs.onSurfaceVariant) : null,
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(v.name, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
+                              if (v.sku != null)
+                                Text('SKU: ${v.sku}', style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+                            ],
+                          ),
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text('KES ${v.basePrice.toStringAsFixed(0)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: cs.primary)),
+                            const SizedBox(height: 4),
+                            ref.watch(stockProvider(v.id)).when(
+                              data: (stock) {
+                                final qty = stock?.quantity ?? 0;
+                                final isLow = qty <= 5;
+                                return Text(
+                                  '$qty in stock',
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: isLow ? cs.error : cs.onSurfaceVariant,
+                                    fontWeight: isLow ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                );
+                              },
+                              loading: () => const SizedBox(width: 20, height: 10, child: LinearProgressIndicator()),
+                              error: (_, __) => const Text('-'),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ],
       ),
     );

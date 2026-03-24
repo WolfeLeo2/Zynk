@@ -316,6 +316,7 @@ class Product {
   final bool isService;
   final String? groupId;
   final String? uomId;
+  final String? parentId; // Added for Parent-Child variants
   final Map<String, dynamic>? variantOptions;
   final Map<String, dynamic>? variantImages; // {"Red": "https://...", ...}
   final String productType;
@@ -346,6 +347,7 @@ class Product {
     bool? isService,
     String? groupId,
     String? uomId,
+    String? parentId,
     Map<String, dynamic>? variantOptions,
     Map<String, dynamic>? variantImages,
     String? productType,
@@ -373,6 +375,7 @@ class Product {
       isService: isService ?? this.isService,
       groupId: groupId ?? this.groupId,
       uomId: uomId ?? this.uomId,
+      parentId: parentId ?? this.parentId,
       variantOptions: variantOptions ?? this.variantOptions,
       variantImages: variantImages ?? this.variantImages,
       productType: productType ?? this.productType,
@@ -402,6 +405,7 @@ class Product {
     this.isService = false,
     this.groupId,
     this.uomId,
+    this.parentId,
     this.variantOptions,
     this.variantImages,
     this.productType = 'standard',
@@ -427,6 +431,7 @@ class Product {
       isService: (map['is_service'] as int?) == 1,
       groupId: map['group_id'] as String?,
       uomId: map['uom_id'] as String?,
+      parentId: map['parent_id'] as String?,
       variantOptions: () {
         final val = map['variant_options'];
         if (val == null) return null;
@@ -483,6 +488,7 @@ class Product {
       'is_service': isService ? 1 : 0,
       'group_id': groupId,
       'uom_id': uomId,
+      'parent_id': parentId,
       'variant_options': variantOptions != null ? jsonEncode(variantOptions) : null,
       'variant_images': variantImages != null ? jsonEncode(variantImages) : null,
       'product_type': productType,

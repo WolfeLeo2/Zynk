@@ -5,12 +5,12 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart'; // Add uuid import
-import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/core/providers/app_providers.dart'; // for repositoryProvider
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/providers/add_product_controller.dart';
 import 'package:zynk/features/products/presentation/scanner_screen.dart';
+import 'package:zynk/shared/widgets/variant_grid_editor.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
@@ -40,7 +40,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   String? _selectedCategoryId;
   String? _selectedItemGroupId;
   String? _selectedUomId;
-  final List<CompositeItemComponent> _selectedComponents = [];
 
   bool _autoGenerateSku = true;
   bool _trackStock = true;
@@ -62,11 +61,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final Map<String, List<String>> _variantOptions = {};
   final _newVariantNameController = TextEditingController();
   final _newVariantValuesController = TextEditingController();
-
-  String get _productType {
-    final type = GoRouterState.of(context).uri.queryParameters['type'];
-    return type ?? 'single';
-  }
+  List<VariantRowData> _variants = [];
 
   @override
   void initState() {
@@ -99,19 +94,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             _variantOptions[key] = value.map((e) => e.toString()).toList();
           }
         });
-      }
-
-      if (p.isComposite) {
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          ref.read(compositeComponentsProvider(p.id).future).then((components) {
-            if (mounted) {
-              setState(() {
-                _selectedComponents.clear();
-                _selectedComponents.addAll(components);
-              });
-            }
-          });
-        });
+        _regenerateVariants();
       }
     }
   }
@@ -133,7 +116,59 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _heightController.dispose();
     _newVariantNameController.dispose();
     _newVariantValuesController.dispose();
+    for (final v in _variants) {
+      v.dispose();
+    }
     super.dispose();
+  }
+
+  void _regenerateVariants() {
+    for (final v in _variants) {
+      v.dispose();
+    }
+    _variants.clear();
+
+    if (_variantOptions.isEmpty) {
+      if (mounted) setState(() {});
+      return;
+    }
+
+    final validKeys = _variantOptions.keys.where((k) => _variantOptions[k]!.isNotEmpty).toList();
+    if (validKeys.isEmpty) {
+      if (mounted) setState(() {});
+      return;
+    }
+
+    final valuesList = validKeys.map((k) => _variantOptions[k]!).toList();
+
+    List<Map<String, String>> permutations = [{}];
+    for (int i = 0; i < validKeys.length; i++) {
+      final key = validKeys[i];
+      final values = valuesList[i];
+      final newPermutations = <Map<String, String>>[];
+      for (final p in permutations) {
+        for (final v in values) {
+          final newP = Map<String, String>.from(p);
+          newP[key] = v;
+          newPermutations.add(newP);
+        }
+      }
+      permutations = newPermutations;
+    }
+
+    final globalCost = _costPriceController.text;
+    final globalPrice = _priceController.text;
+
+    if (mounted) {
+      setState(() {
+        _variants = permutations.map((p) {
+          final row = VariantRowData(p);
+          if (globalCost.isNotEmpty) row.costController.text = globalCost;
+          if (globalPrice.isNotEmpty) row.priceController.text = globalPrice;
+          return row;
+        }).toList();
+      });
+    }
   }
 
   Future<void> _pickImage(ImageSource source) async {
@@ -174,7 +209,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         return;
       }
 
-      if (_selectedItemGroupId == null && _productType == 'standard') {
+      if (_selectedItemGroupId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
@@ -206,7 +241,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             categoryId: _selectedCategoryId,
             itemGroupId: _selectedItemGroupId,
             uomId: _selectedUomId,
-            productType: _productType,
+            productType: 'standard',
             price: price,
             costPrice: costPrice,
             weight: double.tryParse(_weightController.text),
@@ -217,8 +252,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             barcode: _barcodeController.text,
             imageFile: _selectedImage,
             initialStock: int.tryParse(_stockController.text),
-            components: _productType == 'composite' ? _selectedComponents : null,
-            variantOptions: _hasVariants && _productType == 'standard' && _variantOptions.isNotEmpty ? _variantOptions : null,
+            components: null,
+            variantOptions: _hasVariants && _variantOptions.isNotEmpty ? _variantOptions : null,
+            childVariants: _hasVariants && _variants.isNotEmpty
+                ? _variants.map((v) => {
+                    'attributes': v.attributes,
+                    'price': double.tryParse(v.priceController.text) ?? price,
+                    'cost': double.tryParse(v.costController.text) ?? costPrice ?? 0.0,
+                    'sku': v.skuController.text,
+                    'stock': int.tryParse(v.stockController.text) ?? 0,
+                    'imageFile': v.imageFile,
+                  }).toList()
+                : null,
           );
 
       if (mounted) {
@@ -687,7 +732,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               value: _hasVariants,
               onChanged: (val) => setState(() {
                 _hasVariants = val;
-                if (!val) _variantOptions.clear();
+                if (!val) {
+                  _variantOptions.clear();
+                  _regenerateVariants();
+                }
               }),
             ),
           ],
@@ -720,22 +768,35 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                         children: [
                           Text(entry.key, style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
                           const SizedBox(height: 4),
-                          Wrap(
-                            spacing: 6,
-                            runSpacing: 4,
-                            children: entry.value
-                                .map((v) => Chip(
-                                      label: Text(v, style: theme.textTheme.bodySmall),
-                                      padding: EdgeInsets.zero,
-                                      visualDensity: VisualDensity.compact,
-                                    ))
-                                .toList(),
-                          ),
+                          entry.value.isEmpty
+                              ? Text(
+                                  'Add values below ↓',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    fontStyle: FontStyle.italic,
+                                  ),
+                                )
+                              : Wrap(
+                                  spacing: 6,
+                                  runSpacing: 4,
+                                  children: entry.value
+                                      .map((v) => Chip(
+                                            label: Text(v, style: theme.textTheme.bodySmall),
+                                            padding: EdgeInsets.zero,
+                                            visualDensity: VisualDensity.compact,
+                                          ))
+                                      .toList(),
+                                ),
                         ],
                       ),
                     ),
                     IconButton(
-                      onPressed: () => setState(() => _variantOptions.remove(entry.key)),
+                      onPressed: () {
+                         setState(() {
+                           _variantOptions.remove(entry.key);
+                         });
+                         _regenerateVariants();
+                      },
                       icon: Icon(PhosphorIconsBold.trash, size: 18, color: theme.colorScheme.error),
                       visualDensity: VisualDensity.compact,
                     ),
@@ -795,6 +856,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       _newVariantNameController.clear();
                       _newVariantValuesController.clear();
                     });
+                    _regenerateVariants();
                   },
                   icon: Icon(PhosphorIconsBold.plus, color: theme.colorScheme.onPrimaryContainer),
                   tooltip: 'Add Attribute',
@@ -802,197 +864,28 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
-
-  Widget _buildCompositeSection() {
-    final productsAsync = ref.watch(allProductsProvider);
-    final theme = Theme.of(context);
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 32),
-        _buildSectionHeader(
-            theme, 'Composite Components', PhosphorIconsDuotone.listChecks),
-        const SizedBox(height: 16),
-        Text(
-          'Select the items that make up this composite item and specify their quantities.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 16),
-        productsAsync.when(
-          data: (products) => _buildSearchableDropdown<Product>(
-            key: const ValueKey('comp_items_data'),
-            label: 'Add Component Item',
-            icon: PhosphorIconsDuotone.plusCircle,
-            items: products
-                .where((p) =>
-                    p.id != widget.existingProduct?.id && !p.isComposite)
-                .toList(),
-            itemLabel: (p) => p.name,
-            itemId: (p) => p.id,
-            selectedItemId: null,
-            onSelected: (p) {
-              if (p != null) {
-                if (_selectedComponents
-                    .any((c) => c.componentProductId == p.id)) {
-                  return;
-                }
+          const SizedBox(height: 16),
+          VariantGridEditor(
+            variants: _variants,
+            showStockColumn: true,
+            onCopyToAll: () {
+              if (_variants.isEmpty) return;
+              final firstPrice = _variants.first.priceController.text;
+              final firstCost = _variants.first.costController.text;
+              final firstStock = _variants.first.stockController.text;
+              if (firstPrice.isNotEmpty || firstCost.isNotEmpty || firstStock.isNotEmpty) {
                 setState(() {
-                  _selectedComponents.add(CompositeItemComponent(
-                    id: const Uuid().v4(),
-                    tenantId: ref.read(tenantIdProvider)!,
-                    branchId: ref.read(currentBranchIdProvider) ?? '',
-                    compositeProductId: widget.existingProduct?.id ?? '',
-                    componentProductId: p.id,
-                    quantity: 1,
-                  ));
+                  for (var i = 1; i < _variants.length; i++) {
+                    _variants[i].priceController.text = firstPrice;
+                    _variants[i].costController.text = firstCost;
+                    _variants[i].stockController.text = firstStock;
+                  }
                 });
               }
             },
-            onAddPressed: () {},
           ),
-          loading: () => const LinearProgressIndicator(),
-          error: (e, s) => Text('Error: $e'),
-        ),
-        const SizedBox(height: 16),
-        if (_selectedComponents.isEmpty)
-          Container(
-            padding: const EdgeInsets.all(32),
-            decoration: BoxDecoration(
-              color: AppTokens.textPrimary.withOpacity(0.02),
-              borderRadius: BorderRadius.circular(24),
-              border: Border.all(color: AppTokens.textPrimary.withOpacity(0.05)),
-            ),
-            child: Column(
-              children: [
-                Icon(PhosphorIconsDuotone.package,
-                    size: 40, color: AppTokens.textSecondary.withOpacity(0.5)),
-                const SizedBox(height: 16),
-                Text(
-                  'No components added',
-                  style: AppTokens.labelLarge
-                      .copyWith(color: AppTokens.textSecondary),
-                ),
-                Text(
-                  'Use the search above to add items',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: _selectedComponents.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final component = _selectedComponents[index];
-              final product = productsAsync.value
-                  ?.firstWhere((p) => p.id == component.componentProductId);
-
-              return Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border:
-                      Border.all(color: AppTokens.textPrimary.withOpacity(0.08)),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.02),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        color: AppTokens.electricBlue.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(PhosphorIconsDuotone.package,
-                          color: AppTokens.electricBlue, size: 20),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(product?.name ?? 'Unknown',
-                              style: AppTokens.labelLarge),
-                          Text('SKU: ${product?.sku ?? 'N/A'}',
-                              style: AppTokens.bodySmall
-                                  .copyWith(color: AppTokens.textSecondary)),
-                        ],
-                      ),
-                    ),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppTokens.textPrimary.withOpacity(0.03),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            onPressed: () {
-                              if (component.quantity > 1) {
-                                setState(() {
-                                  _selectedComponents[index] =
-                                      component.copyWith(
-                                          quantity: component.quantity - 1);
-                                });
-                              }
-                            },
-                            icon: const Icon(Icons.remove, size: 18),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                            child: Text('${component.quantity}',
-                                style: Theme.of(context).textTheme.bodyMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600)),
-                          ),
-                          IconButton(
-                            onPressed: () {
-                              setState(() {
-                                _selectedComponents[index] =
-                                    component.copyWith(
-                                        quantity: component.quantity + 1);
-                              });
-                            },
-                            icon: const Icon(Icons.add, size: 18),
-                            visualDensity: VisualDensity.compact,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      onPressed: () {
-                        setState(() {
-                          _selectedComponents.removeAt(index);
-                        });
-                      },
-                      icon: const Icon(PhosphorIconsBold.trash,
-                          color: Colors.red, size: 20),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
-              );
-            },
-          ),
+          const SizedBox(height: 8),
+        ],
       ],
     );
   }
@@ -1050,9 +943,15 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 ),
                 const SizedBox(height: 16),
                 _buildStep1(),
-                if (_productType == 'composite') _buildCompositeSection(),
-                if (_productType == 'standard') _buildVariantsSection(),
                 const SizedBox(height: 32),
+                _buildSectionHeader(
+                  theme,
+                  'Inventory & Stock',
+                  PhosphorIconsDuotone.package,
+                ),
+                 
+                 _buildStep3(),
+                const SizedBox(height: 16),
 
                 _buildSectionHeader(
                   theme,
@@ -1061,15 +960,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 ),
                 const SizedBox(height: 16),
                 _buildStep2(),
-                const SizedBox(height: 32),
-
-                _buildSectionHeader(
-                  theme,
-                  'Inventory & Stock',
-                  PhosphorIconsDuotone.package,
-                ),
                 const SizedBox(height: 16),
-                _buildStep3(),
+                _buildVariantsSection(),
                 const SizedBox(height: 48), // bottom padding
               ],
             ),
@@ -1101,6 +993,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     // Use stable providers defined in product_providers.dart
     final categoriesAsync = ref.watch(allCategoriesProvider);
     final groupsAsync = ref.watch(allItemGroupsProvider);
+    final measurementSystem = ref.watch(measurementSystemProvider);
+    final isMetric = measurementSystem == MeasurementSystem.metric;
+    final lengthUnit = isMetric ? 'cm' : 'in';
+    final weightUnit = isMetric ? 'kg' : 'lb';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1183,7 +1079,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
         ),
         const SizedBox(height: 24),
-
+  
         TextFormField(
           controller: _nameController,
           decoration: const InputDecoration(
@@ -1236,7 +1132,21 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             itemLabel: (g) => g.name,
             itemId: (g) => g.id,
             selectedItemId: _selectedItemGroupId,
-            onSelected: (g) => setState(() => _selectedItemGroupId = g?.id),
+            onSelected: (g) {
+              setState(() {
+                _selectedItemGroupId = g?.id;
+                // Auto-enable variants if this group has predefined attribute names
+                if (g != null && g.attributes.isNotEmpty) {
+                  // Pre-populate attribute names from the group (values entered per product)
+                  for (final attrName in g.attributes) {
+                    if (!_variantOptions.containsKey(attrName)) {
+                      _variantOptions[attrName] = [];
+                    }
+                  }
+                  _hasVariants = true;
+                }
+              });
+            },
             onAddPressed: _showAddGroupBottomSheet,
           ),
           loading: () => _buildSearchableDropdown<ItemGroup>(
@@ -1271,6 +1181,82 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               loading: () => const LinearProgressIndicator(),
               error: (e, s) => Text('Error loading units: $e'),
             ),
+            const SizedBox(height: 16),
+         // Dimensions & Weight
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Physical Dimensions',
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _weightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Weight',
+                        suffixText: weightUnit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: TextFormField(
+                        controller: _lengthController,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        decoration: InputDecoration(
+                          labelText: 'Length',
+                          suffixText: lengthUnit,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _widthController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Width',
+                        suffixText: lengthUnit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                     child: TextFormField(
+                      controller: _heightController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: InputDecoration(
+                        labelText: 'Height',
+                        suffixText: lengthUnit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -1317,13 +1303,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   // Step 3: Logistics
   Widget _buildStep3() {
-    final measurementSystem = ref.watch(measurementSystemProvider);
-    final isMetric = measurementSystem == MeasurementSystem.metric;
-    final lengthUnit = isMetric ? 'cm' : 'in';
-    final weightUnit = isMetric ? 'kg' : 'lb';
-
     return Column(
       children: [
+        const SizedBox(height: 16),
         // SKU Section
         Container(
           padding: const EdgeInsets.all(16),
@@ -1450,81 +1432,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         ),
         const SizedBox(height: 24),
 
-        // Dimensions & Weight
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Physical Dimensions',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _weightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Weight',
-                        suffixText: weightUnit,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                        controller: _lengthController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'Length',
-                          suffixText: lengthUnit,
-                          border: const OutlineInputBorder(),
-                        ),
-                      ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _widthController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Width',
-                        suffixText: lengthUnit,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                     child: TextFormField(
-                      controller: _heightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: InputDecoration(
-                        labelText: 'Height',
-                        suffixText: lengthUnit,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
       ],
     );
   }

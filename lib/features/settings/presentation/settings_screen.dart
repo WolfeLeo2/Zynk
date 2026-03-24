@@ -361,6 +361,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'App Settings',
                 children: [
                   ListTile(
+                    leading: const Icon(PhosphorIconsDuotone.ruler),
+                    title: const Text('Measurement System'),
+                    subtitle: const Text('Used for product dimensions and weight'),
+                    trailing: DropdownButton<MeasurementSystem>(
+                      value: ref.watch(measurementSystemProvider),
+                      underline: const SizedBox(),
+                      items: const [
+                        DropdownMenuItem(
+                          value: MeasurementSystem.metric,
+                          child: Text('Metric (cm, kg)'),
+                        ),
+                        DropdownMenuItem(
+                          value: MeasurementSystem.imperial,
+                          child: Text('Imperial (in, lb)'),
+                        ),
+                      ],
+                      onChanged: (sys) {
+                        if (sys != null) {
+                          ref.read(measurementSystemProvider.notifier).setSystem(sys);
+                        }
+                      },
+                    ),
+                  ),
+                  const Divider(),
+                  ListTile(
                     leading: const Icon(PhosphorIconsDuotone.palette),
                     title: const Text('Theme'),
                     subtitle: const Text('System Default'),

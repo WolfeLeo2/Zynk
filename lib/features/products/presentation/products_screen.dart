@@ -350,7 +350,7 @@ class _ProductGridCard extends ConsumerWidget {
                             child: Icon(PhosphorIconsDuotone.package, size: 40, color: cs.outlineVariant),
                           ),
                     // Inventory Badge Overlay
-                    if (!product.isService)
+                    if (!product.isService && (product.variantOptions == null || product.variantOptions!.isEmpty))
                       Positioned(
                         top: 8,
                         right: 8,

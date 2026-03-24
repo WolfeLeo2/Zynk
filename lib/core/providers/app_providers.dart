@@ -334,6 +334,34 @@ class ErrorNotifier extends Notifier<Map<String, String?>> {
   }
 }
 
+// ============================================
+// Measurement System Preference
+// ============================================
+
+enum MeasurementSystem { metric, imperial }
+
+class MeasurementSystemNotifier extends Notifier<MeasurementSystem> {
+  static const _prefsKey = 'measurement_system';
+
+  @override
+  MeasurementSystem build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final saved = prefs.getString(_prefsKey);
+    return saved == 'imperial' ? MeasurementSystem.imperial : MeasurementSystem.metric;
+  }
+
+  Future<void> setSystem(MeasurementSystem system) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(_prefsKey, system == MeasurementSystem.imperial ? 'imperial' : 'metric');
+    state = system;
+  }
+}
+
+final measurementSystemProvider =
+    NotifierProvider<MeasurementSystemNotifier, MeasurementSystem>(
+  MeasurementSystemNotifier.new,
+);
+
 final itemsGroupsStreamProvider = StreamProvider<List<ItemGroup>>((ref) {
   final repo = ref.watch(repositoryProvider);
   return repo.watchItemGroups();

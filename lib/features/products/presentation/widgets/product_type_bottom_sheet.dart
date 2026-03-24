@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
-import 'package:zynk/core/theme/app_theme.dart';
+
 
 class ProductTypeBottomSheet extends ConsumerWidget {
   const ProductTypeBottomSheet({super.key});

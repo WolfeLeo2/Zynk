@@ -7,6 +7,7 @@ All contributors (human and AI) must follow these rules.
 ## Coding Conventions
 - Do not use Supabase CLI for SQL migrations. Use Supabase MCP
 - Move completed implementation plans from `docs/plans/` to `docs/completed-plans/` when finished.
+- Always reference `Skills` or `skills` before anything.
 
 ### Dart / Flutter
 - `json_serializable` for JSON parsing — no manual `fromJson`
@@ -146,6 +147,7 @@ When making changes to this codebase:
 5. **No inline SQL in widgets or providers** — it belongs in `repository.dart`
 6. **No business logic in `build()` methods** — delegate to services/providers
 7. **Prefer hot reload over full restart** — use the DTD MCP tool when available
+8. **Always reference `Skills` or `skills` before anything.**
 
 ### **Research -> Questions -> Plan Pipeline**
 When tackling medium-to-complex user requests, feature additions, or UI/UX overhauls, the Agent MUST follow this pipeline **before making any code changes**:

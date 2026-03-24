@@ -5,7 +5,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
 import 'skeleton_widgets.dart';
 import 'empty_error_states.dart';
 
@@ -187,55 +186,38 @@ class _TableHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final headerStyle = TextStyle(
+      fontSize: 12,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 0.5,
+      color: colorScheme.onSurfaceVariant,
+    );
+    
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(8),
+        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
           Expanded(
             flex: 2,
-            child: Text(
-              'Invoice',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            child: Text('INVOICE', style: headerStyle),
           ),
           Expanded(
             flex: 2,
-            child: Text(
-              'Type',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            child: Text('TYPE', style: headerStyle),
           ),
           Expanded(
             flex: 2,
-            child: Text(
-              'Status',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
+            child: Text('STATUS', style: headerStyle),
           ),
           Expanded(
             flex: 2,
             child: Align(
               alignment: Alignment.centerRight,
-              child: Text(
-                'Amount',
-                style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
+              child: Text('AMOUNT', style: headerStyle),
             ),
           ),
         ],
@@ -356,7 +338,7 @@ class _SaleTableRow extends StatelessWidget {
           color: Colors.transparent,
           border: Border(
             bottom: BorderSide(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+              color: colorScheme.outlineVariant.withValues(alpha: 0.15),
             ),
           ),
         ),

@@ -525,7 +525,7 @@ class PowerSyncRepository {
 
   Future<void> createItemGroup(ItemGroup group) async {
     await _db.execute(
-      'INSERT INTO item_groups (id, tenant_id, branch_id, name, description, default_commission_type, default_commission_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO item_groups (id, tenant_id, branch_id, name, description, default_commission_type, default_commission_value, attributes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         group.id,
         group.tenantId,
@@ -534,6 +534,7 @@ class PowerSyncRepository {
         group.description,
         group.defaultCommissionType,
         group.defaultCommissionValue,
+        jsonEncode(group.attributes),
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -542,12 +543,13 @@ class PowerSyncRepository {
 
   Future<void> updateItemGroup(ItemGroup group) async {
     await _db.execute(
-      'UPDATE item_groups SET name = ?, description = ?, default_commission_type = ?, default_commission_value = ?, updated_at = ? WHERE id = ?',
+      'UPDATE item_groups SET name = ?, description = ?, default_commission_type = ?, default_commission_value = ?, attributes = ?, updated_at = ? WHERE id = ?',
       [
         group.name,
         group.description,
         group.defaultCommissionType,
         group.defaultCommissionValue,
+        jsonEncode(group.attributes),
         DateTime.now().toIso8601String(),
         group.id,
       ],

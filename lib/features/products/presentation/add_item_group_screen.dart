@@ -8,6 +8,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/shared/widgets/variant_grid_editor.dart';
 
 const _uuid = Uuid();
 
@@ -31,24 +32,6 @@ class _Attribute {
   }
 }
 
-class _VariantRow {
-  final Map<String, String> attributes;
-  final TextEditingController skuController;
-  final TextEditingController costController;
-  final TextEditingController priceController;
-
-  _VariantRow(this.attributes)
-      : skuController = TextEditingController(),
-        costController = TextEditingController(),
-        priceController = TextEditingController();
-
-  void dispose() {
-    skuController.dispose();
-    costController.dispose();
-    priceController.dispose();
-  }
-}
-
 // --- Provider for saving ---
 // Using local setState for UI saving states
 
@@ -66,7 +49,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
   bool _isSaving = false;
 
   final List<_Attribute> _attributes = [];
-  List<_VariantRow> _variants = [];
+  List<VariantRowData> _variants = [];
 
   @override
   void dispose() {
@@ -132,7 +115,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
       ];
     }
 
-    setState(() => _variants = permutations.map((p) => _VariantRow(p)).toList());
+    setState(() => _variants = permutations.map((p) => VariantRowData(p)).toList());
   }
 
   Future<void> _save() async {
@@ -395,7 +378,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
       trailing: _variants.isNotEmpty
           ? Text(
               '${_variants.length} variants',
-              style: theme.textTheme.labelMedium?.copyWith(color: cs.primary, fontWeight: FontWeight.bold),
+              style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
             )
           : null,
       children: [
@@ -417,108 +400,28 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
             ),
           )
         else ...[
-          _buildVariantTableHeader(theme, cs),
-          const Divider(height: 1),
-          ...List.generate(_variants.length, (i) => _buildVariantRow(_variants[i], i, theme, cs)),
-          const SizedBox(height: 12),
-          // Quick fill banner
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Row(
-              children: [
-                PhosphorIcon(PhosphorIconsDuotone.lightbulb, color: cs.onPrimaryContainer, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Tip: Enter a price in the first row, then use "Copy to all" to fill all variants.',
-                    style: theme.textTheme.bodySmall?.copyWith(color: cs.onPrimaryContainer),
-                  ),
-                ),
-              ],
-            ),
+          VariantGridEditor(
+            variants: _variants,
+            showStockColumn: false, // Groups don't define stock directly
+            onCopyToAll: () {
+              if (_variants.isEmpty) return;
+              final firstPrice = _variants.first.priceController.text;
+              final firstCost = _variants.first.costController.text;
+              if (firstPrice.isNotEmpty || firstCost.isNotEmpty) {
+                setState(() {
+                  for (var i = 1; i < _variants.length; i++) {
+                    _variants[i].priceController.text = firstPrice;
+                    _variants[i].costController.text = firstCost;
+                  }
+                });
+              }
+            },
           ),
         ],
       ],
     );
   }
-
-  Widget _buildVariantTableHeader(ThemeData theme, ColorScheme cs) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text('Variant', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text('SKU', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text('Cost', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text('Price', style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildVariantRow(_VariantRow variant, int index, ThemeData theme, ColorScheme cs) {
-    final label = variant.attributes.values.join(' / ');
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Text(
-              label,
-              style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500),
-            ),
-          ),
-          Expanded(
-            flex: 2,
-            child: _compactField(variant.skuController, 'SKU'),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            flex: 2,
-            child: _compactField(variant.costController, '0.00', isNumeric: true),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            flex: 2,
-            child: _compactField(variant.priceController, '0.00', isNumeric: true),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _compactField(TextEditingController ctrl, String hint, {bool isNumeric = false}) {
-    return TextField(
-      controller: ctrl,
-      keyboardType: isNumeric ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-      inputFormatters: isNumeric ? [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))] : null,
-      style: const TextStyle(fontSize: 13),
-      decoration: InputDecoration(
-        hintText: hint,
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-    );
-  }
-}
+} // End of State class
 
 // ─── Shared widget ─────────────
 
