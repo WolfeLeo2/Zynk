@@ -1,0 +1,1 @@
+{"type":"convention","content":"Invoice and payment mutations are server-authoritative: use Edge Functions and avoid direct client CRUD uploads for financial tables.","classification":"tactical","recorded_at":"2026-04-04T14:34:30.033Z","id":"mx-28b824"}

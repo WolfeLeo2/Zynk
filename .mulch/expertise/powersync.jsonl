@@ -1,0 +1,1 @@
+{"type":"convention","content":"PowerSync sync rules must track active schema exactly: remove dropped tables and include new tenant-scoped tables.","classification":"tactical","recorded_at":"2026-04-04T14:34:30.229Z","id":"mx-0b49ef"}
