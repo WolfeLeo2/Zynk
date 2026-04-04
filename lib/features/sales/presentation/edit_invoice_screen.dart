@@ -179,10 +179,10 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
         }
       }
 
-      await repo.updateSaleDraft(
+      await ref.read(salesServiceProvider).updateDraftInvoice(
         saleId: sale.id,
-        customerId: sale.customerId ?? customer?.id ?? '',
         tenantId: tenantId,
+        customerId: sale.customerId ?? customer?.id ?? '',
         items: updatedItems,
         salespersonId: _salespersonId,
         notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
@@ -339,7 +339,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
 
                     // ── Salesperson ──
                     Text(
-                      'Salesperson (Optional)',
+                      'Salesperson (Required)',
                       style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 8),
@@ -358,7 +358,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                                 filled: true,
                                 fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.2),
                               ),
-                              hint: const Text('Select Salesperson (Optional)'),
+                              hint: const Text('Select Salesperson (Required)'),
                               items: [
                                 const DropdownMenuItem<String>(
                                   value: null,

@@ -13,7 +13,7 @@ import 'package:zynk/features/pos/presentation/components/pos_product_card.dart'
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
-import 'package:zynk/features/pos/presentation/widgets/variant_selection_bottom_sheet.dart';
+
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -29,6 +29,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedCategoryId;
+  String? _selectedGroupId;
   Customer? _selectedCustomer;
   String? _salespersonId;
 
@@ -45,22 +46,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
     super.dispose();
   }
 
-  void _addToCart(Product product) {
-    // If product has variants, show selection sheet first
-    if (product.variantOptions?.isNotEmpty == true) {
-      showVariantSelectionSheet(context, product).then((selections) {
-        if (selections == null || !mounted) return;
-        _doAddToCart(
-          product.copyWith(
-            name: '${product.name} (${selections.values.join(", ")})',
-            variantOptions: selections.map((k, v) => MapEntry(k, v)),
-          ),
-        );
-      });
-      return;
-    }
-    _doAddToCart(product);
-  }
+  void _addToCart(Product product) => _doAddToCart(product);
 
   void _doAddToCart(Product product) {
     HapticFeedback.lightImpact();
@@ -162,12 +148,14 @@ class _PosScreenState extends ConsumerState<PosScreen>
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(allProductsProvider);
     final categoriesAsync = ref.watch(allCategoriesProvider);
+    final itemGroupsAsync = ref.watch(allItemGroupsProvider);
     final cart = ref.watch(cartProvider);
     final cartItems = cart.items;
 
     final isMobile = MediaQuery.of(context).size.width <= 900;
 
     final categories = categoriesAsync.value ?? [];
+    final itemGroups = itemGroupsAsync.value ?? [];
 
     return productsAsync.when(
       data: (products) {
@@ -175,6 +163,11 @@ class _PosScreenState extends ConsumerState<PosScreen>
         if (_selectedCategoryId != null) {
           filtered = filtered
               .where((p) => p.categoryId == _selectedCategoryId)
+              .toList();
+        }
+        if (_selectedGroupId != null) {
+          filtered = filtered
+              .where((p) => p.itemGroupId == _selectedGroupId)
               .toList();
         }
         if (_searchQuery.isNotEmpty) {
@@ -198,9 +191,13 @@ class _PosScreenState extends ConsumerState<PosScreen>
                     isMobile: false,
                     products: filtered,
                     categories: categories,
+                    itemGroups: itemGroups,
                     selectedCategoryId: _selectedCategoryId,
+                    selectedGroupId: _selectedGroupId,
                     onCategoryChanged: (id) =>
                         setState(() => _selectedCategoryId = id),
+                    onGroupChanged: (id) =>
+                        setState(() => _selectedGroupId = id),
                     searchController: _searchController,
                     onSearchChanged: (q) => setState(() => _searchQuery = q),
                     onAddToCart: _addToCart,
@@ -276,9 +273,13 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   isMobile: true,
                   products: filtered,
                   categories: categories,
+                  itemGroups: itemGroups,
                   selectedCategoryId: _selectedCategoryId,
+                  selectedGroupId: _selectedGroupId,
                   onCategoryChanged: (id) =>
                       setState(() => _selectedCategoryId = id),
+                  onGroupChanged: (id) =>
+                      setState(() => _selectedGroupId = id),
                   searchController: _searchController,
                   onSearchChanged: (q) => setState(() => _searchQuery = q),
                   onAddToCart: _addToCart,
@@ -312,8 +313,11 @@ class _ProductGrid extends StatelessWidget {
   final bool isMobile;
   final List<Product> products;
   final List<Category> categories;
+  final List<ItemGroup> itemGroups;
   final String? selectedCategoryId;
+  final String? selectedGroupId;
   final ValueChanged<String?> onCategoryChanged;
+  final ValueChanged<String?> onGroupChanged;
   final TextEditingController searchController;
   final ValueChanged<String> onSearchChanged;
   final Function(Product) onAddToCart;
@@ -322,8 +326,11 @@ class _ProductGrid extends StatelessWidget {
     this.isMobile = false,
     required this.products,
     required this.categories,
+    required this.itemGroups,
     required this.selectedCategoryId,
+    required this.selectedGroupId,
     required this.onCategoryChanged,
+    required this.onGroupChanged,
     required this.searchController,
     required this.onSearchChanged,
     required this.onAddToCart,
@@ -363,11 +370,11 @@ class _ProductGrid extends StatelessWidget {
             ),
           ),
         ),
-        // Category Filter Chips
-        if (categories.isNotEmpty)
+        // Category and Group Filter Chips
+        if (categories.isNotEmpty || itemGroups.isNotEmpty)
           SliverToBoxAdapter(
             child: SizedBox(
-              height: 44,
+              height: 48,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -376,15 +383,58 @@ class _ProductGrid extends StatelessWidget {
                     padding: const EdgeInsets.only(right: 8),
                     child: FilterChip(
                       label: const Text('All'),
-                      selected: selectedCategoryId == null,
-                      onSelected: (_) => onCategoryChanged(null),
+                      showCheckmark: false,
+                      selected: selectedCategoryId == null && selectedGroupId == null,
+                      onSelected: (_) {
+                        onCategoryChanged(null);
+                        onGroupChanged(null);
+                      },
                     ),
                   ),
+
+                  // Item Groups Action/Dropdown styled chip
+                  if (itemGroups.isNotEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        avatar: Icon(
+                          PhosphorIconsDuotone.folders,
+                          size: 18,
+                          color: selectedGroupId != null ? colorScheme.onPrimaryContainer : null,
+                        ),
+                        label: Text(
+                          selectedGroupId != null
+                              ? itemGroups.firstWhere((g) => g.id == selectedGroupId, orElse: () => itemGroups.first).name
+                              : 'Groups',
+                          style: TextStyle(
+                            color: selectedGroupId != null ? colorScheme.onPrimaryContainer : null,
+                          ),
+                        ),
+                        showCheckmark: false,
+                        selected: selectedGroupId != null,
+                        selectedColor: colorScheme.primaryContainer,
+                        onSelected: (_) {
+                          _showGroupSelector(context, colorScheme);
+                        },
+                        onDeleted: selectedGroupId != null
+                            ? () => onGroupChanged(null)
+                            : null,
+                        deleteIconColor: colorScheme.onPrimaryContainer,
+                      ),
+                    ),
+
+                  if (itemGroups.isNotEmpty && categories.isNotEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(horizontal: 4),
+                      child: VerticalDivider(endIndent: 12, indent: 12),
+                    ),
+
                   ...categories.map(
                     (cat) => Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: FilterChip(
                         label: Text(cat.name),
+                        showCheckmark: false,
                         selected: selectedCategoryId == cat.id,
                         onSelected: (_) => onCategoryChanged(
                           selectedCategoryId == cat.id ? null : cat.id,
@@ -454,6 +504,66 @@ class _ProductGrid extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+
+  void _showGroupSelector(BuildContext context, ColorScheme colorScheme) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Select Item Group',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: itemGroups.length,
+                  itemBuilder: (context, index) {
+                    final group = itemGroups[index];
+                    final isSelected = selectedGroupId == group.id;
+                    return ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isSelected ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          PhosphorIconsDuotone.folders,
+                          color: isSelected ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      title: Text(group.name),
+                      trailing: isSelected
+                          ? Icon(PhosphorIconsBold.check, color: colorScheme.primary)
+                          : null,
+                      onTap: () {
+                        onGroupChanged(group.id);
+                        Navigator.pop(sheetContext);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }

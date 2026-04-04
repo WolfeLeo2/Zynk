@@ -9,7 +9,7 @@ import 'package:zynk/core/services/sales_service.dart';
 // ─────────────────────────────────────────────────────────────────────────────
 
 final salesServiceProvider = Provider<SalesService>((ref) {
-  return SalesService(Supabase.instance.client, ref.watch(repositoryProvider));
+  return SalesService(Supabase.instance.client);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

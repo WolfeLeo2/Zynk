@@ -78,7 +78,7 @@ final schema = Schema([
     Column.text('updated_at'),
   ]),
 
-  // Item Groups
+  // Item Groups (pure organizational containers)
   const Table('item_groups', [
     Column.text('tenant_id'),
     Column.text('branch_id'),
@@ -86,18 +86,10 @@ final schema = Schema([
     Column.text('description'),
     Column.text('default_commission_type'),
     Column.real('default_commission_value'),
-    Column.text('attributes'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
 
-  // Stock Item Groups
-  const Table('stock_item_groups', [
-    Column.text('tenant_id'),
-    Column.text('name'),
-    Column.text('description'),
-    Column.text('attributes'),
-  ]),
 
   // Composite Item Components
   const Table('composite_item_components', [
@@ -130,13 +122,10 @@ final schema = Schema([
     Column.text('description'),
     Column.text('image_url'),
     Column.real('base_price'),
-    Column.real('cost_price'), // Added
+    Column.real('cost_price'),
     Column.text('tax_category'),
     Column.integer('is_service'), // Boolean as Integer (0/1)
-    Column.text('group_id'),
     Column.text('uom_id'),
-    Column.text('variant_options'),
-    Column.text('product_type'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -276,6 +265,27 @@ final schema = Schema([
     Column.text('tenant_id'),
     Column.text('created_at'),
   ]),
+
+  // Commissions
+  const Table('commissions', [
+    Column.text('tenant_id'),
+    Column.text('sale_id'),
+    Column.text('salesperson_id'),
+    Column.real('amount'),
+    Column.text('status'),
+    Column.text('commission_type'),
+    Column.real('commission_value'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Profile Branches
+  const Table('profile_branches', [
+    Column.text('tenant_id'),
+    Column.text('profile_id'),
+    Column.text('branch_id'),
+    Column.text('created_at'),
+  ]),
 ]);
 
 // 2. Global Database Instance
@@ -284,6 +294,16 @@ late final PowerSyncDatabase db;
 // 3. Supabase Connector
 class SupabaseConnector extends PowerSyncBackendConnector {
   final SupabaseClient supabase;
+
+  // Financial writes are server-authoritative and must flow via Edge Functions.
+  static const Set<String> _serverAuthoritativeTables = {
+    'sales',
+    'sale_items',
+    'sale_payments',
+    'credit_notes',
+    'credit_note_items',
+    'commissions',
+  };
 
   SupabaseConnector(this.supabase);
 
@@ -319,6 +339,13 @@ class SupabaseConnector extends PowerSyncBackendConnector {
         final table = op.table;
         final id = op.id;
         final data = op.opData;
+
+        if (_serverAuthoritativeTables.contains(table)) {
+          _log.w(
+            'Skipping direct upload for server-authoritative table "$table" (id=$id). Use Edge Functions for this write path.',
+          );
+          continue;
+        }
 
         // Map PowerSync operations to Supabase (PostgREST)
         if (op.op == UpdateType.put) {

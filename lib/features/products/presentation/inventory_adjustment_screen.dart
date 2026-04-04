@@ -1,17 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:go_router/go_router.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
-import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/models/staff_model.dart';
 
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -28,6 +30,7 @@ class _InventoryAdjustmentScreenState
   String _searchQuery = '';
   bool _isLoading = false;
   String? _reasonId;
+  StaffMember? _selectedAdjuster;
 
   @override
   void dispose() {
@@ -54,6 +57,17 @@ class _InventoryAdjustmentScreenState
 
     final profile = ref.read(currentProfileProvider);
     if (profile == null) return;
+
+    final adjusterId = _selectedAdjuster?.id;
+    if (adjusterId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select an adjuster.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
 
     final selectedBranchId = ref.read(currentBranchIdProvider);
     if (selectedBranchId == null || selectedBranchId == 'all') {
@@ -94,7 +108,8 @@ class _InventoryAdjustmentScreenState
         tenantId: profile.tenantId,
         branchId: selectedBranchId,
         items: adjustmentItems,
-        createdBy: profile.userId,
+        createdBy: adjusterId,
+        adjustmentType: 'batch_adjustment',
         reasonId: _reasonId,
         referenceNumber: _referenceController.text.isNotEmpty
             ? _referenceController.text
@@ -151,7 +166,19 @@ class _InventoryAdjustmentScreenState
         selectedBranchId == null || selectedBranchId == 'all';
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) {
+            if (MediaQuery.of(context).size.width < 840) {
+              return IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
         title: const Text('Adjustments'),
         actions: [
           if (batchItems.isNotEmpty)
@@ -318,6 +345,43 @@ class _InventoryAdjustmentScreenState
                                 style: theme.textTheme.titleMedium?.copyWith(
                                   fontWeight: FontWeight.bold,
                                 ),
+                              ),
+                              const SizedBox(height: 16),
+                              // Adjuster Selection
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final staffAsync = ref.watch(humanStaffProvider);
+                                  return staffAsync.when(
+                                    data: (staffList) => DropdownButtonFormField<StaffMember>(
+                                      initialValue: _selectedAdjuster,
+                                      decoration: InputDecoration(
+                                        labelText: 'Adjuster *',
+                                        prefixIcon: const Icon(
+                                          PhosphorIconsRegular.user,
+                                        ),
+                                        border: OutlineInputBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(12),
+                                        ),
+                                        isDense: true,
+                                      ),
+                                      hint: const Text('Select an adjuster'),
+                                      items: staffList
+                                          .map(
+                                            (s) => DropdownMenuItem<StaffMember>(
+                                              value: s,
+                                              child: Text(s.name),
+                                            ),
+                                          )
+                                          .toList(),
+                                      onChanged: (v) => setState(
+                                        () => _selectedAdjuster = v,
+                                      ),
+                                    ),
+                                    loading: () => const LinearProgressIndicator(),
+                                    error: (e, _) => Text('Error loading staff: $e'),
+                                  );
+                                },
                               ),
                               const SizedBox(height: 16),
                               // Reason picker row
@@ -650,6 +714,9 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final product = widget.item.product;
+    final stockAsync = ref.watch(stockProvider(product.id));
+    final currentStock = stockAsync.value?.quantity ?? 0;
+    final newStock = currentStock + widget.item.quantityChange;
 
     return Container(
       decoration: BoxDecoration(
@@ -720,6 +787,44 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Stock calculation
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Current Stock: $currentStock',
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant, 
+                        fontSize: 13,
+                      ),
+                    ),
+                    Icon(
+                      PhosphorIconsRegular.arrowRight, 
+                      size: 14, 
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    Text(
+                      'New Stock: $newStock',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: widget.item.quantityChange < 0
+                            ? colorScheme.error
+                            : widget.item.quantityChange > 0
+                                ? Colors.green
+                                : colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               // Quantity Stepper/Input
               Row(
                 children: [

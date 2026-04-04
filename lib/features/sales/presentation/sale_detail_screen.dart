@@ -1123,6 +1123,7 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
     try {
       await ref.read(salesServiceProvider).recordPayment(
             saleId: widget.sale.id,
+        tenantId: widget.sale.tenantId,
             amount: amount,
             paymentMethod: _method,
             referenceNumber: _refController.text.trim().isEmpty

@@ -235,11 +235,7 @@ class ProductDetailsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
-            // Variant Details Card
-            if (product.variantOptions?.isNotEmpty == true) ...[  
-              _buildVariantCard(context, theme, colorScheme, ref),
-              const SizedBox(height: 24),
-            ],
+
 
             // Pricing & Margins Card
             Container(
@@ -493,136 +489,7 @@ class ProductDetailsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildVariantCard(BuildContext context, ThemeData theme, ColorScheme cs, WidgetRef ref) {
-    final opts = product.variantOptions!;
-    final variants = (ref.watch(allProductsProvider).value ?? [])
-        .where((p) => p.parentId == product.id)
-        .toList();
 
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
-        boxShadow: [
-          BoxShadow(color: cs.shadow.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4)),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(children: [
-            Icon(PhosphorIconsDuotone.swatches, color: cs.primary, size: 20),
-            const SizedBox(width: 8),
-            Text('Variants', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
-          ]),
-          const Divider(height: 24),
-          ...opts.entries.map((e) {
-            final values = e.value is List
-                ? (e.value as List).map((v) => v.toString()).toList()
-                : [e.value.toString()];
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  SizedBox(
-                    width: 80,
-                    child: Text(e.key, style: theme.textTheme.labelLarge?.copyWith(color: cs.onSurfaceVariant)),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Wrap(
-                      spacing: 6, runSpacing: 6,
-                      children: values.map((val) => Chip(
-                        label: Text(val, style: theme.textTheme.bodySmall),
-                        padding: EdgeInsets.zero,
-                        visualDensity: VisualDensity.compact,
-                      )).toList(),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }),
-          if (variants.isNotEmpty) ...[
-            const SizedBox(height: 24),
-            Text('Variant Items', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: ListView.separated(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: variants.length,
-                separatorBuilder: (_, __) => Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.5)),
-                itemBuilder: (context, index) {
-                  final v = variants[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                    child: Row(
-                      children: [
-                        Container(
-                          width: 40,
-                          height: 40,
-                          decoration: BoxDecoration(
-                            color: cs.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
-                            image: v.imageUrl != null ? DecorationImage(
-                              image: CachedNetworkImageProvider(v.imageUrl!),
-                              fit: BoxFit.cover,
-                            ) : null,
-                          ),
-                          child: v.imageUrl == null ? Icon(PhosphorIconsDuotone.image, size: 20, color: cs.onSurfaceVariant) : null,
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(v.name, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600)),
-                              if (v.sku != null)
-                                Text('SKU: ${v.sku}', style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
-                            ],
-                          ),
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text('KES ${v.basePrice.toStringAsFixed(0)}', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold, color: cs.primary)),
-                            const SizedBox(height: 4),
-                            ref.watch(stockProvider(v.id)).when(
-                              data: (stock) {
-                                final qty = stock?.quantity ?? 0;
-                                final isLow = qty <= 5;
-                                return Text(
-                                  '$qty in stock',
-                                  style: theme.textTheme.labelSmall?.copyWith(
-                                    color: isLow ? cs.error : cs.onSurfaceVariant,
-                                    fontWeight: isLow ? FontWeight.bold : FontWeight.normal,
-                                  ),
-                                );
-                              },
-                              loading: () => const SizedBox(width: 20, height: 10, child: LinearProgressIndicator()),
-                              error: (_, __) => const Text('-'),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
 
   Widget _buildInfoItem(
     ThemeData theme,

@@ -27,7 +27,7 @@ class AddProductController extends _$AddProductController {
     required String? categoryId,
     required String? itemGroupId,
     required String? uomId, // Added
-    required String productType, // Added
+
     required double price,
     required double? costPrice, // Added
     double? weight,
@@ -39,8 +39,6 @@ class AddProductController extends _$AddProductController {
     required File? imageFile,
     int? initialStock, // Added for new products
     List<CompositeItemComponent>? components, // Added for composite items
-    Map<String, dynamic>? variantOptions, // Added for standard item variants
-    List<Map<String, dynamic>>? childVariants, // Added for parent-child variants
   }) async {
     state = const AsyncLoading();
 
@@ -97,8 +95,6 @@ class AddProductController extends _$AddProductController {
           height: height,
           taxCategory: 'standard',
           isService: false,
-          productType: productType, // Added
-          variantOptions: variantOptions, // Added
           createdAt: DateTime.now(), // Will be ignored by DB
           updatedAt: DateTime.now(),
         );
@@ -125,85 +121,17 @@ class AddProductController extends _$AddProductController {
           height: height,
           taxCategory: 'standard', // Default
           isService: false, // Default
-          productType: productType, // Added
-          variantOptions: variantOptions, // Added
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
 
-        if (productType == 'composite' && components != null) {
+        if (components != null && components.isNotEmpty) {
           await repository.createCompositeProduct(newProduct, components);
         } else {
           await repository.createProduct(newProduct);
         }
 
-        if (childVariants != null && childVariants.isNotEmpty) {
-          for (final cv in childVariants) {
-            final attrs = cv['attributes'] as Map<String, String>;
-            final cvPrice = cv['price'] as double;
-            final cvCost = cv['cost'] as double?;
-            final cvSku = cv['sku'] as String;
-            final cvStock = cv['stock'] as int;
-            final cvImageFile = cv['imageFile'] as File?;
-
-            String? childImageUrl = imageUrl;
-            if (cvImageFile != null) {
-              final bytes = await cvImageFile.readAsBytes();
-              final fileExt = cvImageFile.path.split('.').last;
-              final fileName = '${DateTime.now().millisecondsSinceEpoch}_child.$fileExt';
-              final path = 'products/$tenantId/$fileName';
-
-              await Supabase.instance.client.storage
-                  .from('product-images')
-                  .uploadBinary(
-                    path,
-                    bytes,
-                    fileOptions: const FileOptions(contentType: 'image/jpeg'),
-                  );
-              childImageUrl = Supabase.instance.client.storage
-                  .from('product-images')
-                  .getPublicUrl(path);
-            }
-
-            final childName = '$name ${attrs.values.join(' ')}';
-            final childId = const Uuid().v4();
-            final childProduct = Product(
-              id: childId,
-              tenantId: tenantId,
-              branchId: branchId,
-              parentId: newProductId,
-              itemGroupId: itemGroupId,
-              categoryId: categoryId,
-              uomId: uomId,
-              name: childName,
-              sku: cvSku.isNotEmpty ? cvSku : null,
-              barcode: barcode.isNotEmpty ? barcode : null,
-              imageUrl: childImageUrl,
-              basePrice: cvPrice,
-              costPrice: cvCost,
-              taxCategory: 'standard', // Default
-              isService: false, // Default
-              productType: 'variant',
-              variantOptions: attrs,
-              createdAt: DateTime.now(),
-              updatedAt: DateTime.now(),
-            );
-            
-            await repository.createProduct(childProduct);
-
-            if (cvStock > 0) {
-              await repository.adjustStock(
-                tenantId: tenantId,
-                branchId: branchId,
-                productId: childId,
-                adjustmentType: 'initial',
-                quantityChange: cvStock,
-                createdBy: createdBy,
-                notes: 'Initial stock on creation',
-              );
-            }
-          }
-        } else if (initialStock != null && initialStock > 0) {
+        if (initialStock != null && initialStock > 0) {
           // If initial stock is provided, create stock entry and adjustment log for parent
           await repository.adjustStock(
             tenantId: tenantId,

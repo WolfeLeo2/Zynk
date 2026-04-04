@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:zynk/core/models/user_role.dart';
 
 class Tenant {
@@ -231,7 +230,6 @@ class ItemGroup {
   final String? description;
   final String? defaultCommissionType;
   final double? defaultCommissionValue;
-  final List<String> attributes; // Ordered attribute names this group defines
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -243,7 +241,6 @@ class ItemGroup {
     this.description,
     this.defaultCommissionType,
     this.defaultCommissionValue,
-    this.attributes = const [],
     this.createdAt,
     this.updatedAt,
   });
@@ -258,18 +255,6 @@ class ItemGroup {
       defaultCommissionType: map['default_commission_type'] as String?,
       defaultCommissionValue: (map['default_commission_value'] as num?)
           ?.toDouble(),
-      attributes: () {
-        final raw = map['attributes'];
-        if (raw == null) return <String>[];
-        if (raw is List) return raw.map((e) => e.toString()).toList();
-        if (raw is String) {
-          try {
-            final decoded = jsonDecode(raw);
-            if (decoded is List) return decoded.map((e) => e.toString()).toList();
-          } catch (_) {}
-        }
-        return <String>[];
-      }(),
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : null,
@@ -288,7 +273,6 @@ class ItemGroup {
       'description': description,
       'default_commission_type': defaultCommissionType,
       'default_commission_value': defaultCommissionValue,
-      'attributes': attributes,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -307,24 +291,16 @@ class Product {
   final String? description;
   final String? imageUrl;
   final double basePrice;
-  final double? costPrice; // Added
+  final double? costPrice;
   final double? weight;
   final double? length;
   final double? width;
   final double? height;
   final String? taxCategory;
   final bool isService;
-  final String? groupId;
   final String? uomId;
-  final String? parentId; // Added for Parent-Child variants
-  final Map<String, dynamic>? variantOptions;
-  final Map<String, dynamic>? variantImages; // {"Red": "https://...", ...}
-  final String productType;
   final DateTime? createdAt;
   final DateTime? updatedAt;
-
-  bool get isComposite => productType == 'composite';
-  bool get isGroup => productType == 'group';
 
   Product copyWith({
     String? id,
@@ -345,12 +321,7 @@ class Product {
     double? height,
     String? taxCategory,
     bool? isService,
-    String? groupId,
     String? uomId,
-    String? parentId,
-    Map<String, dynamic>? variantOptions,
-    Map<String, dynamic>? variantImages,
-    String? productType,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -373,12 +344,7 @@ class Product {
       height: height ?? this.height,
       taxCategory: taxCategory ?? this.taxCategory,
       isService: isService ?? this.isService,
-      groupId: groupId ?? this.groupId,
       uomId: uomId ?? this.uomId,
-      parentId: parentId ?? this.parentId,
-      variantOptions: variantOptions ?? this.variantOptions,
-      variantImages: variantImages ?? this.variantImages,
-      productType: productType ?? this.productType,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -396,19 +362,14 @@ class Product {
     this.description,
     this.imageUrl,
     required this.basePrice,
-    this.costPrice, // Added
+    this.costPrice,
     this.weight,
     this.length,
     this.width,
     this.height,
     this.taxCategory,
     this.isService = false,
-    this.groupId,
     this.uomId,
-    this.parentId,
-    this.variantOptions,
-    this.variantImages,
-    this.productType = 'standard',
     this.createdAt,
     this.updatedAt,
   });
@@ -426,37 +387,10 @@ class Product {
       description: map['description'] as String?,
       imageUrl: map['image_url'] as String?,
       basePrice: (map['base_price'] as num?)?.toDouble() ?? 0.0,
-      costPrice: (map['cost_price'] as num?)?.toDouble(), // Added
+      costPrice: (map['cost_price'] as num?)?.toDouble(),
       taxCategory: map['tax_category'] as String?,
       isService: (map['is_service'] as int?) == 1,
-      groupId: map['group_id'] as String?,
       uomId: map['uom_id'] as String?,
-      parentId: map['parent_id'] as String?,
-      variantOptions: () {
-        final val = map['variant_options'];
-        if (val == null) return null;
-        if (val is Map<String, dynamic>) return val;
-        if (val is String) {
-          try {
-            final decoded = jsonDecode(val);
-            if (decoded is Map<String, dynamic>) return decoded;
-          } catch (_) {}
-        }
-        return null;
-      }(),
-      variantImages: () {
-        final val = map['variant_images'];
-        if (val == null) return null;
-        if (val is Map<String, dynamic>) return val;
-        if (val is String) {
-          try {
-            final decoded = jsonDecode(val);
-            if (decoded is Map<String, dynamic>) return decoded;
-          } catch (_) {}
-        }
-        return null;
-      }(),
-      productType: map['product_type'] as String? ?? 'standard',
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'])
           : null,
@@ -486,12 +420,7 @@ class Product {
       'height': height,
       'tax_category': taxCategory,
       'is_service': isService ? 1 : 0,
-      'group_id': groupId,
       'uom_id': uomId,
-      'parent_id': parentId,
-      'variant_options': variantOptions != null ? jsonEncode(variantOptions) : null,
-      'variant_images': variantImages != null ? jsonEncode(variantImages) : null,
-      'product_type': productType,
       'created_at': createdAt?.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
     };
@@ -556,9 +485,11 @@ class StockAdjustment {
   final String? createdBy;
   final String? reasonId;
   final DateTime? createdAt;
+  final String status; // 'pending', 'approved', 'rejected'
   // Populated from JOIN queries — not stored:
   final String? adjusterName;
   final String? reasonLabel;
+  final String? productName;
 
   StockAdjustment({
     required this.id,
@@ -572,8 +503,10 @@ class StockAdjustment {
     this.createdBy,
     this.reasonId,
     this.createdAt,
+    this.status = 'approved',
     this.adjusterName,
     this.reasonLabel,
+    this.productName,
   });
 
   factory StockAdjustment.fromMap(Map<String, dynamic> map) {
@@ -591,8 +524,10 @@ class StockAdjustment {
       createdAt: map['created_at'] != null
           ? DateTime.parse(map['created_at'] as String)
           : null,
+      status: map['status'] as String? ?? 'approved',
       adjusterName: map['adjuster_display_name'] as String?,
       reasonLabel: map['reason_label'] as String?,
+      productName: map['product_name'] as String?,
     );
   }
 
@@ -609,6 +544,7 @@ class StockAdjustment {
       'created_by': createdBy,
       'reason_id': reasonId,
       'created_at': createdAt?.toIso8601String(),
+      'status': status,
     };
   }
 }
@@ -763,4 +699,77 @@ class UnitOfMeasurement {
       'created_at': createdAt?.toIso8601String(),
     };
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMMISSION
+// ─────────────────────────────────────────────────────────────────────────────
+
+class Commission {
+  final String id;
+  final String tenantId;
+  final String salespersonId;
+  final String saleId;
+  final double amount;
+  final String status; // 'pending', 'paid'
+  final DateTime? createdAt;
+
+  Commission({
+    required this.id,
+    required this.tenantId,
+    required this.salespersonId,
+    required this.saleId,
+    required this.amount,
+    this.status = 'pending',
+    this.createdAt,
+  });
+
+  factory Commission.fromMap(Map<String, dynamic> map) {
+    return Commission(
+      id: map['id'] as String,
+      tenantId: map['tenant_id'] as String,
+      salespersonId: map['salesperson_id'] as String,
+      saleId: map['sale_id'] as String,
+      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
+      status: map['status'] as String? ?? 'pending',
+      createdAt: map['created_at'] != null
+          ? DateTime.parse(map['created_at'] as String)
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'tenant_id': tenantId,
+      'salesperson_id': salespersonId,
+      'sale_id': saleId,
+      'amount': amount,
+      'status': status,
+      'created_at': createdAt?.toIso8601String(),
+    };
+  }
+}
+
+// Aggregated commission data per salesperson (used in report screen)
+class SalespersonCommissionSummary {
+  final String salespersonId;
+  final String salespersonName;
+  final double totalPending;
+  final double totalPaid;
+  final int transactionCount;
+  final double totalSalesAmount;
+  final int salesCount;
+
+  SalespersonCommissionSummary({
+    required this.salespersonId,
+    required this.salespersonName,
+    required this.totalPending,
+    required this.totalPaid,
+    required this.transactionCount,
+    this.totalSalesAmount = 0.0,
+    this.salesCount = 0,
+  });
+
+  double get totalEarned => totalPending + totalPaid;
 }

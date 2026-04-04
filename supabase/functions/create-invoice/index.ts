@@ -44,6 +44,7 @@ Deno.serve(async (req: Request) => {
             tenant_id,
             branch_id,
             customer_id,
+            salesperson_id,
             items,
             notes,
             due_date,
@@ -53,9 +54,9 @@ Deno.serve(async (req: Request) => {
             grand_total,
         } = body;
 
-        if (!tenant_id || !branch_id || !items?.length) {
+        if (!tenant_id || !branch_id || !salesperson_id || !items?.length) {
             return new Response(
-                JSON.stringify({ error: "Missing required fields (tenant_id, branch_id, items)" }),
+                JSON.stringify({ error: "Missing required fields (tenant_id, branch_id, salesperson_id, items)" }),
                 { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
@@ -111,6 +112,7 @@ Deno.serve(async (req: Request) => {
             invoice_number: invoiceNumber,
             sale_type: "invoice",
             created_by: user.id,
+            salesperson_id,
             subtotal: subtotal || 0,
             tax_amount: tax_amount || 0,
             discount_amount: discount_amount || 0,

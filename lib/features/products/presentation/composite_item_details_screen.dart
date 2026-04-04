@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
@@ -13,15 +12,13 @@ class _EditableComponent {
   final Product product;
   final String componentId; // The ID of the generic CompositeItemComponent row
   int quantity;
-  bool isNew;
-  bool isDeleted;
+  bool isNew = false;
+  bool isDeleted = false;
 
   _EditableComponent({
     required this.product,
     required this.componentId,
     required this.quantity,
-    this.isNew = false,
-    this.isDeleted = false,
   });
 }
 
@@ -52,7 +49,6 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
           product: p,
           componentId: comp.id,
           quantity: comp.quantity,
-          isNew: false,
         ));
       } catch (_) {
         // Product missing
@@ -80,8 +76,7 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
           product: p,
           componentId: _uuid.v4(),
           quantity: 1,
-          isNew: true,
-        ));
+        )..isNew = true);
       });
     }
   }
@@ -299,7 +294,7 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
   }
 
   Widget _buildSearchField(ColorScheme cs, List<Product> allProducts) {
-    final available = allProducts.where((p) => p.productType != 'composite').toList();
+    var available = allProducts.where((p) => p.id != widget.productId).toList(); // don't add itself
     final filtered = _searchQuery != null && _searchQuery!.isNotEmpty
         ? available.where((p) => p.name.toLowerCase().contains(_searchQuery!.toLowerCase())).toList()
         : <Product>[];

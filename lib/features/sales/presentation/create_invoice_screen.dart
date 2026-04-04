@@ -229,7 +229,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           padding: const EdgeInsets.all(24),
           children: [
             // ── Salesperson ──
-            _SectionLabel('Salesperson (Optional)'),
+            _SectionLabel('Salesperson (Required)'),
             const SizedBox(height: 8),
             Consumer(
               builder: (context, ref, child) {
@@ -246,7 +246,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                         filled: true,
                         fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.2),
                       ),
-                      hint: const Text('Select Salesperson (Optional)'),
+                      hint: const Text('Select Salesperson (Required)'),
                       items: [
                         const DropdownMenuItem<String>(
                           value: null,

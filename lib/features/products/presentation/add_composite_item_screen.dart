@@ -90,9 +90,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
         description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
         basePrice: price,
         costPrice: _totalCost,
-        productType: 'composite',
         isService: false,
-        variantOptions: {'composite_type': _compositeType.name},
       );
 
       final components = _components.map((e) => CompositeItemComponent(
@@ -325,7 +323,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
         // Search
         productsAsync.when(
           data: (allProducts) {
-            final available = allProducts.where((p) => p.productType != 'composite').toList();
+            final available = allProducts.toList();
             final filtered = _searchQuery != null && _searchQuery!.isNotEmpty
                 ? available.where((p) => p.name.toLowerCase().contains(_searchQuery!.toLowerCase())).toList()
                 : available;
@@ -495,7 +493,7 @@ class _SectionCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
               const Spacer(),
-              if (trailing != null) trailing!,
+              ?trailing,
             ],
           ),
           const SizedBox(height: 16),

@@ -31,6 +31,8 @@ import 'package:zynk/features/settings/presentation/add_branch_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_screen.dart';
 import 'package:zynk/features/settings/presentation/add_staff_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
+import 'package:zynk/features/products/presentation/adjustments_screen.dart';
+import 'package:zynk/features/reports/presentation/commissions_report_screen.dart';
 
 import 'package:zynk/core/widgets/branch_required_guard.dart';
 
@@ -99,7 +101,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                 routes: [
                   GoRoute(
                     path: 'products',
-                    builder: (context, state) => const ProductsScreen(),
+                    builder: (context, state) {
+                      final groupId = state.uri.queryParameters['groupId'];
+                      return ProductsScreen(initialGroupId: groupId);
+                    },
                     routes: [
                       GoRoute(
                         path: 'add',
@@ -250,6 +255,14 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'staff-members',
                     builder: (context, state) => const StaffMembersScreen(),
+                  ),
+                  GoRoute(
+                    path: 'adjustments-review',
+                    builder: (context, state) => const AdjustmentsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'commissions',
+                    builder: (context, state) => const CommissionsReportScreen(),
                   ),
                 ],
               ),

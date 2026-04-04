@@ -155,11 +155,6 @@ class _CompositeItemCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    // Determine assembly vs kit from variantOptions JSON
-    final variantOptions = product.variantOptions;
-    final compositeType = variantOptions?['composite_type'] as String?;
-    final isAssembly = compositeType == 'assembly';
-
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
@@ -188,8 +183,8 @@ class _CompositeItemCard extends ConsumerWidget {
                       ? CachedNetworkImage(
                           imageUrl: product.imageUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (_, __) => const SizedBox.shrink(),
-                          errorWidget: (_, __, ___) => Icon(PhosphorIconsDuotone.imageBroken, color: cs.onSurfaceVariant),
+                          placeholder: (context, url) => const SizedBox.shrink(),
+                          errorWidget: (context, url, err) => Icon(PhosphorIconsDuotone.imageBroken, color: cs.onSurfaceVariant),
                         )
                       : Icon(PhosphorIconsDuotone.stack, size: 28, color: cs.outlineVariant),
                 ),
@@ -208,10 +203,10 @@ class _CompositeItemCard extends ConsumerWidget {
                       Row(
                         children: [
                           _TypeBadge(
-                            label: isAssembly ? 'Assembly' : 'Kit',
-                            icon: isAssembly ? PhosphorIconsDuotone.wrench : PhosphorIconsDuotone.package,
-                            color: isAssembly ? cs.tertiaryContainer : cs.secondaryContainer,
-                            textColor: isAssembly ? cs.onTertiaryContainer : cs.onSecondaryContainer,
+                            label: 'Composite',
+                            icon: PhosphorIconsDuotone.package,
+                            color: cs.secondaryContainer,
+                            textColor: cs.onSecondaryContainer,
                           ),
                           const SizedBox(width: 8),
                           Text(

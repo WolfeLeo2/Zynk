@@ -6,6 +6,8 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
 // Permission required for each action
 const ACTION_PERMISSIONS: Record<string, string> = {
+    update_draft: "create_invoices",
+    record_payment: "record_payments",
     approve_sale: "approve_invoices",
     reject_sale: "approve_invoices",
     void_sale: "void_sales",
@@ -14,6 +16,8 @@ const ACTION_PERMISSIONS: Record<string, string> = {
     apply_credit: "issue_credit_notes",
     submit_for_approval: "create_invoices",
     fulfill_sale: "approve_invoices",
+    delete_payment: "void_sales",
+    delete_sale: "void_sales",
 };
 
 const corsHeaders = {
@@ -123,6 +127,106 @@ Deno.serve(async (req: Request) => {
 
         // ── Action handlers ──
         switch (action) {
+            case "update_draft": {
+                const {
+                    customer_id,
+                    salesperson_id,
+                    notes: saleNotes,
+                    due_date,
+                    items: saleItems,
+                } = params;
+
+                if (!customer_id || !salesperson_id || !saleItems?.length) {
+                    throw new Error("Missing required fields: customer_id, salesperson_id, items");
+                }
+
+                const { data: sale } = await supabase
+                    .from("sales")
+                    .select("id, status, amount_paid")
+                    .eq("id", saleId)
+                    .single();
+
+                if (!sale) {
+                    throw new Error("Sale not found");
+                }
+
+                if (!["draft", "pending_approval"].includes(sale.status)) {
+                    throw new Error("Only draft or pending approval invoices can be edited");
+                }
+
+                if ((sale.amount_paid || 0) > 0) {
+                    throw new Error("Cannot edit an invoice with recorded payments");
+                }
+
+                const normalizedItems = (saleItems as any[])
+                    .filter((item) => Number(item.quantity || 0) > 0)
+                    .map((item) => ({
+                        id: item.id || crypto.randomUUID(),
+                        sale_id: saleId,
+                        product_id: item.product_id,
+                        tenant_id: tenantId,
+                        quantity: Number(item.quantity || 0),
+                        unit_price: Number(item.unit_price || 0),
+                        cost_price: Number(item.cost_price || 0),
+                        tax_amount: Number(item.tax_amount || 0),
+                        discount: Number(item.discount || 0),
+                        total: Number(item.total || 0),
+                        product_name: item.product_name || null,
+                        created_at: now,
+                        updated_at: now,
+                    }));
+
+                if (!normalizedItems.length) {
+                    throw new Error("Invoice must have at least one item");
+                }
+
+                const subtotal = normalizedItems.reduce(
+                    (sum, item) => sum + Number(item.total || 0),
+                    0
+                );
+
+                const { error: saleUpdateError } = await supabase
+                    .from("sales")
+                    .update({
+                        customer_id,
+                        salesperson_id,
+                        subtotal,
+                        total_amount: subtotal,
+                        grand_total: subtotal,
+                        notes: saleNotes || null,
+                        due_date: due_date || null,
+                        updated_at: now,
+                    })
+                    .eq("id", saleId);
+
+                if (saleUpdateError) {
+                    throw new Error(`Draft update failed: ${saleUpdateError.message}`);
+                }
+
+                const { error: deleteItemsError } = await supabase
+                    .from("sale_items")
+                    .delete()
+                    .eq("sale_id", saleId);
+
+                if (deleteItemsError) {
+                    throw new Error(`Draft item replace failed: ${deleteItemsError.message}`);
+                }
+
+                const { error: insertItemsError } = await supabase
+                    .from("sale_items")
+                    .insert(normalizedItems);
+
+                if (insertItemsError) {
+                    throw new Error(`Draft item insert failed: ${insertItemsError.message}`);
+                }
+
+                return jsonResponse({
+                    sale_id: saleId,
+                    status: sale.status,
+                    subtotal,
+                });
+            }
+
             case "submit_for_approval": {
                 const { error } = await supabase
                     .from("sales")
@@ -142,8 +246,12 @@ Deno.serve(async (req: Request) => {
                     .eq("id", saleId)
                     .single();
 
-                if (!sale || !["pending_approval", "draft"].includes(sale.status)) {
-                    throw new Error("Sale must be draft or pending approval to be approved");
+                if (!sale) {
+                    throw new Error("Sale not found in backend. Ensure the invoice has synced.");
+                }
+                
+                if (!["pending_approval", "draft"].includes(sale.status)) {
+                    throw new Error(`Sale (${sale.status}) must be draft or pending approval to be approved`);
                 }
 
                 // If the invoice is already fully paid, and we are approving it, transition it to completed.

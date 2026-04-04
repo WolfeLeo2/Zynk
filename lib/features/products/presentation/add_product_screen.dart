@@ -10,7 +10,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/providers/add_product_controller.dart';
 import 'package:zynk/features/products/presentation/scanner_screen.dart';
-import 'package:zynk/shared/widgets/variant_grid_editor.dart';
+
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
@@ -56,12 +56,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _widthController = TextEditingController();
   final _heightController = TextEditingController();
 
-  // Variants
-  bool _hasVariants = false;
-  final Map<String, List<String>> _variantOptions = {};
-  final _newVariantNameController = TextEditingController();
-  final _newVariantValuesController = TextEditingController();
-  List<VariantRowData> _variants = [];
+
 
   @override
   void initState() {
@@ -77,7 +72,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         _costPriceController.text = p.costPrice.toString();
       }
       _selectedCategoryId = p.categoryId;
-      _selectedItemGroupId = p.groupId;
+      _selectedItemGroupId = p.itemGroupId;
       _selectedUomId = p.uomId;
       _existingImageUrl = p.imageUrl;
 
@@ -87,15 +82,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       if (p.width != null) _widthController.text = p.width.toString();
       if (p.height != null) _heightController.text = p.height.toString();
 
-      if (p.variantOptions != null && p.variantOptions!.isNotEmpty) {
-        _hasVariants = true;
-        p.variantOptions!.forEach((key, value) {
-          if (value is List) {
-            _variantOptions[key] = value.map((e) => e.toString()).toList();
-          }
-        });
-        _regenerateVariants();
-      }
+
     }
   }
 
@@ -114,62 +101,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _lengthController.dispose();
     _widthController.dispose();
     _heightController.dispose();
-    _newVariantNameController.dispose();
-    _newVariantValuesController.dispose();
-    for (final v in _variants) {
-      v.dispose();
-    }
+
     super.dispose();
   }
 
-  void _regenerateVariants() {
-    for (final v in _variants) {
-      v.dispose();
-    }
-    _variants.clear();
 
-    if (_variantOptions.isEmpty) {
-      if (mounted) setState(() {});
-      return;
-    }
-
-    final validKeys = _variantOptions.keys.where((k) => _variantOptions[k]!.isNotEmpty).toList();
-    if (validKeys.isEmpty) {
-      if (mounted) setState(() {});
-      return;
-    }
-
-    final valuesList = validKeys.map((k) => _variantOptions[k]!).toList();
-
-    List<Map<String, String>> permutations = [{}];
-    for (int i = 0; i < validKeys.length; i++) {
-      final key = validKeys[i];
-      final values = valuesList[i];
-      final newPermutations = <Map<String, String>>[];
-      for (final p in permutations) {
-        for (final v in values) {
-          final newP = Map<String, String>.from(p);
-          newP[key] = v;
-          newPermutations.add(newP);
-        }
-      }
-      permutations = newPermutations;
-    }
-
-    final globalCost = _costPriceController.text;
-    final globalPrice = _priceController.text;
-
-    if (mounted) {
-      setState(() {
-        _variants = permutations.map((p) {
-          final row = VariantRowData(p);
-          if (globalCost.isNotEmpty) row.costController.text = globalCost;
-          if (globalPrice.isNotEmpty) row.priceController.text = globalPrice;
-          return row;
-        }).toList();
-      });
-    }
-  }
 
   Future<void> _pickImage(ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
@@ -241,29 +177,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             categoryId: _selectedCategoryId,
             itemGroupId: _selectedItemGroupId,
             uomId: _selectedUomId,
-            productType: 'standard',
             price: price,
             costPrice: costPrice,
-            weight: double.tryParse(_weightController.text),
-            length: double.tryParse(_lengthController.text),
-            width: double.tryParse(_widthController.text),
-            height: double.tryParse(_heightController.text),
             sku: skuToSave,
             barcode: _barcodeController.text,
             imageFile: _selectedImage,
             initialStock: int.tryParse(_stockController.text),
-            components: null,
-            variantOptions: _hasVariants && _variantOptions.isNotEmpty ? _variantOptions : null,
-            childVariants: _hasVariants && _variants.isNotEmpty
-                ? _variants.map((v) => {
-                    'attributes': v.attributes,
-                    'price': double.tryParse(v.priceController.text) ?? price,
-                    'cost': double.tryParse(v.costController.text) ?? costPrice ?? 0.0,
-                    'sku': v.skuController.text,
-                    'stock': int.tryParse(v.stockController.text) ?? 0,
-                    'imageFile': v.imageFile,
-                  }).toList()
-                : null,
           );
 
       if (mounted) {
@@ -498,7 +417,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 children: [
                   Expanded(
                     child: DropdownButtonFormField<String>(
-                      value: _newGroupCommissionType,
+                      initialValue: _newGroupCommissionType,
                       decoration: const InputDecoration(border: OutlineInputBorder()),
                       items: const [
                         DropdownMenuItem(value: 'none', child: Text('None')),
@@ -654,7 +573,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   Expanded(
                     child: ref.watch(allUomProvider).when(
                           data: (uoms) => DropdownButtonFormField<String>(
-                            value: baseUnitId,
+                            initialValue: baseUnitId,
                             decoration: const InputDecoration(
                               labelText: 'Base Unit',
                               border: OutlineInputBorder(),
@@ -669,7 +588,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                                 setModalState(() => baseUnitId = val),
                           ),
                           loading: () => const LinearProgressIndicator(),
-                          error: (_, __) => const Text('Error'),
+                          error: (err, stack) => const Text('Error'),
                         ),
                   ),
                 ],
@@ -710,185 +629,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
   }
 
-  Widget _buildVariantsSection() {
-    final theme = Theme.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        const SizedBox(height: 32),
-        Row(
-          children: [
-            Icon(PhosphorIconsDuotone.swatches, color: theme.colorScheme.primary, size: 20),
-            const SizedBox(width: 8),
-            Text(
-              'Variants',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.primary,
-              ),
-            ),
-            const Spacer(),
-            Switch(
-              value: _hasVariants,
-              onChanged: (val) => setState(() {
-                _hasVariants = val;
-                if (!val) {
-                  _variantOptions.clear();
-                  _regenerateVariants();
-                }
-              }),
-            ),
-          ],
-        ),
-        if (_hasVariants) ...[
-          const SizedBox(height: 4),
-          Text(
-            'Define attributes like Size or Color. Each item in the cart will prompt the buyer to choose.',
-            style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-          const SizedBox(height: 16),
 
-          // Existing variant attributes
-          if (_variantOptions.isNotEmpty)
-            ..._variantOptions.entries.map((entry) {
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5)),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(entry.key, style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w600)),
-                          const SizedBox(height: 4),
-                          entry.value.isEmpty
-                              ? Text(
-                                  'Add values below ↓',
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color: theme.colorScheme.onSurfaceVariant,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                )
-                              : Wrap(
-                                  spacing: 6,
-                                  runSpacing: 4,
-                                  children: entry.value
-                                      .map((v) => Chip(
-                                            label: Text(v, style: theme.textTheme.bodySmall),
-                                            padding: EdgeInsets.zero,
-                                            visualDensity: VisualDensity.compact,
-                                          ))
-                                      .toList(),
-                                ),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                         setState(() {
-                           _variantOptions.remove(entry.key);
-                         });
-                         _regenerateVariants();
-                      },
-                      icon: Icon(PhosphorIconsBold.trash, size: 18, color: theme.colorScheme.error),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ],
-                ),
-              );
-            }),
-
-          // Add new attribute row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                flex: 2,
-                child: TextFormField(
-                  controller: _newVariantNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Attribute (e.g. Size)',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                flex: 3,
-                child: TextFormField(
-                  controller: _newVariantValuesController,
-                  decoration: const InputDecoration(
-                    labelText: 'Values (comma-separated)',
-                    hintText: 'S, M, L, XL',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                height: 48,
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: IconButton(
-                  onPressed: () {
-                    final name = _newVariantNameController.text.trim();
-                    final rawVals = _newVariantValuesController.text;
-                    if (name.isEmpty || rawVals.isEmpty) return;
-                    final values = rawVals
-                        .split(',')
-                        .map((v) => v.trim())
-                        .where((v) => v.isNotEmpty)
-                        .toList();
-                    if (values.isEmpty) return;
-                    setState(() {
-                      _variantOptions[name] = values;
-                      _newVariantNameController.clear();
-                      _newVariantValuesController.clear();
-                    });
-                    _regenerateVariants();
-                  },
-                  icon: Icon(PhosphorIconsBold.plus, color: theme.colorScheme.onPrimaryContainer),
-                  tooltip: 'Add Attribute',
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          VariantGridEditor(
-            variants: _variants,
-            showStockColumn: true,
-            onCopyToAll: () {
-              if (_variants.isEmpty) return;
-              final firstPrice = _variants.first.priceController.text;
-              final firstCost = _variants.first.costController.text;
-              final firstStock = _variants.first.stockController.text;
-              if (firstPrice.isNotEmpty || firstCost.isNotEmpty || firstStock.isNotEmpty) {
-                setState(() {
-                  for (var i = 1; i < _variants.length; i++) {
-                    _variants[i].priceController.text = firstPrice;
-                    _variants[i].costController.text = firstCost;
-                    _variants[i].stockController.text = firstStock;
-                  }
-                });
-              }
-            },
-          ),
-          const SizedBox(height: 8),
-        ],
-      ],
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -961,7 +702,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 const SizedBox(height: 16),
                 _buildStep2(),
                 const SizedBox(height: 16),
-                _buildVariantsSection(),
+
                 const SizedBox(height: 48), // bottom padding
               ],
             ),
@@ -1135,16 +876,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             onSelected: (g) {
               setState(() {
                 _selectedItemGroupId = g?.id;
-                // Auto-enable variants if this group has predefined attribute names
-                if (g != null && g.attributes.isNotEmpty) {
-                  // Pre-populate attribute names from the group (values entered per product)
-                  for (final attrName in g.attributes) {
-                    if (!_variantOptions.containsKey(attrName)) {
-                      _variantOptions[attrName] = [];
-                    }
-                  }
-                  _hasVariants = true;
-                }
               });
             },
             onAddPressed: _showAddGroupBottomSheet,

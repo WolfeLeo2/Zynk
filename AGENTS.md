@@ -198,3 +198,30 @@ When tackling medium-to-complex user requests, feature additions, or UI/UX overh
 3. **Draft an Implementation Plan**: Using the `writing-plans` skill or similar, create an implementation plan artifact (e.g., `implementation_plan.md`) outlining database migrations, logic changes, and UI/UX designs.
 4. **Notify User**: Present findings, ask the questions, and link the plan artifact for the user's approval.
 5. **Wait for Approval**: Do not edit code until the user approves the plan or answers the questions.
+
+### Mulch Context Pipeline (Mandatory)
+
+Use Mulch to preserve project expertise across agent sessions.
+
+#### 1) Start every task by loading context
+
+- Run `ml prime` for full context, or `ml prime <domain>` for targeted context
+- Run `ml query <domain>` on the area you are about to change before writing code
+
+#### 2) During work, query what is already known
+
+- Run `ml search "<topic>"` whenever you hit uncertainty or design choices
+- Re-run `ml query <domain>` before high-impact edits (schema, auth, security, API contracts)
+
+#### 3) End every task by recording learnings
+
+- Record durable learnings with `ml record <domain> --type <type> ...`
+- Use record types intentionally: `decision`, `convention`, `failure`, `pattern`, `reference`, `guide`
+- Run `ml validate` before finishing to keep expertise files healthy
+
+#### 4) Commit and share knowledge
+
+- If a task changes product code and `.mulch` learnings from the same work, commit both together
+- If only `.mulch` changed, a knowledge-only commit is acceptable
+- Do not mix unrelated code changes with `.mulch` updates in the same commit
+- Use `ml sync` in git-enabled environments to validate, stage, and commit `.mulch/` updates

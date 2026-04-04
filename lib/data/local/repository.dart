@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:powersync/powersync.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/adjustment_reason.dart';
@@ -162,8 +161,8 @@ class PowerSyncRepository {
       '''INSERT INTO products (
         id, tenant_id, branch_id, item_group_id, category_id, uom_id, name, sku, barcode, 
         description, image_url, base_price, cost_price, tax_category, is_service, 
-        product_type, variant_options, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         product.id,
         product.tenantId,
@@ -180,8 +179,6 @@ class PowerSyncRepository {
         product.costPrice,
         product.taxCategory,
         product.isService ? 1 : 0,
-        product.productType,
-        product.variantOptions != null ? jsonEncode(product.variantOptions) : null,
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -193,7 +190,7 @@ class PowerSyncRepository {
       '''UPDATE products SET 
         branch_id = ?, item_group_id = ?, category_id = ?, uom_id = ?, name = ?, sku = ?, barcode = ?, 
         description = ?, image_url = ?, base_price = ?, cost_price = ?, tax_category = ?, 
-        is_service = ?, product_type = ?, variant_options = ?, updated_at = ?
+        is_service = ?, updated_at = ?
       WHERE id = ?''',
       [
         product.branchId,
@@ -209,8 +206,6 @@ class PowerSyncRepository {
         product.costPrice,
         product.taxCategory,
         product.isService ? 1 : 0,
-        product.productType,
-        product.variantOptions != null ? jsonEncode(product.variantOptions) : null,
         DateTime.now().toIso8601String(),
         product.id,
       ],
@@ -360,6 +355,7 @@ class PowerSyncRepository {
     required String branchId,
     required List<BatchAdjustmentItem> items,
     required String createdBy,
+    required String adjustmentType,
     String? reasonId,
     String? referenceNumber,
   }) async {
@@ -392,8 +388,9 @@ class PowerSyncRepository {
         await tx.execute(
           '''INSERT INTO stock_adjustments (
             id, tenant_id, branch_id, product_id, quantity, 
-            reference_number, notes, created_by, reason_id, created_at
-          ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            reference_number, notes, created_by, reason_id, 
+            adjustment_type, created_at
+          ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
           [
             tenantId,
             branchId,
@@ -403,6 +400,7 @@ class PowerSyncRepository {
             item.notes,
             createdBy,
             reasonId,
+            adjustmentType,
             now,
           ],
         );
@@ -525,7 +523,7 @@ class PowerSyncRepository {
 
   Future<void> createItemGroup(ItemGroup group) async {
     await _db.execute(
-      'INSERT INTO item_groups (id, tenant_id, branch_id, name, description, default_commission_type, default_commission_value, attributes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO item_groups (id, tenant_id, branch_id, name, description, default_commission_type, default_commission_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         group.id,
         group.tenantId,
@@ -534,7 +532,6 @@ class PowerSyncRepository {
         group.description,
         group.defaultCommissionType,
         group.defaultCommissionValue,
-        jsonEncode(group.attributes),
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -543,16 +540,117 @@ class PowerSyncRepository {
 
   Future<void> updateItemGroup(ItemGroup group) async {
     await _db.execute(
-      'UPDATE item_groups SET name = ?, description = ?, default_commission_type = ?, default_commission_value = ?, attributes = ?, updated_at = ? WHERE id = ?',
+      'UPDATE item_groups SET name = ?, description = ?, default_commission_type = ?, default_commission_value = ?, updated_at = ? WHERE id = ?',
       [
         group.name,
         group.description,
         group.defaultCommissionType,
         group.defaultCommissionValue,
-        jsonEncode(group.attributes),
         DateTime.now().toIso8601String(),
         group.id,
       ],
+    );
+  }
+
+  /// Nullifies item_group_id for all products in a group (ungroup items)
+  Future<void> ungroupProductsForGroup(String groupId) async {
+    await _db.execute(
+      'UPDATE products SET item_group_id = NULL, updated_at = ? WHERE item_group_id = ?',
+      [DateTime.now().toIso8601String(), groupId],
+    );
+  }
+
+  /// Deletes all products belonging to a group, then deletes the group
+  Future<void> deleteGroupAndAllItems(String groupId) async {
+    await _db.writeTransaction((tx) async {
+      await tx.execute(
+        'DELETE FROM products WHERE item_group_id = ?',
+        [groupId],
+      );
+      await tx.execute('DELETE FROM item_groups WHERE id = ?', [groupId]);
+    });
+  }
+
+  /// Deletes the group only; items become ungrouped first
+  Future<void> deleteGroupOnly(String groupId) async {
+    await _db.writeTransaction((tx) async {
+      await tx.execute(
+        'UPDATE products SET item_group_id = NULL, updated_at = ? WHERE item_group_id = ?',
+        [DateTime.now().toIso8601String(), groupId],
+      );
+      await tx.execute('DELETE FROM item_groups WHERE id = ?', [groupId]);
+    });
+  }
+
+  /// Sets the base_price of all products in a group
+  Future<void> batchSetPriceForGroup(String groupId, double newPrice) async {
+    await _db.execute(
+      'UPDATE products SET base_price = ?, updated_at = ? WHERE item_group_id = ?',
+      [newPrice, DateTime.now().toIso8601String(), groupId],
+    );
+  }
+
+  /// Adjusts stock for all products in a group with full audit trail.
+  /// Delegates to [batchAdjustStock] so every change is logged in
+  /// stock_adjustments with a reason, reference number, and adjuster.
+  /// mode: 'add' | 'subtract' | 'set'
+  Future<void> batchAdjustStockForGroup({
+    required String groupId,
+    required String tenantId,
+    required String branchId,
+    required int quantity,
+    required String mode,
+    required String adjusterId,
+    required String adjustmentType,
+    String? reasonId,
+    String? referenceNumber,
+  }) async {
+    // 1. Fetch all product IDs in the group
+    final rows = await _db.getAll(
+      'SELECT id FROM products WHERE item_group_id = ?',
+      [groupId],
+    );
+    if (rows.isEmpty) return;
+
+    final items = <BatchAdjustmentItem>[];
+
+    for (final row in rows) {
+      final productId = row['id'] as String;
+      int quantityChange;
+
+      if (mode == 'set') {
+        // Compute delta: desired - current
+        final stockRows = await _db.getAll(
+          'SELECT quantity FROM stock WHERE product_id = ?',
+          [productId],
+        );
+        final current = stockRows.isNotEmpty
+            ? (stockRows.first['quantity'] as num?)?.toInt() ?? 0
+            : 0;
+        quantityChange = quantity - current;
+      } else if (mode == 'add') {
+        quantityChange = quantity;
+      } else {
+        // subtract — store as negative delta
+        quantityChange = -quantity;
+      }
+
+      items.add(
+        BatchAdjustmentItem(
+          productId: productId,
+          quantityChange: quantityChange,
+        ),
+      );
+    }
+
+    await batchAdjustStock(
+      tenantId: tenantId,
+      branchId: branchId,
+      items: items,
+      createdBy: adjusterId,
+      adjustmentType: adjustmentType,
+      reasonId: reasonId,
+      referenceNumber: referenceNumber,
     );
   }
 
@@ -581,8 +679,8 @@ class PowerSyncRepository {
         '''INSERT INTO products (
           id, tenant_id, branch_id, item_group_id, category_id, uom_id, name, sku, barcode, 
           description, image_url, base_price, cost_price, tax_category, is_service, 
-          product_type, variant_options, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         [
           product.id,
           product.tenantId,
@@ -599,8 +697,6 @@ class PowerSyncRepository {
           product.costPrice,
           product.taxCategory,
           product.isService ? 1 : 0,
-          'composite',
-          product.variantOptions != null ? jsonEncode(product.variantOptions) : null,
           DateTime.now().toIso8601String(),
           DateTime.now().toIso8601String(),
         ],
@@ -1202,4 +1298,213 @@ class PowerSyncRepository {
   }
 
   Stream<SyncStatus> get syncStatus => _db.statusStream;
+
+  // --- Stock Adjustments (all, with status filter) ---
+
+  /// Watch all stock adjustments for a tenant/branch, optionally filtered
+  /// by [status] ('pending', 'approved', 'rejected').
+  Stream<List<StockAdjustment>> watchAllStockAdjustments({
+    required String tenantId,
+    String? branchId,
+    String? status,
+  }) {
+    var sql = '''
+      SELECT 
+        sa.*,
+        p.display_name AS adjuster_display_name,
+        r.label AS reason_label,
+        prod.name AS product_name
+      FROM stock_adjustments sa
+      LEFT JOIN profiles p ON p.user_id = sa.created_by
+      LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
+      LEFT JOIN products prod ON prod.id = sa.product_id
+      WHERE sa.tenant_id = ?
+    ''';
+    final params = <dynamic>[tenantId];
+
+    if (branchId != null && branchId != 'all') {
+      sql += ' AND sa.branch_id = ?';
+      params.add(branchId);
+    }
+    if (status != null) {
+      sql += ' AND sa.status = ?';
+      params.add(status);
+    }
+    sql += ' ORDER BY sa.created_at DESC';
+
+    return _db
+        .watch(sql, parameters: params)
+        .map((rows) => rows.map((row) => StockAdjustment.fromMap(row)).toList());
+  }
+
+  /// Approve a pending stock adjustment and apply the quantity change to stock.
+  Future<void> approveAdjustment({
+    required String adjustmentId,
+    required String approverId,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      await tx.execute(
+        'UPDATE stock_adjustments SET status = ? WHERE id = ?',
+        ['approved', adjustmentId],
+      );
+      // Stock was already applied at batchAdjustStock time; no re-movement needed.
+    });
+  }
+
+  /// Reject a pending stock adjustment (reverses the stock if it was already applied).
+  Future<void> rejectAdjustment({
+    required String adjustmentId,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      final rows = await tx.getAll(
+        'SELECT * FROM stock_adjustments WHERE id = ?',
+        [adjustmentId],
+      );
+      if (rows.isEmpty) return;
+      final adj = StockAdjustment.fromMap(rows.first);
+
+      // Reverse the stock quantity
+      await tx.execute(
+        'UPDATE stock SET quantity = quantity - ?, last_updated = ? WHERE product_id = ?',
+        [adj.quantity, DateTime.now().toUtc().toIso8601String(), adj.productId],
+      );
+
+      await tx.execute(
+        'UPDATE stock_adjustments SET status = ? WHERE id = ?',
+        ['rejected', adjustmentId],
+      );
+    });
+  }
+
+  // --- Commissions ---
+
+  /// Watch all commissions for a tenant, optionally filtered by salesperson or status.
+  Stream<List<Commission>> watchCommissions({
+    required String tenantId,
+    String? salespersonId,
+    String? status,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    var sql = 'SELECT * FROM commissions WHERE tenant_id = ?';
+    final params = <dynamic>[tenantId];
+
+    if (salespersonId != null) {
+      sql += ' AND salesperson_id = ?';
+      params.add(salespersonId);
+    }
+    if (status != null) {
+      sql += ' AND status = ?';
+      params.add(status);
+    }
+    if (startDate != null) {
+      sql += ' AND created_at >= ?';
+      params.add(startDate.toIso8601String());
+    }
+    if (endDate != null) {
+      sql += ' AND created_at <= ?';
+      params.add(endDate.toIso8601String());
+    }
+    sql += ' ORDER BY created_at DESC';
+
+    return _db
+        .watch(sql, parameters: params)
+        .map((rows) => rows.map((r) => Commission.fromMap(r)).toList());
+  }
+
+  /// Watch aggregated commission totals grouped by salesperson.
+  /// Returns one row per salesperson with total pending and total paid amounts.
+  Stream<List<Map<String, dynamic>>> watchCommissionSummaryRaw({
+    required String tenantId,
+    DateTime? startDate,
+    DateTime? endDate,
+  }) {
+    String dateFilterComm = '';
+    String dateFilterSales = '';
+    List<Object?> paramsComm = [tenantId];
+    List<Object?> paramsSales = [tenantId];
+    
+    if (startDate != null) {
+      dateFilterComm += ' AND created_at >= ?';
+      dateFilterSales += ' AND created_at >= ?';
+      paramsComm.add(startDate.toIso8601String());
+      paramsSales.add(startDate.toIso8601String());
+    }
+    if (endDate != null) {
+      dateFilterComm += ' AND created_at <= ?';
+      dateFilterSales += ' AND created_at <= ?';
+      paramsComm.add(endDate.toIso8601String());
+      paramsSales.add(endDate.toIso8601String());
+    }
+
+    final params = [...paramsComm, ...paramsSales];
+
+    // Using UNION to simulate FULL OUTER JOIN
+    return _db.watch(
+      '''
+      WITH CommAgg AS (
+        SELECT salesperson_id,
+               SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS total_pending,
+               SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS total_paid,
+               COUNT(id) AS transaction_count
+        FROM commissions
+        WHERE tenant_id = ? $dateFilterComm
+        GROUP BY salesperson_id
+      ),
+      SalesAgg AS (
+        SELECT salesperson_id,
+               SUM(grand_total) AS total_sales,
+               COUNT(id) AS sales_count
+        FROM sales
+        WHERE tenant_id = ? AND status != 'voided' AND salesperson_id IS NOT NULL $dateFilterSales
+        GROUP BY salesperson_id
+      )
+      SELECT 
+        COALESCE(c.salesperson_id, s.salesperson_id) AS salesperson_id,
+        sm.name AS salesperson_name,
+        COALESCE(c.total_pending, 0) AS total_pending,
+        COALESCE(c.total_paid, 0) AS total_paid,
+        COALESCE(c.transaction_count, 0) AS transaction_count,
+        COALESCE(s.total_sales, 0) AS total_sales_amount,
+        COALESCE(s.sales_count, 0) AS sales_count
+      FROM CommAgg c
+      LEFT JOIN SalesAgg s ON c.salesperson_id = s.salesperson_id
+      LEFT JOIN staff_members sm ON sm.id = COALESCE(c.salesperson_id, s.salesperson_id)
+      UNION
+      SELECT 
+        COALESCE(c.salesperson_id, s.salesperson_id) AS salesperson_id,
+        sm.name AS salesperson_name,
+        COALESCE(c.total_pending, 0) AS total_pending,
+        COALESCE(c.total_paid, 0) AS total_paid,
+        COALESCE(c.transaction_count, 0) AS transaction_count,
+        COALESCE(s.total_sales, 0) AS total_sales_amount,
+        COALESCE(s.sales_count, 0) AS sales_count
+      FROM SalesAgg s
+      LEFT JOIN CommAgg c ON s.salesperson_id = c.salesperson_id
+      LEFT JOIN staff_members sm ON sm.id = COALESCE(c.salesperson_id, s.salesperson_id)
+      ORDER BY total_sales_amount DESC, total_pending DESC
+      ''',
+      parameters: params,
+    );
+  }
+
+  /// Mark a commission as paid.
+  Future<void> markCommissionPaid(String commissionId) async {
+    await _db.execute(
+      'UPDATE commissions SET status = ? WHERE id = ?',
+      ['paid', commissionId],
+    );
+  }
+
+  /// Mark ALL pending commissions for a salesperson as paid.
+  Future<void> markAllCommissionsPaid({
+    required String tenantId,
+    required String salespersonId,
+  }) async {
+    await _db.execute(
+      "UPDATE commissions SET status = 'paid' WHERE tenant_id = ? AND salesperson_id = ? AND status = 'pending'",
+      [tenantId, salespersonId],
+    );
+  }
 }
+

@@ -107,8 +107,25 @@ class AppDrawer extends ConsumerWidget {
                 ),
                 _DrawerItem(
                   icon: PhosphorIconsDuotone.slidersHorizontal,
-                  label: 'Adjustments',
+                  label: 'Batch Adjust Stock',
                   path: '/adjustments',
+                  currentPath: currentPath,
+                ),
+                _DrawerItem(
+                  icon: PhosphorIconsDuotone.slidersHorizontal,
+                  label: 'Adjustments Review',
+                  path: '/settings/adjustments-review',
+                  currentPath: currentPath,
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.only(left: 16, bottom: 8),
+                  child: Text('REPORTS', style: _headerStyle(theme)),
+                ),
+                _DrawerItem(
+                  icon: PhosphorIconsDuotone.currencyDollar,
+                  label: 'Commissions',
+                  path: '/settings/commissions',
                   currentPath: currentPath,
                 ),
                 const SizedBox(height: 16),
@@ -146,10 +163,10 @@ class AppDrawer extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: theme.brightness == Brightness.light ? Colors.white : AppTokens.bgSurfaceHighlightDark,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.outline.withOpacity(0.5)),
+                border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.02),
+                    color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 10,
                     offset: const Offset(0, -4),
                   )
@@ -244,7 +261,7 @@ class _DrawerItem extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 4, top: 4),
       child: Material(
         color: isSelected
-            ? colorScheme.primary.withOpacity(0.1)
+            ? colorScheme.primary.withValues(alpha: 0.1)
             : Colors.transparent,
         borderRadius: BorderRadius.circular(12),
         clipBehavior: Clip.antiAlias,

@@ -84,7 +84,6 @@ final compositeComponentsProvider =
 final compositeProductsProvider = StreamProvider.autoDispose<List<Product>>((ref) {
   final repository = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repository.watchProducts(branchId: branchId).map(
-    (products) => products.where((p) => p.productType == 'composite').toList(),
-  );
+// All products stream (composite filter removed temporarily)
+  return repository.watchProducts(branchId: branchId).map((products) => products.toList());
 });

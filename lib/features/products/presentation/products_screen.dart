@@ -9,7 +9,9 @@ import 'package:zynk/features/products/presentation/batch_upload_screen.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
-  const ProductsScreen({super.key});
+  final String? initialGroupId;
+
+  const ProductsScreen({super.key, this.initialGroupId});
 
   @override
   ConsumerState<ProductsScreen> createState() => _ProductsScreenState();
@@ -18,6 +20,13 @@ class ProductsScreen extends ConsumerStatefulWidget {
 class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   String _searchQuery = '';
   String? _selectedCategoryId;
+  String? _filterGroupId;
+
+  @override
+  void initState() {
+    super.initState();
+    _filterGroupId = widget.initialGroupId;
+  }
 
   void importCsv(BuildContext context) {
     Navigator.push(
@@ -67,6 +76,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     importCsv(context);
                   } else if (value == 'item') {
                     context.push('/products/add');
+                  } else if (value == 'adjust') {
+                    context.push('/products/adjustments');
                   }
                 },
                 itemBuilder: (context) => [
@@ -77,6 +88,16 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                         Icon(PhosphorIconsBold.plus, size: 20),
                         SizedBox(width: 12),
                         Text('Add item'),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'adjust',
+                    child: Row(
+                      children: [
+                        Icon(PhosphorIconsDuotone.package, size: 20),
+                        SizedBox(width: 12),
+                        Text('Batch Adjust Stock'),
                       ],
                     ),
                   ),
@@ -150,13 +171,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           ),
 
           // Category Filter Chips
-          if (categories.isNotEmpty)
+          if (categories.isNotEmpty || _filterGroupId != null)
             SizedBox(
               height: 48,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 children: [
+                  if (_filterGroupId != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        showCheckmark: true,
+                        label: const Text('Filtered by Group'),
+                        selected: true,
+                        onSelected: (_) => setState(() => _filterGroupId = null),
+                        selectedColor: theme.colorScheme.primaryContainer,
+                        checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: FilterChip(
@@ -188,14 +221,16 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           Expanded(
             child: productsAsync.when(
               data: (products) {
-                // Filter out non-standard items — those have their own screens
-                var filtered = products
-                    .where((p) => p.productType == 'standard')
-                    .toList();
+                var filtered = products.toList();
 
                 if (_selectedCategoryId != null) {
                   filtered = filtered
                       .where((p) => p.categoryId == _selectedCategoryId)
+                      .toList();
+                }
+                if (_filterGroupId != null) {
+                  filtered = filtered
+                      .where((p) => p.itemGroupId == _filterGroupId)
                       .toList();
                 }
                 if (_searchQuery.isNotEmpty) {
@@ -350,7 +385,7 @@ class _ProductGridCard extends ConsumerWidget {
                             child: Icon(PhosphorIconsDuotone.package, size: 40, color: cs.outlineVariant),
                           ),
                     // Inventory Badge Overlay
-                    if (!product.isService && (product.variantOptions == null || product.variantOptions!.isEmpty))
+                    if (!product.isService)
                       Positioned(
                         top: 8,
                         right: 8,
@@ -387,7 +422,7 @@ class _ProductGridCard extends ConsumerWidget {
                             );
                           },
                           loading: () => const SizedBox.shrink(),
-                          error: (_, __) => const SizedBox.shrink(),
+                          error: (err, stack) => const SizedBox.shrink(),
                         ),
                       ),
                   ],
@@ -407,20 +442,7 @@ class _ProductGridCard extends ConsumerWidget {
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (product.variantOptions?.isNotEmpty == true) ...[  
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: cs.secondaryContainer,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Has Variants',
-                        style: theme.textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer),
-                      ),
-                    ),
-                  ],
+
                   const SizedBox(height: 4),
                   Text(
                     'KES ${product.basePrice.toStringAsFixed(0)}',
