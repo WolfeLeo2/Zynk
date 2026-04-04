@@ -1,0 +1,1 @@
+{"type":"decision","title":"Tenant-isolated RLS normalization","rationale":"Standardized tenant scoping through current_tenant_id() and removed permissive policy expressions to reduce cross-tenant risk and linter warnings.","classification":"tactical","recorded_at":"2026-04-04T16:28:38.056Z","id":"mx-edb53b"}

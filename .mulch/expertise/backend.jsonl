@@ -1,1 +1,2 @@
 {"type":"convention","content":"Invoice and payment mutations are server-authoritative: use Edge Functions and avoid direct client CRUD uploads for financial tables.","classification":"tactical","recorded_at":"2026-04-04T14:34:30.033Z","id":"mx-28b824"}
+{"type":"pattern","name":"Edge function release flow","description":"After editing Supabase Edge Function source, deploy functions explicitly; DB migrations update schema/policies but do not publish function runtime code.","classification":"tactical","recorded_at":"2026-04-04T16:28:38.374Z","id":"mx-665166"}
