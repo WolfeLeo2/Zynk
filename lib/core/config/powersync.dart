@@ -90,7 +90,6 @@ final schema = Schema([
     Column.text('updated_at'),
   ]),
 
-
   // Composite Item Components
   const Table('composite_item_components', [
     Column.text('tenant_id'),

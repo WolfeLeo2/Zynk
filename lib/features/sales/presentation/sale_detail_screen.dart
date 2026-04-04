@@ -70,14 +70,14 @@ class SaleDetailScreen extends ConsumerWidget {
                       onSelected: (action) =>
                           _handleAction(context, ref, sale, action),
                       itemBuilder: (_) => [
-                         // Edit invoice — only for draft/pending with no payments
-                         if ((sale.status == InvoiceStatus.draft ||
-                                 sale.status == InvoiceStatus.pendingApproval) &&
-                             sale.amountPaid <= 0)
-                           const PopupMenuItem(
-                             value: 'edit',
-                             child: Text('Edit Invoice'),
-                           ),
+                        // Edit invoice — only for draft/pending with no payments
+                        if ((sale.status == InvoiceStatus.draft ||
+                                sale.status == InvoiceStatus.pendingApproval) &&
+                            sale.amountPaid <= 0)
+                          const PopupMenuItem(
+                            value: 'edit',
+                            child: Text('Edit Invoice'),
+                          ),
                         if ((sale.status.canBeApproved ||
                                 sale.status == InvoiceStatus.pendingApproval) &&
                             canApprove)
@@ -1111,8 +1111,10 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content:
-                    Text('Reference number is required for this payment method')),
+              content: Text(
+                'Reference number is required for this payment method',
+              ),
+            ),
           );
         }
         return;
@@ -1121,9 +1123,11 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
 
     setState(() => _loading = true);
     try {
-      await ref.read(salesServiceProvider).recordPayment(
+      await ref
+          .read(salesServiceProvider)
+          .recordPayment(
             saleId: widget.sale.id,
-        tenantId: widget.sale.tenantId,
+            tenantId: widget.sale.tenantId,
             amount: amount,
             paymentMethod: _method,
             referenceNumber: _refController.text.trim().isEmpty
@@ -1603,15 +1607,15 @@ class _DetailsSection extends ConsumerWidget {
     final String staffName = sale.salespersonId == null
         ? 'Not Assigned'
         : staffAsync.whenOrNull(
-              data: (staff) => staff
-                  .firstWhere(
-                    (s) => s.id == sale.salespersonId,
-                    orElse: () =>
-                        StaffMember(id: '', tenantId: '', name: 'Unknown'),
-                  )
-                  .name,
-            ) ??
-            'Loading...';
+                data: (staff) => staff
+                    .firstWhere(
+                      (s) => s.id == sale.salespersonId,
+                      orElse: () =>
+                          StaffMember(id: '', tenantId: '', name: 'Unknown'),
+                    )
+                    .name,
+              ) ??
+              'Loading...';
 
     String customerName = 'Walk-in Customer';
     String? customerPhone;

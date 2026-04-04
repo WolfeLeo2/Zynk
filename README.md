@@ -3,6 +3,7 @@
 Zynk is an offline-first SME business platform focused on inventory, invoicing, POS, and operations.
 
 Core stack:
+
 - Flutter + Riverpod
 - Supabase (Auth, Postgres, Edge Functions, RLS)
 - PowerSync for local-first sync
@@ -12,35 +13,35 @@ Core stack:
 Follow this order for every implementation task.
 
 1. Understand task and project rules
-	- Read `AGENTS.md` first.
-	- Review relevant docs in `docs/`.
+   - Read `AGENTS.md` first.
+   - Review relevant docs in `docs/`.
 
 2. Load and query project memory with Mulch (mandatory)
-	- Run `ml prime` (or `ml prime <domain>` for focused context).
-	- Run `ml query <domain>` for the area you will change.
-	- Use `ml search "<topic>"` when uncertain.
+   - Run `ml prime` (or `ml prime <domain>` for focused context).
+   - Run `ml query <domain>` for the area you will change.
+   - Use `ml search "<topic>"` when uncertain.
 
 3. Plan before coding (for medium/complex changes)
-	- Create a trackable plan in `docs/plans/`.
-	- Get alignment/approval before broad changes.
+   - Create a trackable plan in `docs/plans/`.
+   - Get alignment/approval before broad changes.
 
 4. Implement with architecture boundaries
-	- Keep business-critical writes server-authoritative through Edge Functions.
-	- Avoid direct client CRUD for sensitive financial domains.
-	- Keep feature boundaries and AGENTS.md conventions intact.
+   - Keep business-critical writes server-authoritative through Edge Functions.
+   - Avoid direct client CRUD for sensitive financial domains.
+   - Keep feature boundaries and AGENTS.md conventions intact.
 
 5. Validate
-	- Run `dart analyze`.
-	- Run targeted checks relevant to your change.
+   - Run `dart analyze`.
+   - Run targeted checks relevant to your change.
 
 6. Record learnings in Mulch before finishing
-	- Run `ml learn` to inspect change impact.
-	- Run `ml record <domain> --type <type> ...` for durable insights.
-	- Run `ml validate` to ensure memory quality.
-	- Run `ml sync` to stage/commit `.mulch/` knowledge updates.
+   - Run `ml learn` to inspect change impact.
+   - Run `ml record <domain> --type <type> ...` for durable insights.
+   - Run `ml validate` to ensure memory quality.
+   - Run `ml sync` to stage/commit `.mulch/` knowledge updates.
 
 7. Maintain planning hygiene
-	- Move completed plans from `docs/plans/` to `docs/completed-plans/`.
+   - Move completed plans from `docs/plans/` to `docs/completed-plans/`.
 
 ## Mulch Quick Setup
 
