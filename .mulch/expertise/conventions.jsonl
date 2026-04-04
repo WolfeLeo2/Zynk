@@ -1,1 +1,2 @@
 {"type":"convention","content":"Salesperson selection is required in invoice create and edit flows.","classification":"tactical","recorded_at":"2026-04-04T14:34:30.425Z","id":"mx-2805f7"}
+{"type":"pattern","name":"Incremental json_serializable migration","description":"Migrate small core models first (StaffMember, Customer, AdjustmentReason) while preserving fromMap/toMap signatures to avoid repository-layer churn.","classification":"tactical","recorded_at":"2026-04-04T17:21:19.586Z","id":"mx-7dc917"}

@@ -1,0 +1,1 @@
+{"type":"decision","title":"Phase 5 index-first baseline","rationale":"Applied targeted query-path indexes plus advisor-driven FK covering indexes; captured post-change EXPLAIN snapshots and lint deltas for later high-volume validation.","classification":"tactical","recorded_at":"2026-04-04T17:21:19.962Z","id":"mx-30a306"}
