@@ -6,6 +6,7 @@ domains:
   - security
   - performance
   - conventions
+  - frontend
 governance:
   max_entries: 100
   warn_entries: 150
