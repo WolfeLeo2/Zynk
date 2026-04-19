@@ -48,9 +48,49 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { email, name, branch_id, role, phone, address } = await req.json()
+    const {
+      email,
+      name,
+      branch_id,
+      branch_ids,
+      role,
+      phone,
+      address,
+      permissions,
+    } = await req.json()
 
     if (!email || !name) throw new Error('Missing required fields: email, name')
+
+    const selectedBranchIds = Array.from(
+      new Set(
+        (Array.isArray(branch_ids) ? branch_ids : [branch_id])
+          .map((id) => (typeof id === 'string' ? id.trim() : ''))
+          .filter((id) => id.length > 0)
+      )
+    )
+
+    if (!selectedBranchIds.length && callerProfile.branch_id) {
+      selectedBranchIds.push(callerProfile.branch_id)
+    }
+
+    if (!selectedBranchIds.length) {
+      throw new Error('At least one branch must be assigned')
+    }
+
+    const { data: validBranches, error: branchError } = await supabaseAdmin
+      .from('branches')
+      .select('id')
+      .eq('tenant_id', callerProfile.tenant_id)
+      .in('id', selectedBranchIds)
+
+    if (branchError) {
+      throw new Error('Failed to validate branches: ' + branchError.message)
+    }
+
+    const validBranchIds = new Set((validBranches ?? []).map((b: { id: string }) => b.id))
+    if (validBranchIds.size != selectedBranchIds.length) {
+      throw new Error('One or more selected branches are invalid')
+    }
 
     // 5. Invite the User via Email
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
@@ -69,22 +109,42 @@ serve(async (req) => {
     const newUserId = inviteData.user.id;
 
     // 6. Create Profile for the new user
-    const { error: insertError } = await supabaseAdmin
+    const primaryBranchId = selectedBranchIds[0]
+    const { data: createdProfile, error: insertError } = await supabaseAdmin
       .from('profiles')
       .insert({
         user_id: newUserId,
         tenant_id: callerProfile.tenant_id,
-        branch_id: branch_id || callerProfile.branch_id,
+        branch_id: primaryBranchId,
         role: role || 'Cashier',
         display_name: name,
         phone,
-        address
+        address,
+        permissions: Array.isArray(permissions) ? permissions : null,
       })
+      .select('id')
+      .single()
 
     if (insertError) {
       // Rollback: Delete the user if profile creation fails to prevent orphan users
       await supabaseAdmin.auth.admin.deleteUser(newUserId)
       throw new Error('Failed to create profile: ' + insertError.message)
+    }
+
+    const branchRows = selectedBranchIds.map((id: string) => ({
+      tenant_id: callerProfile.tenant_id,
+      profile_id: createdProfile.id,
+      branch_id: id,
+    }))
+
+    const { error: profileBranchesError } = await supabaseAdmin
+      .from('profile_branches')
+      .upsert(branchRows, { onConflict: 'profile_id,branch_id' })
+
+    if (profileBranchesError) {
+      await supabaseAdmin.from('profiles').delete().eq('id', createdProfile.id)
+      await supabaseAdmin.auth.admin.deleteUser(newUserId)
+      throw new Error('Failed to assign profile branches: ' + profileBranchesError.message)
     }
 
     return new Response(

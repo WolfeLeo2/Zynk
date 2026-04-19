@@ -56,38 +56,46 @@ This plan consolidates the requested platform hardening and scaling work for Zyn
 
 ### Phase 2: Data Model And Workflow Consistency
 
-- [ ] Separate invoice lifecycle status from payment status end-to-end
+- [x] Separate invoice lifecycle status from payment status end-to-end
 - [ ] Keep tax calculations at zero by explicit product policy configuration
 - [x] Enforce required salesperson selection in invoice UI and save flows
 
 ### Phase 3: Security And Policy Hardening
 
-- [ ] RLS policy audit for tenant-isolated tables (`sales`, `sale_items`, `sale_payments`, `stock`, `credit_notes`, `profiles`, `tenants`)
-- [ ] Standardize identity mapping in RLS (`profiles.user_id = auth.uid()`)
-- [ ] Harden SECURITY DEFINER functions with fixed `search_path`
-- [ ] Tighten permissive policy usage where not intentional
-- [ ] Enable leaked password protection in Supabase Auth settings
+- [x] RLS policy audit for tenant-isolated tables (`sales`, `sale_items`, `sale_payments`, `stock`, `credit_notes`, `profiles`, `tenants`)
+- [x] Standardize identity mapping in RLS (`profiles.user_id = auth.uid()`)
+- [x] Harden SECURITY DEFINER functions with fixed `search_path`
+- [x] Tighten permissive policy usage where not intentional
+- [ ] Enable leaked password protection in Supabase Auth settings (intentionally skipped per project plan on free tier)
+- [x] Reduce auth_rls_initplan warnings by policy rewrites (`(select auth.uid())` wrappers + canonical tenant policy)
 
 ### Phase 4: Convention Debt Cleanup
 
-- [ ] Replace manual JSON parsing with `json_serializable` where required
+- [x] Replace manual JSON parsing with `json_serializable` where required
+  - [x] `schema_models.dart` migrated to generated parsing (`schema_models.g.dart`)
+  - [x] `sales_models.dart` migrated to generated parsing (`sales_models.g.dart`)
+  - [x] `StaffMember` model migrated to `json_serializable` and generated (`staff_model.g.dart`)
+  - [x] `Customer` model migrated to generated parsing (`customer_model.g.dart`)
+  - [x] `AdjustmentReason` model migrated to generated parsing (`adjustment_reason.g.dart`)
 - [ ] Eliminate provider layer imports of `material.dart`
-- [ ] Remove `Future.microtask` side-effects from Notifier.build
+- [x] Remove `Future.microtask` side-effects from Notifier.build
 - [ ] Reduce cross-feature imports by moving shared contracts to `core/`
 - [ ] Replace spinner loading states with shimmer skeletons in key screens
 - [ ] Replace `ListView(children: ...)` with builder/sliver patterns where needed
 
 ### Phase 5: Performance Baseline
 
-- [ ] Add indexes for critical query patterns (tenant, branch, status, date, FK)
-- [ ] Capture query baselines (before/after) for dashboard/reporting paths
-- [ ] Add lightweight performance notes to docs
+- [x] Add indexes for critical query patterns (tenant, branch, status, date, FK)
+- [x] Capture query baselines (before/after) for dashboard/reporting paths
+- [x] Add lightweight performance notes to docs
 
 ### Phase 6: Reporting Aggregates And Scheduling
 
-- [ ] Add operational aggregate tables/materialized views (daily revenue/orders/payments/low-stock)
-- [ ] Add scheduled snapshots using `pg_cron` (daily KPI jobs)
-- [ ] Validate aggregate correctness against source transactions
+- [x] Add operational aggregate tables/materialized views (daily revenue/orders/payments/low-stock)
+- [x] Add branch-scoped aggregate snapshot tables for dashboard/report endpoints
+- [x] Add scheduled snapshots using `pg_cron` (daily KPI jobs)
+- [x] Validate aggregate correctness against source transactions
+- [x] Wire dashboard chart/KPI providers to snapshot-aware repository methods with transactional fallback
 
 ### Phase 7: Mulch And Contributor Workflow
 
@@ -97,15 +105,15 @@ This plan consolidates the requested platform hardening and scaling work for Zyn
 
 ## Acceptance Criteria
 
-- [ ] No stale table references in PowerSync sync config
-- [ ] Invoice/payment write authority is server-routed and not direct client CRUD
-- [ ] Negative stock remains supported for approved adjustment workflows
-- [ ] Salesperson is required in invoice UI flows
-- [ ] Security advisor findings reduced for controllable DB/function policies
-- [ ] Performance baseline/index plan documented and partially applied
-- [ ] Operational daily aggregates are generated on schedule
-- [ ] `dart analyze` passes
-- [ ] Mulch records updated with decisions/conventions/failures
+- [x] No stale table references in PowerSync sync config
+- [x] Invoice/payment write authority is server-routed and not direct client CRUD
+- [x] Negative stock remains supported for approved adjustment workflows
+- [x] Salesperson is required in invoice UI flows
+- [x] Security advisor findings reduced for controllable DB/function policies
+- [x] Performance baseline/index plan documented and partially applied
+- [x] Operational daily aggregates are generated on schedule
+- [x] `dart analyze` passes
+- [x] Mulch records updated with decisions/conventions/failures
 
 ## Execution Order For This Task
 

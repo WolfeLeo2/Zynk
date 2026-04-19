@@ -41,7 +41,7 @@ class DashboardLayout extends ConsumerWidget {
     final greeting = ref.watch(greetingProvider);
 
     final displayName = profileAsync.value?.displayName ?? 'User';
-    final tenantName = tenantAsync.value?.name ?? 'Workspace';
+    final tenantName = tenantAsync.value?.name ?? 'Passionate Homes';
 
     return LayoutBuilder(
       builder: (context, constraints) {

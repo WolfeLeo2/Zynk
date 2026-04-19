@@ -35,8 +35,12 @@ final chartTypeProvider = NotifierProvider<ChartTypeNotifier, ChartType>(
 final todaysRevenueProvider = StreamProvider.autoDispose<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchTodaysRevenue(branchId: branchId);
+  if (tenantId == null) return Stream.value(0.0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['payments_collected'] as num?) ?? 0).toDouble());
 });
 
 /// Total all-time revenue
@@ -51,32 +55,48 @@ final salesDataProvider = StreamProvider.autoDispose<double>((ref) {
 final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchTodaysOrderCount(branchId: branchId);
+  if (tenantId == null) return Stream.value(0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['orders_count'] as num?) ?? 0).toInt());
 });
 
 /// Pending Approvals Count
 final pendingApprovalsCountProvider = StreamProvider.autoDispose<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchPendingApprovalsCount(branchId: branchId);
+  if (tenantId == null) return Stream.value(0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['pending_approval_count'] as num?) ?? 0).toInt());
 });
 
 /// Low stock item count
 final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchLowStockCount(branchId: branchId);
+  if (tenantId == null) return Stream.value(0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['low_stock_count'] as num?) ?? 0).toInt());
 });
 
 /// Total Inventory Value
 final totalInventoryValueProvider = StreamProvider.autoDispose<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchTotalInventoryValue(branchId: branchId);
+  if (tenantId == null) return Stream.value(0.0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['inventory_value'] as num?) ?? 0).toDouble());
 });
 
 /// Recent Adjustments Count
@@ -321,10 +341,16 @@ final dailySalesChartProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
+      final tenantId = ref.watch(tenantIdProvider);
       final branchId = ref.watch(currentBranchIdProvider);
       final range = ref.watch(chartTimeRangeProvider);
-      return repo.watchDailySalesData(
+      final days = _rangeToDays(range);
+      if (tenantId == null) {
+        return repo.watchDailySalesData(branchId: branchId, days: days);
+      }
+      return repo.watchDailySalesDataSmart(
+        tenantId: tenantId,
         branchId: branchId,
-        days: _rangeToDays(range),
+        days: days,
       );
     });

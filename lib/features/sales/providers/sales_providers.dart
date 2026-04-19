@@ -27,11 +27,9 @@ final completedSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchSales(
-    tenantId: tenantId,
-    branchId: branchId,
-    status: InvoiceStatus.completed,
-  );
+  return repo
+      .watchSales(tenantId: tenantId, branchId: branchId)
+      .map((sales) => sales.where((s) => s.isOperationallyCompleted).toList());
 });
 
 final pendingSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {

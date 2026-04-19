@@ -23,9 +23,9 @@ class TopSellingProductsList extends ConsumerWidget {
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+          color: colorScheme.outlineVariant.withValues(alpha: 0.28),
         ),
       ),
       child: Column(
@@ -122,75 +122,74 @@ class _TopProductItem extends StatelessWidget {
     final name = product['name'] as String? ?? 'Unknown';
     final totalSold = (product['total_sold'] as num?)?.toInt() ?? 0;
     final totalRevenue = (product['total_revenue'] as num?)?.toDouble() ?? 0;
-    final basePrice = (product['base_price'] as num?)?.toDouble() ?? 0;
-    final imageUrl = product['image_url'] as String?;
+    final progress = maxSold <= 0 ? 0.0 : totalSold / maxSold;
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
-      ),
-      child: Row(
-        children: [
-          // Product image or icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              shape: BoxShape.circle,
-            ),
-            child: ClipOval(
-              child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant, size: 20);
-                      },
-                    )
-                  : PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant, size: 20),
-            ),
+        border: Border(
+          bottom: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.22),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
+        ),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 22,
+                height: 22,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  '${index + 1}',
+                  style: TextStyle(
+                    color: colorScheme.primary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
                   name,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text(
-                  'KES ${basePrice.toStringAsFixed(0)}',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'KES ${_formatRevenue(totalRevenue)}',
-                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 14),
               ),
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(4),
+              const SizedBox(width: 10),
+              Text(
+                '$totalSold sold',
+                style: TextStyle(
+                  color: colorScheme.onSurfaceVariant,
+                  fontSize: 12,
                 ),
-                child: Text(
-                  '$totalSold sold',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 10, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Ksh ${_formatRevenue(totalRevenue)}',
+                style: TextStyle(
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 7),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 5,
+              color: colorScheme.primary,
+              backgroundColor: colorScheme.surfaceContainerHighest,
+            ),
           ),
         ],
       ),

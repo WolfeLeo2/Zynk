@@ -29,6 +29,7 @@ class _InventoryAdjustmentScreenState
   final TextEditingController _referenceController = TextEditingController();
   String _searchQuery = '';
   bool _isLoading = false;
+  bool _applyToAllBranches = false;
   String? _reasonId;
   StaffMember? _selectedAdjuster;
 
@@ -58,8 +59,7 @@ class _InventoryAdjustmentScreenState
     final profile = ref.read(currentProfileProvider);
     if (profile == null) return;
 
-    final adjusterId = _selectedAdjuster?.id;
-    if (adjusterId == null) {
+    if (_selectedAdjuster == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('Please select an adjuster.'),
@@ -69,30 +69,51 @@ class _InventoryAdjustmentScreenState
       return;
     }
 
+    final adjusterId = profile.userId;
+
     final selectedBranchId = ref.read(currentBranchIdProvider);
-    if (selectedBranchId == null || selectedBranchId == 'all') {
+    if (selectedBranchId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please select a specific branch first.'),
+          content: const Text('Please select a branch first.'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
     }
 
+    final allBranchesMode = selectedBranchId == 'all' || _applyToAllBranches;
+
     final adjustmentItems = items
         .where((item) => item.quantityChange != 0)
-        .map((item) => BatchAdjustmentItem(
-              productId: item.product.id,
-              quantityChange: item.quantityChange,
-              notes: item.notes,
-            ))
+        .map(
+          (item) => BatchAdjustmentItem(
+            productId: item.product.id,
+            quantityChange: item.quantityChange,
+            notes: item.notes,
+          ),
+        )
         .toList();
 
     if (adjustmentItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please enter a non-zero quantity for at least one item.'),
+          content: const Text(
+            'Please enter a non-zero quantity for at least one item.',
+          ),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    if (allBranchesMode &&
+        adjustmentItems.any((item) => item.quantityChange <= 0)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text(
+            'All Branches mode supports stock additions only. Use a specific branch for reductions or resets.',
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
@@ -103,25 +124,54 @@ class _InventoryAdjustmentScreenState
 
     try {
       final repo = ref.read(repositoryProvider);
+      final referenceNumber = _referenceController.text.isNotEmpty
+          ? _referenceController.text
+          : null;
 
-      await repo.batchAdjustStock(
-        tenantId: profile.tenantId,
-        branchId: selectedBranchId,
-        items: adjustmentItems,
-        createdBy: adjusterId,
-        adjustmentType: 'batch_adjustment',
-        reasonId: _reasonId,
-        referenceNumber: _referenceController.text.isNotEmpty
-            ? _referenceController.text
-            : null,
-      );
+      if (allBranchesMode) {
+        final visibleBranches = ref.read(branchesProvider).value;
+        final branches =
+            (visibleBranches ?? await repo.getBranches(profile.tenantId))
+                .where((b) => b.id != 'all')
+                .toList();
+
+        if (branches.isEmpty) {
+          throw Exception('No branches found to apply stock additions.');
+        }
+
+        for (final branch in branches) {
+          await repo.batchAdjustStock(
+            tenantId: profile.tenantId,
+            branchId: branch.id,
+            items: adjustmentItems,
+            createdBy: adjusterId,
+            adjustmentType: 'auto',
+            reasonId: _reasonId,
+            referenceNumber: referenceNumber,
+          );
+        }
+      } else {
+        await repo.batchAdjustStock(
+          tenantId: profile.tenantId,
+          branchId: selectedBranchId,
+          items: adjustmentItems,
+          createdBy: adjusterId,
+          adjustmentType: 'auto',
+          reasonId: _reasonId,
+          referenceNumber: referenceNumber,
+        );
+      }
 
       if (mounted) {
         ref.read(batchStockProvider.notifier).clear();
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Adjustment confirmed for ${adjustmentItems.length} item(s)!'),
+            content: Text(
+              allBranchesMode
+                  ? 'Added stock for ${adjustmentItems.length} item(s) across all branches.'
+                  : 'Adjustment confirmed for ${adjustmentItems.length} item(s)!',
+            ),
           ),
         );
       }
@@ -147,10 +197,8 @@ class _InventoryAdjustmentScreenState
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => _ManageReasonsSheet(
-        reasons: reasons,
-        tenantId: tenantId,
-      ),
+      builder: (ctx) =>
+          _ManageReasonsSheet(reasons: reasons, tenantId: tenantId),
     );
   }
 
@@ -159,11 +207,13 @@ class _InventoryAdjustmentScreenState
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final productsAsync = ref.watch(allProductsProvider);
+    final branchesAsync = ref.watch(branchesProvider);
     final batchItems = ref.watch(batchStockProvider);
     final selectedBranchId = ref.watch(currentBranchIdProvider);
+    final effectiveAllBranchesMode =
+        selectedBranchId == 'all' || _applyToAllBranches;
 
-    final isInvalidBranch =
-        selectedBranchId == null || selectedBranchId == 'all';
+    final isInvalidBranch = selectedBranchId == null;
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -197,145 +247,138 @@ class _InventoryAdjustmentScreenState
           : LayoutBuilder(
               builder: (context, constraints) {
                 final leftPanel = Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: SearchBar(
-                          controller: _searchController,
-                          hintText: 'Search items by name or SKU...',
-                          leading: const Icon(
-                            PhosphorIconsRegular.magnifyingGlass,
-                          ),
-                          onChanged: (val) =>
-                              setState(() => _searchQuery = val),
-                          padding: const WidgetStatePropertyAll(
-                            EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                          elevation: const WidgetStatePropertyAll(0),
-                          backgroundColor: WidgetStatePropertyAll(
-                            colorScheme.surfaceContainerHighest,
-                          ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: SearchBar(
+                        controller: _searchController,
+                        hintText: 'Search items by name or SKU...',
+                        leading: const Icon(
+                          PhosphorIconsRegular.magnifyingGlass,
+                        ),
+                        onChanged: (val) => setState(() => _searchQuery = val),
+                        padding: const WidgetStatePropertyAll(
+                          EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        elevation: const WidgetStatePropertyAll(0),
+                        backgroundColor: WidgetStatePropertyAll(
+                          colorScheme.surfaceContainerHighest,
                         ),
                       ),
-                      Expanded(
-                        child: productsAsync.when(
-                          data: (products) {
-                            var filtered = products
-                                .where(
-                                  (p) => !p.isService,
-                                ) // Only physical goods
-                                .toList();
+                    ),
+                    Expanded(
+                      child: productsAsync.when(
+                        data: (products) {
+                          var filtered = products
+                              .where((p) => !p.isService) // Only physical goods
+                              .toList();
 
-                            if (_searchQuery.isNotEmpty) {
-                              filtered = filtered.where((p) {
-                                final nameMatch = p.name.toLowerCase().contains(
-                                  _searchQuery.toLowerCase(),
-                                );
-                                final skuMatch =
-                                    p.sku?.toLowerCase().contains(
-                                      _searchQuery.toLowerCase(),
-                                    ) ??
-                                    false;
-                                return nameMatch || skuMatch;
-                              }).toList();
-                            }
-
-                            if (filtered.isEmpty) {
-                              return const Center(
-                                child: Text('No items found'),
+                          if (_searchQuery.isNotEmpty) {
+                            filtered = filtered.where((p) {
+                              final nameMatch = p.name.toLowerCase().contains(
+                                _searchQuery.toLowerCase(),
                               );
-                            }
+                              final skuMatch =
+                                  p.sku?.toLowerCase().contains(
+                                    _searchQuery.toLowerCase(),
+                                  ) ??
+                                  false;
+                              return nameMatch || skuMatch;
+                            }).toList();
+                          }
 
-                            return ListView.builder(
-                              itemCount: filtered.length,
-                              itemBuilder: (context, index) {
-                                final product = filtered[index];
-                                final isAdded = batchItems.any(
-                                  (item) => item.product.id == product.id,
-                                );
+                          if (filtered.isEmpty) {
+                            return const Center(child: Text('No items found'));
+                          }
 
-                                return ListTile(
-                                  leading: Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(8),
-                                      image: product.imageUrl != null
-                                          ? DecorationImage(
-                                              image: CachedNetworkImageProvider(
-                                                product.imageUrl!,
-                                              ),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
-                                    ),
-                                    child: product.imageUrl == null
-                                        ? Icon(
-                                            PhosphorIconsRegular.package,
-                                            color:
-                                                colorScheme.onPrimaryContainer,
+                          return ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final product = filtered[index];
+                              final isAdded = batchItems.any(
+                                (item) => item.product.id == product.id,
+                              );
+
+                              return ListTile(
+                                leading: Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                    image: product.imageUrl != null
+                                        ? DecorationImage(
+                                            image: CachedNetworkImageProvider(
+                                              product.imageUrl!,
+                                            ),
+                                            fit: BoxFit.cover,
                                           )
                                         : null,
                                   ),
-                                  title: Text(product.name),
-                                  subtitle: Text(
-                                    product.sku ?? 'No SKU',
-                                    style: TextStyle(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  trailing: isAdded
+                                  child: product.imageUrl == null
                                       ? Icon(
-                                          PhosphorIconsRegular.checkCircle,
-                                          color: colorScheme.primary,
+                                          PhosphorIconsRegular.package,
+                                          color: colorScheme.onPrimaryContainer,
                                         )
-                                      : IconButton(
-                                          onPressed: () {
-                                            ref
-                                                .read(
-                                                  batchStockProvider.notifier,
-                                                )
-                                                .addItem(product);
-                                          },
-                                          icon: const Icon(
-                                            PhosphorIconsRegular.plus,
-                                          ),
-                                          style: IconButton.styleFrom(
-                                            backgroundColor:
-                                                colorScheme.primaryContainer,
-                                            foregroundColor:
-                                                colorScheme.onPrimaryContainer,
-                                          ),
-                                        ),
-                                  onTap: isAdded
-                                      ? null
-                                      : () {
+                                      : null,
+                                ),
+                                title: Text(product.name),
+                                subtitle: Text(
+                                  product.sku ?? 'No SKU',
+                                  style: TextStyle(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                trailing: isAdded
+                                    ? Icon(
+                                        PhosphorIconsRegular.checkCircle,
+                                        color: colorScheme.primary,
+                                      )
+                                    : IconButton(
+                                        onPressed: () {
                                           ref
                                               .read(batchStockProvider.notifier)
                                               .addItem(product);
                                         },
-                                );
-                              },
-                            );
-                          },
-                          loading: () =>
-                              const Center(child: CircularProgressIndicator()),
-                          error: (err, stack) => Center(
-                            child: Text('Error loading items: $err'),
-                          ),
-                        ),
+                                        icon: const Icon(
+                                          PhosphorIconsRegular.plus,
+                                        ),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor:
+                                              colorScheme.primaryContainer,
+                                          foregroundColor:
+                                              colorScheme.onPrimaryContainer,
+                                        ),
+                                      ),
+                                onTap: isAdded
+                                    ? null
+                                    : () {
+                                        ref
+                                            .read(batchStockProvider.notifier)
+                                            .addItem(product);
+                                      },
+                              );
+                            },
+                          );
+                        },
+                        loading: () =>
+                            const Center(child: CircularProgressIndicator()),
+                        error: (err, stack) =>
+                            Center(child: Text('Error loading items: $err')),
                       ),
-                    ],
-                  );
+                    ),
+                  ],
+                );
                 final rightPanel = Container(
-                    color: colorScheme.surface,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Batch Settings Header
-                        Padding(
+                  color: colorScheme.surface,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Batch Settings Header
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: SingleChildScrollView(
                           padding: const EdgeInsets.all(24.0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -346,40 +389,134 @@ class _InventoryAdjustmentScreenState
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              const SizedBox(height: 12),
+                              branchesAsync.when(
+                                data: (branches) {
+                                  final targetBranches =
+                                      effectiveAllBranchesMode
+                                      ? branches
+                                      : branches
+                                            .where(
+                                              (b) => b.id == selectedBranchId,
+                                            )
+                                            .toList();
+                                  final canToggleAll =
+                                      selectedBranchId != 'all';
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surfaceContainerHighest
+                                          .withValues(alpha: 0.45),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: colorScheme.outlineVariant,
+                                      ),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        SwitchListTile.adaptive(
+                                          contentPadding: EdgeInsets.zero,
+                                          title: const Text(
+                                            'Apply to all branches',
+                                          ),
+                                          subtitle: Text(
+                                            selectedBranchId == 'all'
+                                                ? 'All Branches is selected in the top bar.'
+                                                : effectiveAllBranchesMode
+                                                ? 'Adds stock to every visible branch.'
+                                                : 'Adds stock only to the selected branch.',
+                                          ),
+                                          value: effectiveAllBranchesMode,
+                                          onChanged: canToggleAll
+                                              ? (v) => setState(
+                                                  () => _applyToAllBranches = v,
+                                                )
+                                              : null,
+                                        ),
+                                        if (effectiveAllBranchesMode) ...[
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            'All-branches mode supports stock additions only. Use a specific branch for reductions or resets.',
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: colorScheme
+                                                      .onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                        if (targetBranches.isNotEmpty) ...[
+                                          const SizedBox(height: 10),
+                                          Wrap(
+                                            spacing: 8,
+                                            runSpacing: 8,
+                                            children: targetBranches
+                                                .map(
+                                                  (b) => Chip(
+                                                    label: Text(b.name),
+                                                    avatar: const Icon(
+                                                      PhosphorIconsRegular
+                                                          .storefront,
+                                                      size: 14,
+                                                    ),
+                                                  ),
+                                                )
+                                                .toList(),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  );
+                                },
+                                loading: () => const SizedBox.shrink(),
+                                error: (_, __) => const SizedBox.shrink(),
+                              ),
                               const SizedBox(height: 16),
                               // Adjuster Selection
                               Consumer(
                                 builder: (context, ref, _) {
-                                  final staffAsync = ref.watch(humanStaffProvider);
+                                  final staffAsync = ref.watch(
+                                    humanStaffProvider,
+                                  );
                                   return staffAsync.when(
-                                    data: (staffList) => DropdownButtonFormField<StaffMember>(
-                                      initialValue: _selectedAdjuster,
-                                      decoration: InputDecoration(
-                                        labelText: 'Adjuster *',
-                                        prefixIcon: const Icon(
-                                          PhosphorIconsRegular.user,
-                                        ),
-                                        border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                        ),
-                                        isDense: true,
-                                      ),
-                                      hint: const Text('Select an adjuster'),
-                                      items: staffList
-                                          .map(
-                                            (s) => DropdownMenuItem<StaffMember>(
-                                              value: s,
-                                              child: Text(s.name),
+                                    data: (staffList) =>
+                                        DropdownButtonFormField<StaffMember>(
+                                          initialValue: _selectedAdjuster,
+                                          decoration: InputDecoration(
+                                            labelText: 'Adjuster *',
+                                            prefixIcon: const Icon(
+                                              PhosphorIconsRegular.user,
                                             ),
-                                          )
-                                          .toList(),
-                                      onChanged: (v) => setState(
-                                        () => _selectedAdjuster = v,
-                                      ),
-                                    ),
-                                    loading: () => const LinearProgressIndicator(),
-                                    error: (e, _) => Text('Error loading staff: $e'),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            isDense: true,
+                                          ),
+                                          hint: const Text(
+                                            'Select an adjuster',
+                                          ),
+                                          items: staffList
+                                              .map(
+                                                (s) =>
+                                                    DropdownMenuItem<
+                                                      StaffMember
+                                                    >(
+                                                      value: s,
+                                                      child: Text(s.name),
+                                                    ),
+                                              )
+                                              .toList(),
+                                          onChanged: (v) => setState(
+                                            () => _selectedAdjuster = v,
+                                          ),
+                                        ),
+                                    loading: () =>
+                                        const LinearProgressIndicator(),
+                                    error: (e, _) =>
+                                        Text('Error loading staff: $e'),
                                   );
                                 },
                               ),
@@ -389,9 +526,11 @@ class _InventoryAdjustmentScreenState
                                 builder: (context, ref, _) {
                                   final tenantId =
                                       ref.watch(tenantIdProvider) ?? '';
-                                  final profile =
-                                      ref.watch(currentProfileProvider);
-                                  final canManage = profile != null &&
+                                  final profile = ref.watch(
+                                    currentProfileProvider,
+                                  );
+                                  final canManage =
+                                      profile != null &&
                                       (profile.role.isOwner ||
                                           profile.role.isManager ||
                                           profile.permissions.contains(
@@ -407,51 +546,58 @@ class _InventoryAdjustmentScreenState
                                     data: (reasons) => Row(
                                       children: [
                                         Expanded(
-                                          child: DropdownButtonFormField<String>(
-                                            initialValue: _reasonId,
-                                            decoration: InputDecoration(
-                                              labelText: 'Reason *',
-                                              prefixIcon: const Icon(
-                                                PhosphorIconsRegular.question,
-                                              ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              isDense: true,
-                                            ),
-                                            hint: const Text('Select a reason'),
-                                            items: reasons
-                                                .map(
-                                                  (r) =>
-                                                      DropdownMenuItem<String>(
-                                                    value: r.id,
-                                                    child: Text(r.label),
+                                          child:
+                                              DropdownButtonFormField<String>(
+                                                initialValue: _reasonId,
+                                                decoration: InputDecoration(
+                                                  labelText: 'Reason *',
+                                                  prefixIcon: const Icon(
+                                                    PhosphorIconsRegular
+                                                        .question,
                                                   ),
-                                                )
-                                                .toList(),
-                                            onChanged: (v) => setState(
-                                              () => _reasonId = v,
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
+                                                  ),
+                                                  isDense: true,
+                                                ),
+                                                hint: const Text(
+                                                  'Select a reason',
+                                                ),
+                                                items: reasons
+                                                    .map(
+                                                      (r) =>
+                                                          DropdownMenuItem<
+                                                            String
+                                                          >(
+                                                            value: r.id,
+                                                            child: Text(
+                                                              r.label,
+                                                            ),
+                                                          ),
+                                                    )
+                                                    .toList(),
+                                                onChanged: (v) => setState(
+                                                  () => _reasonId = v,
+                                                ),
+                                              ),
+                                        ),
+                                        if (canManage) ...[
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            tooltip: 'Manage reasons',
+                                            onPressed: () => _showManageReasons(
+                                              context,
+                                              reasons,
+                                              tenantId,
+                                            ),
+                                            icon: const Icon(
+                                              PhosphorIconsRegular.pencilSimple,
                                             ),
                                           ),
-                                        ),
-                                        if (canManage) ...
-                                          [
-                                            const SizedBox(width: 8),
-                                            IconButton(
-                                              tooltip: 'Manage reasons',
-                                              onPressed: () =>
-                                                  _showManageReasons(
-                                                    context,
-                                                    reasons,
-                                                    tenantId,
-                                                  ),
-                                              icon: const Icon(
-                                                PhosphorIconsRegular
-                                                    .pencilSimple,
-                                              ),
-                                            ),
-                                          ],
+                                        ],
                                       ],
                                     ),
                                     loading: () =>
@@ -467,7 +613,8 @@ class _InventoryAdjustmentScreenState
                                 controller: _referenceController,
                                 decoration: InputDecoration(
                                   labelText: 'Reference Number (Optional)',
-                                  hintText: 'e.g., PO-2023-001 or Delivery Note',
+                                  hintText:
+                                      'e.g., PO-2023-001 or Delivery Note',
                                   prefixIcon: const Icon(
                                     PhosphorIconsRegular.receipt,
                                   ),
@@ -479,91 +626,93 @@ class _InventoryAdjustmentScreenState
                             ],
                           ),
                         ),
-                        const Divider(height: 1),
-                        // Selected Items List
-                        Expanded(
-                          child: batchItems.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        PhosphorIconsRegular
-                                            .magnifyingGlassPlus,
-                                        size: 64,
-                                        color: colorScheme.onSurfaceVariant
-                                            .withValues(alpha: 0.5),
+                      ),
+                      const Divider(height: 1),
+                      // Selected Items List
+                      Expanded(
+                        child: batchItems.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      PhosphorIconsRegular.magnifyingGlassPlus,
+                                      size: 64,
+                                      color: colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.5),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No items selected\nSearch and add items from the left',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: colorScheme.onSurfaceVariant,
                                       ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'No items selected\nSearch and add items from the left',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: colorScheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.all(24),
+                                itemCount: batchItems.length,
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 16),
+                                itemBuilder: (context, index) {
+                                  final item = batchItems[index];
+                                  return _BatchItemCard(item: item);
+                                },
+                              ),
+                      ),
+                      // Bottom Actions
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, -5),
+                            ),
+                          ],
+                        ),
+                        child: FilledButton.icon(
+                          onPressed: batchItems.isEmpty || _isLoading
+                              ? null
+                              : _submitBatch,
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
                                   ),
                                 )
-                              : ListView.separated(
-                                  padding: const EdgeInsets.all(24),
-                                  itemCount: batchItems.length,
-                                  separatorBuilder: (context, index) =>
-                                      const SizedBox(height: 16),
-                                  itemBuilder: (context, index) {
-                                    final item = batchItems[index];
-                                    return _BatchItemCard(item: item);
-                                  },
-                                ),
-                        ),
-                        // Bottom Actions
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surface,
-                            boxShadow: [
-                              BoxShadow(
-                                color: colorScheme.shadow.withValues(alpha: 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, -5),
-                              ),
-                            ],
+                              : const Icon(PhosphorIconsRegular.checkCircle),
+                          label: Text(
+                            _isLoading
+                                ? 'Processing...'
+                                : effectiveAllBranchesMode
+                                ? 'Add to All Branches (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})'
+                                : 'Confirm Adjustment (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                           child: FilledButton.icon(
-                             onPressed: batchItems.isEmpty || _isLoading
-                                 ? null
-                                 : _submitBatch,
-                             style: FilledButton.styleFrom(
-                               padding: const EdgeInsets.symmetric(vertical: 20),
-                               shape: RoundedRectangleBorder(
-                                 borderRadius: BorderRadius.circular(16),
-                               ),
-                             ),
-                             icon: _isLoading
-                                 ? const SizedBox(
-                                     width: 20,
-                                     height: 20,
-                                     child: CircularProgressIndicator(
-                                       strokeWidth: 2,
-                                       color: Colors.white,
-                                     ),
-                                   )
-                                 : const Icon(PhosphorIconsRegular.checkCircle),
-                             label: Text(
-                               _isLoading
-                                   ? 'Processing...'
-                                   : 'Confirm Adjustment (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})',
-                               style: const TextStyle(
-                                 fontSize: 16,
-                                 fontWeight: FontWeight.bold,
-                               ),
-                             ),
-                           ),
                         ),
-                      ],
-                    ),
-                    );
-                    
+                      ),
+                    ],
+                  ),
+                );
+
                 if (constraints.maxWidth > 800) {
                   return Row(
                     children: [
@@ -573,7 +722,7 @@ class _InventoryAdjustmentScreenState
                     ],
                   );
                 }
-                
+
                 return DefaultTabController(
                   length: 2,
                   child: Column(
@@ -588,12 +737,7 @@ class _InventoryAdjustmentScreenState
                         indicatorColor: colorScheme.primary,
                       ),
                       Expanded(
-                        child: TabBarView(
-                          children: [
-                            leftPanel,
-                            rightPanel,
-                          ],
-                        ),
+                        child: TabBarView(children: [leftPanel, rightPanel]),
                       ),
                     ],
                   ),
@@ -625,7 +769,7 @@ class _InventoryAdjustmentScreenState
             ),
             const SizedBox(height: 24),
             Text(
-              'Specific Branch Required',
+              'Branch Required',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -634,7 +778,7 @@ class _InventoryAdjustmentScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              'Stock adjustments must physically occur at a specific location. You currently have "All Branches" selected.\n\nPlease select a specific branch from the app bar drop-down before proceeding.',
+              'Please select a branch from the app bar drop-down before proceeding.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -681,7 +825,9 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
     super.initState();
     _notesController = TextEditingController(text: widget.item.notes);
     _qtyController = TextEditingController(
-      text: widget.item.quantityChange == 0 ? '' : widget.item.quantityChange.toString(),
+      text: widget.item.quantityChange == 0
+          ? ''
+          : widget.item.quantityChange.toString(),
     );
   }
 
@@ -689,7 +835,8 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
   void didUpdateWidget(_BatchItemCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.item.quantityChange != widget.item.quantityChange) {
-      if (_qtyController.text != widget.item.quantityChange.toString() && widget.item.quantityChange != 0) {
+      if (_qtyController.text != widget.item.quantityChange.toString() &&
+          widget.item.quantityChange != 0) {
         _qtyController.text = widget.item.quantityChange.toString();
       }
     }
@@ -789,9 +936,14 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
             children: [
               // Stock calculation
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.5,
+                  ),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -800,13 +952,13 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                     Text(
                       'Current Stock: $currentStock',
                       style: TextStyle(
-                        color: colorScheme.onSurfaceVariant, 
+                        color: colorScheme.onSurfaceVariant,
                         fontSize: 13,
                       ),
                     ),
                     Icon(
-                      PhosphorIconsRegular.arrowRight, 
-                      size: 14, 
+                      PhosphorIconsRegular.arrowRight,
+                      size: 14,
                       color: colorScheme.onSurfaceVariant,
                     ),
                     Text(
@@ -817,8 +969,8 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                         color: widget.item.quantityChange < 0
                             ? colorScheme.error
                             : widget.item.quantityChange > 0
-                                ? Colors.green
-                                : colorScheme.onSurface,
+                            ? Colors.green
+                            : colorScheme.onSurface,
                       ),
                     ),
                   ],
@@ -853,17 +1005,15 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                         decimal: false,
                       ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^-?\d*'),
-                        ),
+                        FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
                       ],
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: widget.item.quantityChange < 0
                             ? Colors.red
                             : widget.item.quantityChange > 0
-                                ? Colors.green
-                                : null,
+                            ? Colors.green
+                            : null,
                         fontWeight: FontWeight.bold,
                       ),
                       decoration: InputDecoration(
@@ -936,10 +1086,7 @@ class _ManageReasonsSheet extends ConsumerStatefulWidget {
   final List<AdjustmentReason> reasons;
   final String tenantId;
 
-  const _ManageReasonsSheet({
-    required this.reasons,
-    required this.tenantId,
-  });
+  const _ManageReasonsSheet({required this.reasons, required this.tenantId});
 
   @override
   ConsumerState<_ManageReasonsSheet> createState() =>
@@ -1073,9 +1220,7 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                         itemBuilder: (_, i) {
                           final r = reasons[i];
                           return ListTile(
-                            leading: const Icon(
-                              PhosphorIconsRegular.tagSimple,
-                            ),
+                            leading: const Icon(PhosphorIconsRegular.tagSimple),
                             title: Text(r.label),
                             trailing: IconButton(
                               icon: Icon(
@@ -1088,9 +1233,7 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                           );
                         },
                       ),
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(child: Text('Error: $e')),
               ),
             ),

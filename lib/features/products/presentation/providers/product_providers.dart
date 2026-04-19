@@ -38,7 +38,8 @@ final stockProvider = StreamProvider.autoDispose.family<Stock?, String>((
   productId,
 ) {
   final repository = ref.watch(repositoryProvider);
-  return repository.watchProductStock(productId);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repository.watchProductStock(productId, branchId: branchId);
 });
 
 final stockHistoryProvider = StreamProvider.autoDispose
@@ -53,15 +54,17 @@ final stockHistoryProvider = StreamProvider.autoDispose
 /// ─────────────────────────────────────────
 final adjustmentReasonsProvider =
     StreamProvider.autoDispose<List<AdjustmentReason>>((ref) {
-  final repository = ref.watch(repositoryProvider);
-  final tenantId = ref.watch(tenantIdProvider) ?? '';
-  return repository.watchAdjustmentReasons(tenantId);
-});
+      final repository = ref.watch(repositoryProvider);
+      final tenantId = ref.watch(tenantIdProvider) ?? '';
+      return repository.watchAdjustmentReasons(tenantId);
+    });
 
 /// ─────────────────────────────────────────
 /// Units of Measurement
 /// ─────────────────────────────────────────
-final allUomProvider = StreamProvider.autoDispose<List<UnitOfMeasurement>>((ref) {
+final allUomProvider = StreamProvider.autoDispose<List<UnitOfMeasurement>>((
+  ref,
+) {
   final repository = ref.watch(repositoryProvider);
   return repository.watchUnitOfMeasurements();
 });
@@ -69,21 +72,22 @@ final allUomProvider = StreamProvider.autoDispose<List<UnitOfMeasurement>>((ref)
 /// ─────────────────────────────────────────
 /// Composite Components
 /// ─────────────────────────────────────────
-final compositeComponentsProvider =
-    StreamProvider.autoDispose.family<List<CompositeItemComponent>, String>((
-  ref,
-  parentId,
-) {
-  final repository = ref.watch(repositoryProvider);
-  return repository.watchCompositeComponents(parentId);
-});
+final compositeComponentsProvider = StreamProvider.autoDispose
+    .family<List<CompositeItemComponent>, String>((ref, parentId) {
+      final repository = ref.watch(repositoryProvider);
+      return repository.watchCompositeComponents(parentId);
+    });
 
 /// ─────────────────────────────────────────
 /// Composite Products (filtered)
 /// ─────────────────────────────────────────
-final compositeProductsProvider = StreamProvider.autoDispose<List<Product>>((ref) {
+final compositeProductsProvider = StreamProvider.autoDispose<List<Product>>((
+  ref,
+) {
   final repository = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-// All products stream (composite filter removed temporarily)
-  return repository.watchProducts(branchId: branchId).map((products) => products.toList());
+  // All products stream (composite filter removed temporarily)
+  return repository
+      .watchProducts(branchId: branchId)
+      .map((products) => products.toList());
 });

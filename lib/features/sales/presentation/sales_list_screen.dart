@@ -3,9 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/sales_models.dart';
-import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
@@ -68,28 +66,25 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                 final filtered = _filter == null
                     ? branchFiltered
                     : _filter == 'outstanding'
-                        ? branchFiltered
-                            .where(
-                              (s) =>
-                                  s.status != InvoiceStatus.voided &&
-                                  s.status != InvoiceStatus.completed &&
-                                  s.paymentStatus != PaymentStatus.paid,
-                            )
-                            .toList()
-                        : _filter is InvoiceStatus
-                            ? branchFiltered
-                                .where((s) => s.status == _filter)
-                                .toList()
-                            : _filter is PaymentStatus
-                                ? branchFiltered
-                                    .where((s) => s.paymentStatus == _filter)
-                                    .toList()
-                                : _filter is FulfillmentStatus
-                                    ? branchFiltered
-                                        .where((s) =>
-                                            s.fulfillmentStatus == _filter)
-                                        .toList()
-                                    : branchFiltered;
+                    ? branchFiltered
+                          .where(
+                            (s) =>
+                                s.status != InvoiceStatus.voided &&
+                                s.status != InvoiceStatus.rejected &&
+                                !s.isOperationallyCompleted,
+                          )
+                          .toList()
+                    : _filter is InvoiceStatus
+                    ? branchFiltered.where((s) => s.status == _filter).toList()
+                    : _filter is PaymentStatus
+                    ? branchFiltered
+                          .where((s) => s.paymentStatus == _filter)
+                          .toList()
+                    : _filter is FulfillmentStatus
+                    ? branchFiltered
+                          .where((s) => s.fulfillmentStatus == _filter)
+                          .toList()
+                    : branchFiltered;
 
                 if (filtered.isEmpty) {
                   return _buildEmpty(theme, cs);
@@ -108,15 +103,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           ),
         ],
       ),
-      // FAB for creating invoices (permission-gated)
-      floatingActionButton:
-          ref.watch(hasPermissionProvider(Permission.createInvoices))
-          ? FloatingActionButton.extended(
-              onPressed: () => context.go('/sales/create-invoice'),
-              icon: const PhosphorIcon(PhosphorIconsBold.fileText, size: 20),
-              label: const Text('Create Invoice'),
-            )
-          : null,
+      floatingActionButton: null,
     );
   }
 
@@ -125,13 +112,21 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     final filters = [
       (null, 'All', PhosphorIconsRegular.listBullets),
       ('outstanding', 'Outstanding', PhosphorIconsRegular.warningCircle),
-      (InvoiceStatus.draft, 'Drafts', PhosphorIconsRegular.pencilSimple),
-      (InvoiceStatus.pendingApproval, 'Pending Approval', PhosphorIconsRegular.clock),
+      (
+        InvoiceStatus.pendingApproval,
+        'Pending Approval',
+        PhosphorIconsRegular.clock,
+      ),
       (InvoiceStatus.approved, 'Approved', PhosphorIconsRegular.sealCheck),
       (PaymentStatus.unpaid, 'Unpaid', PhosphorIconsRegular.money),
       (PaymentStatus.partiallyPaid, 'Partial', PhosphorIconsRegular.percent),
       (PaymentStatus.paid, 'Paid', PhosphorIconsRegular.currencyCircleDollar),
-      (InvoiceStatus.completed, 'Completed', PhosphorIconsRegular.checkCircle),
+      (
+        FulfillmentStatus.unreleased,
+        'Unreleased',
+        PhosphorIconsRegular.package,
+      ),
+      (FulfillmentStatus.released, 'Released', PhosphorIconsRegular.package),
       (InvoiceStatus.voided, 'Voided', PhosphorIconsRegular.prohibit),
     ];
 
@@ -269,7 +264,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Complete a POS sale or create an invoice',
+            'Complete a POS sale to start seeing invoices',
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurfaceVariant.withValues(alpha: 0.7),
             ),
@@ -369,20 +364,12 @@ class _SaleCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          sale.invoiceNumber ?? '#—',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatusBadge(status: sale.status),
-                    ],
+                  Text(
+                    sale.invoiceNumber ?? '#—',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -390,6 +377,16 @@ class _SaleCard extends StatelessWidget {
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: cs.onSurfaceVariant,
                     ),
+                  ),
+                  const SizedBox(height: 8),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      _LifecycleBadge(status: sale.status),
+                      _PaymentStatusBadge(status: sale.paymentStatus),
+                      _FulfillmentStatusBadge(status: sale.fulfillmentStatus),
+                    ],
                   ),
                 ],
               ),
@@ -405,12 +402,28 @@ class _SaleCard extends StatelessWidget {
                     fontWeight: FontWeight.bold,
                   ),
                 ),
-                if (sale.status == InvoiceStatus.partiallyPaid)
+                if (sale.paymentStatus == PaymentStatus.unpaid)
                   Text(
-                    'Paid: ${sale.amountPaid.toStringAsFixed(0)}',
+                    'Unpaid',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFFEF5350),
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                else if (sale.paymentStatus == PaymentStatus.partiallyPaid)
+                  Text(
+                    'Due: ${sale.remainingBalance.toStringAsFixed(0)}',
                     style: theme.textTheme.bodySmall?.copyWith(
                       color: const Color(0xFFFFA726),
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  )
+                else
+                  Text(
+                    'Paid',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF66BB6A),
+                      fontWeight: FontWeight.w600,
                     ),
                   ),
               ],
@@ -443,34 +456,134 @@ class _SaleCard extends StatelessWidget {
 // STATUS BADGE
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StatusBadge extends StatelessWidget {
+class _LifecycleBadge extends StatelessWidget {
   final InvoiceStatus status;
-  const _StatusBadge({required this.status});
+  const _LifecycleBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _statusColor(status);
+
+    return _MiniStateBadge(
+      label: status.displayName,
+      icon: _statusIcon(status),
+      color: color,
+    );
+  }
+}
+
+class _PaymentStatusBadge extends StatelessWidget {
+  final PaymentStatus status;
+  const _PaymentStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _paymentColor(status);
+
+    return _MiniStateBadge(
+      label: status.displayName,
+      icon: _paymentIcon(status),
+      color: color,
+    );
+  }
+}
+
+class _FulfillmentStatusBadge extends StatelessWidget {
+  final FulfillmentStatus status;
+  const _FulfillmentStatusBadge({required this.status});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _fulfillmentColor(status);
+
+    return _MiniStateBadge(
+      label: status.displayName,
+      icon: _fulfillmentIcon(status),
+      color: color,
+    );
+  }
+}
+
+class _MiniStateBadge extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+
+  const _MiniStateBadge({
+    required this.label,
+    required this.icon,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: _statusColor(status).withValues(alpha: 0.12),
+        color: color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(6),
       ),
-      child: Text(
-        status.displayName,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: _statusColor(status),
-        ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PhosphorIcon(icon, size: 12, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
+Color _paymentColor(PaymentStatus status) {
+  switch (status) {
+    case PaymentStatus.unpaid:
+      return const Color(0xFFEF5350);
+    case PaymentStatus.partiallyPaid:
+      return const Color(0xFFFFA726);
+    case PaymentStatus.paid:
+      return const Color(0xFF66BB6A);
+  }
+}
+
+IconData _paymentIcon(PaymentStatus status) {
+  switch (status) {
+    case PaymentStatus.unpaid:
+      return PhosphorIconsRegular.warningCircle;
+    case PaymentStatus.partiallyPaid:
+      return PhosphorIconsRegular.clockCountdown;
+    case PaymentStatus.paid:
+      return PhosphorIconsRegular.checkCircle;
+  }
+}
+
+Color _fulfillmentColor(FulfillmentStatus status) {
+  switch (status) {
+    case FulfillmentStatus.unreleased:
+      return const Color(0xFFFB8C00);
+    case FulfillmentStatus.released:
+      return const Color(0xFF00897B);
+  }
+}
+
+IconData _fulfillmentIcon(FulfillmentStatus status) {
+  switch (status) {
+    case FulfillmentStatus.unreleased:
+      return PhosphorIconsRegular.package;
+    case FulfillmentStatus.released:
+      return PhosphorIconsRegular.package;
+  }
+}
+
 Color _statusColor(InvoiceStatus status) {
   switch (status) {
-    case InvoiceStatus.draft:
-      return AppTokens.textMutedDark;
     case InvoiceStatus.pendingApproval:
       return const Color(0xFFFFA726);
     case InvoiceStatus.approved:
@@ -490,8 +603,6 @@ Color _statusColor(InvoiceStatus status) {
 
 IconData _statusIcon(InvoiceStatus status) {
   switch (status) {
-    case InvoiceStatus.draft:
-      return PhosphorIconsRegular.pencilLine;
     case InvoiceStatus.pendingApproval:
       return PhosphorIconsRegular.clock;
     case InvoiceStatus.approved:

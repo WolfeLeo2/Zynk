@@ -16,26 +16,101 @@ class SalesService {
 
   /// Ensures the session is fresh before making edge function calls.
   Future<void> _ensureSession() async {
-    try {
-      final session = _supabase.auth.currentSession;
-      if (session == null) {
-        throw Exception('Not authenticated. Please sign in again.');
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      throw Exception('Not authenticated. Please sign in again.');
+    }
+
+    final expiresAt = session.expiresAt;
+    if (expiresAt != null) {
+      final expiryTime = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
+      if (expiryTime.difference(DateTime.now()).inSeconds < 60) {
+        _log.i('Session expiring soon, refreshing...');
+        await _refreshAndValidateSession();
+        return;
       }
-      // Refresh if token expires within the next 60 seconds
-      final expiresAt = session.expiresAt;
-      if (expiresAt != null) {
-        final expiryTime = DateTime.fromMillisecondsSinceEpoch(
-          expiresAt * 1000,
-        );
-        if (expiryTime.difference(DateTime.now()).inSeconds < 60) {
-          _log.i('Session expiring soon, refreshing...');
-          await _supabase.auth.refreshSession();
-        }
+    }
+
+    try {
+      final userResponse = await _supabase.auth.getUser();
+      if (userResponse.user == null) {
+        await _refreshAndValidateSession();
+      }
+    } catch (e) {
+      final message = e.toString().toLowerCase();
+      if (message.contains('jwt') ||
+          message.contains('token') ||
+          message.contains('auth')) {
+        await _refreshAndValidateSession();
+        return;
+      }
+      _log.e('Session validation failed: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _refreshAndValidateSession() async {
+    try {
+      final refreshed = await _supabase.auth.refreshSession();
+      if (refreshed.session == null) {
+        throw Exception('Session refresh returned null session');
+      }
+
+      final userResponse = await _supabase.auth.getUser();
+      if (userResponse.user == null) {
+        throw Exception('Session refresh did not yield a valid user');
       }
     } catch (e) {
       _log.e('Session refresh failed: $e');
-      rethrow;
+      throw Exception(
+        'Your session is invalid or expired. Please sign out and sign in again.',
+      );
     }
+  }
+
+  Future<dynamic> _invokeEdgeFunction(
+    String functionName, {
+    required Map<String, dynamic> body,
+  }) async {
+    await _ensureSession();
+
+    Future<dynamic> invokeOnce() async {
+      return _supabase.functions.invoke(functionName, body: body);
+    }
+
+    var response = await invokeOnce();
+    if (response.status == 401) {
+      _log.i(
+        '$functionName returned 401, refreshing session and retrying once',
+      );
+      await _refreshAndValidateSession();
+      response = await invokeOnce();
+    }
+
+    return response;
+  }
+
+  void _throwAuthAwareError({
+    required int? status,
+    required dynamic data,
+    required String action,
+  }) {
+    final raw =
+        (data is Map<String, dynamic>
+                ? data['error'] ?? data['message'] ?? data['msg']
+                : data)
+            ?.toString();
+    final normalized = (raw ?? '').toLowerCase();
+
+    if (status == 401 ||
+        normalized.contains('invalid jwt') ||
+        normalized.contains('jwt')) {
+      throw Exception(
+        'Session invalid for $action. Please sign out and sign in again.',
+      );
+    }
+
+    throw Exception('$action failed: ${raw ?? 'Unknown error'}');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -45,12 +120,11 @@ class SalesService {
   // ─────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────────────────────────────────
-  // B2B: CREATE AN INVOICE (draft, no payment, no stock decrement)
+  // B2B: CREATE AN INVOICE (pending approval, no payment, no stock decrement)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Creates a draft invoice through the authoritative server write path.
-  /// Then submits it for approval to keep the current invoice workflow.
-  Future<void> createDraftInvoiceLocal({
+  /// Creates a pending-approval invoice through the authoritative server write path.
+  Future<void> createPendingApprovalInvoiceLocal({
     required final String tenantId,
     required final String branchId,
     required final String customerId,
@@ -90,8 +164,8 @@ class SalesService {
     final double discountAmount = 0.0;
     final double grandTotal = subtotal + taxAmount - discountAmount;
 
-    // 2. Create draft invoice server-side (authoritative write path)
-    final response = await _supabase.functions.invoke(
+    // 2. Create pending-approval invoice server-side (authoritative write path)
+    final response = await _invokeEdgeFunction(
       'create-invoice',
       body: {
         'tenant_id': tenantId,
@@ -109,8 +183,11 @@ class SalesService {
     );
 
     if (response.status != 200) {
-      final error = response.data?['error'] ?? 'Unknown error';
-      throw Exception('create-invoice failed: $error');
+      _throwAuthAwareError(
+        status: response.status,
+        data: response.data,
+        action: 'create-invoice',
+      );
     }
 
     final payload = response.data as Map<String, dynamic>? ?? {};
@@ -119,13 +196,7 @@ class SalesService {
       throw Exception('create-invoice did not return sale_id');
     }
 
-    // 3. Move draft to pending approval to keep current workflow behavior.
-    await _manageSale('submit_for_approval', {
-      'sale_id': saleId,
-      'tenant_id': tenantId,
-    });
-
-    _log.i('Draft invoice created server-side and submitted: $saleId');
+    _log.i('Pending-approval invoice created server-side: $saleId');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -151,7 +222,7 @@ class SalesService {
     _log.i('Payment of \$amount recorded server-side for sale: \$saleId');
   }
 
-  /// Updates a draft/pending invoice header and items server-side.
+  /// Updates a pending invoice header and items server-side.
   Future<Map<String, dynamic>> updateDraftInvoice({
     required String saleId,
     required String tenantId,
@@ -210,7 +281,7 @@ class SalesService {
     });
   }
 
-  /// Fulfill an approved sale
+  /// Fulfill an active sale (non-voided / non-rejected)
   Future<Map<String, dynamic>> fulfillSale(
     String saleId, {
     required String tenantId,
@@ -315,17 +386,18 @@ class SalesService {
     String action,
     Map<String, dynamic> params,
   ) async {
-    await _ensureSession();
-
-    final response = await _supabase.functions.invoke(
+    final response = await _invokeEdgeFunction(
       'manage-sale',
       body: {'action': action, ...params},
     );
 
     if (response.status != 200) {
-      final error = response.data?['error'] ?? 'Unknown error';
-      _log.e('$action failed: $error');
-      throw Exception('$action failed: $error');
+      _log.e('$action failed: ${response.data}');
+      _throwAuthAwareError(
+        status: response.status,
+        data: response.data,
+        action: action,
+      );
     }
 
     _log.i('$action success: ${response.data}');

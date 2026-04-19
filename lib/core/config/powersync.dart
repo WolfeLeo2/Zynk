@@ -150,6 +150,7 @@ final schema = Schema([
     Column.text('notes'),
     Column.text('created_by'),
     Column.text('reason_id'),
+    Column.text('status'),
     Column.text('created_at'),
   ]),
 
@@ -285,6 +286,45 @@ final schema = Schema([
     Column.text('branch_id'),
     Column.text('created_at'),
   ]),
+
+  // Daily KPI Snapshots (server-generated aggregates)
+  const Table('daily_kpi_snapshots', [
+    Column.text('snapshot_date'),
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.integer('orders_count'),
+    Column.real('gross_sales'),
+    Column.real('payments_collected'),
+    Column.integer('pending_approval_count'),
+    Column.integer('low_stock_count'),
+    Column.real('inventory_value'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Daily Payment Method Snapshots (server-generated aggregates)
+  const Table('daily_payment_method_snapshots', [
+    Column.text('snapshot_date'),
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('payment_method'),
+    Column.integer('txn_count'),
+    Column.real('total_amount'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Daily Product Sales Snapshots (server-generated aggregates)
+  const Table('daily_product_sales_snapshots', [
+    Column.text('snapshot_date'),
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('product_id'),
+    Column.integer('quantity_sold'),
+    Column.real('revenue_total'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
 ]);
 
 // 2. Global Database Instance
@@ -293,6 +333,9 @@ late final PowerSyncDatabase db;
 // 3. Supabase Connector
 class SupabaseConnector extends PowerSyncBackendConnector {
   final SupabaseClient supabase;
+  static final RegExp _uuidRegex = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
 
   // Financial writes are server-authoritative and must flow via Edge Functions.
   static const Set<String> _serverAuthoritativeTables = {
@@ -302,9 +345,45 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     'credit_notes',
     'credit_note_items',
     'commissions',
+    'daily_kpi_snapshots',
+    'daily_payment_method_snapshots',
+    'daily_product_sales_snapshots',
   };
 
   SupabaseConnector(this.supabase);
+
+  String _normalizeAdjustmentType(dynamic raw, dynamic quantityRaw) {
+    final value = (raw as String?)?.toLowerCase();
+    if (value == 'addition' ||
+        value == 'reduction' ||
+        value == 'initial' ||
+        value == 'damage') {
+      return value!;
+    }
+
+    final quantity = (quantityRaw as num?)?.toInt() ?? 0;
+    if (quantity < 0) return 'reduction';
+    if (quantity > 0) return 'addition';
+    return 'initial';
+  }
+
+  String? _normalizeCreatedBy(dynamic raw) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      return currentUserId;
+    }
+
+    final asString = raw?.toString();
+    if (asString == null || asString.isEmpty) return null;
+    return asString;
+  }
+
+  bool _hasInvalidBranchId(Map<String, dynamic> payload) {
+    if (!payload.containsKey('branch_id')) return false;
+    final branchId = payload['branch_id']?.toString();
+    if (branchId == null || branchId.isEmpty) return true;
+    return !_uuidRegex.hasMatch(branchId);
+  }
 
   @override
   Future<PowerSyncCredentials?> fetchCredentials() async {
@@ -349,10 +428,50 @@ class SupabaseConnector extends PowerSyncBackendConnector {
         // Map PowerSync operations to Supabase (PostgREST)
         if (op.op == UpdateType.put) {
           // UPSERT (Insert or Update)
-          await supabase.from(table).upsert({...data ?? {}, 'id': id});
+          final payload = <String, dynamic>{...data ?? {}, 'id': id};
+
+          if ((table == 'stock' || table == 'stock_adjustments') &&
+              _hasInvalidBranchId(payload)) {
+            _log.w(
+              'Skipping invalid $table upload with non-UUID branch_id: ${payload['branch_id']}',
+            );
+            continue;
+          }
+
+          if (table == 'stock_adjustments') {
+            payload['adjustment_type'] = _normalizeAdjustmentType(
+              payload['adjustment_type'],
+              payload['quantity'],
+            );
+            payload['created_by'] = _normalizeCreatedBy(payload['created_by']);
+          }
+          await supabase.from(table).upsert(payload);
         } else if (op.op == UpdateType.patch) {
           // UPDATE
-          await supabase.from(table).update(data!).eq('id', id);
+          final payload = <String, dynamic>{...data!};
+
+          if ((table == 'stock' || table == 'stock_adjustments') &&
+              _hasInvalidBranchId(payload)) {
+            _log.w(
+              'Skipping invalid $table patch with non-UUID branch_id: ${payload['branch_id']}',
+            );
+            continue;
+          }
+
+          if (table == 'stock_adjustments') {
+            if (payload.containsKey('adjustment_type')) {
+              payload['adjustment_type'] = _normalizeAdjustmentType(
+                payload['adjustment_type'],
+                payload['quantity'],
+              );
+            }
+            if (payload.containsKey('created_by')) {
+              payload['created_by'] = _normalizeCreatedBy(
+                payload['created_by'],
+              );
+            }
+          }
+          await supabase.from(table).update(payload).eq('id', id);
         } else if (op.op == UpdateType.delete) {
           // DELETE
           await supabase.from(table).delete().eq('id', id);
@@ -381,8 +500,32 @@ Future<void> openPowerSyncDatabase() async {
   // Open the database
   db = PowerSyncDatabase(schema: schema, path: path);
   await db.initialize();
+  await _runLocalCompatMigrations();
 
   // Connect to backend
   final connector = SupabaseConnector(Supabase.instance.client);
   db.connect(connector: connector);
+}
+
+Future<void> _runLocalCompatMigrations() async {
+  try {
+    await db.execute('ALTER TABLE stock_adjustments ADD COLUMN status TEXT');
+  } catch (_) {
+    // Column already exists or table not yet materialized.
+  }
+
+  try {
+    await db.execute(
+      "UPDATE stock_adjustments SET status = 'approved' WHERE status IS NULL OR status = ''",
+    );
+  } catch (_) {
+    // Ignore if table/column is not yet available.
+  }
+
+  try {
+    await db.execute("DELETE FROM stock_adjustments WHERE branch_id = 'all'");
+    await db.execute("DELETE FROM stock WHERE branch_id = 'all'");
+  } catch (_) {
+    // Ignore if tables are not yet available.
+  }
 }

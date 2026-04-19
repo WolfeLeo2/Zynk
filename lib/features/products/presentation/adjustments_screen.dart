@@ -24,22 +24,20 @@ class _StatusFilterNotifier extends Notifier<String?> {
 }
 
 final _adjustmentStatusFilterProvider =
-    NotifierProvider<_StatusFilterNotifier, String?>(
-  _StatusFilterNotifier.new,
-);
+    NotifierProvider<_StatusFilterNotifier, String?>(_StatusFilterNotifier.new);
 
 final _adjustmentsProvider = StreamProvider.autoDispose
-    .family<List<StockAdjustment>, ({String tenantId, String? status, String? branchId})>(
-        (ref, args) {
-  final repo = ref.watch(repositoryProvider);
-  return repo.watchAllStockAdjustments(
-    tenantId: args.tenantId,
-    branchId: args.branchId,
-    status: args.status,
-  );
-});
-
-
+    .family<
+      List<StockAdjustment>,
+      ({String tenantId, String? status, String? branchId})
+    >((ref, args) {
+      final repo = ref.watch(repositoryProvider);
+      return repo.watchAllStockAdjustments(
+        tenantId: args.tenantId,
+        branchId: args.branchId,
+        status: args.status,
+      );
+    });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -50,13 +48,13 @@ class AdjustmentsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
     final profile = ref.watch(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? '';
     final branchId = ref.watch(currentBranchIdProvider);
 
     // Can this user approve/reject adjustments?
-    final canApprove = profile?.role.isOwner == true ||
+    final canApprove =
+        profile?.role.isOwner == true ||
         profile?.role.isManager == true ||
         profile?.permissions.contains(Permission.manageStock) == true;
 
@@ -72,56 +70,45 @@ class AdjustmentsScreen extends ConsumerWidget {
 
     return Scaffold(
       drawer: const AppDrawer(),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            leading: Builder(
-              builder: (context) {
-                if (MediaQuery.of(context).size.width < 840) {
-                  return IconButton(
-                    icon: const PhosphorIcon(PhosphorIconsRegular.list),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            title: const Text('Stock Adjustments'),
-            backgroundColor: colorScheme.surface,
-            foregroundColor: colorScheme.onSurface,
-            bottom: PreferredSize(
-              preferredSize: const Size.fromHeight(56),
-              child: _StatusFilterBar(
-                selected: statusFilter,
-                onSelected: (v) =>
-                    ref.read(_adjustmentStatusFilterProvider.notifier).setStatus(v),
-              ),
-            ),
-          ),
-          adjustmentsAsync.when(
-            loading: () => const SliverFillRemaining(
-              child: _AdjustmentSkeletonList(),
-            ),
-            error: (e, _) => SliverFillRemaining(
-              child: _ErrorState(message: e.toString()),
-            ),
-            data: (adjustments) {
-              if (adjustments.isEmpty) {
-                return SliverFillRemaining(
-                  child: _EmptyState(filter: statusFilter),
-                );
-              }
-
-              return SliverList.builder(
-                itemCount: adjustments.length,
-                itemBuilder: (context, i) => _AdjustmentTile(
-                  adjustment: adjustments[i],
-                  canApprove: canApprove,
-                ),
+      appBar: AppBar(
+        leading: Builder(
+          builder: (context) {
+            if (MediaQuery.of(context).size.width < 840) {
+              return IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                onPressed: () => Scaffold.of(context).openDrawer(),
               );
-            },
+            }
+            return const SizedBox.shrink();
+          },
+        ),
+        title: const Text('Adjustment Review'),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(56),
+          child: _StatusFilterBar(
+            selected: statusFilter,
+            onSelected: (v) =>
+                ref.read(_adjustmentStatusFilterProvider.notifier).setStatus(v),
           ),
-        ],
+        ),
+      ),
+      body: adjustmentsAsync.when(
+        loading: () => const _AdjustmentSkeletonList(),
+        error: (e, _) => _ErrorState(message: e.toString()),
+        data: (adjustments) {
+          if (adjustments.isEmpty) {
+            return _EmptyState(filter: statusFilter);
+          }
+
+          return ListView.builder(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
+            itemCount: adjustments.length,
+            itemBuilder: (context, i) => _AdjustmentTile(
+              adjustment: adjustments[i],
+              canApprove: canApprove,
+            ),
+          );
+        },
       ),
     );
   }
@@ -157,18 +144,23 @@ class _StatusFilterBar extends StatelessWidget {
           final isSelected = selected == opt.value;
           return Padding(
             padding: const EdgeInsets.only(right: 8),
-            child: FilterChip(
+            child: ChoiceChip(
               label: Text(opt.label),
               selected: isSelected,
               onSelected: (_) => onSelected(opt.value),
               showCheckmark: false,
-              selectedColor: colorScheme.primaryContainer,
+              selectedColor: colorScheme.primary,
+              backgroundColor: Colors.transparent,
+              side: BorderSide(
+                color: isSelected
+                    ? colorScheme.primary
+                    : colorScheme.outline.withValues(alpha: 0.7),
+              ),
               labelStyle: TextStyle(
                 color: isSelected
-                    ? colorScheme.onPrimaryContainer
-                    : colorScheme.onSurfaceVariant,
-                fontWeight:
-                    isSelected ? FontWeight.w600 : FontWeight.normal,
+                    ? colorScheme.onPrimary
+                    : colorScheme.onSurface,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),
           );
@@ -182,17 +174,23 @@ class _StatusFilterBar extends StatelessWidget {
 // Adjustment Tile
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AdjustmentTile extends ConsumerWidget {
-  const _AdjustmentTile({
-    required this.adjustment,
-    required this.canApprove,
-  });
+class _AdjustmentTile extends ConsumerStatefulWidget {
+  const _AdjustmentTile({required this.adjustment, required this.canApprove});
 
   final StockAdjustment adjustment;
   final bool canApprove;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_AdjustmentTile> createState() => _AdjustmentTileState();
+}
+
+class _AdjustmentTileState extends ConsumerState<_AdjustmentTile> {
+  bool _isLoading = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final adjustment = widget.adjustment;
+    final canApprove = widget.canApprove;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final dateFmt = DateFormat('dd MMM yyyy, hh:mm a');
@@ -203,15 +201,23 @@ class _AdjustmentTile extends ConsumerWidget {
         : '${adjustment.quantity}';
     final qtyColor = isIncrease ? colorScheme.primary : colorScheme.error;
 
-    final status = adjustment.status;
-    final (statusColor, statusBg) = switch (status) {
-      'approved' => (colorScheme.primary, colorScheme.primaryContainer),
-      'rejected' => (colorScheme.error, colorScheme.errorContainer),
-      _ => (colorScheme.onSurfaceVariant, colorScheme.surfaceContainerHigh),
+    final status = adjustment.status.trim().toLowerCase();
+    final (statusLabel, statusTextColor, statusBg) = switch (status) {
+      'pending' => (
+        'Pending',
+        colorScheme.onSecondaryContainer,
+        colorScheme.secondaryContainer,
+      ),
+      'rejected' => (
+        'Rejected',
+        colorScheme.onErrorContainer,
+        colorScheme.errorContainer,
+      ),
+      _ => ('Approved', colorScheme.onPrimary, colorScheme.primary),
     };
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 6),
       child: Card(
         elevation: 0,
         color: colorScheme.surfaceContainerLow,
@@ -301,9 +307,9 @@ class _AdjustmentTile extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: Text(
-                      status[0].toUpperCase() + status.substring(1),
+                      statusLabel,
                       style: textTheme.labelSmall?.copyWith(
-                        color: statusColor,
+                        color: statusTextColor,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
@@ -336,9 +342,22 @@ class _AdjustmentTile extends ConsumerWidget {
                   children: [
                     Expanded(
                       child: OutlinedButton.icon(
-                        onPressed: () => _reject(context, ref),
-                        icon: const Icon(Icons.close_rounded, size: 16),
-                        label: const Text('Reject'),
+                        onPressed: _isLoading ? null : () => _reject(context),
+                        icon: _isLoading
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    colorScheme.error,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.close_rounded, size: 16),
+                        label: _isLoading
+                            ? const Text('Rejecting...')
+                            : const Text('Reject'),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: colorScheme.error,
                           side: BorderSide(color: colorScheme.error),
@@ -348,9 +367,22 @@ class _AdjustmentTile extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Expanded(
                       child: FilledButton.icon(
-                        onPressed: () => _approve(context, ref),
-                        icon: const Icon(Icons.check_rounded, size: 16),
-                        label: const Text('Approve'),
+                        onPressed: _isLoading ? null : () => _approve(context),
+                        icon: _isLoading
+                            ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    colorScheme.onPrimary,
+                                  ),
+                                ),
+                              )
+                            : const Icon(Icons.check_rounded, size: 16),
+                        label: _isLoading
+                            ? const Text('Approving...')
+                            : const Text('Approve'),
                       ),
                     ),
                   ],
@@ -363,23 +395,36 @@ class _AdjustmentTile extends ConsumerWidget {
     );
   }
 
-  Future<void> _approve(BuildContext context, WidgetRef ref) async {
-    final profile = ref.read(currentUserProfileProvider).value;
-    if (profile == null) return;
+  Future<void> _approve(BuildContext context) async {
+    if (_isLoading) return;
 
-    await ref.read(repositoryProvider).approveAdjustment(
-          adjustmentId: adjustment.id,
-          approverId: profile.userId,
-        );
+    setState(() => _isLoading = true);
+    try {
+      final profile = ref.read(currentUserProfileProvider).value;
+      if (profile == null) return;
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Adjustment approved.')),
-      );
+      await ref
+          .read(repositoryProvider)
+          .approveAdjustment(
+            adjustmentId: widget.adjustment.id,
+            approverId: profile.userId,
+          );
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Adjustment approved.')));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  Future<void> _reject(BuildContext context, WidgetRef ref) async {
+  Future<void> _reject(BuildContext context) async {
+    if (_isLoading) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -404,14 +449,23 @@ class _AdjustmentTile extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    await ref.read(repositoryProvider).rejectAdjustment(
-          adjustmentId: adjustment.id,
-        );
+    setState(() => _isLoading = true);
+    try {
+      await ref
+          .read(repositoryProvider)
+          .rejectAdjustment(adjustmentId: widget.adjustment.id);
 
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Adjustment rejected and stock reversed.')),
-      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Adjustment rejected and stock reversed.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 }
@@ -464,8 +518,8 @@ class _EmptyState extends StatelessWidget {
           Text(
             'No $label found',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),
@@ -480,10 +534,7 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(message),
-      ),
+      child: Padding(padding: const EdgeInsets.all(24), child: Text(message)),
     );
   }
 }

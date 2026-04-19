@@ -1,11 +1,17 @@
+import 'package:json_annotation/json_annotation.dart';
+
+part 'adjustment_reason.g.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ADJUSTMENT REASON MODEL
 // ─────────────────────────────────────────────────────────────────────────────
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class AdjustmentReason {
   final String id;
   final String tenantId;
   final String label;
+  @JsonKey(fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
   final DateTime? createdAt;
 
   const AdjustmentReason({
@@ -15,21 +21,14 @@ class AdjustmentReason {
     this.createdAt,
   });
 
-  factory AdjustmentReason.fromMap(Map<String, dynamic> map) {
-    return AdjustmentReason(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      label: map['label'] as String,
-      createdAt: map['created_at'] != null
-          ? DateTime.tryParse(map['created_at'] as String)
-          : null,
-    );
-  }
+  factory AdjustmentReason.fromMap(Map<String, dynamic> map) =>
+      _$AdjustmentReasonFromJson(map);
 
-  Map<String, dynamic> toMap() => {
-    'id': id,
-    'tenant_id': tenantId,
-    'label': label,
-    'created_at': createdAt?.toUtc().toIso8601String(),
-  };
+  Map<String, dynamic> toMap() => _$AdjustmentReasonToJson(this);
+
+  static DateTime? _dateTimeFromJson(String? value) =>
+      value == null ? null : DateTime.tryParse(value);
+
+  static String? _dateTimeToJson(DateTime? value) =>
+      value?.toUtc().toIso8601String();
 }

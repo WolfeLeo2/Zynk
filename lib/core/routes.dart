@@ -32,7 +32,7 @@ import 'package:zynk/features/settings/presentation/staff_screen.dart';
 import 'package:zynk/features/settings/presentation/add_staff_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
 import 'package:zynk/features/products/presentation/adjustments_screen.dart';
-import 'package:zynk/features/reports/presentation/commissions_report_screen.dart';
+import 'package:zynk/features/reports/presentation/reports_screen.dart';
 
 import 'package:zynk/core/widgets/branch_required_guard.dart';
 
@@ -84,8 +84,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
 
-
-
       // App Shell
       StatefulShellRoute.indexedStack(
         builder: (context, state, navigationShell) {
@@ -119,10 +117,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                         routes: [
                           GoRoute(
                             path: 'add',
-                            builder: (context, state) => const BranchRequiredGuard(
-                              actionLabel: 'creating item groups',
-                              child: AddItemGroupScreen(),
-                            ),
+                            builder: (context, state) =>
+                                const BranchRequiredGuard(
+                                  actionLabel: 'creating item groups',
+                                  child: AddItemGroupScreen(),
+                                ),
                           ),
                           GoRoute(
                             path: ':id',
@@ -135,14 +134,16 @@ final routerProvider = Provider<GoRouter>((ref) {
                       ),
                       GoRoute(
                         path: 'composite',
-                        builder: (context, state) => const CompositeItemsScreen(),
+                        builder: (context, state) =>
+                            const CompositeItemsScreen(),
                         routes: [
                           GoRoute(
                             path: 'add',
-                            builder: (context, state) => const BranchRequiredGuard(
-                              actionLabel: 'creating composite items',
-                              child: AddCompositeItemScreen(),
-                            ),
+                            builder: (context, state) =>
+                                const BranchRequiredGuard(
+                                  actionLabel: 'creating composite items',
+                                  child: AddCompositeItemScreen(),
+                                ),
                           ),
                           GoRoute(
                             path: ':id',
@@ -164,10 +165,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'adjustments',
-                    builder: (context, state) => const BranchRequiredGuard(
-                      actionLabel: 'adjusting inventory',
-                      child: InventoryAdjustmentScreen(),
-                    ),
+                    builder: (context, state) =>
+                        const InventoryAdjustmentScreen(),
                   ),
                 ],
               ),
@@ -261,8 +260,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => const AdjustmentsScreen(),
                   ),
                   GoRoute(
+                    path: 'reports',
+                    builder: (context, state) => const ReportsScreen(),
+                  ),
+                  GoRoute(
                     path: 'commissions',
-                    builder: (context, state) => const CommissionsReportScreen(),
+                    builder: (context, state) => const ReportsScreen(),
                   ),
                 ],
               ),

@@ -18,6 +18,22 @@ import 'package:zynk/features/sales/presentation/printing/receipt_template.dart'
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Providers
+// ─────────────────────────────────────────────────────────────────────────────
+
+final _saleActionLoadingNotifier =
+    NotifierProvider<_SaleActionLoadingNotifier, String?>(
+      _SaleActionLoadingNotifier.new,
+    );
+
+class _SaleActionLoadingNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? action) => state = action;
+}
+
 /// Zoho-inspired sale detail screen with sections for items, payments,
 /// timeline, and action buttons (approve / void / record payment / credit note).
 class SaleDetailScreen extends ConsumerWidget {
@@ -55,13 +71,16 @@ class SaleDetailScreen extends ConsumerWidget {
                     : 'Print Invoice',
                 onPressed: () => _handlePrint(context, ref, sale),
               ),
-              if (sale.status.canBeVoided ||
+              if (sale.canBeVoided ||
                   sale.status.canBeApproved ||
                   sale.status == InvoiceStatus.pendingApproval)
                 Builder(
                   builder: (ctx) {
                     final canApprove = ref.watch(
                       hasPermissionProvider(Permission.approveInvoices),
+                    );
+                    final canPay = ref.watch(
+                      hasPermissionProvider(Permission.recordPayments),
                     );
                     final canVoid = ref.watch(
                       hasPermissionProvider(Permission.voidSales),
@@ -70,9 +89,8 @@ class SaleDetailScreen extends ConsumerWidget {
                       onSelected: (action) =>
                           _handleAction(context, ref, sale, action),
                       itemBuilder: (_) => [
-                        // Edit invoice — only for draft/pending with no payments
-                        if ((sale.status == InvoiceStatus.draft ||
-                                sale.status == InvoiceStatus.pendingApproval) &&
+                        // Edit invoice — only for pending approval with no payments
+                        if (sale.status == InvoiceStatus.pendingApproval &&
                             sale.amountPaid <= 0)
                           const PopupMenuItem(
                             value: 'edit',
@@ -89,18 +107,12 @@ class SaleDetailScreen extends ConsumerWidget {
                           value: 'reject',
                           child: Text('Reject'),
                         ),
-                        if (sale.status.canBeVoided && canVoid)
+                        if (sale.canBeVoided && canVoid)
                           const PopupMenuItem(
                             value: 'void',
                             child: Text('Void Sale'),
                           ),
-                        if ((sale.status == InvoiceStatus.approved ||
-                                sale.status == InvoiceStatus.partiallyPaid ||
-                                sale.status == InvoiceStatus.paid ||
-                                sale.status == InvoiceStatus.completed) &&
-                            sale.fulfillmentStatus ==
-                                FulfillmentStatus.unreleased &&
-                            canApprove)
+                        if (sale.canBeReleased && (canApprove || canPay))
                           const PopupMenuItem(
                             value: 'fulfill',
                             child: Text('Release Goods'),
@@ -176,27 +188,43 @@ class SaleDetailScreen extends ConsumerWidget {
     final canCreditNote = ref.watch(
       hasPermissionProvider(Permission.issueCreditNotes),
     );
+    final loadingAction = ref.watch(_saleActionLoadingNotifier);
 
     final canApprove = ref.watch(
       hasPermissionProvider(Permission.approveInvoices),
     );
 
-    // Approve button (for draft or pending approval invoices)
-    if (sale.status == InvoiceStatus.draft ||
-        sale.status == InvoiceStatus.pendingApproval) {
+    // Approve button (for pending approval invoices)
+    if (sale.status == InvoiceStatus.pendingApproval) {
+      final isLoading = loadingAction == 'approve';
       actions.add(
         Expanded(
           child: FilledButton.icon(
-            onPressed: canApprove
+            onPressed: canApprove && !isLoading
                 ? () => _handleAction(context, ref, sale, 'approve')
                 : null,
-            icon: const PhosphorIcon(PhosphorIconsBold.checkCircle, size: 18),
-            label: const Text('Approve'),
+            icon: isLoading
+                ? SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        canApprove ? cs.onPrimary : cs.onSurfaceVariant,
+                      ),
+                    ),
+                  )
+                : const PhosphorIcon(PhosphorIconsBold.checkCircle, size: 18),
+            label: isLoading
+                ? const Text('Approving...')
+                : const Text('Approve'),
             style: FilledButton.styleFrom(
-              backgroundColor: canApprove
+              backgroundColor: canApprove && !isLoading
                   ? cs.primary
                   : cs.surfaceContainerHighest,
-              foregroundColor: canApprove ? cs.onPrimary : cs.onSurfaceVariant,
+              foregroundColor: canApprove && !isLoading
+                  ? cs.onPrimary
+                  : cs.onSurfaceVariant,
               padding: const EdgeInsets.symmetric(vertical: 14),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12),
@@ -225,7 +253,7 @@ class SaleDetailScreen extends ConsumerWidget {
       );
     }
 
-    if (sale.status == InvoiceStatus.completed && canCreditNote) {
+    if (sale.isOperationallyCompleted && canCreditNote) {
       actions.add(
         Expanded(
           child: OutlinedButton.icon(
@@ -356,6 +384,7 @@ class SaleDetailScreen extends ConsumerWidget {
     String action,
   ) async {
     final service = ref.read(salesServiceProvider);
+    ref.read(_saleActionLoadingNotifier.notifier).set(action);
     try {
       switch (action) {
         case 'edit':
@@ -454,6 +483,8 @@ class SaleDetailScreen extends ConsumerWidget {
           context,
         ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
+    } finally {
+      ref.read(_saleActionLoadingNotifier.notifier).set(null);
     }
   }
 
@@ -911,7 +942,7 @@ class _PaymentsList extends ConsumerWidget {
                           builder: (dialogContext) => AlertDialog(
                             title: const Text('Delete Payment?'),
                             content: const Text(
-                              'This will reverse the payment amount and may change the invoice status. Continue?',
+                              'This will reverse the payment amount and update payment/release state as needed. Continue?',
                             ),
                             actions: [
                               TextButton(
@@ -1657,7 +1688,7 @@ class _DetailsSection extends ConsumerWidget {
           _buildRow(
             theme,
             PhosphorIconsRegular.identificationBadge,
-            'Staff',
+            'SalesPerson',
             staffName,
           ),
         ],
@@ -1694,8 +1725,6 @@ class _DetailsSection extends ConsumerWidget {
 
 Color _colorForStatus(InvoiceStatus status) {
   switch (status) {
-    case InvoiceStatus.draft:
-      return AppTokens.textMutedDark;
     case InvoiceStatus.pendingApproval:
       return const Color(0xFFFFA726);
     case InvoiceStatus.approved:
@@ -1715,8 +1744,6 @@ Color _colorForStatus(InvoiceStatus status) {
 
 IconData _iconForStatus(InvoiceStatus status) {
   switch (status) {
-    case InvoiceStatus.draft:
-      return PhosphorIconsDuotone.pencilLine;
     case InvoiceStatus.pendingApproval:
       return PhosphorIconsDuotone.clock;
     case InvoiceStatus.approved:

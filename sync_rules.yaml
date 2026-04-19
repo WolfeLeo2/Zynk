@@ -28,3 +28,6 @@ bucket_definitions:
       - SELECT * FROM credit_note_items WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM commissions WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM profile_branches WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM daily_kpi_snapshots WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM daily_payment_method_snapshots WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM daily_product_sales_snapshots WHERE tenant_id = bucket.tenant_id

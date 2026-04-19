@@ -11,7 +11,6 @@ import '../models/staff_model.dart';
 import '../services/auth_service.dart';
 import '../services/app_logger.dart';
 
-
 final _log = AppLogger('AppProviders');
 
 // ============================================
@@ -83,8 +82,17 @@ final userRoleProvider = Provider<String?>((ref) {
 final branchesProvider = StreamProvider<List<Branch>>((ref) {
   final repository = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
+  final user = ref.watch(authStateProvider).value;
+  final isOwner = ref.watch(isOwnerProvider);
+
   if (tenantId == null) return const Stream.empty();
-  return repository.watchBranches(tenantId);
+  if (user == null) return const Stream.empty();
+
+  return repository.watchAccessibleBranches(
+    tenantId: tenantId,
+    userId: user.id,
+    isOwner: isOwner,
+  );
 });
 
 /// Provider to check if current user is owner
@@ -158,8 +166,10 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
 
   @override
   BranchSelectionState build() {
-    // Schedule async initialization after the first frame
-    Future.microtask(() => _initBranch());
+    // Defer stateful initialization until after the current frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initBranch();
+    });
     return const BranchSelectionState(isLoading: true);
   }
 
@@ -347,20 +357,25 @@ class MeasurementSystemNotifier extends Notifier<MeasurementSystem> {
   MeasurementSystem build() {
     final prefs = ref.read(sharedPreferencesProvider);
     final saved = prefs.getString(_prefsKey);
-    return saved == 'imperial' ? MeasurementSystem.imperial : MeasurementSystem.metric;
+    return saved == 'imperial'
+        ? MeasurementSystem.imperial
+        : MeasurementSystem.metric;
   }
 
   Future<void> setSystem(MeasurementSystem system) async {
     final prefs = ref.read(sharedPreferencesProvider);
-    await prefs.setString(_prefsKey, system == MeasurementSystem.imperial ? 'imperial' : 'metric');
+    await prefs.setString(
+      _prefsKey,
+      system == MeasurementSystem.imperial ? 'imperial' : 'metric',
+    );
     state = system;
   }
 }
 
 final measurementSystemProvider =
     NotifierProvider<MeasurementSystemNotifier, MeasurementSystem>(
-  MeasurementSystemNotifier.new,
-);
+      MeasurementSystemNotifier.new,
+    );
 
 final itemsGroupsStreamProvider = StreamProvider<List<ItemGroup>>((ref) {
   final repo = ref.watch(repositoryProvider);
@@ -374,9 +389,14 @@ final itemsGroupsStreamProvider = StreamProvider<List<ItemGroup>>((ref) {
 final humanStaffProvider = StreamProvider<List<StaffMember>>((ref) {
   final tenantId = ref.watch(tenantIdProvider);
   if (tenantId == null) return const Stream.empty();
-  return db.watch(
-    "SELECT * FROM staff_members WHERE tenant_id = ? AND status = 'active' ORDER BY name ASC",
-    parameters: [tenantId],
-  ).map((rows) => rows.map((row) => StaffMember.fromJson(Map<String, dynamic>.from(row))).toList());
+  return db
+      .watch(
+        "SELECT * FROM staff_members WHERE tenant_id = ? AND status = 'active' ORDER BY name ASC",
+        parameters: [tenantId],
+      )
+      .map(
+        (rows) => rows
+            .map((row) => StaffMember.fromJson(Map<String, dynamic>.from(row)))
+            .toList(),
+      );
 });
-

@@ -11,7 +11,9 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 // Providers
 // ─────────────────────────────────────────────────────────────────────────────
 
-final _dateRangeProvider = NotifierProvider<_DateRangeNotifier, DateTimeRange?>(_DateRangeNotifier.new);
+final _dateRangeProvider = NotifierProvider<_DateRangeNotifier, DateTimeRange?>(
+  _DateRangeNotifier.new,
+);
 
 class _DateRangeNotifier extends Notifier<DateTimeRange?> {
   @override
@@ -23,38 +25,55 @@ class _DateRangeNotifier extends Notifier<DateTimeRange?> {
 }
 
 final _commissionSummaryProvider = StreamProvider.autoDispose
-    .family<List<SalespersonCommissionSummary>, ({String tenantId, DateTimeRange? range})>((ref, args) {
-  final repo = ref.watch(repositoryProvider);
-  return repo
-      .watchCommissionSummaryRaw(
-        tenantId: args.tenantId,
-        startDate: args.range?.start,
-        endDate: args.range?.end,
-      )
-      .map((rows) => rows.map((row) {
-            return SalespersonCommissionSummary(
-              salespersonId: row['salesperson_id'] as String? ?? '',
-              salespersonName: row['salesperson_name'] as String? ?? 'Unknown',
-              totalPending: (row['total_pending'] as num?)?.toDouble() ?? 0.0,
-              totalPaid: (row['total_paid'] as num?)?.toDouble() ?? 0.0,
-              transactionCount: (row['transaction_count'] as num?)?.toInt() ?? 0,
-              totalSalesAmount: (row['total_sales_amount'] as num?)?.toDouble() ?? 0.0,
-              salesCount: (row['sales_count'] as num?)?.toInt() ?? 0,
-            );
-          }).toList());
-});
+    .family<
+      List<SalespersonCommissionSummary>,
+      ({String tenantId, String? branchId, DateTimeRange? range})
+    >((ref, args) {
+      final repo = ref.watch(repositoryProvider);
+      return repo
+          .watchCommissionSummaryRaw(
+            tenantId: args.tenantId,
+            branchId: args.branchId,
+            startDate: args.range?.start,
+            endDate: args.range?.end,
+          )
+          .map(
+            (rows) => rows.map((row) {
+              return SalespersonCommissionSummary(
+                salespersonId: row['salesperson_id'] as String? ?? '',
+                salespersonName:
+                    row['salesperson_name'] as String? ?? 'Unknown',
+                totalPending: (row['total_pending'] as num?)?.toDouble() ?? 0.0,
+                totalPaid: (row['total_paid'] as num?)?.toDouble() ?? 0.0,
+                transactionCount:
+                    (row['transaction_count'] as num?)?.toInt() ?? 0,
+                totalSalesAmount:
+                    (row['total_sales_amount'] as num?)?.toDouble() ?? 0.0,
+                salesCount: (row['sales_count'] as num?)?.toInt() ?? 0,
+              );
+            }).toList(),
+          );
+    });
 
 final _salespersonDetailProvider = StreamProvider.autoDispose
-    .family<List<Commission>, ({String tenantId, String salespersonId, DateTimeRange? range})>(
-        (ref, args) {
-  final repo = ref.watch(repositoryProvider);
-  return repo.watchCommissions(
-    tenantId: args.tenantId,
-    salespersonId: args.salespersonId,
-    startDate: args.range?.start,
-    endDate: args.range?.end,
-  );
-});
+    .family<
+      List<Commission>,
+      ({
+        String tenantId,
+        String? branchId,
+        String salespersonId,
+        DateTimeRange? range,
+      })
+    >((ref, args) {
+      final repo = ref.watch(repositoryProvider);
+      return repo.watchCommissions(
+        tenantId: args.tenantId,
+        branchId: args.branchId,
+        salespersonId: args.salespersonId,
+        startDate: args.range?.start,
+        endDate: args.range?.end,
+      );
+    });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -69,9 +88,16 @@ class CommissionsReportScreen extends ConsumerWidget {
     final textTheme = Theme.of(context).textTheme;
     final profile = ref.watch(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? '';
+    final branchId = ref.watch(currentBranchIdProvider);
 
     final dateRange = ref.watch(_dateRangeProvider);
-    final summaryAsync = ref.watch(_commissionSummaryProvider((tenantId: tenantId, range: dateRange)));
+    final summaryAsync = ref.watch(
+      _commissionSummaryProvider((
+        tenantId: tenantId,
+        branchId: branchId,
+        range: dateRange,
+      )),
+    );
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -122,42 +148,58 @@ class CommissionsReportScreen extends ConsumerWidget {
               if (ref.watch(_dateRangeProvider) != null)
                 IconButton(
                   icon: const Icon(Icons.clear),
-                  onPressed: () => ref.read(_dateRangeProvider.notifier).setRange(null),
-                )
+                  onPressed: () =>
+                      ref.read(_dateRangeProvider.notifier).setRange(null),
+                ),
             ],
           ),
           summaryAsync.when(
-            loading: () => const SliverFillRemaining(
-              child: _CommissionSkeletonList(),
-            ),
-            error: (e, _) => SliverFillRemaining(
-              child: _ErrorState(message: e.toString()),
-            ),
+            loading: () =>
+                const SliverFillRemaining(child: _CommissionSkeletonList()),
+            error: (e, _) =>
+                SliverFillRemaining(child: _ErrorState(message: e.toString())),
             data: (summaries) {
               if (summaries.isEmpty) {
-                return const SliverFillRemaining(
-                  child: _EmptyState(),
-                );
+                return const SliverFillRemaining(child: _EmptyState());
               }
 
               // Totals bar
-              final grandTotal = summaries.fold(0.0, (a, s) => a + s.totalEarned);
-              final grandPending = summaries.fold(0.0, (a, s) => a + s.totalPending);
+              final grandTotal = summaries.fold(
+                0.0,
+                (a, s) => a + s.totalEarned,
+              );
+              final grandPending = summaries.fold(
+                0.0,
+                (a, s) => a + s.totalPending,
+              );
               final grandPaid = summaries.fold(0.0, (a, s) => a + s.totalPaid);
-              final grandSales = summaries.fold(0.0, (a, s) => a + s.totalSalesAmount);
+              final grandSales = summaries.fold(
+                0.0,
+                (a, s) => a + s.totalSalesAmount,
+              );
 
               return SliverList(
                 delegate: SliverChildListDelegate([
                   if (dateRange != null)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       child: Row(
                         children: [
-                          Icon(Icons.filter_alt, size: 16, color: colorScheme.primary),
+                          Icon(
+                            Icons.filter_alt,
+                            size: 16,
+                            color: colorScheme.primary,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             'Filtered: ${DateFormat.yMd().format(dateRange.start)} - ${DateFormat.yMd().format(dateRange.end)}',
-                            style: textTheme.bodySmall?.copyWith(color: colorScheme.primary, fontWeight: FontWeight.bold),
+                            style: textTheme.bodySmall?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                         ],
                       ),
@@ -182,6 +224,7 @@ class CommissionsReportScreen extends ConsumerWidget {
                     (s) => _SalespersonCard(
                       summary: s,
                       tenantId: tenantId,
+                      branchId: branchId,
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -232,16 +275,16 @@ class _TotalsCard extends StatelessWidget {
             Text(
               'Total Commissions',
               style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 4),
             Text(
               fmt.format(grandTotal),
               style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: colorScheme.onSurface,
-                    fontWeight: FontWeight.bold,
-                  ),
+                color: colorScheme.onSurface,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             const SizedBox(height: 16),
             Row(
@@ -293,16 +336,16 @@ class _MiniStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                color: color.withAlpha(160),
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: color.withAlpha(160)),
         ),
         Text(
           value,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
+            color: color,
+            fontWeight: FontWeight.w600,
+          ),
         ),
       ],
     );
@@ -317,10 +360,12 @@ class _SalespersonCard extends ConsumerWidget {
   const _SalespersonCard({
     required this.summary,
     required this.tenantId,
+    required this.branchId,
   });
 
   final SalespersonCommissionSummary summary;
   final String tenantId;
+  final String? branchId;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -456,7 +501,10 @@ class _SalespersonCard extends ConsumerWidget {
                           minimumSize: Size.zero,
                           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                         ),
-                        child: const Text('Mark Paid', style: TextStyle(fontSize: 12)),
+                        child: const Text(
+                          'Mark Paid',
+                          style: TextStyle(fontSize: 12),
+                        ),
                       ),
                   ],
                 ),
@@ -490,15 +538,20 @@ class _SalespersonCard extends ConsumerWidget {
     );
     if (confirmed != true) return;
 
-    await ref.read(repositoryProvider).markAllCommissionsPaid(
+    await ref
+        .read(repositoryProvider)
+        .markAllCommissionsPaid(
           tenantId: tenantId,
           salespersonId: summary.salespersonId,
+          branchId: branchId,
         );
 
     if (context.mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('All commissions for ${summary.salespersonName} marked as paid.'),
+          content: Text(
+            'All commissions for ${summary.salespersonName} marked as paid.',
+          ),
         ),
       );
     }
@@ -514,6 +567,7 @@ class _SalespersonCard extends ConsumerWidget {
       ),
       builder: (ctx) => _CommissionDetailSheet(
         tenantId: tenantId,
+        branchId: branchId,
         summary: summary,
       ),
     );
@@ -527,10 +581,12 @@ class _SalespersonCard extends ConsumerWidget {
 class _CommissionDetailSheet extends ConsumerWidget {
   const _CommissionDetailSheet({
     required this.tenantId,
+    required this.branchId,
     required this.summary,
   });
 
   final String tenantId;
+  final String? branchId;
   final SalespersonCommissionSummary summary;
 
   @override
@@ -541,9 +597,12 @@ class _CommissionDetailSheet extends ConsumerWidget {
     final dateFmt = DateFormat('dd MMM yyyy, hh:mm a');
 
     final commissionsAsync = ref.watch(
-      _salespersonDetailProvider(
-        (tenantId: tenantId, salespersonId: summary.salespersonId, range: ref.watch(_dateRangeProvider)),
-      ),
+      _salespersonDetailProvider((
+        tenantId: tenantId,
+        branchId: branchId,
+        salespersonId: summary.salespersonId,
+        range: ref.watch(_dateRangeProvider),
+      )),
     );
 
     return DraggableScrollableSheet(
@@ -615,9 +674,7 @@ class _CommissionDetailSheet extends ConsumerWidget {
                         isPaid
                             ? Icons.check_circle_rounded
                             : Icons.radio_button_unchecked_rounded,
-                        color: isPaid
-                            ? colorScheme.primary
-                            : colorScheme.error,
+                        color: isPaid ? colorScheme.primary : colorScheme.error,
                       ),
                       title: Text(
                         fmt.format(c.amount),
@@ -626,9 +683,7 @@ class _CommissionDetailSheet extends ConsumerWidget {
                         ),
                       ),
                       subtitle: Text(
-                        c.createdAt != null
-                            ? dateFmt.format(c.createdAt!)
-                            : '',
+                        c.createdAt != null ? dateFmt.format(c.createdAt!) : '',
                         style: textTheme.bodySmall?.copyWith(
                           color: colorScheme.onSurfaceVariant,
                         ),
@@ -731,16 +786,16 @@ class _EmptyState extends StatelessWidget {
           Text(
             'No commissions yet',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Commissions are calculated automatically\nwhen sales are completed.',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.outlineVariant,
-                ),
+            style: Theme.of(
+              context,
+            ).textTheme.bodySmall?.copyWith(color: colorScheme.outlineVariant),
           ),
         ],
       ),

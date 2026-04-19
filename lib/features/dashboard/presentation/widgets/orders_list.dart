@@ -192,7 +192,7 @@ class _TableHeader extends StatelessWidget {
       letterSpacing: 0.5,
       color: colorScheme.onSurfaceVariant,
     );
-    
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
@@ -201,18 +201,9 @@ class _TableHeader extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Expanded(
-            flex: 2,
-            child: Text('INVOICE', style: headerStyle),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text('TYPE', style: headerStyle),
-          ),
-          Expanded(
-            flex: 2,
-            child: Text('STATUS', style: headerStyle),
-          ),
+          Expanded(flex: 2, child: Text('INVOICE', style: headerStyle)),
+          Expanded(flex: 2, child: Text('TYPE', style: headerStyle)),
+          Expanded(flex: 2, child: Text('STATUS', style: headerStyle)),
           Expanded(
             flex: 2,
             child: Align(
@@ -435,7 +426,6 @@ Color _getStatusColor(InvoiceStatus status) {
     InvoiceStatus.approved => Colors.blue,
     InvoiceStatus.pendingApproval => Colors.orange,
     InvoiceStatus.partiallyPaid => Colors.amber,
-    InvoiceStatus.draft => Colors.grey,
     InvoiceStatus.rejected => Colors.red,
     InvoiceStatus.voided => Colors.red.shade900,
   };
@@ -448,7 +438,6 @@ IconData _getStatusIcon(InvoiceStatus status) {
     InvoiceStatus.approved => PhosphorIconsDuotone.thumbsUp,
     InvoiceStatus.pendingApproval => PhosphorIconsDuotone.clock,
     InvoiceStatus.partiallyPaid => PhosphorIconsDuotone.clockCountdown,
-    InvoiceStatus.draft => PhosphorIconsDuotone.pencilSimple,
     InvoiceStatus.rejected => PhosphorIconsDuotone.xCircle,
     InvoiceStatus.voided => PhosphorIconsDuotone.prohibit,
   };

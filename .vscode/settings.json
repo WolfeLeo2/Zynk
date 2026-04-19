@@ -1,0 +1,8 @@
+{
+  "yaml.customTags": [
+    "!env scalar"
+  ],
+  "chat.tools.terminal.autoApprove": {
+    "dart": true
+  }
+}

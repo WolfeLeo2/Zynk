@@ -9,7 +9,7 @@ import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 
-/// Screen for creating a new B2B invoice (starts as draft).
+/// Screen for creating a new B2B invoice (starts as pending approval).
 /// Received pre-filled data from POS cart and allows editing before submission.
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final List<PosCartItem> cartItems;
@@ -193,7 +193,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
       await ref
           .read(salesServiceProvider)
-          .createDraftInvoiceLocal(
+          .createPendingApprovalInvoiceLocal(
             tenantId: tenantId,
             branchId: branchId,
             customerId: widget.customer.id,

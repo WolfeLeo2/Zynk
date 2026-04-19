@@ -44,9 +44,21 @@ class CsvImportService {
     final repo = ref.read(repositoryProvider);
     final profile = ref.read(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? 'tenant_1';
-    final branchId = ref.read(currentBranchIdProvider);
-    if (branchId == null) {
+    final selectedBranchId = ref.read(currentBranchIdProvider);
+    if (selectedBranchId == null) {
       throw Exception('No branch selected. Please select a branch first.');
+    }
+    final allBranchesMode = selectedBranchId == 'all';
+    final targetBranches = allBranchesMode
+        ? (await repo.getBranches(
+            tenantId,
+          )).where((b) => b.id != 'all').toList()
+        : const <Branch>[];
+
+    if (allBranchesMode && targetBranches.isEmpty) {
+      throw Exception(
+        'All Branches selected but no target branches were found for this tenant.',
+      );
     }
     final createdBy = profile?.userId ?? 'system';
 
@@ -76,7 +88,7 @@ class CsvImportService {
         final newCategory = Category(
           id: categoryId,
           tenantId: tenantId,
-          branchId: branchId,
+          branchId: allBranchesMode ? null : selectedBranchId,
           name: categoryNameClean,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -88,7 +100,7 @@ class CsvImportService {
       final product = Product(
         id: newProductId,
         tenantId: tenantId,
-        branchId: branchId,
+        branchId: allBranchesMode ? null : selectedBranchId,
         itemGroupId:
             null, // CSV batch imports don't link to groups by default yet
         categoryId: categoryId,
@@ -108,15 +120,29 @@ class CsvImportService {
       await repo.createProduct(product);
 
       if (initialStock > 0) {
-        await repo.adjustStock(
-          tenantId: tenantId,
-          branchId: branchId,
-          productId: newProductId,
-          adjustmentType: 'initial',
-          quantityChange: initialStock,
-          createdBy: createdBy,
-          notes: 'Batch CSV import',
-        );
+        if (allBranchesMode) {
+          for (final branch in targetBranches) {
+            await repo.adjustStock(
+              tenantId: tenantId,
+              branchId: branch.id,
+              productId: newProductId,
+              adjustmentType: 'initial',
+              quantityChange: initialStock,
+              createdBy: createdBy,
+              notes: 'Batch CSV import (all branches)',
+            );
+          }
+        } else {
+          await repo.adjustStock(
+            tenantId: tenantId,
+            branchId: selectedBranchId,
+            productId: newProductId,
+            adjustmentType: 'initial',
+            quantityChange: initialStock,
+            createdBy: createdBy,
+            notes: 'Batch CSV import',
+          );
+        }
       }
     }
   }

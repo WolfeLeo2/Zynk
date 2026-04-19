@@ -15,7 +15,7 @@ const ACTION_PERMISSIONS: Record<string, string> = {
     approve_credit_note: "approve_invoices",
     apply_credit: "issue_credit_notes",
     submit_for_approval: "create_invoices",
-    fulfill_sale: "approve_invoices",
+    fulfill_sale: "record_payments",
     delete_payment: "void_sales",
     delete_sale: "void_sales",
 };
@@ -42,13 +42,20 @@ Deno.serve(async (req: Request) => {
         }
 
         const supabase = createClient(supabaseUrl, serviceRoleKey);
-        const token = authHeader.replace("Bearer ", "");
-        const {
-            data: { user },
-            error: authError,
-        } = await supabase.auth.getUser(token);
+        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+        if (!token) {
+            return new Response(JSON.stringify({ error: "Missing bearer token" }), {
+                status: 401,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
 
-        if (authError || !user) {
+        const userId = parseJwtUserId(token);
+        if (!userId) {
+            console.error("manage-sale auth failed", {
+                hasAuthHeader: Boolean(authHeader),
+                reason: "invalid_jwt_payload",
+            });
             return new Response(JSON.stringify({ error: "Unauthorized" }), {
                 status: 401,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -67,7 +74,7 @@ Deno.serve(async (req: Request) => {
 
         // ── Get tenant context ──
         // The client can pass tenant_id directly to avoid a DB lookup race condition
-        // (e.g. approving a draft invoice that may not have synced to Supabase yet).
+        // (e.g. approving an invoice that may not have synced to Supabase yet).
         const saleId = params.sale_id;
         if (!saleId && action !== "apply_credit") {
             return new Response(JSON.stringify({ error: "Missing sale_id" }), {
@@ -101,7 +108,7 @@ Deno.serve(async (req: Request) => {
         const { data: profile } = await supabase
             .from("profiles")
             .select("role, permissions")
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .eq("tenant_id", tenantId)
             .single();
 
@@ -150,8 +157,8 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Sale not found");
                 }
 
-                if (!["draft", "pending_approval"].includes(sale.status)) {
-                    throw new Error("Only draft or pending approval invoices can be edited");
+                if (sale.status !== "pending_approval") {
+                    throw new Error("Only pending approval invoices can be edited");
                 }
 
                 if ((sale.amount_paid || 0) > 0) {
@@ -228,13 +235,7 @@ Deno.serve(async (req: Request) => {
             }
 
             case "submit_for_approval": {
-                const { error } = await supabase
-                    .from("sales")
-                    .update({ status: "pending_approval", updated_at: now })
-                    .eq("id", saleId)
-                    .eq("status", "draft");
-
-                if (error) throw new Error(`Submit failed: ${error.message}`);
+                // Backward compatibility: invoices are now created directly in pending_approval.
                 return jsonResponse({ status: "pending_approval", sale_id: saleId });
             }
 
@@ -250,21 +251,26 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Sale not found in backend. Ensure the invoice has synced.");
                 }
                 
-                if (!["pending_approval", "draft"].includes(sale.status)) {
-                    throw new Error(`Sale (${sale.status}) must be draft or pending approval to be approved`);
+                if (sale.status !== "pending_approval") {
+                    throw new Error(`Sale (${sale.status}) must be pending approval to be approved`);
                 }
 
-                // If the invoice is already fully paid, and we are approving it, transition it to completed.
-                const newStatus = sale.payment_status === "paid" ? "completed" : "approved";
+                const newStatus = "approved";
+
+                const updateData: any = {
+                    status: newStatus,
+                    approved_by: userId,
+                    updated_at: now,
+                };
+
+                if (sale.payment_status === "paid" && sale.fulfillment_status === "fulfilled") {
+                    updateData.completed_at = now;
+                }
 
                 // Update status
                 const { error } = await supabase
                     .from("sales")
-                    .update({
-                        status: newStatus,
-                        approved_by: user.id,
-                        updated_at: now,
-                    })
+                    .update(updateData)
                     .eq("id", saleId);
 
                 if (error) throw new Error(`Approve failed: ${error.message}`);
@@ -284,27 +290,63 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Sale not found or already fulfilled");
                 }
 
-                if (!["approved", "partially_paid", "paid", "completed"].includes(sale.status)) {
-                    throw new Error("Sale must be approved or moving towards payment to be fulfilled");
+                if (sale.status === "voided" || sale.status === "rejected") {
+                    throw new Error("Voided or rejected invoices cannot be released");
+                }
+
+                const decrementedItems: Array<{ product_id: string; quantity: number }> = [];
+
+                // Decrement stock before flipping the release flag.
+                for (const item of sale.sale_items || []) {
+                    const quantity = Number(item.quantity || 0);
+                    if (quantity <= 0) continue;
+
+                    const { error: decrementError } = await supabase.rpc("decrement_stock", {
+                        p_product_id: item.product_id,
+                        p_branch_id: sale.branch_id,
+                        p_quantity: quantity,
+                    });
+
+                    if (decrementError) {
+                        for (const reverted of decrementedItems) {
+                            await supabase.rpc("increment_stock", {
+                                p_product_id: reverted.product_id,
+                                p_branch_id: sale.branch_id,
+                                p_quantity: reverted.quantity,
+                            });
+                        }
+                        throw new Error(`Stock release failed: ${decrementError.message}`);
+                    }
+
+                    decrementedItems.push({
+                        product_id: item.product_id,
+                        quantity,
+                    });
+                }
+
+                const updateData: any = {
+                    fulfillment_status: "fulfilled",
+                    updated_at: now,
+                };
+
+                if (sale.payment_status === "paid") {
+                    updateData.completed_at = now;
                 }
 
                 const { error } = await supabase
                     .from("sales")
-                    .update({
-                        fulfillment_status: "fulfilled",
-                        updated_at: now,
-                    })
+                    .update(updateData)
                     .eq("id", saleId);
 
-                if (error) throw new Error(`Fulfill failed: ${error.message}`);
-
-                // Decrement stock on fulfillment
-                for (const item of sale.sale_items || []) {
-                    await supabase.rpc("decrement_stock", {
-                        p_product_id: item.product_id,
-                        p_branch_id: sale.branch_id,
-                        p_quantity: item.quantity,
-                    });
+                if (error) {
+                    for (const reverted of decrementedItems) {
+                        await supabase.rpc("increment_stock", {
+                            p_product_id: reverted.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: reverted.quantity,
+                        });
+                    }
+                    throw new Error(`Fulfill failed: ${error.message}`);
                 }
 
                 return jsonResponse({ fulfillment_status: "fulfilled", sale_id: saleId });
@@ -315,7 +357,7 @@ Deno.serve(async (req: Request) => {
                     .from("sales")
                     .update({
                         status: "rejected",
-                        approved_by: user.id,
+                        approved_by: userId,
                         notes: params.reason || "Rejected",
                         updated_at: now,
                     })
@@ -334,17 +376,42 @@ Deno.serve(async (req: Request) => {
                     .single();
 
                 if (!sale) throw new Error("Sale not found");
-                if (sale.status === "completed" || sale.status === "voided") {
-                    throw new Error("Cannot void a completed or already voided sale");
+                if (sale.status === "voided" || sale.status === "rejected") {
+                    throw new Error("Cannot void a rejected or already voided sale");
                 }
+
+                if ((sale.amount_paid || 0) > 0) {
+                    throw new Error("Cannot void a sale with recorded payments. Delete payments first.");
+                }
+
+                const restockedItems: Array<{ product_id: string; quantity: number }> = [];
 
                 // Reverse stock if it was fulfilled
                 if (sale.fulfillment_status === 'fulfilled') {
                     for (const item of sale.sale_items || []) {
-                        await supabase.rpc("increment_stock", {
+                        const quantity = Number(item.quantity || 0);
+                        if (quantity <= 0) continue;
+
+                        const { error: incrementError } = await supabase.rpc("increment_stock", {
                             p_product_id: item.product_id,
                             p_branch_id: sale.branch_id,
-                            p_quantity: item.quantity,
+                            p_quantity: quantity,
+                        });
+
+                        if (incrementError) {
+                            for (const reverted of restockedItems) {
+                                await supabase.rpc("decrement_stock", {
+                                    p_product_id: reverted.product_id,
+                                    p_branch_id: sale.branch_id,
+                                    p_quantity: reverted.quantity,
+                                });
+                            }
+                            throw new Error(`Stock rollback failed: ${incrementError.message}`);
+                        }
+
+                        restockedItems.push({
+                            product_id: item.product_id,
+                            quantity,
                         });
                     }
                 }
@@ -358,7 +425,16 @@ Deno.serve(async (req: Request) => {
                     })
                     .eq("id", saleId);
 
-                if (error) throw new Error(`Void failed: ${error.message}`);
+                if (error) {
+                    for (const reverted of restockedItems) {
+                        await supabase.rpc("decrement_stock", {
+                            p_product_id: reverted.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: reverted.quantity,
+                        });
+                    }
+                    throw new Error(`Void failed: ${error.message}`);
+                }
                 return jsonResponse({ status: "voided", sale_id: saleId });
             }
 
@@ -387,11 +463,13 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Cannot record payment on ${sale.status} sale or an already paid sale`);
                 }
 
+                const paymentId = crypto.randomUUID();
+
                 // Insert payment
                 const { error: payError } = await supabase
                     .from("sale_payments")
                     .insert({
-                        id: crypto.randomUUID(),
+                        id: paymentId,
                         sale_id: saleId,
                         tenant_id: sale.tenant_id,
                         branch_id: sale.branch_id,
@@ -414,21 +492,64 @@ Deno.serve(async (req: Request) => {
                     newPaymentStatus = "paid";
                 }
 
-                let newStatus = sale.status;
+                // Auto-release goods on first payment so stock is decremented immediately.
+                let fulfillmentStatus = sale.fulfillment_status;
+                let releasedNow = false;
+                const decrementedItems: Array<{ product_id: string; quantity: number }> = [];
+
+                if (sale.fulfillment_status !== "fulfilled") {
+                    const { data: saleItems, error: saleItemsError } = await supabase
+                        .from("sale_items")
+                        .select("product_id, quantity")
+                        .eq("sale_id", saleId);
+
+                    if (saleItemsError) {
+                        await supabase.from("sale_payments").delete().eq("id", paymentId);
+                        throw new Error(`Sale items lookup failed: ${saleItemsError.message}`);
+                    }
+
+                    for (const item of saleItems || []) {
+                        const quantity = Number(item.quantity || 0);
+                        if (quantity <= 0) continue;
+
+                        const { error: decrementError } = await supabase.rpc("decrement_stock", {
+                            p_product_id: item.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: quantity,
+                        });
+
+                        if (decrementError) {
+                            for (const reverted of decrementedItems) {
+                                await supabase.rpc("increment_stock", {
+                                    p_product_id: reverted.product_id,
+                                    p_branch_id: sale.branch_id,
+                                    p_quantity: reverted.quantity,
+                                });
+                            }
+                            await supabase.from("sale_payments").delete().eq("id", paymentId);
+                            throw new Error(`Stock release failed: ${decrementError.message}`);
+                        }
+
+                        decrementedItems.push({
+                            product_id: item.product_id,
+                            quantity,
+                        });
+                    }
+
+                    fulfillmentStatus = "fulfilled";
+                    releasedNow = true;
+                }
+
                 const updateData: any = {
                     amount_paid: newAmountPaid,
                     payment_status: newPaymentStatus,
+                    fulfillment_status: fulfillmentStatus,
                     updated_at: now,
                     payment_method: payment_method,
                 };
-                
-                // Auto-complete logic
-                if (newPaymentStatus === "paid") {
+
+                if (newPaymentStatus === "paid" && fulfillmentStatus === "fulfilled") {
                     updateData.completed_at = now;
-                    if (sale.status === "approved" || sale.status === "draft") {
-                        updateData.status = "completed";
-                        newStatus = "completed";
-                    }
                 }
 
                 const { error: updateError } = await supabase
@@ -436,42 +557,25 @@ Deno.serve(async (req: Request) => {
                     .update(updateData)
                     .eq("id", saleId);
 
-                if (updateError)
-                    throw new Error(`Status update failed: ${updateError.message}`);
-
-                // Auto-fulfill on first payment: if the sale was unfulfilled when
-                // payment was recorded, mark it fulfilled and decrement stock now.
-                // This prevents selling stock that has already been committed via payment.
-                if (sale.fulfillment_status !== "fulfilled") {
-                    const { error: fulfillError } = await supabase
-                        .from("sales")
-                        .update({
-                            fulfillment_status: "fulfilled",
-                            updated_at: now,
-                        })
-                        .eq("id", saleId);
-
-                    if (fulfillError) throw new Error(`Fulfill on payment failed: ${fulfillError.message}`);
-
-                    // Fetch sale items to decrement stock
-                    const { data: saleItems } = await supabase
-                        .from("sale_items")
-                        .select("product_id, quantity")
-                        .eq("sale_id", saleId);
-
-                    for (const item of saleItems || []) {
-                        await supabase.rpc("decrement_stock", {
-                            p_product_id: item.product_id,
-                            p_branch_id: sale.branch_id,
-                            p_quantity: item.quantity,
-                        });
+                if (updateError) {
+                    if (releasedNow) {
+                        for (const reverted of decrementedItems) {
+                            await supabase.rpc("increment_stock", {
+                                p_product_id: reverted.product_id,
+                                p_branch_id: sale.branch_id,
+                                p_quantity: reverted.quantity,
+                            });
+                        }
                     }
+                    await supabase.from("sale_payments").delete().eq("id", paymentId);
+                    throw new Error(`Status update failed: ${updateError.message}`);
                 }
 
                 return jsonResponse({
-                    status: newStatus,
+                    status: sale.status,
                     payment_status: newPaymentStatus,
                     amount_paid: newAmountPaid,
+                    fulfillment_status: fulfillmentStatus,
                     sale_id: saleId,
                 });
             }
@@ -482,6 +586,48 @@ Deno.serve(async (req: Request) => {
                 if (!original_sale_id || !reason || !cnItems?.length) {
                     throw new Error("Missing required credit note fields");
                 }
+
+                const { data: originalSale, error: originalSaleError } = await supabase
+                    .from("sales")
+                    .select("id, tenant_id, branch_id")
+                    .eq("id", original_sale_id)
+                    .single();
+
+                if (originalSaleError || !originalSale) {
+                    throw new Error("Original sale not found");
+                }
+
+                if (originalSale.tenant_id !== tenantId) {
+                    throw new Error("Original sale tenant mismatch");
+                }
+
+                const normalizedItems = (cnItems as any[])
+                    .filter((item) => Number(item.quantity || 0) > 0)
+                    .map((item) => ({
+                        product_id: item.product_id,
+                        product_name: item.product_name || null,
+                        quantity: Number(item.quantity || 0),
+                        unit_price: Number(item.unit_price || 0),
+                        tax_amount: Number(item.tax_amount || 0),
+                        total: Number(item.total || 0),
+                    }));
+
+                if (!normalizedItems.length) {
+                    throw new Error("Credit note must include at least one item");
+                }
+
+                const cnSubtotal = normalizedItems.reduce(
+                    (sum: number, it: any) => sum + (it.unit_price * it.quantity),
+                    0
+                );
+                const cnTax = normalizedItems.reduce(
+                    (sum: number, it: any) => sum + (it.tax_amount || 0),
+                    0
+                );
+                const cnTotal = normalizedItems.reduce(
+                    (sum: number, it: any) => sum + (it.total || 0),
+                    0
+                );
 
                 // Generate CN number
                 const currentYear = new Date().getFullYear();
@@ -495,23 +641,24 @@ Deno.serve(async (req: Request) => {
 
                 const creditNumber = `CN-${currentYear}-${String(seq).padStart(5, "0")}`;
                 const cnId = crypto.randomUUID();
-                const cnTotal = cnItems.reduce(
-                    (sum: number, it: any) => sum + (it.total || 0),
-                    0
-                );
+                const resolvedBranchId = params.branch_id || originalSale.branch_id || null;
 
                 const { error: cnError } = await supabase
                     .from("credit_notes")
                     .insert({
                         id: cnId,
                         tenant_id: tenantId,
-                        sale_id: original_sale_id,
+                        branch_id: resolvedBranchId,
+                        original_sale_id,
                         credit_number: creditNumber,
                         reason,
+                        items: normalizedItems,
+                        subtotal: cnSubtotal,
+                        tax_amount: cnTax,
                         total: cnTotal,
-                        status: "pending",
-                        restock_items: restock_items || false,
-                        created_by: user.id,
+                        status: "pending_approval",
+                        restock_items: Boolean(restock_items),
+                        created_by: userId,
                         created_at: now,
                         updated_at: now,
                     });
@@ -520,22 +667,32 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Credit note creation failed: ${cnError.message}`);
 
                 // Insert CN items
-                const creditItems = cnItems.map((item: any) => ({
+                const creditItems = normalizedItems.map((item: any) => ({
                     id: crypto.randomUUID(),
                     credit_note_id: cnId,
                     product_id: item.product_id,
+                    product_name: item.product_name || null,
                     quantity: item.quantity,
                     unit_price: item.unit_price,
+                    tax_amount: item.tax_amount,
                     total: item.total,
+                    tenant_id: tenantId,
                     created_at: now,
                 }));
 
-                await supabase.from("credit_note_items").insert(creditItems);
+                const { error: creditItemsError } = await supabase
+                    .from("credit_note_items")
+                    .insert(creditItems);
+
+                if (creditItemsError) {
+                    await supabase.from("credit_notes").delete().eq("id", cnId);
+                    throw new Error(`Credit note items failed: ${creditItemsError.message}`);
+                }
 
                 return jsonResponse({
                     credit_note_id: cnId,
                     credit_number: creditNumber,
-                    status: "pending",
+                    status: "pending_approval",
                 });
             }
 
@@ -544,29 +701,84 @@ Deno.serve(async (req: Request) => {
 
                 const { data: cn } = await supabase
                     .from("credit_notes")
-                    .select("*, credit_note_items(*), sales(branch_id)")
+                    .select("id, status, restock_items, branch_id, original_sale_id")
                     .eq("id", credit_note_id)
                     .single();
 
                 if (!cn) throw new Error("Credit note not found");
-                if (cn.status !== "pending") throw new Error("Credit note must be pending to be approved");
+                if (cn.status !== "pending_approval") {
+                    throw new Error("Credit note must be pending approval to be approved");
+                }
+
+                const { data: cnItems, error: cnItemsError } = await supabase
+                    .from("credit_note_items")
+                    .select("product_id, quantity")
+                    .eq("credit_note_id", credit_note_id);
+
+                if (cnItemsError) {
+                    throw new Error(`Credit note items lookup failed: ${cnItemsError.message}`);
+                }
+
+                const { data: originalSale } = await supabase
+                    .from("sales")
+                    .select("branch_id")
+                    .eq("id", cn.original_sale_id)
+                    .single();
+
+                const branchForStock = cn.branch_id || originalSale?.branch_id;
+
+                const restockedItems: Array<{ product_id: string; quantity: number }> = [];
+
+                // Restock items (if toggled) before marking as approved.
+                if (cn.restock_items) {
+                    if (!branchForStock) {
+                        throw new Error("Missing branch context for restock");
+                    }
+
+                    for (const item of cnItems || []) {
+                        const quantity = Number(item.quantity || 0);
+                        if (quantity <= 0) continue;
+
+                        const { error: incrementError } = await supabase.rpc("increment_stock", {
+                            p_product_id: item.product_id,
+                            p_branch_id: branchForStock,
+                            p_quantity: quantity,
+                        });
+
+                        if (incrementError) {
+                            for (const reverted of restockedItems) {
+                                await supabase.rpc("decrement_stock", {
+                                    p_product_id: reverted.product_id,
+                                    p_branch_id: branchForStock,
+                                    p_quantity: reverted.quantity,
+                                });
+                            }
+                            throw new Error(`Restock failed: ${incrementError.message}`);
+                        }
+
+                        restockedItems.push({
+                            product_id: item.product_id,
+                            quantity,
+                        });
+                    }
+                }
 
                 const { error } = await supabase
                     .from("credit_notes")
-                    .update({ status: "approved", updated_at: now })
+                    .update({ status: "approved", approved_by: userId, updated_at: now })
                     .eq("id", credit_note_id);
 
-                if (error) throw new Error(`CN approval failed: ${error.message}`);
-
-                // Restock items if toggled
-                if (cn.restock_items) {
-                    for (const item of cn.credit_note_items || []) {
-                        await supabase.rpc("increment_stock", {
-                            p_product_id: item.product_id,
-                            p_branch_id: cn.sales.branch_id,
-                            p_quantity: item.quantity,
-                        });
+                if (error) {
+                    if (branchForStock) {
+                        for (const reverted of restockedItems) {
+                            await supabase.rpc("decrement_stock", {
+                                p_product_id: reverted.product_id,
+                                p_branch_id: branchForStock,
+                                p_quantity: reverted.quantity,
+                            });
+                        }
                     }
+                    throw new Error(`CN approval failed: ${error.message}`);
                 }
 
                 return jsonResponse({ status: "approved", credit_note_id });
@@ -594,28 +806,80 @@ Deno.serve(async (req: Request) => {
 
                 if (!targetSale) throw new Error("Target sale not found");
 
-                const newAmountPaid = (targetSale.amount_paid || 0) + cn.total;
-                const newStatus = newAmountPaid >= (targetSale.grand_total || 0) ? "paid" : "partially_paid";
+                if (targetSale.status === "voided" || targetSale.status === "rejected") {
+                    throw new Error("Credits cannot be applied to voided or rejected invoices");
+                }
+
+                if (targetSale.payment_status === "paid") {
+                    throw new Error("Cannot apply credit to a fully paid invoice");
+                }
+
+                const remainingBalance = Math.max(
+                    0,
+                    Number(targetSale.grand_total || 0) - Number(targetSale.amount_paid || 0)
+                );
+                const creditAmount = Number(cn.total || 0);
+                const appliedAmount = Math.min(creditAmount, remainingBalance);
+
+                if (appliedAmount <= 0) {
+                    throw new Error("No remaining balance to apply credit against");
+                }
+
+                const { error: paymentInsertError } = await supabase
+                    .from("sale_payments")
+                    .insert({
+                        id: crypto.randomUUID(),
+                        sale_id: target_sale_id,
+                        tenant_id: targetSale.tenant_id,
+                        branch_id: targetSale.branch_id,
+                        amount: appliedAmount,
+                        payment_method: "credit_note",
+                        reference_number: cn.credit_number || credit_note_id,
+                        notes: `Applied credit note ${cn.credit_number || credit_note_id}`,
+                        created_at: now,
+                        updated_at: now,
+                    });
+
+                if (paymentInsertError) {
+                    throw new Error(`Credit payment insert failed: ${paymentInsertError.message}`);
+                }
+
+                const newAmountPaid = Number(targetSale.amount_paid || 0) + appliedAmount;
+                const newPaymentStatus = newAmountPaid >= (targetSale.grand_total || 0) ? "paid" : "partially_paid";
+
+                const updateData: any = {
+                    amount_paid: newAmountPaid,
+                    payment_status: newPaymentStatus,
+                    payment_method: "credit_note",
+                    updated_at: now,
+                };
+
+                if (newPaymentStatus === "paid" && targetSale.fulfillment_status === "fulfilled") {
+                    updateData.completed_at = now;
+                }
 
                 const { error: payError } = await supabase
                     .from("sales")
-                    .update({
-                        amount_paid: newAmountPaid,
-                        status: newStatus,
-                        payment_method: targetSale.payment_method || "credit_note",
-                        updated_at: now,
-                    })
+                    .update(updateData)
                     .eq("id", target_sale_id);
 
                 if (payError) throw new Error(`Credit application failed: ${payError.message}`);
 
                 // Mark CN as applied
-                await supabase
+                const { error: cnApplyError } = await supabase
                     .from("credit_notes")
-                    .update({ status: "applied", updated_at: now })
+                    .update({
+                        status: "applied",
+                        applied_to_sale_id: target_sale_id,
+                        updated_at: now,
+                    })
                     .eq("id", credit_note_id);
 
-                return jsonResponse({ status: "applied", credit_note_id });
+                if (cnApplyError) {
+                    throw new Error(`Credit note update failed: ${cnApplyError.message}`);
+                }
+
+                return jsonResponse({ status: "applied", payment_status: newPaymentStatus, credit_note_id });
             }
 
             default:
@@ -638,4 +902,22 @@ function jsonResponse(data: any, status = 200) {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+}
+
+function parseJwtUserId(token: string): string | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+        const payload = JSON.parse(atob(padded));
+
+        return typeof payload?.sub === "string" && payload.sub.length > 0
+            ? payload.sub
+            : null;
+    } catch (_) {
+        return null;
+    }
 }

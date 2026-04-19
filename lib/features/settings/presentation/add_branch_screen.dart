@@ -18,7 +18,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
-  String _phone = '';
+  String? _phone;
   bool _isLoading = false;
 
   @override
@@ -41,8 +41,12 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
         id: const Uuid().v4(),
         tenantId: tenantId,
         name: _nameController.text.trim(),
-        address: _addressController.text.trim(),
-        phone: _phone,
+        address: _addressController.text.trim().isEmpty
+            ? null
+            : _addressController.text.trim(),
+        phone: (_phone == null || _phone!.trim().isEmpty)
+            ? null
+            : _phone!.trim(),
       );
 
       await ref.read(repositoryProvider).createBranch(newBranch);
@@ -58,7 +62,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Failed to add branch',
+              'Failed to add branch: $e',
               style: TextStyle(color: Theme.of(context).colorScheme.onError),
             ),
             backgroundColor: Theme.of(context).colorScheme.error,
@@ -153,7 +157,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
 
             // Address Field
             Text(
-              'Location / Address',
+              'Location / Address (Optional)',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -177,18 +181,12 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
                 filled: true,
                 fillColor: colorScheme.surface,
               ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return 'Please enter a branch address';
-                }
-                return null;
-              },
             ),
             const SizedBox(height: 24),
 
             // Phone Field
             Text(
-              'Branch Phone',
+              'Branch Phone (Optional)',
               style: theme.textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.w600,
               ),

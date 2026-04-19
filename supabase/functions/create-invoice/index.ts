@@ -26,13 +26,20 @@ Deno.serve(async (req: Request) => {
         }
 
         const supabase = createClient(supabaseUrl, serviceRoleKey);
-        const token = authHeader.replace("Bearer ", "");
-        const {
-            data: { user },
-            error: authError,
-        } = await supabase.auth.getUser(token);
+        const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+        if (!token) {
+            return new Response(JSON.stringify({ error: "Missing bearer token" }), {
+                status: 401,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+        }
 
-        if (authError || !user) {
+        const userId = parseJwtUserId(token);
+        if (!userId) {
+            console.error("create-invoice auth failed", {
+                hasAuthHeader: Boolean(authHeader),
+                reason: "invalid_jwt_payload",
+            });
             return new Response(JSON.stringify({ error: "Unauthorized" }), {
                 status: 401,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -65,7 +72,7 @@ Deno.serve(async (req: Request) => {
         const { data: profile } = await supabase
             .from("profiles")
             .select("role, permissions")
-            .eq("user_id", user.id)
+            .eq("user_id", userId)
             .eq("tenant_id", tenant_id)
             .single();
 
@@ -103,7 +110,7 @@ Deno.serve(async (req: Request) => {
         const saleId = crypto.randomUUID();
         const now = new Date().toISOString();
 
-        // ── Insert draft sale (NO stock decrement, NO payment) ──
+        // ── Insert pending-approval invoice (NO stock decrement, NO payment) ──
         const { error: saleError } = await supabase.from("sales").insert({
             id: saleId,
             tenant_id,
@@ -111,14 +118,14 @@ Deno.serve(async (req: Request) => {
             customer_id: customer_id || null,
             invoice_number: invoiceNumber,
             sale_type: "invoice",
-            created_by: user.id,
+            created_by: userId,
             salesperson_id,
             subtotal: subtotal || 0,
             tax_amount: tax_amount || 0,
             discount_amount: discount_amount || 0,
             grand_total: grand_total || 0,
             amount_paid: 0,
-            status: "draft",
+            status: "pending_approval",
             notes: notes || null,
             due_date: due_date || null,
             created_at: now,
@@ -164,15 +171,39 @@ Deno.serve(async (req: Request) => {
             JSON.stringify({
                 sale_id: saleId,
                 invoice_number: invoiceNumber,
-                status: "draft",
+                status: "pending_approval",
             }),
-            { status: 200, headers: { "Content-Type": "application/json" } }
+            {
+                status: 200,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
         );
     } catch (err) {
         console.error("create-invoice error:", err);
         return new Response(
             JSON.stringify({ error: err.message || "Internal server error" }),
-            { status: 500, headers: { "Content-Type": "application/json" } }
+            {
+                status: 500,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            }
         );
     }
 });
+
+function parseJwtUserId(token: string): string | null {
+    try {
+        const parts = token.split(".");
+        if (parts.length < 2) return null;
+
+        const base64Url = parts[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+        const payload = JSON.parse(atob(padded));
+
+        return typeof payload?.sub === "string" && payload.sub.length > 0
+            ? payload.sub
+            : null;
+    } catch (_) {
+        return null;
+    }
+}

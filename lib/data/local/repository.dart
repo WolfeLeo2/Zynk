@@ -6,13 +6,27 @@ import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/staff_model.dart';
 
-
 class PowerSyncRepository {
   final PowerSyncDatabase _db;
+
+  static const Set<String> _allowedStockAdjustmentTypes = {
+    'addition',
+    'reduction',
+    'initial',
+    'damage',
+  };
 
   PowerSyncRepository(this._db);
 
   PowerSyncDatabase get db => _db;
+
+  void _ensureSpecificBranchId(String branchId) {
+    if (branchId.isEmpty || branchId == 'all') {
+      throw Exception(
+        'Please select a specific branch before adjusting stock.',
+      );
+    }
+  }
 
   // --- Database Management ---
   Future<void> clearDatabase() async {
@@ -90,8 +104,11 @@ class PowerSyncRepository {
           parameters: [tenantId],
         )
         .map(
-          (results) =>
-              results.map((row) => StaffMember.fromJson(Map<String, dynamic>.from(row))).toList(),
+          (results) => results
+              .map(
+                (row) => StaffMember.fromJson(Map<String, dynamic>.from(row)),
+              )
+              .toList(),
         );
   }
 
@@ -142,14 +159,30 @@ class PowerSyncRepository {
 
   // --- Products ---
   Stream<List<Product>> watchProducts({String? branchId}) {
-    var sql = 'SELECT * FROM products';
+    String sql;
     final params = <dynamic>[];
 
     if (branchId != null && branchId != 'all') {
-      sql += ' WHERE branch_id = ?';
+      // A product is visible in a branch if it belongs to the branch,
+      // is global (null branch_id), or has stock in that branch.
+      sql = '''
+        SELECT DISTINCT p.*
+        FROM products p
+        WHERE p.branch_id = ?
+           OR p.branch_id IS NULL
+           OR EXISTS (
+                SELECT 1
+                FROM stock st
+                WHERE st.product_id = p.id
+                  AND st.branch_id = ?
+              )
+        ORDER BY p.name ASC
+      ''';
       params.add(branchId);
+      params.add(branchId);
+    } else {
+      sql = 'SELECT * FROM products ORDER BY name ASC';
     }
-    sql += ' ORDER BY name ASC';
 
     return _db
         .watch(sql, parameters: params)
@@ -230,13 +263,51 @@ class PowerSyncRepository {
   }
 
   // --- Stock & Inventory ---
-  Stream<Stock?> watchProductStock(String productId) {
+  Stream<Stock?> watchProductStock(String productId, {String? branchId}) {
+    if (branchId != null && branchId != 'all') {
+      return _db
+          .watch(
+            'SELECT * FROM stock WHERE product_id = ? AND branch_id = ?',
+            parameters: [productId, branchId],
+          )
+          .map((rows) => rows.isEmpty ? null : Stock.fromMap(rows.first));
+    }
+
     return _db
         .watch(
           'SELECT * FROM stock WHERE product_id = ?',
           parameters: [productId],
         )
-        .map((rows) => rows.isEmpty ? null : Stock.fromMap(rows.first));
+        .map((rows) {
+          if (rows.isEmpty) return null;
+
+          final first = rows.first;
+          final quantity = rows.fold<int>(
+            0,
+            (sum, row) => sum + ((row['quantity'] as num?)?.toInt() ?? 0),
+          );
+
+          DateTime? latestUpdatedAt;
+          for (final row in rows) {
+            final raw = row['last_updated']?.toString();
+            if (raw == null || raw.isEmpty) continue;
+            final parsed = DateTime.tryParse(raw);
+            if (parsed == null) continue;
+            if (latestUpdatedAt == null || parsed.isAfter(latestUpdatedAt)) {
+              latestUpdatedAt = parsed;
+            }
+          }
+
+          return Stock(
+            id: first['id']?.toString() ?? productId,
+            tenantId: first['tenant_id']?.toString() ?? '',
+            branchId: 'all',
+            productId: productId,
+            quantity: quantity,
+            reorderLevel: (first['reorder_level'] as num?)?.toInt(),
+            lastUpdated: latestUpdatedAt,
+          );
+        });
   }
 
   Stream<List<StockAdjustment>> watchProductStockHistory(
@@ -264,8 +335,7 @@ class PowerSyncRepository {
     return _db
         .watch(sql, parameters: params)
         .map(
-          (rows) =>
-              rows.map((row) => StockAdjustment.fromMap(row)).toList(),
+          (rows) => rows.map((row) => StockAdjustment.fromMap(row)).toList(),
         );
   }
 
@@ -280,6 +350,8 @@ class PowerSyncRepository {
     String? referenceNumber,
     String? notes,
   }) async {
+    _ensureSpecificBranchId(branchId);
+
     await _db.writeTransaction((tx) async {
       await _adjustStockInTx(
         tx,
@@ -306,12 +378,18 @@ class PowerSyncRepository {
     String? referenceNumber,
     String? notes,
   }) async {
+    if (quantityChange == 0) return;
+
     final now = DateTime.now().toIso8601String();
+    final resolvedAdjustmentType = _resolveStockAdjustmentType(
+      adjustmentType,
+      quantityChange,
+    );
 
     // 1. Get current stock
     final stockResult = await tx.getAll(
-      'SELECT quantity FROM stock WHERE product_id = ?',
-      [productId],
+      'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+      [productId, branchId],
     );
 
     if (stockResult.isEmpty) {
@@ -325,8 +403,8 @@ class PowerSyncRepository {
       );
     } else {
       await tx.execute(
-        'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ?',
-        [quantityChange, now, productId],
+        'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ? AND branch_id = ?',
+        [quantityChange, now, productId, branchId],
       );
     }
 
@@ -340,7 +418,7 @@ class PowerSyncRepository {
         tenantId,
         branchId,
         productId,
-        adjustmentType,
+        resolvedAdjustmentType,
         quantityChange,
         referenceNumber,
         notes,
@@ -359,14 +437,23 @@ class PowerSyncRepository {
     String? reasonId,
     String? referenceNumber,
   }) async {
+    _ensureSpecificBranchId(branchId);
+
     await _db.writeTransaction((tx) async {
       final now = DateTime.now().toUtc().toIso8601String();
 
       for (final item in items) {
+        if (item.quantityChange == 0) continue;
+
+        final resolvedAdjustmentType = _resolveStockAdjustmentType(
+          adjustmentType,
+          item.quantityChange,
+        );
+
         // 1. Get current stock
         final stockResult = await tx.getAll(
-          'SELECT quantity FROM stock WHERE product_id = ?',
-          [item.productId],
+          'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+          [item.productId, branchId],
         );
 
         if (stockResult.isEmpty) {
@@ -379,8 +466,8 @@ class PowerSyncRepository {
           );
         } else {
           await tx.execute(
-            'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ?',
-            [item.quantityChange, now, item.productId],
+            'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ? AND branch_id = ?',
+            [item.quantityChange, now, item.productId, branchId],
           );
         }
 
@@ -400,12 +487,30 @@ class PowerSyncRepository {
             item.notes,
             createdBy,
             reasonId,
-            adjustmentType,
+            resolvedAdjustmentType,
             now,
           ],
         );
       }
     });
+  }
+
+  String _resolveStockAdjustmentType(String rawType, int quantityChange) {
+    final normalized = rawType.trim().toLowerCase();
+
+    if (_allowedStockAdjustmentTypes.contains(normalized)) {
+      if (normalized == 'addition' && quantityChange < 0) {
+        return 'reduction';
+      }
+      if (normalized == 'reduction' && quantityChange > 0) {
+        return 'addition';
+      }
+      return normalized;
+    }
+
+    if (quantityChange < 0) return 'reduction';
+    if (quantityChange > 0) return 'addition';
+    return 'initial';
   }
 
   // --- Adjustment Reasons ---
@@ -415,10 +520,7 @@ class PowerSyncRepository {
           'SELECT * FROM stock_adjustment_reasons WHERE tenant_id = ? ORDER BY label ASC',
           parameters: [tenantId],
         )
-        .map(
-          (rows) =>
-              rows.map((r) => AdjustmentReason.fromMap(r)).toList(),
-        );
+        .map((rows) => rows.map((r) => AdjustmentReason.fromMap(r)).toList());
   }
 
   Future<void> createAdjustmentReason(AdjustmentReason reason) async {
@@ -436,10 +538,9 @@ class PowerSyncRepository {
   }
 
   Future<void> deleteAdjustmentReason(String id) async {
-    await _db.execute(
-      'DELETE FROM stock_adjustment_reasons WHERE id = ?',
-      [id],
-    );
+    await _db.execute('DELETE FROM stock_adjustment_reasons WHERE id = ?', [
+      id,
+    ]);
   }
 
   // --- Categories ---
@@ -477,6 +578,38 @@ class PowerSyncRepository {
         .watch(
           'SELECT * FROM branches WHERE tenant_id = ? ORDER BY created_at ASC',
           parameters: [tenantId],
+        )
+        .map((results) => results.map((row) => Branch.fromMap(row)).toList());
+  }
+
+  Stream<List<Branch>> watchAccessibleBranches({
+    required String tenantId,
+    required String userId,
+    required bool isOwner,
+  }) {
+    if (isOwner) {
+      return watchBranches(tenantId);
+    }
+
+    return _db
+        .watch(
+          '''
+          SELECT b.*
+          FROM branches b
+          WHERE b.tenant_id = ?
+            AND EXISTS (
+              SELECT 1
+              FROM profiles p
+              LEFT JOIN profile_branches pb
+                ON pb.profile_id = p.id
+               AND pb.branch_id = b.id
+              WHERE p.user_id = ?
+                AND p.tenant_id = b.tenant_id
+                AND (pb.branch_id IS NOT NULL OR p.branch_id = b.id)
+            )
+          ORDER BY b.created_at ASC
+          ''',
+          parameters: [tenantId, userId],
         )
         .map((results) => results.map((row) => Branch.fromMap(row)).toList());
   }
@@ -563,10 +696,9 @@ class PowerSyncRepository {
   /// Deletes all products belonging to a group, then deletes the group
   Future<void> deleteGroupAndAllItems(String groupId) async {
     await _db.writeTransaction((tx) async {
-      await tx.execute(
-        'DELETE FROM products WHERE item_group_id = ?',
-        [groupId],
-      );
+      await tx.execute('DELETE FROM products WHERE item_group_id = ?', [
+        groupId,
+      ]);
       await tx.execute('DELETE FROM item_groups WHERE id = ?', [groupId]);
     });
   }
@@ -605,6 +737,8 @@ class PowerSyncRepository {
     String? reasonId,
     String? referenceNumber,
   }) async {
+    _ensureSpecificBranchId(branchId);
+
     // 1. Fetch all product IDs in the group
     final rows = await _db.getAll(
       'SELECT id FROM products WHERE item_group_id = ?',
@@ -621,8 +755,8 @@ class PowerSyncRepository {
       if (mode == 'set') {
         // Compute delta: desired - current
         final stockRows = await _db.getAll(
-          'SELECT quantity FROM stock WHERE product_id = ?',
-          [productId],
+          'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+          [productId, branchId],
         );
         final current = stockRows.isNotEmpty
             ? (stockRows.first['quantity'] as num?)?.toInt() ?? 0
@@ -664,8 +798,9 @@ class PowerSyncRepository {
           parameters: [parentId],
         )
         .map(
-          (results) =>
-              results.map((row) => CompositeItemComponent.fromMap(row)).toList(),
+          (results) => results
+              .map((row) => CompositeItemComponent.fromMap(row))
+              .toList(),
         );
   }
 
@@ -863,7 +998,17 @@ class PowerSyncRepository {
       // Update sale header
       await tx.execute(
         '''UPDATE sales SET customer_id = ?, salesperson_id = ?, subtotal = ?, total_amount = ?, grand_total = ?, notes = ?, due_date = ?, updated_at = ? WHERE id = ?''',
-        [customerId, salespersonId, subtotal, grandTotal, grandTotal, notes, dueDate, now, saleId],
+        [
+          customerId,
+          salespersonId,
+          subtotal,
+          grandTotal,
+          grandTotal,
+          notes,
+          dueDate,
+          now,
+          saleId,
+        ],
       );
 
       // Delete existing items and re-insert
@@ -894,7 +1039,6 @@ class PowerSyncRepository {
 
   // --- Payments ---
 
-
   /// Watch all payments for a specific sale
   Stream<List<Payment>> watchPaymentsForSale(String saleId) {
     return _db
@@ -915,8 +1059,9 @@ class PowerSyncRepository {
   }) async {
     await _db.writeTransaction((tx) async {
       // 1. Fetch current sale
-      final saleRow =
-          await tx.getOptional('SELECT * FROM sales WHERE id = ?', [saleId]);
+      final saleRow = await tx.getOptional('SELECT * FROM sales WHERE id = ?', [
+        saleId,
+      ]);
       if (saleRow == null) throw Exception('Sale not found locally');
       final sale = Sale.fromMap(saleRow);
 
@@ -946,65 +1091,25 @@ class PowerSyncRepository {
         newPaymentStatus = PaymentStatus.paid;
       }
 
-      String? completedAtStr = sale.completedAt?.toIso8601String();
-      var newStatus = sale.status;
-
-      // Auto-complete logic
-      var newFulfillmentStatus = sale.fulfillmentStatus;
-      if (newPaymentStatus == PaymentStatus.paid) {
-        if (sale.status == InvoiceStatus.approved) {
-           newStatus = InvoiceStatus.completed;
-           completedAtStr = now;
-        } else if (sale.status == InvoiceStatus.draft) {
-           // Should technically not happen as draft -> pending_approval on save
-           // but if a retail cashier completes a draft immediately, it bypasses approval
-           newStatus = InvoiceStatus.completed;
-           completedAtStr = now;
-        }
-        // If it was pendingApproval, it remains pendingApproval (until explicitly approved)
-      }
-
-      // Auto-fulfill on first payment
-      bool newlyFulfilled = false;
-      if (sale.fulfillmentStatus != FulfillmentStatus.released) {
-        newFulfillmentStatus = FulfillmentStatus.released;
-        newlyFulfilled = true;
-      }
+      final completedAtStr =
+          newPaymentStatus == PaymentStatus.paid &&
+              sale.fulfillmentStatus == FulfillmentStatus.released
+          ? now
+          : sale.completedAt?.toIso8601String();
 
       await tx.execute(
         'UPDATE sales SET amount_paid = ?, status = ?, payment_status = ?, fulfillment_status = ?, payment_method = ?, updated_at = ?, completed_at = ? WHERE id = ?',
         [
           newAmountPaid,
-          newStatus.value,
+          sale.status.value,
           newPaymentStatus.value,
-          newFulfillmentStatus.value,
+          sale.fulfillmentStatus.value,
           paymentMethod,
           now,
           completedAtStr,
           sale.id,
         ],
       );
-      
-      // Since it's fulfilled, decrement stock
-      if (newlyFulfilled) {
-        final items = await tx.getAll('SELECT product_id, quantity FROM sale_items WHERE sale_id = ?', [sale.id]);
-        for (final item in items) {
-          final productId = item['product_id'] as String;
-          final quantity = (item['quantity'] as num).toInt();
-          
-          await _adjustStockInTx(
-            tx, 
-            productId: productId, 
-            branchId: sale.branchId, 
-            quantityChange: -quantity, 
-            tenantId: sale.tenantId, 
-            adjustmentType: 'reduction',
-            createdBy: 'system',
-            notes: 'Sale fulfilled via payment', 
-            referenceNumber: sale.id,
-          );
-        }
-      }
     });
   }
 
@@ -1134,7 +1239,8 @@ class PowerSyncRepository {
         .subtract(Duration(days: days))
         .toIso8601String();
 
-    var sql = 'SELECT COUNT(*) as count FROM stock_adjustments WHERE created_at >= ?';
+    var sql =
+        'SELECT COUNT(*) as count FROM stock_adjustments WHERE created_at >= ?';
     final params = <dynamic>[startDate];
 
     if (branchId != null && branchId != 'all') {
@@ -1223,7 +1329,8 @@ class PowerSyncRepository {
          FROM sale_items si
          JOIN products p ON si.product_id = p.id
          JOIN sales s ON si.sale_id = s.id
-         WHERE s.status = 'completed'$branchFilter
+        WHERE s.status = 'approved'
+          AND s.fulfillment_status = 'fulfilled'$branchFilter
          GROUP BY p.id, p.name, p.image_url, p.base_price
          ORDER BY total_sold DESC
          LIMIT ?''', parameters: params)
@@ -1247,6 +1354,289 @@ class PowerSyncRepository {
           FROM sale_payments$branchFilter
         GROUP BY payment_method
         ORDER BY total DESC''', parameters: params)
+        .map((rows) => rows.toList());
+  }
+
+  /// Report summary metrics for a trailing [days] window.
+  Stream<Map<String, dynamic>> watchReportSummary({
+    required String tenantId,
+    String? branchId,
+    int days = 30,
+  }) {
+    final startTs = DateTime.now()
+        .toUtc()
+        .subtract(Duration(days: days - 1))
+        .toIso8601String()
+        .substring(0, 10);
+
+    if (branchId != null && branchId != 'all') {
+      return _db
+          .watch(
+            '''
+            WITH sales_scope AS (
+              SELECT *
+              FROM sales
+              WHERE tenant_id = ?
+                AND created_at >= ?
+                AND branch_id = ?
+            ),
+            payments_scope AS (
+              SELECT *
+              FROM sale_payments
+              WHERE tenant_id = ?
+                AND created_at >= ?
+                AND branch_id = ?
+            ),
+            stock_scope AS (
+              SELECT st.quantity, st.reorder_level, p.cost_price
+              FROM stock st
+              LEFT JOIN products p ON p.id = st.product_id
+              WHERE st.tenant_id = ?
+                AND st.branch_id = ?
+            )
+            SELECT
+              COUNT(*) FILTER (WHERE status = 'approved') AS approved_count,
+              COUNT(*) FILTER (WHERE status = 'pending_approval') AS pending_approval_count,
+              COUNT(*) FILTER (WHERE status = 'voided') AS voided_count,
+              COUNT(*) FILTER (WHERE status = 'rejected') AS rejected_count,
+              COUNT(*) FILTER (WHERE status = 'draft') AS draft_count,
+              COUNT(*) FILTER (
+                WHERE status = 'approved' AND fulfillment_status = 'unfulfilled'
+              ) AS unreleased_count,
+              COUNT(*) FILTER (
+                WHERE status = 'approved' AND payment_status = 'paid'
+              ) AS paid_invoice_count,
+              COALESCE(
+                SUM(CASE WHEN status = 'approved' THEN grand_total ELSE 0 END),
+                0
+              ) AS gross_sales,
+              COALESCE((SELECT SUM(amount) FROM payments_scope), 0) AS payments_collected,
+              COALESCE(
+                AVG(CASE WHEN status = 'approved' THEN grand_total END),
+                0
+              ) AS average_ticket,
+              COALESCE(
+                (SELECT COUNT(*) FROM stock_scope WHERE quantity <= reorder_level AND quantity >= 0),
+                0
+              ) AS low_stock_count,
+              COALESCE(
+                (SELECT SUM(CASE WHEN quantity > 0 THEN quantity * COALESCE(cost_price, 0) ELSE 0 END) FROM stock_scope),
+                0
+              ) AS inventory_value
+            FROM sales_scope
+            ''',
+            parameters: [
+              tenantId,
+              '${startTs}T00:00:00',
+              branchId,
+              tenantId,
+              '${startTs}T00:00:00',
+              branchId,
+              tenantId,
+              branchId,
+            ],
+          )
+          .map((rows) => rows.isEmpty ? <String, dynamic>{} : rows.first);
+    }
+
+    return _db
+        .watch(
+          '''
+          WITH sales_scope AS (
+            SELECT *
+            FROM sales
+            WHERE tenant_id = ?
+              AND created_at >= ?
+          ),
+          payments_scope AS (
+            SELECT *
+            FROM sale_payments
+            WHERE tenant_id = ?
+              AND created_at >= ?
+          ),
+          stock_scope AS (
+            SELECT st.quantity, st.reorder_level, p.cost_price
+            FROM stock st
+            LEFT JOIN products p ON p.id = st.product_id
+            WHERE st.tenant_id = ?
+          )
+          SELECT
+            COUNT(*) FILTER (WHERE status = 'approved') AS approved_count,
+            COUNT(*) FILTER (WHERE status = 'pending_approval') AS pending_approval_count,
+            COUNT(*) FILTER (WHERE status = 'voided') AS voided_count,
+            COUNT(*) FILTER (WHERE status = 'rejected') AS rejected_count,
+            COUNT(*) FILTER (WHERE status = 'draft') AS draft_count,
+            COUNT(*) FILTER (
+              WHERE status = 'approved' AND fulfillment_status = 'unfulfilled'
+            ) AS unreleased_count,
+            COUNT(*) FILTER (
+              WHERE status = 'approved' AND payment_status = 'paid'
+            ) AS paid_invoice_count,
+            COALESCE(
+              SUM(CASE WHEN status = 'approved' THEN grand_total ELSE 0 END),
+              0
+            ) AS gross_sales,
+            COALESCE((SELECT SUM(amount) FROM payments_scope), 0) AS payments_collected,
+            COALESCE(
+              AVG(CASE WHEN status = 'approved' THEN grand_total END),
+              0
+            ) AS average_ticket,
+            COALESCE(
+              (SELECT COUNT(*) FROM stock_scope WHERE quantity <= reorder_level AND quantity >= 0),
+              0
+            ) AS low_stock_count,
+            COALESCE(
+              (SELECT SUM(CASE WHEN quantity > 0 THEN quantity * COALESCE(cost_price, 0) ELSE 0 END) FROM stock_scope),
+              0
+            ) AS inventory_value
+          FROM sales_scope
+          ''',
+          parameters: [
+            tenantId,
+            '${startTs}T00:00:00',
+            tenantId,
+            '${startTs}T00:00:00',
+            tenantId,
+          ],
+        )
+        .map((rows) => rows.isEmpty ? <String, dynamic>{} : rows.first);
+  }
+
+  /// Payment method totals for a trailing [days] window.
+  Stream<List<Map<String, dynamic>>> watchPaymentMethodBreakdownInRange({
+    required String tenantId,
+    String? branchId,
+    int days = 30,
+  }) {
+    final startTs = DateTime.now()
+        .toUtc()
+        .subtract(Duration(days: days - 1))
+        .toIso8601String()
+        .substring(0, 10);
+
+    if (branchId != null && branchId != 'all') {
+      return _db
+          .watch(
+            '''
+            SELECT
+              COALESCE(NULLIF(payment_method, ''), 'unknown') AS payment_method,
+              COUNT(*) AS count,
+              COALESCE(SUM(amount), 0) AS total
+            FROM sale_payments
+            WHERE tenant_id = ?
+              AND created_at >= ?
+              AND branch_id = ?
+            GROUP BY COALESCE(NULLIF(payment_method, ''), 'unknown')
+            ORDER BY total DESC
+            ''',
+            parameters: [tenantId, '${startTs}T00:00:00', branchId],
+          )
+          .map((rows) => rows.toList());
+    }
+
+    return _db
+        .watch(
+          '''
+          SELECT
+            COALESCE(NULLIF(payment_method, ''), 'unknown') AS payment_method,
+            COUNT(*) AS count,
+            COALESCE(SUM(amount), 0) AS total
+          FROM sale_payments
+          WHERE tenant_id = ?
+            AND created_at >= ?
+          GROUP BY COALESCE(NULLIF(payment_method, ''), 'unknown')
+          ORDER BY total DESC
+          ''',
+          parameters: [tenantId, '${startTs}T00:00:00'],
+        )
+        .map((rows) => rows.toList());
+  }
+
+  /// Top products for a trailing [days] window.
+  Stream<List<Map<String, dynamic>>> watchTopProductsInRange({
+    required String tenantId,
+    String? branchId,
+    int days = 30,
+    int limit = 8,
+  }) {
+    final startTs = DateTime.now()
+        .toUtc()
+        .subtract(Duration(days: days - 1))
+        .toIso8601String()
+        .substring(0, 10);
+
+    final params = <dynamic>[tenantId, '${startTs}T00:00:00'];
+    var branchFilter = '';
+    if (branchId != null && branchId != 'all') {
+      branchFilter = ' AND s.branch_id = ?';
+      params.add(branchId);
+    }
+    params.add(limit);
+
+    return _db
+        .watch('''
+          SELECT
+            p.id,
+            p.name,
+            p.image_url,
+            p.base_price,
+            COALESCE(SUM(si.quantity), 0) AS total_sold,
+            COALESCE(SUM(si.total), 0) AS total_revenue
+          FROM sale_items si
+          JOIN products p ON si.product_id = p.id
+          JOIN sales s ON si.sale_id = s.id
+          WHERE s.tenant_id = ?
+            AND s.created_at >= ?
+            AND s.status = 'approved'
+            AND s.fulfillment_status = 'fulfilled'$branchFilter
+          GROUP BY p.id, p.name, p.image_url, p.base_price
+          ORDER BY total_sold DESC
+          LIMIT ?
+          ''', parameters: params)
+        .map((rows) => rows.toList());
+  }
+
+  /// Invoice lifecycle status breakdown for a trailing [days] window.
+  Stream<List<Map<String, dynamic>>> watchInvoiceStatusBreakdown({
+    required String tenantId,
+    String? branchId,
+    int days = 30,
+  }) {
+    final startTs = DateTime.now()
+        .toUtc()
+        .subtract(Duration(days: days - 1))
+        .toIso8601String()
+        .substring(0, 10);
+
+    if (branchId != null && branchId != 'all') {
+      return _db
+          .watch(
+            '''
+            SELECT status, COUNT(*) AS count
+            FROM sales
+            WHERE tenant_id = ?
+              AND created_at >= ?
+              AND branch_id = ?
+            GROUP BY status
+            ORDER BY count DESC
+            ''',
+            parameters: [tenantId, '${startTs}T00:00:00', branchId],
+          )
+          .map((rows) => rows.toList());
+    }
+
+    return _db
+        .watch(
+          '''
+          SELECT status, COUNT(*) AS count
+          FROM sales
+          WHERE tenant_id = ?
+            AND created_at >= ?
+          GROUP BY status
+          ORDER BY count DESC
+          ''',
+          parameters: [tenantId, '${startTs}T00:00:00'],
+        )
         .map((rows) => rows.toList());
   }
 
@@ -1297,6 +1687,261 @@ class PowerSyncRepository {
         .map((rows) => rows.toList());
   }
 
+  /// Snapshot-aware daily chart data.
+  /// Uses server-generated daily snapshots and fills any missing days from
+  /// transactional sales aggregation.
+  Stream<List<Map<String, dynamic>>> watchDailySalesDataSmart({
+    required String tenantId,
+    String? branchId,
+    int days = 7,
+  }) {
+    final startDate = DateTime.now()
+        .toUtc()
+        .subtract(Duration(days: days - 1))
+        .toIso8601String()
+        .substring(0, 10);
+    final startTs = '${startDate}T00:00:00';
+
+    if (branchId != null && branchId != 'all') {
+      return _db
+          .watch(
+            '''
+            WITH snapshot_data AS (
+              SELECT
+                snapshot_date AS day,
+                COALESCE(SUM(gross_sales), 0) AS revenue,
+                COALESCE(SUM(orders_count), 0) AS order_count
+              FROM daily_kpi_snapshots
+              WHERE tenant_id = ?
+                AND snapshot_date >= ?
+                AND branch_id = ?
+              GROUP BY snapshot_date
+            ),
+            raw_range AS (
+              SELECT
+                substr(created_at, 1, 10) AS day,
+                COALESCE(SUM(grand_total), 0) AS revenue,
+                COUNT(*) AS order_count
+              FROM sales
+              WHERE tenant_id = ?
+                AND status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
+                AND created_at >= ?
+                AND branch_id = ?
+              GROUP BY substr(created_at, 1, 10)
+            )
+            SELECT day, revenue, order_count
+            FROM snapshot_data
+            UNION ALL
+            SELECT r.day, r.revenue, r.order_count
+            FROM raw_range r
+            WHERE NOT EXISTS (SELECT 1 FROM snapshot_data s WHERE s.day = r.day)
+            ORDER BY day ASC
+            ''',
+            parameters: [
+              tenantId,
+              startDate,
+              branchId,
+              tenantId,
+              startTs,
+              branchId,
+            ],
+          )
+          .map((rows) => rows.toList());
+    }
+
+    return _db
+        .watch(
+          '''
+          WITH snapshot_data AS (
+            SELECT
+              snapshot_date AS day,
+              COALESCE(SUM(gross_sales), 0) AS revenue,
+              COALESCE(SUM(orders_count), 0) AS order_count
+            FROM daily_kpi_snapshots
+            WHERE tenant_id = ?
+              AND snapshot_date >= ?
+            GROUP BY snapshot_date
+          ),
+          raw_range AS (
+            SELECT
+              substr(created_at, 1, 10) AS day,
+              COALESCE(SUM(grand_total), 0) AS revenue,
+              COUNT(*) AS order_count
+            FROM sales
+            WHERE tenant_id = ?
+              AND status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
+              AND created_at >= ?
+            GROUP BY substr(created_at, 1, 10)
+          )
+          SELECT day, revenue, order_count
+          FROM snapshot_data
+          UNION ALL
+          SELECT r.day, r.revenue, r.order_count
+          FROM raw_range r
+          WHERE NOT EXISTS (SELECT 1 FROM snapshot_data s WHERE s.day = r.day)
+          ORDER BY day ASC
+          ''',
+          parameters: [tenantId, startDate, tenantId, startTs],
+        )
+        .map((rows) => rows.toList());
+  }
+
+  /// Snapshot-aware KPI row for today's dashboard metrics.
+  /// If today's snapshot does not exist, this falls back to transactional data.
+  Stream<Map<String, dynamic>> watchTodayKpiSnapshotSmart({
+    required String tenantId,
+    String? branchId,
+  }) {
+    final todayDate = DateTime.now().toUtc().toIso8601String().substring(0, 10);
+    final todayStartTs = '${todayDate}T00:00:00';
+
+    if (branchId != null && branchId != 'all') {
+      return _db
+          .watch(
+            '''
+            WITH snap AS (
+              SELECT
+                COALESCE(SUM(orders_count), 0) AS orders_count,
+                COALESCE(SUM(gross_sales), 0) AS gross_sales,
+                COALESCE(SUM(payments_collected), 0) AS payments_collected,
+                COALESCE(SUM(pending_approval_count), 0) AS pending_approval_count,
+                COALESCE(SUM(low_stock_count), 0) AS low_stock_count,
+                COALESCE(SUM(inventory_value), 0) AS inventory_value,
+                COUNT(*) AS row_count
+              FROM daily_kpi_snapshots
+              WHERE tenant_id = ?
+                AND branch_id = ?
+                AND snapshot_date = ?
+            ),
+            raw_sales AS (
+              SELECT
+                COUNT(*) FILTER (
+                  WHERE status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
+                ) AS orders_count,
+                COALESCE(
+                  SUM(CASE WHEN status NOT IN ('draft', 'voided', 'rejected') THEN grand_total ELSE 0 END),
+                  0
+                ) AS gross_sales,
+                COUNT(*) FILTER (WHERE status = 'pending_approval') AS pending_approval_count
+              FROM sales
+              WHERE tenant_id = ?
+                AND branch_id = ?
+                AND created_at >= ?
+            ),
+            raw_payments AS (
+              SELECT COALESCE(SUM(amount), 0) AS payments_collected
+              FROM sale_payments
+              WHERE tenant_id = ?
+                AND branch_id = ?
+                AND created_at >= ?
+            ),
+            raw_stock AS (
+              SELECT
+                COUNT(*) FILTER (WHERE quantity <= reorder_level AND quantity >= 0) AS low_stock_count,
+                COALESCE(
+                  SUM(CASE WHEN st.quantity > 0 THEN st.quantity * COALESCE(p.cost_price, 0) ELSE 0 END),
+                  0
+                ) AS inventory_value
+              FROM stock st
+              LEFT JOIN products p ON p.id = st.product_id
+              WHERE st.tenant_id = ?
+                AND st.branch_id = ?
+            )
+            SELECT
+              CASE WHEN snap.row_count > 0 THEN snap.orders_count ELSE raw_sales.orders_count END AS orders_count,
+              CASE WHEN snap.row_count > 0 THEN snap.gross_sales ELSE raw_sales.gross_sales END AS gross_sales,
+              CASE WHEN snap.row_count > 0 THEN snap.payments_collected ELSE raw_payments.payments_collected END AS payments_collected,
+              CASE WHEN snap.row_count > 0 THEN snap.pending_approval_count ELSE raw_sales.pending_approval_count END AS pending_approval_count,
+              CASE WHEN snap.row_count > 0 THEN snap.low_stock_count ELSE raw_stock.low_stock_count END AS low_stock_count,
+              CASE WHEN snap.row_count > 0 THEN snap.inventory_value ELSE raw_stock.inventory_value END AS inventory_value
+            FROM snap, raw_sales, raw_payments, raw_stock
+            ''',
+            parameters: [
+              tenantId,
+              branchId,
+              todayDate,
+              tenantId,
+              branchId,
+              todayStartTs,
+              tenantId,
+              branchId,
+              todayStartTs,
+              tenantId,
+              branchId,
+            ],
+          )
+          .map((rows) => rows.isEmpty ? <String, dynamic>{} : rows.first);
+    }
+
+    return _db
+        .watch(
+          '''
+          WITH snap AS (
+            SELECT
+              COALESCE(SUM(orders_count), 0) AS orders_count,
+              COALESCE(SUM(gross_sales), 0) AS gross_sales,
+              COALESCE(SUM(payments_collected), 0) AS payments_collected,
+              COALESCE(SUM(pending_approval_count), 0) AS pending_approval_count,
+              COALESCE(SUM(low_stock_count), 0) AS low_stock_count,
+              COALESCE(SUM(inventory_value), 0) AS inventory_value,
+              COUNT(*) AS row_count
+            FROM daily_kpi_snapshots
+            WHERE tenant_id = ?
+              AND snapshot_date = ?
+          ),
+          raw_sales AS (
+            SELECT
+              COUNT(*) FILTER (
+                WHERE status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
+              ) AS orders_count,
+              COALESCE(
+                SUM(CASE WHEN status NOT IN ('draft', 'voided', 'rejected') THEN grand_total ELSE 0 END),
+                0
+              ) AS gross_sales,
+              COUNT(*) FILTER (WHERE status = 'pending_approval') AS pending_approval_count
+            FROM sales
+            WHERE tenant_id = ?
+              AND created_at >= ?
+          ),
+          raw_payments AS (
+            SELECT COALESCE(SUM(amount), 0) AS payments_collected
+            FROM sale_payments
+            WHERE tenant_id = ?
+              AND created_at >= ?
+          ),
+          raw_stock AS (
+            SELECT
+              COUNT(*) FILTER (WHERE quantity <= reorder_level AND quantity >= 0) AS low_stock_count,
+              COALESCE(
+                SUM(CASE WHEN st.quantity > 0 THEN st.quantity * COALESCE(p.cost_price, 0) ELSE 0 END),
+                0
+              ) AS inventory_value
+            FROM stock st
+            LEFT JOIN products p ON p.id = st.product_id
+            WHERE st.tenant_id = ?
+          )
+          SELECT
+            CASE WHEN snap.row_count > 0 THEN snap.orders_count ELSE raw_sales.orders_count END AS orders_count,
+            CASE WHEN snap.row_count > 0 THEN snap.gross_sales ELSE raw_sales.gross_sales END AS gross_sales,
+            CASE WHEN snap.row_count > 0 THEN snap.payments_collected ELSE raw_payments.payments_collected END AS payments_collected,
+            CASE WHEN snap.row_count > 0 THEN snap.pending_approval_count ELSE raw_sales.pending_approval_count END AS pending_approval_count,
+            CASE WHEN snap.row_count > 0 THEN snap.low_stock_count ELSE raw_stock.low_stock_count END AS low_stock_count,
+            CASE WHEN snap.row_count > 0 THEN snap.inventory_value ELSE raw_stock.inventory_value END AS inventory_value
+          FROM snap, raw_sales, raw_payments, raw_stock
+          ''',
+          parameters: [
+            tenantId,
+            todayDate,
+            tenantId,
+            todayStartTs,
+            tenantId,
+            todayStartTs,
+            tenantId,
+          ],
+        )
+        .map((rows) => rows.isEmpty ? <String, dynamic>{} : rows.first);
+  }
+
   Stream<SyncStatus> get syncStatus => _db.statusStream;
 
   // --- Stock Adjustments (all, with status filter) ---
@@ -1326,15 +1971,20 @@ class PowerSyncRepository {
       sql += ' AND sa.branch_id = ?';
       params.add(branchId);
     }
-    if (status != null) {
-      sql += ' AND sa.status = ?';
-      params.add(status);
-    }
     sql += ' ORDER BY sa.created_at DESC';
 
-    return _db
-        .watch(sql, parameters: params)
-        .map((rows) => rows.map((row) => StockAdjustment.fromMap(row)).toList());
+    return _db.watch(sql, parameters: params).map((rows) {
+      final adjustments = rows
+          .map((row) => StockAdjustment.fromMap(row))
+          .toList();
+
+      if (status == null) return adjustments;
+
+      final normalizedStatus = status.toLowerCase();
+      return adjustments
+          .where((adj) => adj.status.toLowerCase() == normalizedStatus)
+          .toList();
+    });
   }
 
   /// Approve a pending stock adjustment and apply the quantity change to stock.
@@ -1343,18 +1993,16 @@ class PowerSyncRepository {
     required String approverId,
   }) async {
     await _db.writeTransaction((tx) async {
-      await tx.execute(
-        'UPDATE stock_adjustments SET status = ? WHERE id = ?',
-        ['approved', adjustmentId],
-      );
+      await tx.execute('UPDATE stock_adjustments SET status = ? WHERE id = ?', [
+        'approved',
+        adjustmentId,
+      ]);
       // Stock was already applied at batchAdjustStock time; no re-movement needed.
     });
   }
 
   /// Reject a pending stock adjustment (reverses the stock if it was already applied).
-  Future<void> rejectAdjustment({
-    required String adjustmentId,
-  }) async {
+  Future<void> rejectAdjustment({required String adjustmentId}) async {
     await _db.writeTransaction((tx) async {
       final rows = await tx.getAll(
         'SELECT * FROM stock_adjustments WHERE id = ?',
@@ -1369,10 +2017,10 @@ class PowerSyncRepository {
         [adj.quantity, DateTime.now().toUtc().toIso8601String(), adj.productId],
       );
 
-      await tx.execute(
-        'UPDATE stock_adjustments SET status = ? WHERE id = ?',
-        ['rejected', adjustmentId],
-      );
+      await tx.execute('UPDATE stock_adjustments SET status = ? WHERE id = ?', [
+        'rejected',
+        adjustmentId,
+      ]);
     });
   }
 
@@ -1382,6 +2030,7 @@ class PowerSyncRepository {
   Stream<List<Commission>> watchCommissions({
     required String tenantId,
     String? salespersonId,
+    String? branchId,
     String? status,
     DateTime? startDate,
     DateTime? endDate,
@@ -1396,6 +2045,12 @@ class PowerSyncRepository {
     if (status != null) {
       sql += ' AND status = ?';
       params.add(status);
+    }
+    if (branchId != null && branchId != 'all') {
+      sql +=
+          ' AND sale_id IN (SELECT id FROM sales WHERE tenant_id = ? AND branch_id = ?)';
+      params.add(tenantId);
+      params.add(branchId);
     }
     if (startDate != null) {
       sql += ' AND created_at >= ?';
@@ -1416,14 +2071,17 @@ class PowerSyncRepository {
   /// Returns one row per salesperson with total pending and total paid amounts.
   Stream<List<Map<String, dynamic>>> watchCommissionSummaryRaw({
     required String tenantId,
+    String? branchId,
     DateTime? startDate,
     DateTime? endDate,
   }) {
     String dateFilterComm = '';
     String dateFilterSales = '';
+    String branchFilterComm = '';
+    String branchFilterSales = '';
     List<Object?> paramsComm = [tenantId];
     List<Object?> paramsSales = [tenantId];
-    
+
     if (startDate != null) {
       dateFilterComm += ' AND created_at >= ?';
       dateFilterSales += ' AND created_at >= ?';
@@ -1437,18 +2095,27 @@ class PowerSyncRepository {
       paramsSales.add(endDate.toIso8601String());
     }
 
+    if (branchId != null && branchId != 'all') {
+      branchFilterComm =
+          ' AND sale_id IN (SELECT id FROM sales WHERE tenant_id = ? AND branch_id = ?)';
+      paramsComm.add(tenantId);
+      paramsComm.add(branchId);
+
+      branchFilterSales = ' AND branch_id = ?';
+      paramsSales.add(branchId);
+    }
+
     final params = [...paramsComm, ...paramsSales];
 
     // Using UNION to simulate FULL OUTER JOIN
-    return _db.watch(
-      '''
+    return _db.watch('''
       WITH CommAgg AS (
         SELECT salesperson_id,
                SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS total_pending,
                SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS total_paid,
                COUNT(id) AS transaction_count
         FROM commissions
-        WHERE tenant_id = ? $dateFilterComm
+         WHERE tenant_id = ? $dateFilterComm $branchFilterComm
         GROUP BY salesperson_id
       ),
       SalesAgg AS (
@@ -1456,7 +2123,7 @@ class PowerSyncRepository {
                SUM(grand_total) AS total_sales,
                COUNT(id) AS sales_count
         FROM sales
-        WHERE tenant_id = ? AND status != 'voided' AND salesperson_id IS NOT NULL $dateFilterSales
+         WHERE tenant_id = ? AND status != 'voided' AND salesperson_id IS NOT NULL $dateFilterSales $branchFilterSales
         GROUP BY salesperson_id
       )
       SELECT 
@@ -1483,28 +2150,34 @@ class PowerSyncRepository {
       LEFT JOIN CommAgg c ON s.salesperson_id = c.salesperson_id
       LEFT JOIN staff_members sm ON sm.id = COALESCE(c.salesperson_id, s.salesperson_id)
       ORDER BY total_sales_amount DESC, total_pending DESC
-      ''',
-      parameters: params,
-    );
+      ''', parameters: params);
   }
 
   /// Mark a commission as paid.
   Future<void> markCommissionPaid(String commissionId) async {
-    await _db.execute(
-      'UPDATE commissions SET status = ? WHERE id = ?',
-      ['paid', commissionId],
-    );
+    await _db.execute('UPDATE commissions SET status = ? WHERE id = ?', [
+      'paid',
+      commissionId,
+    ]);
   }
 
   /// Mark ALL pending commissions for a salesperson as paid.
   Future<void> markAllCommissionsPaid({
     required String tenantId,
     required String salespersonId,
+    String? branchId,
   }) async {
+    if (branchId != null && branchId != 'all') {
+      await _db.execute(
+        "UPDATE commissions SET status = 'paid' WHERE tenant_id = ? AND salesperson_id = ? AND status = 'pending' AND sale_id IN (SELECT id FROM sales WHERE tenant_id = ? AND branch_id = ?)",
+        [tenantId, salespersonId, tenantId, branchId],
+      );
+      return;
+    }
+
     await _db.execute(
       "UPDATE commissions SET status = 'paid' WHERE tenant_id = ? AND salesperson_id = ? AND status = 'pending'",
       [tenantId, salespersonId],
     );
   }
 }
-

@@ -21,7 +21,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
   final _addressController = TextEditingController();
   final _phoneController = TextEditingController();
   UserRole _selectedRole = UserRole.cashier;
-  String? _selectedBranchId;
+  final Set<String> _selectedBranchIds = <String>{};
   bool _isLoading = false;
 
   /// The set of permissions for this staff member.
@@ -53,11 +53,11 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
 
   Future<void> _inviteStaff() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedBranchId == null) {
+    if (_selectedBranchIds.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'Please select a branch',
+            'Please select at least one branch',
             style: TextStyle(color: Theme.of(context).colorScheme.onError),
           ),
           backgroundColor: Theme.of(context).colorScheme.error,
@@ -76,7 +76,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
           'password': _passwordController.text,
           'name': _nameController.text.trim(),
           'role': _selectedRole.toShortString(),
-          'branch_id': _selectedBranchId,
+          'branch_ids': _selectedBranchIds.toList(),
           'phone': _phoneController.text.trim(),
           'address': _addressController.text.trim(),
           'permissions': _permissions.map((p) => p.value).toList(),
@@ -171,10 +171,10 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
           }
 
           // Automatically select first branch if none selected yet
-          if (_selectedBranchId == null && branches.isNotEmpty) {
+          if (_selectedBranchIds.isEmpty && branches.isNotEmpty) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
-                setState(() => _selectedBranchId = branches.first.id);
+                setState(() => _selectedBranchIds.add(branches.first.id));
               }
             });
           }
@@ -352,29 +352,55 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // ── Branch Dropdown ──
-                _FieldLabel(label: 'Assigned Branch'),
+                // ── Branch Multi-select ──
+                _FieldLabel(label: 'Assigned Branches'),
                 const SizedBox(height: 8),
-                DropdownButtonFormField<String>(
-                  initialValue: _selectedBranchId,
-                  decoration: InputDecoration(
-                    prefixIcon: const Icon(PhosphorIconsRegular.storefront),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    border: Border.all(
+                      color: colorScheme.outline.withValues(alpha: 0.5),
                     ),
-                    filled: true,
-                    fillColor: colorScheme.surface,
+                    borderRadius: BorderRadius.circular(16),
+                    color: colorScheme.surface,
                   ),
-                  items: branches.map((b) {
-                    return DropdownMenuItem(value: b.id, child: Text(b.name));
-                  }).toList(),
-                  onChanged: (val) {
-                    if (val != null) {
-                      setState(() => _selectedBranchId = val);
-                    }
-                  },
-                  validator: (val) =>
-                      val == null ? 'Please select a branch' : null,
+                  child: Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: branches.map((branch) {
+                      final selected = _selectedBranchIds.contains(branch.id);
+                      return FilterChip(
+                        label: Text(branch.name),
+                        selected: selected,
+                        showCheckmark: false,
+                        onSelected: (enabled) {
+                          setState(() {
+                            if (enabled) {
+                              _selectedBranchIds.add(branch.id);
+                            } else {
+                              _selectedBranchIds.remove(branch.id);
+                            }
+                          });
+                        },
+                        selectedColor: colorScheme.primary,
+                        backgroundColor: Colors.transparent,
+                        side: BorderSide(
+                          color: selected
+                              ? colorScheme.primary
+                              : colorScheme.outline.withValues(alpha: 0.7),
+                        ),
+                        labelStyle: TextStyle(
+                          color: selected
+                              ? colorScheme.onPrimary
+                              : colorScheme.onSurface,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                      );
+                    }).toList(),
+                  ),
                 ),
                 const SizedBox(height: 32),
 

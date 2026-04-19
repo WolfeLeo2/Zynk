@@ -1,5 +1,45 @@
+import 'package:json_annotation/json_annotation.dart';
 import 'package:zynk/core/models/user_role.dart';
 
+part 'schema_models.g.dart';
+
+DateTime? _dateFromAny(dynamic value) {
+  if (value == null) return null;
+  if (value is DateTime) return value;
+  return DateTime.tryParse(value.toString());
+}
+
+String? _dateToIso(DateTime? value) => value?.toIso8601String();
+
+UserRole _roleFromJson(String? value) =>
+    UserRole.fromString(value ?? 'Cashier');
+
+String _roleToJson(UserRole role) => role.toShortString();
+
+Set<Permission> _permissionsFromJson(dynamic value) {
+  if (value == null) return {};
+  if (value is String) return Permission.fromJsonList(value);
+  if (value is List) {
+    return value
+        .map((e) => Permission.fromString(e?.toString() ?? ''))
+        .whereType<Permission>()
+        .toSet();
+  }
+  return {};
+}
+
+String _permissionsToJson(Set<Permission>? permissions) {
+  return Permission.toJsonList(permissions ?? <Permission>{});
+}
+
+bool _boolFromSqlite(dynamic value) =>
+    value == true || value == 1 || value == '1';
+
+int _boolToSqlite(bool value) => value ? 1 : 0;
+
+String _stringOrEmpty(dynamic value) => (value as String?) ?? '';
+
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Tenant {
   final String id;
   final String name;
@@ -8,7 +48,9 @@ class Tenant {
   final String? phone;
   final String? email;
   final String? logoUrl;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   Tenant({
@@ -23,49 +65,26 @@ class Tenant {
     this.updatedAt,
   });
 
-  factory Tenant.fromMap(Map<String, dynamic> map) {
-    return Tenant(
-      id: map['id'] as String,
-      name: map['name'] as String,
-      planType: map['plan_type'] as String?,
-      address: map['address'] as String?,
-      phone: map['phone'] as String?,
-      email: map['email'] as String?,
-      logoUrl: map['logo_url'] as String?,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : null,
-    );
-  }
+  factory Tenant.fromMap(Map<String, dynamic> map) => _$TenantFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'name': name,
-      'plan_type': planType,
-      'address': address,
-      'phone': phone,
-      'email': email,
-      'logo_url': logoUrl,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$TenantToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Profile {
   final String id;
   final String userId;
   final String tenantId;
   final String? branchId;
+  @JsonKey(fromJson: _roleFromJson, toJson: _roleToJson)
   final UserRole role;
+  @JsonKey(fromJson: _permissionsFromJson, toJson: _permissionsToJson)
   final Set<Permission> permissions;
   final String? displayName;
   final String? profilePictureUrl;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   Profile({
@@ -89,43 +108,27 @@ class Profile {
   }
 
   factory Profile.fromMap(Map<String, dynamic> map) {
-    final role = UserRole.fromString(map['role'] as String? ?? 'Cashier');
+    final parsed = _$ProfileFromJson(map);
+    if (!parsed.role.isOwner) return parsed;
+
     return Profile(
-      id: map['id'] as String,
-      userId: map['user_id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String?,
-      role: role,
-      permissions: role.isOwner
-          ? Permission.values.toSet()
-          : Permission.fromJsonList(map['permissions'] as String?),
-      displayName: map['display_name'] as String?,
-      profilePictureUrl: map['profile_picture_url'] as String?,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : null,
+      id: parsed.id,
+      userId: parsed.userId,
+      tenantId: parsed.tenantId,
+      branchId: parsed.branchId,
+      role: parsed.role,
+      permissions: Permission.values.toSet(),
+      displayName: parsed.displayName,
+      profilePictureUrl: parsed.profilePictureUrl,
+      createdAt: parsed.createdAt,
+      updatedAt: parsed.updatedAt,
     );
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'user_id': userId,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'role': role.toShortString(),
-      'permissions': Permission.toJsonList(permissions),
-      'display_name': displayName,
-      'profile_picture_url': profilePictureUrl,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$ProfileToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Branch {
   final String id;
   final String tenantId;
@@ -133,7 +136,9 @@ class Branch {
   final String name;
   final String? address;
   final String? phone;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   Branch({
@@ -147,43 +152,20 @@ class Branch {
     this.updatedAt,
   });
 
-  factory Branch.fromMap(Map<String, dynamic> map) {
-    return Branch(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      locationId: map['location_id'] as String?,
-      name: map['name'] as String,
-      address: map['address'] as String?,
-      phone: map['phone'] as String?,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : null,
-    );
-  }
+  factory Branch.fromMap(Map<String, dynamic> map) => _$BranchFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'location_id': locationId,
-      'name': name,
-      'address': address,
-      'phone': phone,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$BranchToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Category {
   final String id;
   final String tenantId;
   final String? branchId;
   final String name;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   Category({
@@ -195,33 +177,12 @@ class Category {
     this.updatedAt,
   });
 
-  factory Category.fromMap(Map<String, dynamic> map) {
-    return Category(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String?,
-      name: map['name'] as String,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : null,
-    );
-  }
+  factory Category.fromMap(Map<String, dynamic> map) => _$CategoryFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'name': name,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$CategoryToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class ItemGroup {
   final String id;
   final String tenantId;
@@ -230,7 +191,9 @@ class ItemGroup {
   final String? description;
   final String? defaultCommissionType;
   final double? defaultCommissionValue;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   ItemGroup({
@@ -245,40 +208,13 @@ class ItemGroup {
     this.updatedAt,
   });
 
-  factory ItemGroup.fromMap(Map<String, dynamic> map) {
-    return ItemGroup(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String?,
-      name: map['name'] as String,
-      description: map['description'] as String?,
-      defaultCommissionType: map['default_commission_type'] as String?,
-      defaultCommissionValue: (map['default_commission_value'] as num?)
-          ?.toDouble(),
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : null,
-    );
-  }
+  factory ItemGroup.fromMap(Map<String, dynamic> map) =>
+      _$ItemGroupFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'name': name,
-      'description': description,
-      'default_commission_type': defaultCommissionType,
-      'default_commission_value': defaultCommissionValue,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$ItemGroupToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Product {
   final String id;
   final String tenantId;
@@ -297,9 +233,12 @@ class Product {
   final double? width;
   final double? height;
   final String? taxCategory;
+  @JsonKey(fromJson: _boolFromSqlite, toJson: _boolToSqlite)
   final bool isService;
   final String? uomId;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   Product copyWith({
@@ -374,59 +313,12 @@ class Product {
     this.updatedAt,
   });
 
-  factory Product.fromMap(Map<String, dynamic> map) {
-    return Product(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String?,
-      itemGroupId: map['item_group_id'] as String?,
-      categoryId: map['category_id'] as String?,
-      name: map['name'] as String,
-      sku: map['sku'] as String?,
-      barcode: map['barcode'] as String?,
-      description: map['description'] as String?,
-      imageUrl: map['image_url'] as String?,
-      basePrice: (map['base_price'] as num?)?.toDouble() ?? 0.0,
-      costPrice: (map['cost_price'] as num?)?.toDouble(),
-      taxCategory: map['tax_category'] as String?,
-      isService: (map['is_service'] as int?) == 1,
-      uomId: map['uom_id'] as String?,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : null,
-    );
-  }
+  factory Product.fromMap(Map<String, dynamic> map) => _$ProductFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'item_group_id': itemGroupId,
-      'category_id': categoryId,
-      'name': name,
-      'sku': sku,
-      'barcode': barcode,
-      'description': description,
-      'image_url': imageUrl,
-      'base_price': basePrice,
-      'cost_price': costPrice, // Added
-      'weight': weight,
-      'length': length,
-      'width': width,
-      'height': height,
-      'tax_category': taxCategory,
-      'is_service': isService ? 1 : 0,
-      'uom_id': uomId,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$ProductToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Stock {
   final String id;
   final String tenantId;
@@ -434,6 +326,7 @@ class Stock {
   final String productId;
   final int quantity;
   final int? reorderLevel;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? lastUpdated;
 
   Stock({
@@ -446,33 +339,12 @@ class Stock {
     this.lastUpdated,
   });
 
-  factory Stock.fromMap(Map<String, dynamic> map) {
-    return Stock(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String,
-      productId: map['product_id'] as String,
-      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
-      reorderLevel: (map['reorder_level'] as num?)?.toInt(),
-      lastUpdated: map['last_updated'] != null
-          ? DateTime.parse(map['last_updated'])
-          : null,
-    );
-  }
+  factory Stock.fromMap(Map<String, dynamic> map) => _$StockFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'product_id': productId,
-      'quantity': quantity,
-      'reorder_level': reorderLevel,
-      'last_updated': lastUpdated?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$StockToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class StockAdjustment {
   final String id;
   final String tenantId;
@@ -484,11 +356,15 @@ class StockAdjustment {
   final String? notes;
   final String? createdBy;
   final String? reasonId;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
   final String status; // 'pending', 'approved', 'rejected'
   // Populated from JOIN queries — not stored:
+  @JsonKey(name: 'adjuster_display_name', includeToJson: false)
   final String? adjusterName;
+  @JsonKey(includeToJson: false)
   final String? reasonLabel;
+  @JsonKey(includeToJson: false)
   final String? productName;
 
   StockAdjustment({
@@ -509,44 +385,10 @@ class StockAdjustment {
     this.productName,
   });
 
-  factory StockAdjustment.fromMap(Map<String, dynamic> map) {
-    return StockAdjustment(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String,
-      productId: map['product_id'] as String,
-      adjustmentType: map['adjustment_type'] as String?,
-      quantity: (map['quantity'] as num?)?.toInt() ?? 0,
-      referenceNumber: map['reference_number'] as String?,
-      notes: map['notes'] as String?,
-      createdBy: map['created_by'] as String?,
-      reasonId: map['reason_id'] as String?,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'] as String)
-          : null,
-      status: map['status'] as String? ?? 'approved',
-      adjusterName: map['adjuster_display_name'] as String?,
-      reasonLabel: map['reason_label'] as String?,
-      productName: map['product_name'] as String?,
-    );
-  }
+  factory StockAdjustment.fromMap(Map<String, dynamic> map) =>
+      _$StockAdjustmentFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'product_id': productId,
-      'adjustment_type': adjustmentType,
-      'quantity': quantity,
-      'reference_number': referenceNumber,
-      'notes': notes,
-      'created_by': createdBy,
-      'reason_id': reasonId,
-      'created_at': createdAt?.toIso8601String(),
-      'status': status,
-    };
-  }
+  Map<String, dynamic> toMap() => _$StockAdjustmentToJson(this);
 }
 
 class BatchAdjustmentItem {
@@ -561,6 +403,7 @@ class BatchAdjustmentItem {
   });
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class StockItemGroup {
   final String id;
   final String tenantId;
@@ -576,30 +419,18 @@ class StockItemGroup {
     this.attributes,
   });
 
-  factory StockItemGroup.fromMap(Map<String, dynamic> map) {
-    return StockItemGroup(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      name: map['name'] as String,
-      description: map['description'] as String?,
-      attributes: map['attributes'] as String?,
-    );
-  }
+  factory StockItemGroup.fromMap(Map<String, dynamic> map) =>
+      _$StockItemGroupFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'name': name,
-      'description': description,
-      'attributes': attributes,
-    };
-  }
+  Map<String, dynamic> toMap() => _$StockItemGroupToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class CompositeItemComponent {
+  @JsonKey(fromJson: _stringOrEmpty)
   final String id;
   final String tenantId;
+  @JsonKey(fromJson: _stringOrEmpty)
   final String branchId;
   final String compositeProductId;
   final String componentProductId;
@@ -614,27 +445,10 @@ class CompositeItemComponent {
     required this.quantity,
   });
 
-  factory CompositeItemComponent.fromMap(Map<String, dynamic> map) {
-    return CompositeItemComponent(
-      id: map['id'] as String? ?? '', // PowerSync might omit ID in certain local joins if not selected
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String? ?? '',
-      compositeProductId: map['composite_product_id'] as String,
-      componentProductId: map['component_product_id'] as String,
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
-    );
-  }
+  factory CompositeItemComponent.fromMap(Map<String, dynamic> map) =>
+      _$CompositeItemComponentFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'composite_product_id': compositeProductId,
-      'component_product_id': componentProductId,
-      'quantity': quantity,
-    };
-  }
+  Map<String, dynamic> toMap() => _$CompositeItemComponentToJson(this);
 
   CompositeItemComponent copyWith({
     String? id,
@@ -655,6 +469,7 @@ class CompositeItemComponent {
   }
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class UnitOfMeasurement {
   final String id;
   final String tenantId;
@@ -662,6 +477,7 @@ class UnitOfMeasurement {
   final String? abbreviation;
   final String? baseUnitId;
   final double conversionFactor;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
 
   UnitOfMeasurement({
@@ -674,37 +490,17 @@ class UnitOfMeasurement {
     this.createdAt,
   });
 
-  factory UnitOfMeasurement.fromMap(Map<String, dynamic> map) {
-    return UnitOfMeasurement(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      label: map['label'] as String,
-      abbreviation: map['abbreviation'] as String?,
-      baseUnitId: map['base_unit_id'] as String?,
-      conversionFactor: (map['conversion_factor'] as num?)?.toDouble() ?? 1.0,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-    );
-  }
+  factory UnitOfMeasurement.fromMap(Map<String, dynamic> map) =>
+      _$UnitOfMeasurementFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'label': label,
-      'abbreviation': abbreviation,
-      'base_unit_id': baseUnitId,
-      'conversion_factor': conversionFactor,
-      'created_at': createdAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$UnitOfMeasurementToJson(this);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // COMMISSION
 // ─────────────────────────────────────────────────────────────────────────────
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Commission {
   final String id;
   final String tenantId;
@@ -712,6 +508,7 @@ class Commission {
   final String saleId;
   final double amount;
   final String status; // 'pending', 'paid'
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
 
   Commission({
@@ -724,31 +521,10 @@ class Commission {
     this.createdAt,
   });
 
-  factory Commission.fromMap(Map<String, dynamic> map) {
-    return Commission(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      salespersonId: map['salesperson_id'] as String,
-      saleId: map['sale_id'] as String,
-      amount: (map['amount'] as num?)?.toDouble() ?? 0.0,
-      status: map['status'] as String? ?? 'pending',
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'] as String)
-          : null,
-    );
-  }
+  factory Commission.fromMap(Map<String, dynamic> map) =>
+      _$CommissionFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'salesperson_id': salespersonId,
-      'sale_id': saleId,
-      'amount': amount,
-      'status': status,
-      'created_at': createdAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$CommissionToJson(this);
 }
 
 // Aggregated commission data per salesperson (used in report screen)

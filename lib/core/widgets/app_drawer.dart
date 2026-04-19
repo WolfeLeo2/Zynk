@@ -16,7 +16,7 @@ class AppDrawer extends ConsumerWidget {
     final profileAsync = ref.watch(currentUserProfileProvider);
     final displayName = profileAsync.value?.displayName ?? 'Business Owner';
     final photoUrl = profileAsync.value?.profilePictureUrl;
-    
+
     final currentPath = GoRouterState.of(context).uri.path;
 
     return Drawer(
@@ -96,13 +96,13 @@ class AppDrawer extends ConsumerWidget {
                 _DrawerItem(
                   icon: PhosphorIconsDuotone.package,
                   label: 'Item Groups',
-                  path: '/products/groups', 
+                  path: '/products/groups',
                   currentPath: currentPath,
                 ),
                 _DrawerItem(
                   icon: PhosphorIconsDuotone.stack,
                   label: 'Composite Items',
-                  path: '/products/composite', 
+                  path: '/products/composite',
                   currentPath: currentPath,
                 ),
                 _DrawerItem(
@@ -124,8 +124,8 @@ class AppDrawer extends ConsumerWidget {
                 ),
                 _DrawerItem(
                   icon: PhosphorIconsDuotone.currencyDollar,
-                  label: 'Commissions',
-                  path: '/settings/commissions',
+                  label: 'Reports',
+                  path: '/settings/reports',
                   currentPath: currentPath,
                 ),
                 const SizedBox(height: 16),
@@ -161,15 +161,19 @@ class AppDrawer extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.brightness == Brightness.light ? Colors.white : AppTokens.bgSurfaceHighlightDark,
+                color: theme.brightness == Brightness.light
+                    ? Colors.white
+                    : AppTokens.bgSurfaceHighlightDark,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: theme.colorScheme.outline.withValues(alpha: 0.5)),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.5),
+                ),
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.02),
                     blurRadius: 10,
                     offset: const Offset(0, -4),
-                  )
+                  ),
                 ],
               ),
               child: Row(
@@ -221,7 +225,9 @@ class AppDrawer extends ConsumerWidget {
 
   TextStyle _headerStyle(ThemeData theme) {
     return theme.textTheme.labelSmall!.copyWith(
-      color: theme.brightness == Brightness.light ? AppTokens.textMutedLight : AppTokens.textMutedDark,
+      color: theme.brightness == Brightness.light
+          ? AppTokens.textMutedLight
+          : AppTokens.textMutedDark,
       fontWeight: FontWeight.bold,
       letterSpacing: 1.2,
     );
@@ -245,7 +251,7 @@ class _DrawerItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    
+
     // Evaluate if selected
     bool isSelected = false;
     if (path == '/') {
@@ -253,7 +259,7 @@ class _DrawerItem extends StatelessWidget {
     } else {
       isSelected = currentPath.startsWith(path);
       // Ensure we don't accidentally match /products for /products/batch-adjust
-      // wait, actually we want the Products tab active when in batch-adjust 
+      // wait, actually we want the Products tab active when in batch-adjust
       // if it's nested under it. This is fine.
     }
 
@@ -268,24 +274,24 @@ class _DrawerItem extends StatelessWidget {
         child: InkWell(
           onTap: () {
             // Close drawer if open (mobile)
-            if (Scaffold.of(context).hasDrawer && Scaffold.of(context).isDrawerOpen) {
+            if (Scaffold.of(context).hasDrawer &&
+                Scaffold.of(context).isDrawerOpen) {
               Navigator.of(context).pop();
             }
-            
+
             if (!isSelected) {
               context.go(path); // Let goRouter handle the branch navigation
             }
           },
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16,
-              vertical: 14,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 PhosphorIcon(
                   icon,
-                  color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+                  color: isSelected
+                      ? colorScheme.primary
+                      : colorScheme.onSurfaceVariant,
                   size: 20,
                 ),
                 const SizedBox(width: 16),
