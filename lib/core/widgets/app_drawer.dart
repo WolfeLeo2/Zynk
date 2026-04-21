@@ -264,50 +264,33 @@ class _DrawerItem extends StatelessWidget {
     }
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 4, top: 4),
-      child: Material(
-        color: isSelected
-            ? colorScheme.primary.withValues(alpha: 0.1)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: () {
-            // Close drawer if open (mobile)
-            if (Scaffold.of(context).hasDrawer &&
-                Scaffold.of(context).isDrawerOpen) {
-              Navigator.of(context).pop();
-            }
-
-            if (!isSelected) {
-              context.go(path); // Let goRouter handle the branch navigation
-            }
-          },
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                PhosphorIcon(
-                  icon,
-                  color: isSelected
-                      ? colorScheme.primary
-                      : colorScheme.onSurfaceVariant,
-                  size: 20,
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  label,
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-                    color: isSelected
-                        ? colorScheme.primary
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ),
-              ],
-            ),
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: ListTile(
+        dense: true,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        selected: isSelected,
+        selectedTileColor: colorScheme.primary.withValues(alpha: 0.1),
+        leading: PhosphorIcon(
+          icon,
+          color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+          size: 20,
+        ),
+        title: Text(
+          label,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
           ),
         ),
+        onTap: () {
+          if (Scaffold.of(context).hasDrawer && Scaffold.of(context).isDrawerOpen) {
+            Navigator.of(context).pop();
+          }
+
+          if (!isSelected) {
+            context.go(path);
+          }
+        },
       ),
     );
   }

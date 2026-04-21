@@ -129,6 +129,14 @@ final schema = Schema([
     Column.text('updated_at'),
   ]),
 
+  // Product-Branch availability mapping (shared catalog visibility)
+  const Table('product_branches', [
+    Column.text('tenant_id'),
+    Column.text('product_id'),
+    Column.text('branch_id'),
+    Column.text('created_at'),
+  ]),
+
   // Stock
   const Table('stock', [
     Column.text('tenant_id'),
@@ -179,7 +187,6 @@ final schema = Schema([
     Column.text('tenant_id'),
     Column.text('branch_id'),
     Column.text('customer_id'),
-    Column.text('customer_name'),
     Column.text('invoice_number'),
     Column.text('sale_type'),
     Column.text('created_by'),
@@ -193,6 +200,8 @@ final schema = Schema([
     Column.real('amount_paid'),
     Column.text('payment_method'),
     Column.text('status'),
+    Column.integer('required_approvals'),
+    Column.integer('approval_count'),
     Column.text('payment_status'),
     Column.text('notes'),
     Column.text('due_date'),
@@ -203,6 +212,16 @@ final schema = Schema([
     Column.text('fulfillment_status'),
     Column.text('created_at'),
     Column.text('updated_at'),
+  ]),
+
+  // Sale Approvals
+  const Table('sale_approvals', [
+    Column.text('sale_id'),
+    Column.text('tenant_id'),
+    Column.text('approver_user_id'),
+    Column.text('decision'),
+    Column.text('notes'),
+    Column.text('created_at'),
   ]),
 
   // Sale Items
@@ -273,8 +292,6 @@ final schema = Schema([
     Column.text('salesperson_id'),
     Column.real('amount'),
     Column.text('status'),
-    Column.text('commission_type'),
-    Column.real('commission_value'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -509,6 +526,33 @@ Future<void> openPowerSyncDatabase() async {
 
 Future<void> _runLocalCompatMigrations() async {
   try {
+    await db.execute(
+      'ALTER TABLE sales ADD COLUMN required_approvals INTEGER DEFAULT 2',
+    );
+  } catch (_) {
+    // Column already exists or table not yet materialized.
+  }
+
+  try {
+    await db.execute(
+      'ALTER TABLE sales ADD COLUMN approval_count INTEGER DEFAULT 0',
+    );
+  } catch (_) {
+    // Column already exists or table not yet materialized.
+  }
+
+  try {
+    await db.execute(
+      'UPDATE sales SET required_approvals = 2 WHERE required_approvals IS NULL OR required_approvals < 1',
+    );
+    await db.execute(
+      'UPDATE sales SET approval_count = 0 WHERE approval_count IS NULL OR approval_count < 0',
+    );
+  } catch (_) {
+    // Ignore if table/columns are not yet available.
+  }
+
+  try {
     await db.execute('ALTER TABLE stock_adjustments ADD COLUMN status TEXT');
   } catch (_) {
     // Column already exists or table not yet materialized.
@@ -525,6 +569,7 @@ Future<void> _runLocalCompatMigrations() async {
   try {
     await db.execute("DELETE FROM stock_adjustments WHERE branch_id = 'all'");
     await db.execute("DELETE FROM stock WHERE branch_id = 'all'");
+    await db.execute("DELETE FROM product_branches WHERE branch_id = 'all'");
   } catch (_) {
     // Ignore if tables are not yet available.
   }

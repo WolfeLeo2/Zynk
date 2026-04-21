@@ -7,6 +7,7 @@ const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 // Permission required for each action
 const ACTION_PERMISSIONS: Record<string, string> = {
     update_draft: "create_invoices",
+    clone_sale: "create_invoices",
     record_payment: "record_payments",
     approve_sale: "approve_invoices",
     reject_sale: "approve_invoices",
@@ -239,11 +240,121 @@ Deno.serve(async (req: Request) => {
                 return jsonResponse({ status: "pending_approval", sale_id: saleId });
             }
 
+            case "clone_sale": {
+                const sourceSaleId = saleId;
+
+                const { data: sourceSale, error: sourceSaleError } = await supabase
+                    .from("sales")
+                    .select("*")
+                    .eq("id", sourceSaleId)
+                    .single();
+
+                if (sourceSaleError || !sourceSale) {
+                    throw new Error("Source sale not found");
+                }
+
+                if (sourceSale.tenant_id !== tenantId) {
+                    throw new Error("Source sale tenant mismatch");
+                }
+
+                const { data: sourceItems, error: sourceItemsError } = await supabase
+                    .from("sale_items")
+                    .select("*")
+                    .eq("sale_id", sourceSaleId);
+
+                if (sourceItemsError) {
+                    throw new Error(`Source sale items lookup failed: ${sourceItemsError.message}`);
+                }
+
+                if (!sourceItems || sourceItems.length === 0) {
+                    throw new Error("Source sale has no items to clone");
+                }
+
+                const currentYear = new Date().getFullYear();
+                const { data: seq, error: counterError } = await supabase.rpc(
+                    "next_invoice_number",
+                    { p_tenant_id: tenantId, p_prefix: "INV", p_year: currentYear }
+                );
+
+                if (counterError) {
+                    throw new Error(`Invoice number generation failed: ${counterError.message}`);
+                }
+
+                const invoiceNumber = `INV-${currentYear}-${String(seq).padStart(5, "0")}`;
+                const newSaleId = crypto.randomUUID();
+
+                const { error: insertSaleError } = await supabase
+                    .from("sales")
+                    .insert({
+                        id: newSaleId,
+                        tenant_id: tenantId,
+                        branch_id: sourceSale.branch_id,
+                        customer_id: sourceSale.customer_id,
+                        invoice_number: invoiceNumber,
+                        sale_type: sourceSale.sale_type || "invoice",
+                        created_by: userId,
+                        salesperson_id: sourceSale.salesperson_id,
+                        approved_by: null,
+                        subtotal: Number(sourceSale.subtotal || 0),
+                        tax_amount: Number(sourceSale.tax_amount || 0),
+                        discount_amount: Number(sourceSale.discount_amount || 0),
+                        grand_total: Number(sourceSale.grand_total || 0),
+                        total_amount: Number(sourceSale.total_amount || sourceSale.grand_total || 0),
+                        amount_paid: 0,
+                        payment_method: null,
+                        payment_status: "unpaid",
+                        fulfillment_status: "unfulfilled",
+                        status: "pending_approval",
+                        notes: sourceSale.notes || null,
+                        due_date: sourceSale.due_date || null,
+                        completed_at: null,
+                        voided_at: null,
+                        void_reason: null,
+                        external_ref: null,
+                        created_at: now,
+                        updated_at: now,
+                    });
+
+                if (insertSaleError) {
+                    throw new Error(`Clone sale insert failed: ${insertSaleError.message}`);
+                }
+
+                const clonedItems = sourceItems.map((item: any) => ({
+                    id: crypto.randomUUID(),
+                    sale_id: newSaleId,
+                    tenant_id: tenantId,
+                    product_id: item.product_id,
+                    quantity: Number(item.quantity || 0),
+                    unit_price: Number(item.unit_price || 0),
+                    cost_price: Number(item.cost_price || 0),
+                    tax_amount: Number(item.tax_amount || 0),
+                    discount: Number(item.discount || 0),
+                    total: Number(item.total || 0),
+                    product_name: item.product_name || null,
+                    created_at: now,
+                    updated_at: now,
+                }));
+
+                const { error: insertItemsError } = await supabase
+                    .from("sale_items")
+                    .insert(clonedItems);
+
+                if (insertItemsError) {
+                    await supabase.from("sales").delete().eq("id", newSaleId);
+                    throw new Error(`Clone sale items insert failed: ${insertItemsError.message}`);
+                }
+
+                return jsonResponse({
+                    sale_id: newSaleId,
+                    invoice_number: invoiceNumber,
+                    status: "pending_approval",
+                });
+            }
+
             case "approve_sale": {
-                // Get sale to check branch for stock decrement
                 const { data: sale } = await supabase
                     .from("sales")
-                    .select("*, sale_items(*)")
+                    .select("id, tenant_id, status, payment_status, fulfillment_status, required_approvals, approval_count")
                     .eq("id", saleId)
                     .single();
 
@@ -255,19 +366,50 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Sale (${sale.status}) must be pending approval to be approved`);
                 }
 
-                const newStatus = "approved";
+                const { error: approvalInsertError } = await supabase
+                    .from("sale_approvals")
+                    .insert({
+                        id: crypto.randomUUID(),
+                        sale_id: saleId,
+                        tenant_id: tenantId,
+                        approver_user_id: userId,
+                        decision: "approved",
+                        notes: params.notes || null,
+                        created_at: now,
+                    });
+
+                if (approvalInsertError) {
+                    if (approvalInsertError.code === "23505") {
+                        throw new Error("You have already approved this invoice.");
+                    }
+                    throw new Error(`Approval record failed: ${approvalInsertError.message}`);
+                }
+
+                const { count: approvalCount, error: approvalCountError } = await supabase
+                    .from("sale_approvals")
+                    .select("id", { count: "exact", head: true })
+                    .eq("sale_id", saleId)
+                    .eq("decision", "approved");
+
+                if (approvalCountError) {
+                    throw new Error(`Approval count failed: ${approvalCountError.message}`);
+                }
+
+                const requiredApprovals = Math.max(1, Number(sale.required_approvals || 2));
+                const nextApprovalCount = Math.min(requiredApprovals, Number(approvalCount || 0));
+                const isFinalApproval = nextApprovalCount >= requiredApprovals;
 
                 const updateData: any = {
-                    status: newStatus,
-                    approved_by: userId,
+                    approval_count: nextApprovalCount,
+                    status: isFinalApproval ? "approved" : "pending_approval",
+                    approved_by: isFinalApproval ? userId : null,
                     updated_at: now,
                 };
 
-                if (sale.payment_status === "paid" && sale.fulfillment_status === "fulfilled") {
+                if (isFinalApproval && sale.payment_status === "paid" && sale.fulfillment_status === "fulfilled") {
                     updateData.completed_at = now;
                 }
 
-                // Update status
                 const { error } = await supabase
                     .from("sales")
                     .update(updateData)
@@ -275,7 +417,12 @@ Deno.serve(async (req: Request) => {
 
                 if (error) throw new Error(`Approve failed: ${error.message}`);
 
-                return jsonResponse({ status: newStatus, sale_id: saleId });
+                return jsonResponse({
+                    status: isFinalApproval ? "approved" : "pending_approval",
+                    sale_id: saleId,
+                    approval_count: nextApprovalCount,
+                    required_approvals: requiredApprovals,
+                });
             }
 
             case "fulfill_sale": {
@@ -353,11 +500,45 @@ Deno.serve(async (req: Request) => {
             }
 
             case "reject_sale": {
+                const { data: existingSale } = await supabase
+                    .from("sales")
+                    .select("id, status")
+                    .eq("id", saleId)
+                    .single();
+
+                if (!existingSale) {
+                    throw new Error("Sale not found");
+                }
+
+                if (existingSale.status !== "pending_approval") {
+                    throw new Error(`Sale (${existingSale.status}) must be pending approval to be rejected`);
+                }
+
+                const { error: rejectRecordError } = await supabase
+                    .from("sale_approvals")
+                    .insert({
+                        id: crypto.randomUUID(),
+                        sale_id: saleId,
+                        tenant_id: tenantId,
+                        approver_user_id: userId,
+                        decision: "rejected",
+                        notes: params.reason || "Rejected",
+                        created_at: now,
+                    });
+
+                if (rejectRecordError) {
+                    if (rejectRecordError.code === "23505") {
+                        throw new Error("You have already made a decision on this invoice.");
+                    }
+                    throw new Error(`Reject record failed: ${rejectRecordError.message}`);
+                }
+
                 const { error } = await supabase
                     .from("sales")
                     .update({
                         status: "rejected",
                         approved_by: userId,
+                        approval_count: 0,
                         notes: params.reason || "Rejected",
                         updated_at: now,
                     })

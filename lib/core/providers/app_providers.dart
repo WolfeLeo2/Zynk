@@ -290,6 +290,12 @@ final currentBranchProvider = Provider<Branch?>((ref) {
   return ref.watch(branchSelectionProvider).selectedBranch;
 });
 
+final canSwitchBranchProvider = Provider<bool>((ref) {
+  final branches = ref.watch(branchSelectionProvider).availableBranches;
+  final realBranches = branches.where((b) => b.id != 'all').length;
+  return realBranches > 1;
+});
+
 /// Side-effect provider: reacts to branchesProvider stream updates and
 /// propagates them to BranchSelectionNotifier safely.
 /// Uses ref.watch (NOT ref.listen) so it never fires synchronously during build.

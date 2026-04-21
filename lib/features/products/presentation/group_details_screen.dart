@@ -27,7 +27,9 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
     _commissionValueController = TextEditingController(
       text: widget.group.defaultCommissionValue?.toString() ?? '',
     );
-    _commissionType = widget.group.defaultCommissionType ?? 'none';
+    final existingType =
+        (widget.group.defaultCommissionType ?? 'none').toLowerCase();
+    _commissionType = existingType == 'percent' ? 'percentage' : existingType;
   }
 
   @override
@@ -325,7 +327,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                                   child: Text('Fixed'),
                                 ),
                                 DropdownMenuItem(
-                                  value: 'percent',
+                                  value: 'percentage',
                                   child: Text('Percentage'),
                                 ),
                               ],
@@ -344,7 +346,7 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                               enabled: _commissionType != 'none',
                               decoration: InputDecoration(
                                 labelText: 'Value',
-                                hintText: _commissionType == 'percent'
+                                hintText: _commissionType == 'percentage'
                                     ? 'e.g. 5'
                                     : 'e.g. 100',
                                 border: const OutlineInputBorder(),

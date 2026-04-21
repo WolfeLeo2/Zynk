@@ -22,6 +22,7 @@ class ReceiptTemplate {
     required Tenant tenant,
     Branch? branch,
     String? customerName,
+    String? salespersonName,
     pw.MemoryImage? logoImage,
   }) {
     final pdf = pw.Document();
@@ -95,7 +96,7 @@ class ReceiptTemplate {
                 pw.Row(
                   children: [
                     pw.Text(
-                      'Served by: ${sale.salespersonId}',
+                      'Served by: ${salespersonName ?? sale.salespersonId}',
                       style: const pw.TextStyle(fontSize: 8),
                     ),
                   ],
@@ -217,8 +218,6 @@ class ReceiptTemplate {
               // ── Totals ──
               pw.SizedBox(height: 4),
               _totalRow('Subtotal', currencyFormat.format(sale.subtotal)),
-              if (sale.taxAmount > 0)
-                _totalRow('Tax', currencyFormat.format(sale.taxAmount)),
               if (sale.discountAmount > 0)
                 _totalRow(
                   'Discount',

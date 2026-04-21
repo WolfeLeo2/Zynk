@@ -61,6 +61,12 @@ final saleItemsProvider = StreamProvider.autoDispose
       return repo.watchSaleItems(saleId);
     });
 
+final saleApprovalsProvider = StreamProvider.autoDispose
+    .family<List<SaleApproval>, String>((ref, saleId) {
+      final repo = ref.watch(repositoryProvider);
+      return repo.watchSaleApprovals(saleId);
+    });
+
 final salePaymentsProvider = StreamProvider.autoDispose
     .family<List<Payment>, String>((ref, saleId) {
       final repo = ref.watch(repositoryProvider);

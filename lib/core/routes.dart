@@ -34,8 +34,6 @@ import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
 import 'package:zynk/features/products/presentation/adjustments_screen.dart';
 import 'package:zynk/features/reports/presentation/reports_screen.dart';
 
-import 'package:zynk/core/widgets/branch_required_guard.dart';
-
 // Keys
 final rootNavigatorKey = GlobalKey<NavigatorState>();
 final shellNavigatorKey = GlobalKey<NavigatorState>();
@@ -106,10 +104,26 @@ final routerProvider = Provider<GoRouter>((ref) {
                     routes: [
                       GoRoute(
                         path: 'add',
-                        builder: (context, state) => const BranchRequiredGuard(
-                          actionLabel: 'adding products',
-                          child: AddProductScreen(),
-                        ),
+                        builder: (context, state) {
+                          final extra = state.extra;
+
+                          if (extra is Product) {
+                            return AddProductScreen(existingProduct: extra);
+                          }
+
+                          if (extra is Map<String, dynamic>) {
+                            final product = extra['product'];
+                            final isClone = extra['clone'] == true;
+                            if (product is Product) {
+                              return AddProductScreen(
+                                existingProduct: product,
+                                isCloneMode: isClone,
+                              );
+                            }
+                          }
+
+                          return const AddProductScreen();
+                        },
                       ),
                       GoRoute(
                         path: 'groups',
@@ -118,10 +132,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                           GoRoute(
                             path: 'add',
                             builder: (context, state) =>
-                                const BranchRequiredGuard(
-                                  actionLabel: 'creating item groups',
-                                  child: AddItemGroupScreen(),
-                                ),
+                                const AddItemGroupScreen(),
                           ),
                           GoRoute(
                             path: ':id',
@@ -140,10 +151,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                           GoRoute(
                             path: 'add',
                             builder: (context, state) =>
-                                const BranchRequiredGuard(
-                                  actionLabel: 'creating composite items',
-                                  child: AddCompositeItemScreen(),
-                                ),
+                                const AddCompositeItemScreen(),
                           ),
                           GoRoute(
                             path: ':id',
@@ -177,10 +185,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             routes: [
               GoRoute(
                 path: '/pos',
-                builder: (context, state) => const BranchRequiredGuard(
-                  actionLabel: 'the Point of Sale',
-                  child: PosScreen(),
-                ),
+                builder: (context, state) => const PosScreen(),
               ),
             ],
           ),
@@ -195,13 +200,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                     path: 'create-invoice',
                     builder: (context, state) {
                       final extra = state.extra as Map<String, dynamic>? ?? {};
-                      return BranchRequiredGuard(
-                        actionLabel: 'creating invoices',
-                        child: CreateInvoiceScreen(
-                          cartItems: extra['cartItems'] ?? [],
-                          customer: extra['customer'],
-                          salespersonId: extra['salespersonId'],
-                        ),
+                      return CreateInvoiceScreen(
+                        cartItems: extra['cartItems'] ?? [],
+                        customer: extra['customer'],
+                        salespersonId: extra['salespersonId'],
                       );
                     },
                   ),
@@ -246,10 +248,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'add-staff',
-                    builder: (context, state) => const BranchRequiredGuard(
-                      actionLabel: 'adding staff',
-                      child: AddStaffScreen(),
-                    ),
+                    builder: (context, state) => const AddStaffScreen(),
                   ),
                   GoRoute(
                     path: 'staff-members',

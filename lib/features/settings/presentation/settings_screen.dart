@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:card_settings_ui/card_settings_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/services/auth_service.dart';
@@ -200,197 +201,191 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: profileAsync.when(
         data: (profile) {
           final displayName = profile?.displayName ?? user?.email ?? '';
+          final measurementSystem = ref.watch(measurementSystemProvider);
+          final isOwner = ref.watch(isOwnerProvider);
           if (_nameController.text.isEmpty && profile != null) {
             _nameController.text = profile.displayName ?? '';
           }
 
-          return ListView(
-            padding: const EdgeInsets.all(16),
-            children: [
-              // ── Profile Section ──
-              _SettingsSection(
-                title: 'Profile',
-                children: [
-                  Center(
-                    child: Stack(
-                      children: [
-                        Container(
-                          width: 100,
-                          height: 100,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: AppTokens.bgSurfaceHighlightDark,
-                          ),
-                          child: ClipOval(
-                            child: profile?.profilePictureUrl != null
-                                ? CachedNetworkImage(
-                                    imageUrl: profile!.profilePictureUrl!,
-                                    fit: BoxFit.cover,
-                                    placeholder: (context, url) => const Center(
-                                      child: CircularProgressIndicator(),
-                                    ),
-                                    errorWidget: (context, url, error) =>
-                                        const Icon(
-                                          Icons.error,
-                                          color: Colors.red,
+          return SettingsList(
+            maxWidth: 960,
+            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+            sections: [
+              CustomSettingsSection(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: _SettingsSection(
+                    title: 'Profile',
+                    children: [
+                      Center(
+                        child: Stack(
+                          children: [
+                            Container(
+                              width: 100,
+                              height: 100,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: AppTokens.bgSurfaceHighlightDark,
+                              ),
+                              child: ClipOval(
+                                child: profile?.profilePictureUrl != null
+                                    ? CachedNetworkImage(
+                                        imageUrl: profile!.profilePictureUrl!,
+                                        fit: BoxFit.cover,
+                                        errorWidget: (context, url, error) =>
+                                            const Icon(
+                                              Icons.error,
+                                              color: Colors.red,
+                                            ),
+                                      )
+                                    : Center(
+                                        child: Text(
+                                          (displayName.isNotEmpty)
+                                              ? displayName[0].toUpperCase()
+                                              : '?',
+                                          style: const TextStyle(fontSize: 32),
                                         ),
-                                  )
-                                : Center(
-                                    child: Text(
-                                      (displayName.isNotEmpty)
-                                          ? displayName[0].toUpperCase()
-                                          : '?',
-                                      style: const TextStyle(fontSize: 32),
-                                    ),
-                                  ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: IconButton.filled(
-                            onPressed: _isLoading
-                                ? null
-                                : _updateProfilePicture,
-                            icon: const Icon(
-                              PhosphorIconsBold.camera,
-                              size: 18,
+                                      ),
+                              ),
                             ),
-                          ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: IconButton.filled(
+                                onPressed: _isLoading
+                                    ? null
+                                    : _updateProfilePicture,
+                                icon: const Icon(
+                                  PhosphorIconsBold.camera,
+                                  size: 18,
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 24),
+                      Form(
+                        key: _formKey,
+                        child: Column(
+                          children: [
+                            TextFormField(
+                              controller: _nameController,
+                              decoration: const InputDecoration(
+                                labelText: 'Display Name',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(PhosphorIconsDuotone.user),
+                              ),
+                              validator: (v) =>
+                                  v?.isEmpty == true ? 'Required' : null,
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              initialValue: user?.email,
+                              readOnly: true,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                                border: OutlineInputBorder(),
+                                prefixIcon: Icon(PhosphorIconsDuotone.envelope),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            SizedBox(
+                              width: double.infinity,
+                              child: FilledButton.tonal(
+                                onPressed: _isLoading ? null : _saveProfile,
+                                child: Text(
+                                  _isLoading
+                                      ? 'Updating...'
+                                      : 'Update Profile Info',
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-
-                  Form(
-                    key: _formKey,
-                    child: Column(
-                      children: [
-                        TextFormField(
-                          controller: _nameController,
-                          decoration: const InputDecoration(
-                            labelText: 'Display Name',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(PhosphorIconsDuotone.user),
-                          ),
-                          validator: (v) =>
-                              v?.isEmpty == true ? 'Required' : null,
-                        ),
-                        const SizedBox(height: 16),
-                        TextFormField(
-                          initialValue: user?.email,
-                          readOnly: true,
-                          decoration: const InputDecoration(
-                            labelText: 'Email',
-                            border: OutlineInputBorder(),
-                            prefixIcon: Icon(PhosphorIconsDuotone.envelope),
-                          ),
-                        ),
-                        const SizedBox(height: 16),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton.tonal(
-                            onPressed: _isLoading ? null : _saveProfile,
-                            child: _isLoading
-                                ? const SizedBox(
-                                    height: 20,
-                                    width: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Update Profile Info'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                ),
               ),
 
-              const SizedBox(height: 24),
-
-              // ── Business Management (Owners only) ──
-              if (ref.watch(isOwnerProvider))
-                _SettingsSection(
-                  title: 'Business',
-                  children: [
-                    ListTile(
+              if (isOwner)
+                SettingsSection(
+                  title: const Text('Business'),
+                  tiles: <SettingsTile>[
+                    SettingsTile.navigation(
                       leading: const Icon(PhosphorIconsDuotone.image),
                       title: const Text('Business Logo'),
-                      subtitle: const Text('Update your shop\'s logo'),
+                      description: const Text('Update your shop\'s logo'),
                       trailing: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                          ? Text(
+                              'Updating',
+                              style: Theme.of(context).textTheme.labelSmall,
                             )
-                          : const Icon(PhosphorIconsRegular.caretRight),
-                      onTap: _isLoading ? null : _updateBusinessLogo,
+                          : null,
+                      enabled: !_isLoading,
+                      onPressed: (_) => _updateBusinessLogo(),
                     ),
-                    const Divider(),
-                    ListTile(
+                    SettingsTile.navigation(
                       leading: const Icon(PhosphorIconsDuotone.storefront),
                       title: const Text('Branches'),
-                      subtitle: const Text('Manage your business locations'),
-                      trailing: const Icon(PhosphorIconsRegular.caretRight),
-                      onTap: () => context.push('/settings/branches'),
+                      description: const Text('Manage your business locations'),
+                      onPressed: (_) => context.push('/settings/branches'),
                     ),
-                    ListTile(
+                    SettingsTile.navigation(
                       leading: const Icon(PhosphorIconsDuotone.userList),
                       title: const Text('People'),
-                      subtitle: const Text('Manage salespersons & adjusters'),
-                      trailing: const Icon(PhosphorIconsRegular.caretRight),
-                      onTap: () => context.push('/settings/staff-members'),
+                      description: const Text(
+                        'Manage salespersons and adjusters',
+                      ),
+                      onPressed: (_) => context.push('/settings/staff-members'),
                     ),
-                    const Divider(),
-                    ListTile(
+                    SettingsTile.navigation(
                       leading: const Icon(PhosphorIconsDuotone.users),
                       title: const Text('Staff'),
-                      subtitle: const Text('Manage your team and roles'),
-                      trailing: const Icon(PhosphorIconsRegular.caretRight),
-                      onTap: () => context.push('/settings/staff'),
+                      description: const Text('Manage your team and roles'),
+                      onPressed: (_) => context.push('/settings/staff'),
                     ),
                   ],
                 ),
-              if (ref.watch(isOwnerProvider)) const SizedBox(height: 24),
 
-              // ── App Settings ──
-              _SettingsSection(
-                title: 'App Settings',
-                children: [
-                  ListTile(
+              SettingsSection(
+                title: const Text('App Settings'),
+                bottomInfo: const Text(
+                  'Used for product dimensions and weight',
+                ),
+                tiles: <SettingsTile>[
+                  SettingsTile<MeasurementSystem>.radioTile(
                     leading: const Icon(PhosphorIconsDuotone.ruler),
-                    title: const Text('Measurement System'),
-                    subtitle: const Text('Used for product dimensions and weight'),
-                    trailing: DropdownButton<MeasurementSystem>(
-                      value: ref.watch(measurementSystemProvider),
-                      underline: const SizedBox(),
-                      items: const [
-                        DropdownMenuItem(
-                          value: MeasurementSystem.metric,
-                          child: Text('Metric (cm, kg)'),
-                        ),
-                        DropdownMenuItem(
-                          value: MeasurementSystem.imperial,
-                          child: Text('Imperial (in, lb)'),
-                        ),
-                      ],
-                      onChanged: (sys) {
-                        if (sys != null) {
-                          ref.read(measurementSystemProvider.notifier).setSystem(sys);
-                        }
-                      },
-                    ),
+                    title: const Text('Metric (cm, kg)'),
+                    radioValue: MeasurementSystem.metric,
+                    groupValue: measurementSystem,
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref
+                            .read(measurementSystemProvider.notifier)
+                            .setSystem(value);
+                      }
+                    },
                   ),
-                  const Divider(),
-                  ListTile(
+                  SettingsTile<MeasurementSystem>.radioTile(
+                    leading: const Icon(PhosphorIconsDuotone.ruler),
+                    title: const Text('Imperial (in, lb)'),
+                    radioValue: MeasurementSystem.imperial,
+                    groupValue: measurementSystem,
+                    onChanged: (value) {
+                      if (value != null) {
+                        ref
+                            .read(measurementSystemProvider.notifier)
+                            .setSystem(value);
+                      }
+                    },
+                  ),
+                  SettingsTile.navigation(
                     leading: const Icon(PhosphorIconsDuotone.palette),
                     title: const Text('Theme'),
-                    subtitle: const Text('System Default'),
-                    trailing: const Icon(PhosphorIconsRegular.caretRight),
-                    onTap: () {
+                    description: const Text('System Default'),
+                    onPressed: (_) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text('Theme settings coming soon'),
@@ -401,13 +396,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
 
-              const SizedBox(height: 24),
-
-              // ── Account ──
-              _SettingsSection(
-                title: 'Account',
-                children: [
-                  ListTile(
+              SettingsSection(
+                title: const Text('Account'),
+                tiles: <SettingsTile>[
+                  SettingsTile.navigation(
                     leading: const Icon(
                       PhosphorIconsDuotone.signOut,
                       color: Colors.red,
@@ -416,7 +408,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       'Sign Out',
                       style: TextStyle(color: Colors.red),
                     ),
-                    onTap: () async {
+                    onPressed: (_) async {
                       final confirm = await showDialog<bool>(
                         context: context,
                         builder: (context) => AlertDialog(
@@ -447,7 +439,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const _SettingsLoadingView(),
         error: (e, st) => Center(child: Text('Error: $e')),
       ),
     );
@@ -479,6 +471,35 @@ class _SettingsSection extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(children: children),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SettingsLoadingView extends StatelessWidget {
+  const _SettingsLoadingView();
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Container(
+          height: 140,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          height: 220,
+          decoration: BoxDecoration(
+            color: cs.surfaceContainer,
+            borderRadius: BorderRadius.circular(16),
           ),
         ),
       ],

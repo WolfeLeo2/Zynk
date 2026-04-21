@@ -309,7 +309,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PRODUCT GRID
-class _ProductGrid extends StatelessWidget {
+class _ProductGrid extends ConsumerWidget {
   final bool isMobile;
   final List<Product> products;
   final List<Category> categories;
@@ -337,13 +337,44 @@ class _ProductGrid extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final branches = ref.watch(branchesProvider).value ?? const [];
+    final branchOptions = branches.where((b) => b.id != 'all').toList();
+    final selectedBranchId = ref.watch(currentBranchIdProvider);
 
     return CustomScrollView(
       slivers: [
         if (!isMobile)
           const SliverAppBar(title: Text('POS'), floating: true, snap: true),
+        if (branchOptions.length > 1)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: DropdownButtonFormField<String>(
+                initialValue: branchOptions.any((b) => b.id == selectedBranchId)
+                    ? selectedBranchId
+                    : branchOptions.first.id,
+                decoration: const InputDecoration(
+                  labelText: 'Selling Branch',
+                  border: OutlineInputBorder(),
+                  prefixIcon: Icon(PhosphorIconsRegular.storefront),
+                ),
+                items: branchOptions
+                    .map(
+                      (b) => DropdownMenuItem<String>(
+                        value: b.id,
+                        child: Text(b.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (next) {
+                  if (next == null) return;
+                  ref.read(branchSelectionProvider.notifier).selectBranch(next);
+                },
+              ),
+            ),
+          ),
         // Search Bar
         SliverToBoxAdapter(
           child: Padding(

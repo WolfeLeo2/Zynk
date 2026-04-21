@@ -26,6 +26,8 @@ Sale _$SaleFromJson(Map<String, dynamic> json) => Sale(
   status: json['status'] == null
       ? InvoiceStatus.pendingApproval
       : _invoiceStatusFromJson(json['status'] as String?),
+  requiredApprovals: (json['required_approvals'] as num?)?.toInt() ?? 2,
+  approvalCount: (json['approval_count'] as num?)?.toInt() ?? 0,
   paymentStatus: json['payment_status'] == null
       ? PaymentStatus.unpaid
       : _paymentStatusFromJson(json['payment_status'] as String?),
@@ -60,6 +62,8 @@ Map<String, dynamic> _$SaleToJson(Sale instance) => <String, dynamic>{
   'amount_paid': instance.amountPaid,
   'payment_method': instance.paymentMethod,
   'status': _invoiceStatusToJson(instance.status),
+  'required_approvals': instance.requiredApprovals,
+  'approval_count': instance.approvalCount,
   'payment_status': _paymentStatusToJson(instance.paymentStatus),
   'fulfillment_status': _fulfillmentStatusToJson(instance.fulfillmentStatus),
   'notes': instance.notes,
@@ -129,6 +133,30 @@ Map<String, dynamic> _$PaymentToJson(Payment instance) => <String, dynamic>{
   'notes': instance.notes,
   'created_at': _dateToIso(instance.createdAt),
 };
+
+SaleApproval _$SaleApprovalFromJson(Map<String, dynamic> json) => SaleApproval(
+  id: json['id'] as String,
+  saleId: json['sale_id'] as String,
+  tenantId: json['tenant_id'] as String,
+  approverUserId: json['approver_user_id'] as String,
+  decision: json['decision'] == null
+      ? SaleApprovalDecision.approved
+      : _saleApprovalDecisionFromJson(json['decision'] as String?),
+  notes: json['notes'] as String?,
+  createdAt: _parseDate(json['created_at']),
+  approverDisplayName: json['approver_display_name'] as String?,
+);
+
+Map<String, dynamic> _$SaleApprovalToJson(SaleApproval instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'sale_id': instance.saleId,
+      'tenant_id': instance.tenantId,
+      'approver_user_id': instance.approverUserId,
+      'decision': _saleApprovalDecisionToJson(instance.decision),
+      'notes': instance.notes,
+      'created_at': _dateToIso(instance.createdAt),
+    };
 
 CreditNoteItem _$CreditNoteItemFromJson(Map<String, dynamic> json) =>
     CreditNoteItem(

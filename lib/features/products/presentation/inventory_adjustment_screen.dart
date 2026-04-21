@@ -14,6 +14,7 @@ import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/models/staff_model.dart';
+import 'package:shimmer/shimmer.dart';
 
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -362,8 +363,7 @@ class _InventoryAdjustmentScreenState
                             },
                           );
                         },
-                        loading: () =>
-                            const Center(child: CircularProgressIndicator()),
+                            loading: () => const _InventoryItemsShimmer(),
                         error: (err, stack) =>
                             Center(child: Text('Error loading items: $err')),
                       ),
@@ -513,8 +513,7 @@ class _InventoryAdjustmentScreenState
                                             () => _selectedAdjuster = v,
                                           ),
                                         ),
-                                    loading: () =>
-                                        const LinearProgressIndicator(),
+                                    loading: () => const _FormFieldShimmer(),
                                     error: (e, _) =>
                                         Text('Error loading staff: $e'),
                                   );
@@ -600,8 +599,7 @@ class _InventoryAdjustmentScreenState
                                         ],
                                       ],
                                     ),
-                                    loading: () =>
-                                        const LinearProgressIndicator(),
+                                    loading: () => const _FormFieldShimmer(),
                                     error: (e, _) =>
                                         Text('Could not load reasons: $e'),
                                   );
@@ -1233,11 +1231,82 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                           );
                         },
                       ),
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const _ReasonsListShimmer(),
                 error: (e, _) => Center(child: Text('Error: $e')),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InventoryItemsShimmer extends StatelessWidget {
+  const _InventoryItemsShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+      child: ListView.builder(
+        itemCount: 8,
+        itemBuilder: (_, __) => ListTile(
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          title: Container(height: 12, color: colorScheme.surface),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Container(height: 10, color: colorScheme.surface),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FormFieldShimmer extends StatelessWidget {
+  const _FormFieldShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReasonsListShimmer extends StatelessWidget {
+  const _ReasonsListShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+      child: ListView.builder(
+        itemCount: 6,
+        itemBuilder: (_, __) => const ListTile(
+          leading: CircleAvatar(radius: 12),
+          title: SizedBox(height: 12),
         ),
       ),
     );

@@ -163,13 +163,23 @@ class PowerSyncRepository {
     final params = <dynamic>[];
 
     if (branchId != null && branchId != 'all') {
-      // A product is visible in a branch if it belongs to the branch,
-      // is global (null branch_id), or has stock in that branch.
+      // Primary model: product_branches controls branch visibility.
+      // Fallback model: legacy products.branch_id and stock presence.
       sql = '''
         SELECT DISTINCT p.*
         FROM products p
-        WHERE p.branch_id = ?
-           OR p.branch_id IS NULL
+        LEFT JOIN product_branches pb
+          ON pb.product_id = p.id
+        WHERE pb.branch_id = ?
+           OR p.branch_id = ?
+           OR (
+                p.branch_id IS NULL
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM product_branches pb2
+                  WHERE pb2.product_id = p.id
+                )
+              )
            OR EXISTS (
                 SELECT 1
                 FROM stock st
@@ -178,6 +188,7 @@ class PowerSyncRepository {
               )
         ORDER BY p.name ASC
       ''';
+      params.add(branchId);
       params.add(branchId);
       params.add(branchId);
     } else {
@@ -189,60 +200,156 @@ class PowerSyncRepository {
         .map((results) => results.map((row) => Product.fromMap(row)).toList());
   }
 
-  Future<void> createProduct(Product product) async {
-    await _db.execute(
-      '''INSERT INTO products (
-        id, tenant_id, branch_id, item_group_id, category_id, uom_id, name, sku, barcode, 
-        description, image_url, base_price, cost_price, tax_category, is_service, 
-        created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
-      [
-        product.id,
-        product.tenantId,
-        product.branchId,
-        product.itemGroupId,
-        product.categoryId,
-        product.uomId,
-        product.name,
-        product.sku,
-        product.barcode,
-        product.description,
-        product.imageUrl,
-        product.basePrice,
-        product.costPrice,
-        product.taxCategory,
-        product.isService ? 1 : 0,
-        DateTime.now().toIso8601String(),
-        DateTime.now().toIso8601String(),
-      ],
-    );
+  Future<void> replaceProductBranches({
+    required String tenantId,
+    required String productId,
+    required List<String> branchIds,
+  }) async {
+    final normalizedBranchIds = branchIds
+        .where((id) => id.isNotEmpty && id != 'all')
+        .toSet()
+        .toList();
+
+    await _db.writeTransaction((tx) async {
+      await tx.execute('DELETE FROM product_branches WHERE product_id = ?', [
+        productId,
+      ]);
+
+      for (final branchId in normalizedBranchIds) {
+        await tx.execute(
+          '''INSERT INTO product_branches (
+               id, tenant_id, product_id, branch_id, created_at
+             ) VALUES (?, ?, ?, ?, ?)''',
+          [
+            const Uuid().v4(),
+            tenantId,
+            productId,
+            branchId,
+            DateTime.now().toIso8601String(),
+          ],
+        );
+      }
+    });
   }
 
-  Future<void> updateProduct(Product product) async {
-    await _db.execute(
-      '''UPDATE products SET 
-        branch_id = ?, item_group_id = ?, category_id = ?, uom_id = ?, name = ?, sku = ?, barcode = ?, 
-        description = ?, image_url = ?, base_price = ?, cost_price = ?, tax_category = ?, 
-        is_service = ?, updated_at = ?
-      WHERE id = ?''',
-      [
-        product.branchId,
-        product.itemGroupId,
-        product.categoryId,
-        product.uomId,
-        product.name,
-        product.sku,
-        product.barcode,
-        product.description,
-        product.imageUrl,
-        product.basePrice,
-        product.costPrice,
-        product.taxCategory,
-        product.isService ? 1 : 0,
-        DateTime.now().toIso8601String(),
-        product.id,
-      ],
-    );
+  Future<void> createProduct(
+    Product product, {
+    List<String>? targetBranchIds,
+  }) async {
+    final effectiveBranchIds = (targetBranchIds ?? const <String>[])
+        .where((id) => id.isNotEmpty && id != 'all')
+        .toSet()
+        .toList();
+
+    await _db.writeTransaction((tx) async {
+      await tx.execute(
+        '''INSERT INTO products (
+          id, tenant_id, branch_id, item_group_id, category_id, uom_id, name, sku, barcode,
+          description, image_url, base_price, cost_price, tax_category, is_service,
+          created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        [
+          product.id,
+          product.tenantId,
+          product.branchId,
+          product.itemGroupId,
+          product.categoryId,
+          product.uomId,
+          product.name,
+          product.sku,
+          product.barcode,
+          product.description,
+          product.imageUrl,
+          product.basePrice,
+          product.costPrice,
+          product.taxCategory,
+          product.isService ? 1 : 0,
+          DateTime.now().toIso8601String(),
+          DateTime.now().toIso8601String(),
+        ],
+      );
+
+      for (final branchId in effectiveBranchIds) {
+        await tx.execute(
+          '''INSERT INTO product_branches (
+               id, tenant_id, product_id, branch_id, created_at
+             ) VALUES (?, ?, ?, ?, ?)''',
+          [
+            const Uuid().v4(),
+            product.tenantId,
+            product.id,
+            branchId,
+            DateTime.now().toIso8601String(),
+          ],
+        );
+      }
+    });
+  }
+
+  Future<void> updateProduct(
+    Product product, {
+    List<String>? targetBranchIds,
+  }) async {
+    final normalizedBranchIds = targetBranchIds
+        ?.where((id) => id.isNotEmpty && id != 'all')
+        .toSet()
+        .toList();
+
+    await _db.writeTransaction((tx) async {
+      await tx.execute(
+        '''UPDATE products SET
+          branch_id = ?, item_group_id = ?, category_id = ?, uom_id = ?, name = ?, sku = ?, barcode = ?,
+          description = ?, image_url = ?, base_price = ?, cost_price = ?, tax_category = ?,
+          is_service = ?, updated_at = ?
+        WHERE id = ?''',
+        [
+          product.branchId,
+          product.itemGroupId,
+          product.categoryId,
+          product.uomId,
+          product.name,
+          product.sku,
+          product.barcode,
+          product.description,
+          product.imageUrl,
+          product.basePrice,
+          product.costPrice,
+          product.taxCategory,
+          product.isService ? 1 : 0,
+          DateTime.now().toIso8601String(),
+          product.id,
+        ],
+      );
+
+      if (normalizedBranchIds != null) {
+        await tx.execute('DELETE FROM product_branches WHERE product_id = ?', [
+          product.id,
+        ]);
+        for (final branchId in normalizedBranchIds) {
+          await tx.execute(
+            '''INSERT INTO product_branches (
+                 id, tenant_id, product_id, branch_id, created_at
+               ) VALUES (?, ?, ?, ?, ?)''',
+            [
+              const Uuid().v4(),
+              product.tenantId,
+              product.id,
+              branchId,
+              DateTime.now().toIso8601String(),
+            ],
+          );
+        }
+      }
+    });
+  }
+
+  Stream<List<Stock>> watchProductBranchStocks(String productId) {
+    return _db
+        .watch(
+          'SELECT * FROM stock WHERE product_id = ? ORDER BY branch_id ASC',
+          parameters: [productId],
+        )
+        .map((rows) => rows.map((row) => Stock.fromMap(row)).toList());
   }
 
   Future<void> batchUpdateProductGroups(
@@ -972,6 +1079,20 @@ class PowerSyncRepository {
           parameters: [saleId],
         )
         .map((rows) => rows.map((row) => SaleItem.fromMap(row)).toList());
+  }
+
+  /// Watch approval events for a specific sale, oldest first for timeline.
+  Stream<List<SaleApproval>> watchSaleApprovals(String saleId) {
+    return _db
+        .watch(
+          '''SELECT sa.*, p.display_name AS approver_display_name
+             FROM sale_approvals sa
+             LEFT JOIN profiles p ON p.user_id = sa.approver_user_id
+             WHERE sa.sale_id = ?
+             ORDER BY sa.created_at ASC''',
+          parameters: [saleId],
+        )
+        .map((rows) => rows.map((row) => SaleApproval.fromMap(row)).toList());
   }
 
   /// Updates an existing draft/pending_approval invoice header and replaces its items.

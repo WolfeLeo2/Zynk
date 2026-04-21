@@ -54,6 +54,9 @@ class CsvImportService {
             tenantId,
           )).where((b) => b.id != 'all').toList()
         : const <Branch>[];
+    final targetBranchIds = allBranchesMode
+      ? targetBranches.map((b) => b.id).toList()
+      : <String>[selectedBranchId];
 
     if (allBranchesMode && targetBranches.isEmpty) {
       throw Exception(
@@ -100,7 +103,7 @@ class CsvImportService {
       final product = Product(
         id: newProductId,
         tenantId: tenantId,
-        branchId: allBranchesMode ? null : selectedBranchId,
+        branchId: null,
         itemGroupId:
             null, // CSV batch imports don't link to groups by default yet
         categoryId: categoryId,
@@ -117,7 +120,7 @@ class CsvImportService {
         updatedAt: DateTime.now(),
       );
 
-      await repo.createProduct(product);
+      await repo.createProduct(product, targetBranchIds: targetBranchIds);
 
       if (initialStock > 0) {
         if (allBranchesMode) {

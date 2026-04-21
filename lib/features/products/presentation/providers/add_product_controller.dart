@@ -22,6 +22,7 @@ class AddProductController extends _$AddProductController {
 
   Future<void> saveProduct({
     String? id, // For update mode
+    required List<String> targetBranchIds,
     required String name,
     String? existingImageUrl, // For update mode
     required String? categoryId,
@@ -46,9 +47,12 @@ class AddProductController extends _$AddProductController {
       final repository = ref.read(repositoryProvider);
       final profile = ref.read(currentUserProfileProvider).value;
       final tenantId = profile?.tenantId ?? 'tenant_1';
-      final branchId = ref.read(currentBranchIdProvider);
-      if (branchId == null || branchId == 'all') {
-        throw Exception('Please select a specific branch first.');
+      final normalizedBranchIds = targetBranchIds
+          .where((id) => id.isNotEmpty && id != 'all')
+          .toSet()
+          .toList();
+      if (normalizedBranchIds.isEmpty) {
+        throw Exception('Please select at least one target branch.');
       }
       final createdBy = profile?.userId ?? 'system';
 
@@ -78,7 +82,7 @@ class AddProductController extends _$AddProductController {
         final updatedProduct = Product(
           id: id,
           tenantId: tenantId,
-          branchId: branchId,
+          branchId: null,
           itemGroupId: itemGroupId,
           categoryId: categoryId,
           uomId: uomId, // Added
@@ -98,13 +102,16 @@ class AddProductController extends _$AddProductController {
           createdAt: DateTime.now(), // Will be ignored by DB
           updatedAt: DateTime.now(),
         );
-        await repository.updateProduct(updatedProduct);
+        await repository.updateProduct(
+          updatedProduct,
+          targetBranchIds: normalizedBranchIds,
+        );
       } else {
         final newProductId = const Uuid().v4();
         final newProduct = Product(
           id: newProductId,
           tenantId: tenantId,
-          branchId: branchId,
+          branchId: null,
           itemGroupId: itemGroupId,
           categoryId: categoryId,
           uomId: uomId, // Added
@@ -128,20 +135,25 @@ class AddProductController extends _$AddProductController {
         if (components != null && components.isNotEmpty) {
           await repository.createCompositeProduct(newProduct, components);
         } else {
-          await repository.createProduct(newProduct);
+          await repository.createProduct(
+            newProduct,
+            targetBranchIds: normalizedBranchIds,
+          );
         }
 
         if (initialStock != null && initialStock > 0) {
-          // If initial stock is provided, create stock entry and adjustment log for parent
-          await repository.adjustStock(
-            tenantId: tenantId,
-            branchId: branchId,
-            productId: newProductId,
-            adjustmentType: 'initial',
-            quantityChange: initialStock,
-            createdBy: createdBy,
-            notes: 'Initial stock on creation',
-          );
+          // Initial stock stays branch-scoped even for shared catalog products.
+          for (final branchId in normalizedBranchIds) {
+            await repository.adjustStock(
+              tenantId: tenantId,
+              branchId: branchId,
+              productId: newProductId,
+              adjustmentType: 'initial',
+              quantityChange: initialStock,
+              createdBy: createdBy,
+              notes: 'Initial stock on creation',
+            );
+          }
         }
       }
 

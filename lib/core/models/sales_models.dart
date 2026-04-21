@@ -175,6 +175,8 @@ class Sale {
   final String? paymentMethod;
   @JsonKey(fromJson: _invoiceStatusFromJson, toJson: _invoiceStatusToJson)
   final InvoiceStatus status;
+  final int requiredApprovals;
+  final int approvalCount;
   @JsonKey(fromJson: _paymentStatusFromJson, toJson: _paymentStatusToJson)
   final PaymentStatus paymentStatus;
   @JsonKey(
@@ -214,6 +216,8 @@ class Sale {
     this.amountPaid = 0,
     this.paymentMethod,
     this.status = InvoiceStatus.pendingApproval,
+    this.requiredApprovals = 2,
+    this.approvalCount = 0,
     this.paymentStatus = PaymentStatus.unpaid,
     this.fulfillmentStatus = FulfillmentStatus.unreleased,
     this.notes,
@@ -404,6 +408,74 @@ class Payment {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// SALE APPROVALS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SaleApprovalDecision {
+  approved,
+  rejected;
+
+  String get value {
+    switch (this) {
+      case SaleApprovalDecision.approved:
+        return 'approved';
+      case SaleApprovalDecision.rejected:
+        return 'rejected';
+    }
+  }
+
+  String get displayName {
+    switch (this) {
+      case SaleApprovalDecision.approved:
+        return 'Approved';
+      case SaleApprovalDecision.rejected:
+        return 'Rejected';
+    }
+  }
+
+  static SaleApprovalDecision fromString(String? value) {
+    switch (value?.toLowerCase()) {
+      case 'rejected':
+        return SaleApprovalDecision.rejected;
+      case 'approved':
+      default:
+        return SaleApprovalDecision.approved;
+    }
+  }
+}
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class SaleApproval {
+  final String id;
+  final String saleId;
+  final String tenantId;
+  final String approverUserId;
+  @JsonKey(fromJson: _saleApprovalDecisionFromJson, toJson: _saleApprovalDecisionToJson)
+  final SaleApprovalDecision decision;
+  final String? notes;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
+  final DateTime? createdAt;
+  @JsonKey(includeToJson: false)
+  final String? approverDisplayName;
+
+  SaleApproval({
+    required this.id,
+    required this.saleId,
+    required this.tenantId,
+    required this.approverUserId,
+    this.decision = SaleApprovalDecision.approved,
+    this.notes,
+    this.createdAt,
+    this.approverDisplayName,
+  });
+
+  factory SaleApproval.fromMap(Map<String, dynamic> map) =>
+      _$SaleApprovalFromJson(map);
+
+  Map<String, dynamic> toMap() => _$SaleApprovalToJson(this);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CREDIT NOTE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -571,6 +643,11 @@ PaymentMethod _paymentMethodFromJson(String? value) =>
     PaymentMethod.fromString(value);
 
 String _paymentMethodToJson(PaymentMethod value) => value.value;
+
+SaleApprovalDecision _saleApprovalDecisionFromJson(String? value) =>
+  SaleApprovalDecision.fromString(value);
+
+String _saleApprovalDecisionToJson(SaleApprovalDecision value) => value.value;
 
 CreditNoteStatus _creditNoteStatusFromJson(String? value) =>
     CreditNoteStatus.fromString(value);

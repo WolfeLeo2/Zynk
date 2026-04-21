@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 
 class ProductDetailsScreen extends ConsumerWidget {
@@ -26,6 +27,17 @@ class ProductDetailsScreen extends ConsumerWidget {
               context.push('/products/add', extra: product);
             },
             icon: const Icon(PhosphorIconsDuotone.pencilSimple),
+            tooltip: 'Edit Item',
+          ),
+          IconButton(
+            onPressed: () {
+              context.push(
+                '/products/add',
+                extra: {'product': product, 'clone': true},
+              );
+            },
+            icon: const Icon(PhosphorIconsDuotone.copy),
+            tooltip: 'Clone Item',
           ),
         ],
       ),
@@ -313,6 +325,102 @@ class ProductDetailsScreen extends ConsumerWidget {
             const SizedBox(height: 24),
 
             // Inventory Status Card
+            if (!product.isService) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final branchesAsync = ref.watch(branchesProvider);
+                      final branchStocksAsync = ref.watch(
+                        branchStocksProvider(product.id),
+                      );
+
+                      return branchesAsync.when(
+                        data: (branches) {
+                          final realBranches = branches
+                              .where((b) => b.id != 'all')
+                              .toList();
+
+                          return branchStocksAsync.when(
+                            data: (stocks) {
+                              final qtyByBranch = <String, int>{};
+                              for (final stock in stocks) {
+                                final prev = qtyByBranch[stock.branchId] ?? 0;
+                                qtyByBranch[stock.branchId] =
+                                    prev + stock.quantity;
+                              }
+
+                              return Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        PhosphorIconsDuotone.storefront,
+                                        color: colorScheme.primary,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Branch Stock Matrix',
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 12),
+                                  if (realBranches.isEmpty)
+                                    Text(
+                                      'No branches available.',
+                                      style: theme.textTheme.bodyMedium,
+                                    )
+                                  else
+                                    SingleChildScrollView(
+                                      scrollDirection: Axis.horizontal,
+                                      child: DataTable(
+                                        columns: const [
+                                          DataColumn(label: Text('Branch')),
+                                          DataColumn(label: Text('Quantity')),
+                                        ],
+                                        rows: realBranches
+                                            .map(
+                                              (branch) => DataRow(
+                                                cells: [
+                                                  DataCell(Text(branch.name)),
+                                                  DataCell(
+                                                    Text(
+                                                      (qtyByBranch[branch.id] ??
+                                                              0)
+                                                          .toString(),
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            )
+                                            .toList(),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                            loading: () => const LinearProgressIndicator(),
+                            error: (_, _) => const Text(
+                              'Failed to load branch stock.',
+                            ),
+                          );
+                        },
+                        loading: () => const LinearProgressIndicator(),
+                        error: (_, _) => const Text('Failed to load branches.'),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+            ],
+
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(

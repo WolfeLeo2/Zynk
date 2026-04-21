@@ -14,8 +14,13 @@ import 'package:zynk/features/products/presentation/scanner_screen.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
+  final bool isCloneMode;
 
-  const AddProductScreen({super.key, this.existingProduct});
+  const AddProductScreen({
+    super.key,
+    this.existingProduct,
+    this.isCloneMode = false,
+  });
 
   @override
   ConsumerState<AddProductScreen> createState() => _AddProductScreenState();
@@ -40,6 +45,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   String? _selectedCategoryId;
   String? _selectedItemGroupId;
   String? _selectedUomId;
+  String? _selectedTargetBranchId;
 
   bool _autoGenerateSku = true;
   bool _trackStock = true;
@@ -61,6 +67,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   @override
   void initState() {
     super.initState();
+    final currentBranchId = ref.read(currentBranchIdProvider);
+    if (currentBranchId != null && currentBranchId != 'all') {
+      _selectedTargetBranchId = currentBranchId;
+    }
+
     if (widget.existingProduct != null) {
       final p = widget.existingProduct!;
       _nameController.text = p.name;
@@ -74,6 +85,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _selectedCategoryId = p.categoryId;
       _selectedItemGroupId = p.itemGroupId;
       _selectedUomId = p.uomId;
+      if (p.branchId != null && p.branchId!.isNotEmpty) {
+        _selectedTargetBranchId = p.branchId;
+      }
       _existingImageUrl = p.imageUrl;
 
       // Logistics
@@ -159,6 +173,20 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         return;
       }
 
+      if (_selectedTargetBranchId == null || _selectedTargetBranchId == 'all') {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Please select a target branch',
+              style: TextStyle(color: Theme.of(context).colorScheme.onError),
+            ),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        return;
+      }
+
       final price = double.tryParse(_priceController.text) ?? 0.0;
       final costPrice = double.tryParse(_costPriceController.text);
 
@@ -171,7 +199,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       await ref
           .read(addProductControllerProvider.notifier)
           .saveProduct(
-            id: widget.existingProduct?.id,
+            id: widget.isCloneMode ? null : widget.existingProduct?.id,
+            targetBranchIds: [_selectedTargetBranchId!],
             existingImageUrl: _existingImageUrl,
             name: _nameController.text,
             categoryId: _selectedCategoryId,
@@ -333,7 +362,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               if (controller.text.isNotEmpty) {
                 final repo = ref.read(repositoryProvider);
                 final tenantId = ref.read(tenantIdProvider);
-                final branchId = ref.read(currentBranchIdProvider);
+                final branchId = _selectedTargetBranchId;
 
                 if (tenantId != null && branchId != null && branchId != 'all') {
                   await repo.createCategory(
@@ -422,7 +451,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       items: const [
                         DropdownMenuItem(value: 'none', child: Text('None')),
                         DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount')),
-                        DropdownMenuItem(value: 'percent', child: Text('Percentage')),
+                        DropdownMenuItem(value: 'percentage', child: Text('Percentage')),
                       ],
                       onChanged: (val) {
                         setModalState(() => _newGroupCommissionType = val ?? 'none');
@@ -437,8 +466,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       keyboardType: TextInputType.number,
                       enabled: _newGroupCommissionType != 'none',
                       decoration: InputDecoration(
-                        labelText: _newGroupCommissionType == 'percent' ? 'Rate (%)' : 'Amount',
-                        hintText: _newGroupCommissionType == 'percent' ? 'e.g. 5' : 'e.g. 100',
+                        labelText: _newGroupCommissionType == 'percentage' ? 'Rate (%)' : 'Amount',
+                        hintText: _newGroupCommissionType == 'percentage' ? 'e.g. 5' : 'e.g. 100',
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -453,7 +482,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     if (nameController.text.isEmpty) return;
                     final repo = ref.read(repositoryProvider);
                     final tenantId = ref.read(tenantIdProvider);
-                    final branchId = ref.read(currentBranchIdProvider);
+                    final branchId = _selectedTargetBranchId;
 
                     if (tenantId != null && branchId != null && branchId != 'all') {
                       final commissionValue = double.tryParse(
@@ -635,11 +664,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
-    final isEditing = widget.existingProduct != null;
+    final isEditing = widget.existingProduct != null && !widget.isCloneMode;
+    final isCloning = widget.existingProduct != null && widget.isCloneMode;
 
     return Scaffold(
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Product' : 'Add New Product'),
+        title: Text(
+          isEditing
+              ? 'Edit Product'
+              : (isCloning ? 'Clone Product' : 'Add New Product'),
+        ),
         centerTitle: true,
         leading: IconButton(
           onPressed: () => context.pop(),
@@ -682,6 +716,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   'Basic Info',
                   PhosphorIconsDuotone.info,
                 ),
+                const SizedBox(height: 16),
+                _buildBranchSelector(),
                 const SizedBox(height: 16),
                 _buildStep1(),
                 const SizedBox(height: 32),
@@ -989,6 +1025,54 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildBranchSelector() {
+    final branchesAsync = ref.watch(branchesProvider);
+
+    return branchesAsync.when(
+      data: (branches) {
+        final options = branches.where((b) => b.id != 'all').toList();
+        if (options.isEmpty) {
+          return const SizedBox.shrink();
+        }
+
+        if (_selectedTargetBranchId == null ||
+            !options.any((b) => b.id == _selectedTargetBranchId)) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            setState(() => _selectedTargetBranchId = options.first.id);
+          });
+        }
+
+        final selected = options.any((b) => b.id == _selectedTargetBranchId)
+            ? _selectedTargetBranchId
+            : options.first.id;
+
+        return DropdownButtonFormField<String>(
+          initialValue: selected,
+          decoration: const InputDecoration(
+            labelText: 'Target Branch',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(PhosphorIconsDuotone.storefront),
+          ),
+          items: options
+              .map(
+                (b) => DropdownMenuItem<String>(
+                  value: b.id,
+                  child: Text(b.name),
+                ),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() => _selectedTargetBranchId = value);
+          },
+        );
+      },
+      loading: () => const LinearProgressIndicator(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 

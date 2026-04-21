@@ -234,6 +234,42 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         ),
         title: const Text('Review & Create Invoice'),
         centerTitle: true,
+        actions: [
+          Consumer(
+            builder: (context, ref, _) {
+              final branches = ref.watch(branchesProvider).value ?? const [];
+              final options = branches.where((b) => b.id != 'all').toList();
+              if (options.length <= 1) return const SizedBox.shrink();
+
+              final selectedId = ref.watch(currentBranchIdProvider);
+              final value = options.any((b) => b.id == selectedId)
+                  ? selectedId
+                  : options.first.id;
+
+              return Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: value,
+                    icon: const Icon(PhosphorIconsRegular.caretDown),
+                    items: options
+                        .map(
+                          (b) => DropdownMenuItem<String>(
+                            value: b.id,
+                            child: Text(b.name),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: (next) {
+                      if (next == null) return;
+                      ref.read(branchSelectionProvider.notifier).selectBranch(next);
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Form(
         key: _formKey,

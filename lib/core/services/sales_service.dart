@@ -271,6 +271,16 @@ class SalesService {
     });
   }
 
+  Future<Map<String, dynamic>> cloneInvoice(
+    String saleId, {
+    required String tenantId,
+  }) async {
+    return _manageSale('clone_sale', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
+    });
+  }
+
   Future<Map<String, dynamic>> approveSale(
     String saleId, {
     required String tenantId,

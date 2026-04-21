@@ -13,6 +13,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/pos/providers/customer_providers.dart';
+import 'package:zynk/features/sales/presentation/printing/invoice_image_export.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_template.dart';
 import 'package:zynk/features/sales/presentation/printing/receipt_template.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
@@ -32,6 +33,13 @@ class _SaleActionLoadingNotifier extends Notifier<String?> {
   String? build() => null;
 
   void set(String? action) => state = action;
+}
+
+class _PrintablePayload {
+  final pw.Document document;
+  final String fileName;
+
+  const _PrintablePayload({required this.document, required this.fileName});
 }
 
 /// Zoho-inspired sale detail screen with sections for items, payments,
@@ -60,76 +68,108 @@ class SaleDetailScreen extends ConsumerWidget {
                   : 'Invoice ${sale.invoiceNumber ?? ""}',
             ),
             actions: [
-              // Print button
-              IconButton(
+              PopupMenuButton<String>(
                 icon: const PhosphorIcon(
                   PhosphorIconsRegular.printer,
                   size: 22,
                 ),
-                tooltip: sale.saleType == 'pos_sale'
-                    ? 'Print Receipt'
-                    : 'Print Invoice',
-                onPressed: () => _handlePrint(context, ref, sale),
+                tooltip: 'Print',
+                onSelected: (value) {
+                  if (value == 'print_receipt') {
+                    _handlePrint(context, ref, sale, asReceipt: true);
+                    return;
+                  }
+                  _handlePrint(context, ref, sale, asReceipt: false);
+                },
+                itemBuilder: (_) => [
+                  if (sale.saleType != 'pos_sale')
+                    const PopupMenuItem(
+                      value: 'print_invoice',
+                      child: Text('Print Invoice'),
+                    ),
+                  const PopupMenuItem(
+                    value: 'print_receipt',
+                    child: Text('Print Receipt'),
+                  ),
+                ],
               ),
-              if (sale.canBeVoided ||
-                  sale.status.canBeApproved ||
-                  sale.status == InvoiceStatus.pendingApproval)
-                Builder(
-                  builder: (ctx) {
-                    final canApprove = ref.watch(
-                      hasPermissionProvider(Permission.approveInvoices),
-                    );
-                    final canPay = ref.watch(
-                      hasPermissionProvider(Permission.recordPayments),
-                    );
-                    final canVoid = ref.watch(
-                      hasPermissionProvider(Permission.voidSales),
-                    );
-                    return PopupMenuButton<String>(
-                      onSelected: (action) =>
-                          _handleAction(context, ref, sale, action),
-                      itemBuilder: (_) => [
-                        // Edit invoice — only for pending approval with no payments
-                        if (sale.status == InvoiceStatus.pendingApproval &&
-                            sale.amountPaid <= 0)
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Text('Edit Invoice'),
-                          ),
-                        if ((sale.status.canBeApproved ||
-                                sale.status == InvoiceStatus.pendingApproval) &&
-                            canApprove)
-                          const PopupMenuItem(
-                            value: 'approve',
-                            child: Text('Approve'),
-                          ),
-                        const PopupMenuItem(
-                          value: 'reject',
-                          child: Text('Reject'),
-                        ),
-                        if (sale.canBeVoided && canVoid)
-                          const PopupMenuItem(
-                            value: 'void',
-                            child: Text('Void Sale'),
-                          ),
-                        if (sale.canBeReleased && (canApprove || canPay))
-                          const PopupMenuItem(
-                            value: 'fulfill',
-                            child: Text('Release Goods'),
-                          ),
-                        // Admin-only: Delete invoice (blocked when payments exist)
-                        if (canApprove && sale.amountPaid <= 0)
-                          const PopupMenuItem(
-                            value: 'delete_sale',
-                            child: Text(
-                              'Delete Invoice',
-                              style: TextStyle(color: Colors.red),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
+              IconButton(
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.imageSquare,
+                  size: 22,
                 ),
+                tooltip: 'Save as Image',
+                onPressed: () => _handleSaveAsImage(context, ref, sale),
+              ),
+              Builder(
+                builder: (ctx) {
+                  final canApprove = ref.watch(
+                    hasPermissionProvider(Permission.approveInvoices),
+                  );
+                  final canPay = ref.watch(
+                    hasPermissionProvider(Permission.recordPayments),
+                  );
+                  final canVoid = ref.watch(
+                    hasPermissionProvider(Permission.voidSales),
+                  );
+                  final canCreateInvoices = ref.watch(
+                    hasPermissionProvider(Permission.createInvoices),
+                  );
+
+                  final items = <PopupMenuEntry<String>>[
+                    if (sale.status == InvoiceStatus.pendingApproval &&
+                        sale.amountPaid <= 0)
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Text('Edit Invoice'),
+                      ),
+                    if (canCreateInvoices && sale.saleType != 'pos_sale')
+                      const PopupMenuItem(
+                        value: 'clone_invoice',
+                        child: Text('Clone Invoice'),
+                      ),
+                    if ((sale.status.canBeApproved ||
+                            sale.status == InvoiceStatus.pendingApproval) &&
+                        canApprove)
+                      const PopupMenuItem(
+                        value: 'approve',
+                        child: Text('Approve'),
+                      ),
+                    const PopupMenuItem(
+                      value: 'reject',
+                      child: Text('Reject'),
+                    ),
+                    if (sale.canBeVoided && canVoid)
+                      const PopupMenuItem(
+                        value: 'void',
+                        child: Text('Void Sale'),
+                      ),
+                    if (sale.canBeReleased && (canApprove || canPay))
+                      const PopupMenuItem(
+                        value: 'fulfill',
+                        child: Text('Release Goods'),
+                      ),
+                    if (canApprove && sale.amountPaid <= 0)
+                      const PopupMenuItem(
+                        value: 'delete_sale',
+                        child: Text(
+                          'Delete Invoice',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ),
+                  ];
+
+                  if (items.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return PopupMenuButton<String>(
+                    onSelected: (action) =>
+                        _handleAction(context, ref, sale, action),
+                    itemBuilder: (_) => items,
+                  );
+                },
+              ),
             ],
           ),
           body: ListView(
@@ -141,6 +181,12 @@ class SaleDetailScreen extends ConsumerWidget {
 
               // ── Details Section ──
               _DetailsSection(sale: sale),
+              const SizedBox(height: 20),
+
+              // ── Approval Timeline ──
+              _SectionTitle(title: 'Approval Timeline'),
+              const SizedBox(height: 8),
+              _ApprovalTimeline(sale: sale),
               const SizedBox(height: 20),
 
               // ── Items Section ──
@@ -217,7 +263,9 @@ class SaleDetailScreen extends ConsumerWidget {
                 : const PhosphorIcon(PhosphorIconsBold.checkCircle, size: 18),
             label: isLoading
                 ? const Text('Approving...')
-                : const Text('Approve'),
+              : Text(
+                'Approve (${sale.approvalCount}/${sale.requiredApprovals})',
+                ),
             style: FilledButton.styleFrom(
               backgroundColor: canApprove && !isLoading
                   ? cs.primary
@@ -295,12 +343,72 @@ class SaleDetailScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Sale sale,
+    {
+      required bool asReceipt,
+    }
   ) async {
-    // Gather data from providers
+    final payload = await _preparePrintablePayload(
+      context,
+      ref,
+      sale,
+      asReceipt: asReceipt,
+    );
+    if (payload == null) {
+      return;
+    }
+
+    await Printing.layoutPdf(
+      onLayout: (_) => payload.document.save(),
+      name: payload.fileName,
+    );
+  }
+
+  Future<void> _handleSaveAsImage(
+    BuildContext context,
+    WidgetRef ref,
+    Sale sale,
+  ) async {
+    final payload = await _preparePrintablePayload(
+      context,
+      ref,
+      sale,
+      asReceipt: sale.saleType == 'pos_sale',
+    );
+    if (payload == null) {
+      return;
+    }
+
+    try {
+      final imagePath = await InvoiceImageExport.saveFirstPageAsPng(
+        document: payload.document,
+        fileName: payload.fileName,
+        share: true,
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved image: $imagePath')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save image: $e')),
+        );
+      }
+    }
+  }
+
+  Future<_PrintablePayload?> _preparePrintablePayload(
+    BuildContext context,
+    WidgetRef ref,
+    Sale sale, {
+    required bool asReceipt,
+  }) async {
     final itemsAsync = ref.read(saleItemsProvider(sale.id));
     final paymentsAsync = ref.read(salePaymentsProvider(sale.id));
     final tenantAsync = ref.read(currentTenantProvider);
     final customersAsync = ref.read(allCustomersProvider);
+    final staffAsync = ref.read(humanStaffProvider);
 
     final items = itemsAsync.value ?? [];
     final payments = paymentsAsync.value ?? [];
@@ -312,10 +420,9 @@ class SaleDetailScreen extends ConsumerWidget {
           const SnackBar(content: Text('Business info not loaded yet')),
         );
       }
-      return;
+      return null;
     }
 
-    // Resolve customer name
     String? customerName;
     if (sale.customerId != null && customersAsync.hasValue) {
       try {
@@ -325,7 +432,17 @@ class SaleDetailScreen extends ConsumerWidget {
       } catch (_) {}
     }
 
-    // Resolve branch for this sale
+    String? salespersonName;
+    if (sale.salespersonId != null && staffAsync.hasValue) {
+      try {
+        salespersonName = staffAsync.value
+            ?.firstWhere((s) => s.id == sale.salespersonId)
+            .name;
+      } catch (_) {
+        salespersonName = null;
+      }
+    }
+
     Branch? branch;
     final branchesAsync = ref.read(branchesProvider);
     if (branchesAsync.hasValue) {
@@ -334,7 +451,6 @@ class SaleDetailScreen extends ConsumerWidget {
       } catch (_) {}
     }
 
-    // Try to download logo
     pw.MemoryImage? logoImage;
     if (tenant.logoUrl != null && tenant.logoUrl!.isNotEmpty) {
       try {
@@ -347,33 +463,34 @@ class SaleDetailScreen extends ConsumerWidget {
       }
     }
 
-    // Generate the appropriate PDF
-    final pw.Document pdf;
-    if (sale.saleType == 'pos_sale') {
-      pdf = ReceiptTemplate.generate(
+    final useReceipt = asReceipt || sale.saleType == 'pos_sale';
+    final pw.Document document;
+    if (useReceipt) {
+      document = ReceiptTemplate.generate(
         sale: sale,
         items: items,
         tenant: tenant,
         branch: branch,
         customerName: customerName,
+        salespersonName: salespersonName,
         logoImage: logoImage,
       );
     } else {
-      pdf = InvoiceTemplate.generate(
+      document = InvoiceTemplate.generate(
         sale: sale,
         items: items,
         payments: payments,
         tenant: tenant,
         branch: branch,
         customerName: customerName,
+        salespersonName: salespersonName,
         logoImage: logoImage,
       );
     }
 
-    // Open print dialog
-    await Printing.layoutPdf(
-      onLayout: (_) => pdf.save(),
-      name: sale.invoiceNumber ?? 'document',
+    return _PrintablePayload(
+      document: document,
+      fileName: sale.invoiceNumber ?? (useReceipt ? 'receipt' : 'invoice'),
     );
   }
 
@@ -390,6 +507,21 @@ class SaleDetailScreen extends ConsumerWidget {
         case 'edit':
           if (context.mounted) {
             context.push('/sales/${sale.id}/edit');
+          }
+          return;
+        case 'clone_invoice':
+          final cloneResult = await service.cloneInvoice(
+            sale.id,
+            tenantId: sale.tenantId,
+          );
+          final clonedSaleId = cloneResult['sale_id']?.toString();
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invoice cloned as pending approval')),
+            );
+            if (clonedSaleId != null && clonedSaleId.isNotEmpty) {
+              context.push('/sales/$clonedSaleId');
+            }
           }
           return;
         case 'submit_for_approval':
@@ -492,6 +624,7 @@ class SaleDetailScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _RecordPaymentSheet(sale: sale),
     );
@@ -501,6 +634,7 @@ class SaleDetailScreen extends ConsumerWidget {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      showDragHandle: true,
       backgroundColor: Colors.transparent,
       builder: (_) => _CreateCreditNoteSheet(saleId: sale.id),
     );
@@ -542,20 +676,11 @@ class _StatusHero extends StatelessWidget {
               borderRadius: BorderRadius.circular(14),
             ),
             child: Center(
-              child: sale.status == InvoiceStatus.pendingApproval
-                  ? SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 3,
-                        valueColor: AlwaysStoppedAnimation<Color>(color),
-                      ),
-                    )
-                  : PhosphorIcon(
-                      _iconForStatus(sale.status),
-                      color: color,
-                      size: 28,
-                    ),
+              child: PhosphorIcon(
+                _iconForStatus(sale.status),
+                color: color,
+                size: 28,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -1196,17 +1321,7 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurfaceVariant.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
             Text(
               'Record Payment',
               style: theme.textTheme.titleLarge?.copyWith(
@@ -1402,17 +1517,7 @@ class _CreateCreditNoteSheetState
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: cs.onSurfaceVariant.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 8),
             Text(
               'Create Credit Note',
               style: theme.textTheme.titleLarge?.copyWith(
@@ -1522,7 +1627,7 @@ class _CreateCreditNoteSheetState
                     );
                   },
                 ),
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () => const _ShimmerSection(height: 120),
                 error: (e, _) => Text('Error: $e'),
               ),
             ),
@@ -1719,6 +1824,85 @@ class _DetailsSection extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+class _ApprovalTimeline extends ConsumerWidget {
+  final Sale sale;
+  const _ApprovalTimeline({required this.sale});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final approvalsAsync = ref.watch(saleApprovalsProvider(sale.id));
+    final requiredApprovals = sale.requiredApprovals < 1
+        ? 1
+        : sale.requiredApprovals;
+
+    return approvalsAsync.when(
+      data: (approvals) {
+        final approved = approvals
+            .where((a) => a.decision == SaleApprovalDecision.approved)
+            .toList();
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: cs.surfaceContainerLow,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${approved.length}/$requiredApprovals approvals collected',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: List.generate(requiredApprovals, (index) {
+                  final slot = index + 1;
+                  if (index < approved.length) {
+                    final approval = approved[index];
+                    final approverName =
+                        approval.approverDisplayName?.trim().isNotEmpty == true
+                        ? approval.approverDisplayName!.trim()
+                        : approval.approverUserId;
+                    final ts = approval.createdAt != null
+                        ? _formatFull(approval.createdAt)
+                        : 'time unavailable';
+
+                    return Chip(
+                      avatar: const Icon(
+                        PhosphorIconsRegular.checkCircle,
+                        size: 16,
+                      ),
+                      label: Text('Approval #$slot · $approverName · $ts'),
+                      backgroundColor: cs.primaryContainer,
+                      side: BorderSide.none,
+                    );
+                  }
+
+                  return Chip(
+                    avatar: const Icon(PhosphorIconsRegular.clock, size: 16),
+                    label: Text('Approval #$slot · Pending'),
+                  );
+                }),
+              ),
+            ],
+          ),
+        );
+      },
+      loading: () => _ShimmerSection(height: 60),
+      error: (e, _) => Text('Error loading approvals: $e'),
     );
   }
 }
