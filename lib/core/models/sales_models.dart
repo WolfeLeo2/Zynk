@@ -450,7 +450,10 @@ class SaleApproval {
   final String saleId;
   final String tenantId;
   final String approverUserId;
-  @JsonKey(fromJson: _saleApprovalDecisionFromJson, toJson: _saleApprovalDecisionToJson)
+  @JsonKey(
+    fromJson: _saleApprovalDecisionFromJson,
+    toJson: _saleApprovalDecisionToJson,
+  )
   final SaleApprovalDecision decision;
   final String? notes;
   @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
@@ -645,7 +648,7 @@ PaymentMethod _paymentMethodFromJson(String? value) =>
 String _paymentMethodToJson(PaymentMethod value) => value.value;
 
 SaleApprovalDecision _saleApprovalDecisionFromJson(String? value) =>
-  SaleApprovalDecision.fromString(value);
+    SaleApprovalDecision.fromString(value);
 
 String _saleApprovalDecisionToJson(SaleApprovalDecision value) => value.value;
 

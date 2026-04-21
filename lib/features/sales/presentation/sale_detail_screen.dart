@@ -135,10 +135,7 @@ class SaleDetailScreen extends ConsumerWidget {
                         value: 'approve',
                         child: Text('Approve'),
                       ),
-                    const PopupMenuItem(
-                      value: 'reject',
-                      child: Text('Reject'),
-                    ),
+                    const PopupMenuItem(value: 'reject', child: Text('Reject')),
                     if (sale.canBeVoided && canVoid)
                       const PopupMenuItem(
                         value: 'void',
@@ -263,9 +260,9 @@ class SaleDetailScreen extends ConsumerWidget {
                 : const PhosphorIcon(PhosphorIconsBold.checkCircle, size: 18),
             label: isLoading
                 ? const Text('Approving...')
-              : Text(
-                'Approve (${sale.approvalCount}/${sale.requiredApprovals})',
-                ),
+                : Text(
+                    'Approve (${sale.approvalCount}/${sale.requiredApprovals})',
+                  ),
             style: FilledButton.styleFrom(
               backgroundColor: canApprove && !isLoading
                   ? cs.primary
@@ -342,11 +339,9 @@ class SaleDetailScreen extends ConsumerWidget {
   Future<void> _handlePrint(
     BuildContext context,
     WidgetRef ref,
-    Sale sale,
-    {
-      required bool asReceipt,
-    }
-  ) async {
+    Sale sale, {
+    required bool asReceipt,
+  }) async {
     final payload = await _preparePrintablePayload(
       context,
       ref,
@@ -385,15 +380,15 @@ class SaleDetailScreen extends ConsumerWidget {
         share: true,
       );
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Saved image: $imagePath')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Saved image: $imagePath')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to save image: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save image: $e')));
       }
     }
   }
@@ -517,7 +512,9 @@ class SaleDetailScreen extends ConsumerWidget {
           final clonedSaleId = cloneResult['sale_id']?.toString();
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Invoice cloned as pending approval')),
+              const SnackBar(
+                content: Text('Invoice cloned as pending approval'),
+              ),
             );
             if (clonedSaleId != null && clonedSaleId.isNotEmpty) {
               context.push('/sales/$clonedSaleId');

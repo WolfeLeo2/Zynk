@@ -14,7 +14,6 @@ import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 
-
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
 
@@ -278,8 +277,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   selectedGroupId: _selectedGroupId,
                   onCategoryChanged: (id) =>
                       setState(() => _selectedCategoryId = id),
-                  onGroupChanged: (id) =>
-                      setState(() => _selectedGroupId = id),
+                  onGroupChanged: (id) => setState(() => _selectedGroupId = id),
                   searchController: _searchController,
                   onSearchChanged: (q) => setState(() => _searchQuery = q),
                   onAddToCart: _addToCart,
@@ -415,7 +413,8 @@ class _ProductGrid extends ConsumerWidget {
                     child: FilterChip(
                       label: const Text('All'),
                       showCheckmark: false,
-                      selected: selectedCategoryId == null && selectedGroupId == null,
+                      selected:
+                          selectedCategoryId == null && selectedGroupId == null,
                       onSelected: (_) {
                         onCategoryChanged(null);
                         onGroupChanged(null);
@@ -431,14 +430,23 @@ class _ProductGrid extends ConsumerWidget {
                         avatar: Icon(
                           PhosphorIconsDuotone.folders,
                           size: 18,
-                          color: selectedGroupId != null ? colorScheme.onPrimaryContainer : null,
+                          color: selectedGroupId != null
+                              ? colorScheme.onPrimaryContainer
+                              : null,
                         ),
                         label: Text(
                           selectedGroupId != null
-                              ? itemGroups.firstWhere((g) => g.id == selectedGroupId, orElse: () => itemGroups.first).name
+                              ? itemGroups
+                                    .firstWhere(
+                                      (g) => g.id == selectedGroupId,
+                                      orElse: () => itemGroups.first,
+                                    )
+                                    .name
                               : 'Groups',
                           style: TextStyle(
-                            color: selectedGroupId != null ? colorScheme.onPrimaryContainer : null,
+                            color: selectedGroupId != null
+                                ? colorScheme.onPrimaryContainer
+                                : null,
                           ),
                         ),
                         showCheckmark: false,
@@ -554,9 +562,9 @@ class _ProductGrid extends ConsumerWidget {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   'Select Item Group',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
                 ),
               ),
               const Divider(height: 1),
@@ -571,17 +579,24 @@ class _ProductGrid extends ConsumerWidget {
                       leading: Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: isSelected ? colorScheme.primaryContainer : colorScheme.surfaceContainerHighest,
+                          color: isSelected
+                              ? colorScheme.primaryContainer
+                              : colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
                           PhosphorIconsDuotone.folders,
-                          color: isSelected ? colorScheme.onPrimaryContainer : colorScheme.onSurfaceVariant,
+                          color: isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
                         ),
                       ),
                       title: Text(group.name),
                       trailing: isSelected
-                          ? Icon(PhosphorIconsBold.check, color: colorScheme.primary)
+                          ? Icon(
+                              PhosphorIconsBold.check,
+                              color: colorScheme.primary,
+                            )
                           : null,
                       onTap: () {
                         onGroupChanged(group.id);

@@ -272,18 +272,23 @@ class _DrawerItem extends StatelessWidget {
         selectedTileColor: colorScheme.primary.withValues(alpha: 0.1),
         leading: PhosphorIcon(
           icon,
-          color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+          color: isSelected
+              ? colorScheme.primary
+              : colorScheme.onSurfaceVariant,
           size: 20,
         ),
         title: Text(
           label,
           style: theme.textTheme.bodyMedium?.copyWith(
             fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
-            color: isSelected ? colorScheme.primary : colorScheme.onSurfaceVariant,
+            color: isSelected
+                ? colorScheme.primary
+                : colorScheme.onSurfaceVariant,
           ),
         ),
         onTap: () {
-          if (Scaffold.of(context).hasDrawer && Scaffold.of(context).isDrawerOpen) {
+          if (Scaffold.of(context).hasDrawer &&
+              Scaffold.of(context).isDrawerOpen) {
             Navigator.of(context).pop();
           }
 

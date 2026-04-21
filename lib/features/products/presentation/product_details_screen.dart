@@ -247,8 +247,6 @@ class ProductDetailsScreen extends ConsumerWidget {
             ),
             const SizedBox(height: 24),
 
-
-
             // Pricing & Margins Card
             Container(
               padding: const EdgeInsets.all(20),
@@ -406,9 +404,8 @@ class ProductDetailsScreen extends ConsumerWidget {
                               );
                             },
                             loading: () => const LinearProgressIndicator(),
-                            error: (_, _) => const Text(
-                              'Failed to load branch stock.',
-                            ),
+                            error: (_, _) =>
+                                const Text('Failed to load branch stock.'),
                           );
                         },
                         loading: () => const LinearProgressIndicator(),
@@ -526,17 +523,19 @@ class ProductDetailsScreen extends ConsumerWidget {
                               itemBuilder: (context, index) {
                                 final adj = history[index];
                                 final isPositive = adj.quantity > 0;
-                                final title = adj.reasonLabel ??
+                                final title =
+                                    adj.reasonLabel ??
                                     adj.adjustmentType?.toUpperCase() ??
                                     'Adjustment';
-                                final adjuster = adj.adjusterName ??
+                                final adjuster =
+                                    adj.adjusterName ??
                                     adj.createdBy ??
                                     'Unknown';
                                 final timeStr = adj.createdAt != null
                                     ? adj.createdAt!
-                                        .toLocal()
-                                        .toString()
-                                        .substring(0, 16)
+                                          .toLocal()
+                                          .toString()
+                                          .substring(0, 16)
                                     : '—';
                                 return ListTile(
                                   contentPadding: EdgeInsets.zero,
@@ -596,8 +595,6 @@ class ProductDetailsScreen extends ConsumerWidget {
       ),
     );
   }
-
-
 
   Widget _buildInfoItem(
     ThemeData theme,

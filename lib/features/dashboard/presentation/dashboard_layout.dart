@@ -359,10 +359,7 @@ class DashboardSliverAppBar extends StatelessWidget {
           ),
         ],
       ),
-      actions: [
-        const SizedBox(width: 8),
-      ],
+      actions: [const SizedBox(width: 8)],
     );
   }
 }
-

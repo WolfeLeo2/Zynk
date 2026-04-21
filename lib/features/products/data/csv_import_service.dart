@@ -55,8 +55,8 @@ class CsvImportService {
           )).where((b) => b.id != 'all').toList()
         : const <Branch>[];
     final targetBranchIds = allBranchesMode
-      ? targetBranches.map((b) => b.id).toList()
-      : <String>[selectedBranchId];
+        ? targetBranches.map((b) => b.id).toList()
+        : <String>[selectedBranchId];
 
     if (allBranchesMode && targetBranches.isEmpty) {
       throw Exception(

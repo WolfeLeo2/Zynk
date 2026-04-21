@@ -3,11 +3,13 @@
 ## Audit Scope
 
 This inventory is based on:
+
 - Live Supabase project type generation (`mcp_com_supabase__generate_typescript_types`) for project `kfqionlpnjetpmuzsvfb`.
 - Live Supabase advisor diagnostics (`mcp_com_supabase__get_advisors`) for performance and security.
 - Migration history and runtime usage analysis from app/repository/edge-function code.
 
 Session note:
+
 - Direct SQL table-content probes against the target Supabase project were not available through the current PostgreSQL connection profile in this session, so this audit uses authoritative schema/advisor artifacts plus code-path evidence. Add row-count/value-distribution SQL probes in implementation phase 0.5 before destructive drops.
 
 ## Executive Findings
@@ -52,6 +54,7 @@ Usage counts were computed by searching runtime artifacts (`lib/`, `supabase/fun
 - `tenant_invoice_counters`: 0
 
 Interpretation:
+
 - `stock_item_groups` appears fully dead in runtime code and is a strong drop candidate.
 - `tenant_invoice_counters` being 0 in app/runtime references is expected because it is reached through RPC (`next_invoice_number`) and edge function logic, not direct table CRUD.
 
@@ -124,10 +127,12 @@ These are currently raw text/varchar state surfaces and should be normalized int
 - `daily_payment_method_snapshots.payment_method`
 
 Current constraint posture:
+
 - Only `stock_adjustments.adjustment_type` has explicit CHECK in migration history: [supabase/migrations/20260226112640_stock_adjustments.sql](supabase/migrations/20260226112640_stock_adjustments.sql#L9).
 - Live type generation shows no native Postgres enums (`Enums: {}`) in current schema.
 
 Recommended lookup tables:
+
 - `invoice_statuses`
 - `payment_statuses`
 - `fulfillment_statuses`
@@ -137,6 +142,7 @@ Recommended lookup tables:
 - `stock_adjustment_statuses`
 
 Design rule:
+
 - Tenants can reference lookup values, not author arbitrary state values.
 - Lookup table mutations restricted to service/admin paths.
 
@@ -187,6 +193,7 @@ Seed values for lookup migrations (derived from current app and edge literals):
   - `damage`
 
 Note:
+
 - `item_groups.default_commission_type` currently uses `fixed`/`percentage` from migration logic while parts of UI use `fixed`/`percent`/`none`. This should be normalized as `commission_calculation_types` lookup plus one translation migration.
 
 ## PowerSync Contract Drift Findings
@@ -218,16 +225,19 @@ Note:
   - [supabase/migrations/20260404154000_phase3_auth_rls_initplan_optimization.sql](supabase/migrations/20260404154000_phase3_auth_rls_initplan_optimization.sql#L40)
 
 Action:
+
 - Add explicit policy reconciliation migration and CI validation query so no environment keeps stale permissive policies.
 
 ## Security and Index Hygiene Signals
 
 Live advisor highlights:
+
 - Public bucket listing policies exist for `avatars`, `logos`, `product-images`.
 - Leaked password protection is disabled.
 - Many recently added indexes are still reported unused.
 
 Action:
+
 - Harden storage bucket policies.
 - Enable leaked password protection.
 - Re-evaluate index set after an observation window; keep only proven useful indexes.
@@ -243,6 +253,7 @@ Action:
 ## Blocking Gate Before Production
 
 Run this gate before merging cleanup:
+
 - Verify no application queries still use dropped fields/tables.
 - Verify PowerSync schema matches server contract.
 - Verify all status writes route through lookup-FK constraints.

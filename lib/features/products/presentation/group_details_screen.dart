@@ -27,8 +27,8 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
     _commissionValueController = TextEditingController(
       text: widget.group.defaultCommissionValue?.toString() ?? '',
     );
-    final existingType =
-        (widget.group.defaultCommissionType ?? 'none').toLowerCase();
+    final existingType = (widget.group.defaultCommissionType ?? 'none')
+        .toLowerCase();
     _commissionType = existingType == 'percent' ? 'percentage' : existingType;
   }
 

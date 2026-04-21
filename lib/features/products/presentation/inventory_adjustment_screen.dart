@@ -363,7 +363,7 @@ class _InventoryAdjustmentScreenState
                             },
                           );
                         },
-                            loading: () => const _InventoryItemsShimmer(),
+                        loading: () => const _InventoryItemsShimmer(),
                         error: (err, stack) =>
                             Center(child: Text('Error loading items: $err')),
                       ),
@@ -1250,7 +1250,9 @@ class _InventoryItemsShimmer extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Shimmer.fromColors(
       baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-      highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.7,
+      ),
       child: ListView.builder(
         itemCount: 8,
         itemBuilder: (_, __) => ListTile(
@@ -1281,7 +1283,9 @@ class _FormFieldShimmer extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Shimmer.fromColors(
       baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-      highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.7,
+      ),
       child: Container(
         height: 52,
         decoration: BoxDecoration(
@@ -1301,7 +1305,9 @@ class _ReasonsListShimmer extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Shimmer.fromColors(
       baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-      highlightColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.7),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.7,
+      ),
       child: ListView.builder(
         itemCount: 6,
         itemBuilder: (_, __) => const ListTile(

@@ -24,6 +24,7 @@
 ### Task 0.5.1: Baseline and drift inventory
 
 **Files:**
+
 - Create: `docs/plans/2026-04-19-schema-audit-inventory.md`
 - Modify: `review.md`
 
@@ -34,6 +35,7 @@
 ### Task 0.5.2: Enum/state normalization via lookup tables (per your requirement)
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_status_lookup_tables.sql`
 
 - [x] Create dedicated lookup tables and FK references for business states (not raw free-text writes):
@@ -54,6 +56,7 @@
 ### Task 0.5.2b: Commission-type vocabulary reconciliation
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_commission_type_reconciliation.sql`
 - Modify: `lib/features/products/presentation/add_product_screen.dart`
 - Modify: `lib/data/local/repository.dart`
@@ -65,6 +68,7 @@
 ### Task 0.5.3: Remove non-normalized duplication
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_credit_note_normalization.sql`
 - Modify: `supabase/functions/manage-sale/index.ts`
 
@@ -74,6 +78,7 @@
 ### Task 0.5.4: Remove dead/legacy schema safely
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_drop_legacy_product_variant_schema.sql`
 
 - [x] Gate with safety assertions (no active references/non-null data).
@@ -88,6 +93,7 @@
 ### Task 0.5.5: PowerSync/schema contract alignment
 
 **Files:**
+
 - Modify: `lib/core/config/powersync.dart`
 - Modify: `lib/core/models/schema_models.dart`
 - Modify: `lib/core/models/schema_models.g.dart`
@@ -99,6 +105,7 @@
 ### Task 0.5.6: RLS hardening verification + cleanup
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_rls_reconciliation.sql`
 
 - [x] Enforce tenant-isolation policy consistency for all tenant tables.
@@ -108,6 +115,7 @@
 ### Task 0.5.7: Index hygiene
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_index_hygiene.sql`
 
 - [x] Keep high-value indexes for known query paths.
@@ -120,16 +128,16 @@
 
 - [x] Confirm deletion strategy for legacy duplicates:
   - Recommended: tenant-scoped backup + dedupe/migrate for `Prestine Homes` only.
-  -User decision - Can delete for all tenants. I am starting a fresh. but keep profiles/users (so tenants/staff/humanStaff etc)
+    -User decision - Can delete for all tenants. I am starting a fresh. but keep profiles/users (so tenants/staff/humanStaff etc)
 - [x] Confirm category model:
   - Recommended: keep `categories.branch_id` compatibility in this phase, normalize later.
-  -User decision - Yes.Keep it
+    -User decision - Yes.Keep it
 - [x] Confirm who can switch branches:
   - Recommended: owner + staff with more than one assigned branch.
   - User decision - Yes, keep it this way
 - [x] Confirm 2-approver policy:
   - Recommended: minimum 2 distinct approvers with `approve_invoices` permission.
-  -User decision -  Yes, this way
+    -User decision - Yes, this way
 
 ---
 
@@ -138,6 +146,7 @@
 ### Task 1.1: Add branch availability mapping
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_add_product_branches.sql`
 
 - [x] Create table `public.product_branches`:
@@ -155,6 +164,7 @@
 ### Task 1.2: Add invoice approval chain tables
 
 **Files:**
+
 - Modify: `supabase/migrations/20260419_add_product_branches.sql`
 
 - [x] Create `public.sale_approvals`:
@@ -172,6 +182,7 @@
 ### Task 1.3: Data migration for duplicate products
 
 **Files:**
+
 - Create: `supabase/migrations/20260419_prestine_product_dedupe.sql`
 
 - [x] Backup tenant rows into backup tables.
@@ -190,6 +201,7 @@
 ### Task 2.1: Add local table schema
 
 **Files:**
+
 - Modify: `lib/core/config/powersync.dart`
 
 - [x] Add `Table('product_branches', ...)` with columns:
@@ -198,6 +210,7 @@
 ### Task 2.2: Update sync rules
 
 **Files:**
+
 - Modify: `sync_rules.yaml`
 
 - [x] Add sync stream entry:
@@ -207,6 +220,7 @@
 ### Task 2.3: Local cleanup and bootstrap
 
 **Files:**
+
 - Modify: `lib/core/config/powersync.dart`
 
 - [x] Extend startup cleanup logic for stale branch artifacts if required.
@@ -219,6 +233,7 @@
 ### Task 3.1: Product read paths
 
 **Files:**
+
 - Modify: `lib/data/local/repository.dart`
 - Modify: `lib/features/products/presentation/providers/product_providers.dart`
 
@@ -229,6 +244,7 @@
 ### Task 3.2: Product write paths
 
 **Files:**
+
 - Modify: `lib/features/products/presentation/providers/add_product_controller.dart`
 - Modify: `lib/features/products/data/csv_import_service.dart`
 
@@ -243,6 +259,7 @@
 ### Task 4.1: Remove global blocking pattern
 
 **Files:**
+
 - Modify: `lib/core/routes.dart`
 - Modify: `lib/core/widgets/branch_required_guard.dart`
 
@@ -252,6 +269,7 @@
 ### Task 4.2: Remove top-level branch dropdown and move branch selection inline
 
 **Files:**
+
 - Modify: `lib/features/dashboard/presentation/dashboard_layout.dart`
 - Modify: `lib/core/providers/app_providers.dart`
 
@@ -262,6 +280,7 @@
 ### Task 4.3: Add contextual branch selector widgets
 
 **Files:**
+
 - Modify: `lib/features/products/presentation/add_product_screen.dart`
 - Modify: `lib/features/sales/presentation/create_invoice_screen.dart`
 - Modify: `lib/features/sales/presentation/edit_invoice_screen.dart`
@@ -279,6 +298,7 @@
 ### Task 5.1: Clone item
 
 **Files:**
+
 - Modify: `lib/features/products/presentation/product_details_screen.dart`
 - Modify: `lib/features/products/presentation/add_product_screen.dart`
 
@@ -289,6 +309,7 @@
 ### Task 5.2: Clone invoice
 
 **Files:**
+
 - Modify: `lib/features/sales/presentation/sale_detail_screen.dart`
 - Modify: `lib/core/services/sales_service.dart`
 - Modify: `supabase/functions/manage-sale/index.ts`
@@ -302,6 +323,7 @@
 ## Phase 6: Cross-Branch Stock Visibility (No Cross-Branch Selling)
 
 **Files:**
+
 - Modify: `lib/features/products/presentation/product_details_screen.dart`
 - Modify: `lib/features/products/presentation/providers/product_providers.dart`
 - Modify: `lib/data/local/repository.dart`
@@ -315,6 +337,7 @@
 ## Phase 7: Invoice / Receipt Output Compliance
 
 **Files:**
+
 - Modify: `lib/features/sales/presentation/printing/invoice_template.dart`
 - Modify: `lib/features/sales/presentation/printing/receipt_template.dart`
 - Modify: `lib/features/sales/presentation/sale_detail_screen.dart`
@@ -327,6 +350,7 @@
 ### Task 7.2: Add save-as-image
 
 **Files:**
+
 - Modify: `lib/features/sales/presentation/sale_detail_screen.dart`
 - Add: `lib/features/sales/presentation/printing/invoice_image_export.dart`
 
@@ -339,6 +363,7 @@
 ## Phase 8: Two-Step Approval Workflow
 
 **Files:**
+
 - Modify: `supabase/functions/manage-sale/index.ts`
 - Modify: `lib/core/services/sales_service.dart`
 - Modify: `lib/features/sales/presentation/sale_detail_screen.dart`
@@ -354,6 +379,7 @@
 ## Phase 9: Native UI Standardization Pass
 
 **Files:**
+
 - Modify: `lib/features/dashboard/presentation/dashboard_layout.dart`
 - Modify: `lib/core/widgets/app_drawer.dart`
 - Modify: `lib/features/products/presentation/inventory_adjustment_screen.dart`

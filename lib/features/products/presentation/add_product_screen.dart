@@ -11,7 +11,6 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:zynk/features/products/presentation/providers/add_product_controller.dart';
 import 'package:zynk/features/products/presentation/scanner_screen.dart';
 
-
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
   final bool isCloneMode;
@@ -62,8 +61,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _widthController = TextEditingController();
   final _heightController = TextEditingController();
 
-
-
   @override
   void initState() {
     super.initState();
@@ -95,8 +92,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       if (p.length != null) _lengthController.text = p.length.toString();
       if (p.width != null) _widthController.text = p.width.toString();
       if (p.height != null) _heightController.text = p.height.toString();
-
-
     }
   }
 
@@ -118,8 +113,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
     super.dispose();
   }
-
-
 
   Future<void> _pickImage(ImageSource source) async {
     final XFile? image = await _picker.pickImage(source: source);
@@ -432,10 +425,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-              Text(
-                'Commission',
-                style: Theme.of(context).textTheme.labelLarge,
-              ),
+              Text('Commission', style: Theme.of(context).textTheme.labelLarge),
               const SizedBox(height: 4),
               Text(
                 'Earned by staff when any item in this group is sold.',
@@ -447,14 +437,24 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   Expanded(
                     child: DropdownButtonFormField<String>(
                       initialValue: _newGroupCommissionType,
-                      decoration: const InputDecoration(border: OutlineInputBorder()),
+                      decoration: const InputDecoration(
+                        border: OutlineInputBorder(),
+                      ),
                       items: const [
                         DropdownMenuItem(value: 'none', child: Text('None')),
-                        DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount')),
-                        DropdownMenuItem(value: 'percentage', child: Text('Percentage')),
+                        DropdownMenuItem(
+                          value: 'fixed',
+                          child: Text('Fixed Amount'),
+                        ),
+                        DropdownMenuItem(
+                          value: 'percentage',
+                          child: Text('Percentage'),
+                        ),
                       ],
                       onChanged: (val) {
-                        setModalState(() => _newGroupCommissionType = val ?? 'none');
+                        setModalState(
+                          () => _newGroupCommissionType = val ?? 'none',
+                        );
                         setState(() => _newGroupCommissionType = val ?? 'none');
                       },
                     ),
@@ -466,8 +466,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                       keyboardType: TextInputType.number,
                       enabled: _newGroupCommissionType != 'none',
                       decoration: InputDecoration(
-                        labelText: _newGroupCommissionType == 'percentage' ? 'Rate (%)' : 'Amount',
-                        hintText: _newGroupCommissionType == 'percentage' ? 'e.g. 5' : 'e.g. 100',
+                        labelText: _newGroupCommissionType == 'percentage'
+                            ? 'Rate (%)'
+                            : 'Amount',
+                        hintText: _newGroupCommissionType == 'percentage'
+                            ? 'e.g. 5'
+                            : 'e.g. 100',
                         border: const OutlineInputBorder(),
                       ),
                     ),
@@ -484,7 +488,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     final tenantId = ref.read(tenantIdProvider);
                     final branchId = _selectedTargetBranchId;
 
-                    if (tenantId != null && branchId != null && branchId != 'all') {
+                    if (tenantId != null &&
+                        branchId != null &&
+                        branchId != 'all') {
                       final commissionValue = double.tryParse(
                         _newGroupCommissionValueController.text,
                       );
@@ -499,7 +505,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                         defaultCommissionType: _newGroupCommissionType == 'none'
                             ? null
                             : _newGroupCommissionType,
-                        defaultCommissionValue: _newGroupCommissionType == 'none'
+                        defaultCommissionValue:
+                            _newGroupCommissionType == 'none'
                             ? null
                             : commissionValue,
                         createdAt: DateTime.now(),
@@ -553,7 +560,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('New Unit of Measurement', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'New Unit of Measurement',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const SizedBox(height: 24),
               TextFormField(
                 controller: labelController,
@@ -600,7 +610,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     child: Text('x'),
                   ),
                   Expanded(
-                    child: ref.watch(allUomProvider).when(
+                    child: ref
+                        .watch(allUomProvider)
+                        .when(
                           data: (uoms) => DropdownButtonFormField<String>(
                             initialValue: baseUnitId,
                             decoration: const InputDecoration(
@@ -608,10 +620,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                               border: OutlineInputBorder(),
                             ),
                             items: uoms
-                                .map((u) => DropdownMenuItem(
-                                      value: u.id,
-                                      child: Text(u.label),
-                                    ))
+                                .map(
+                                  (u) => DropdownMenuItem(
+                                    value: u.id,
+                                    child: Text(u.label),
+                                  ),
+                                )
                                 .toList(),
                             onChanged: (val) =>
                                 setModalState(() => baseUnitId = val),
@@ -646,7 +660,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   style: FilledButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                   ),
                   child: const Text('Save Unit'),
                 ),
@@ -657,8 +672,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       ),
     );
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -726,8 +739,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   'Inventory & Stock',
                   PhosphorIconsDuotone.package,
                 ),
-                 
-                 _buildStep3(),
+
+                _buildStep3(),
                 const SizedBox(height: 16),
 
                 _buildSectionHeader(
@@ -856,7 +869,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
         ),
         const SizedBox(height: 24),
-  
+
         TextFormField(
           controller: _nameController,
           decoration: const InputDecoration(
@@ -933,7 +946,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         const SizedBox(height: 16),
 
         // UOM Dropdown
-        ref.watch(allUomProvider).when(
+        ref
+            .watch(allUomProvider)
+            .when(
               data: (uoms) => _buildSearchableDropdown<UnitOfMeasurement>(
                 key: const ValueKey('uom_data'),
                 label: 'Unit of Measurement',
@@ -948,8 +963,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               loading: () => const LinearProgressIndicator(),
               error: (e, s) => Text('Error loading units: $e'),
             ),
-            const SizedBox(height: 16),
-         // Dimensions & Weight
+        const SizedBox(height: 16),
+        // Dimensions & Weight
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
@@ -961,9 +976,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             children: [
               Text(
                 'Physical Dimensions',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 16),
               Row(
@@ -971,7 +986,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _weightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Weight',
                         suffixText: weightUnit,
@@ -982,14 +999,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   const SizedBox(width: 16),
                   Expanded(
                     child: TextFormField(
-                        controller: _lengthController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        decoration: InputDecoration(
-                          labelText: 'Length',
-                          suffixText: lengthUnit,
-                          border: const OutlineInputBorder(),
-                        ),
+                      controller: _lengthController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
                       ),
+                      decoration: InputDecoration(
+                        labelText: 'Length',
+                        suffixText: lengthUnit,
+                        border: const OutlineInputBorder(),
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -999,7 +1018,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   Expanded(
                     child: TextFormField(
                       controller: _widthController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Width',
                         suffixText: lengthUnit,
@@ -1009,9 +1030,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   ),
                   const SizedBox(width: 16),
                   Expanded(
-                     child: TextFormField(
+                    child: TextFormField(
                       controller: _heightController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
                       decoration: InputDecoration(
                         labelText: 'Height',
                         suffixText: lengthUnit,
@@ -1059,10 +1082,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
           items: options
               .map(
-                (b) => DropdownMenuItem<String>(
-                  value: b.id,
-                  child: Text(b.name),
-                ),
+                (b) =>
+                    DropdownMenuItem<String>(value: b.id, child: Text(b.name)),
               )
               .toList(),
           onChanged: (value) {
@@ -1246,7 +1267,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
         ),
         const SizedBox(height: 24),
-
       ],
     );
   }

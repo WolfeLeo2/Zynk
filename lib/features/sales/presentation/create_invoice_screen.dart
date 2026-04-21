@@ -262,7 +262,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                         .toList(),
                     onChanged: (next) {
                       if (next == null) return;
-                      ref.read(branchSelectionProvider.notifier).selectBranch(next);
+                      ref
+                          .read(branchSelectionProvider.notifier)
+                          .selectBranch(next);
                     },
                   ),
                 ),

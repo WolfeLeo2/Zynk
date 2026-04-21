@@ -114,7 +114,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
         if (qty <= 0) continue;
 
         final price = double.tryParse(item.priceCtr.text) ?? item.initialPrice;
-        final name = item.nameCtr.text.trim().isEmpty ? item.initialName : item.nameCtr.text.trim();
+        final name = item.nameCtr.text.trim().isEmpty
+            ? item.initialName
+            : item.nameCtr.text.trim();
 
         // Stock validation — skip when no stock row exists (e.g. services)
         final stockRow = await repo.db.getOptional(
@@ -127,7 +129,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Not enough stock for "$name". Available: $available'),
+                  content: Text(
+                    'Not enough stock for "$name". Available: $available',
+                  ),
                   backgroundColor: Theme.of(context).colorScheme.error,
                   behavior: SnackBarBehavior.floating,
                 ),
@@ -137,7 +141,6 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
             return;
           }
         }
-
 
         updatedItems.add(
           SaleItem(
@@ -179,15 +182,17 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
         }
       }
 
-      await ref.read(salesServiceProvider).updateDraftInvoice(
-        saleId: sale.id,
-        tenantId: tenantId,
-        customerId: sale.customerId ?? customer?.id ?? '',
-        items: updatedItems,
-        salespersonId: _salespersonId,
-        notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
-        dueDate: _dueDate?.toIso8601String(),
-      );
+      await ref
+          .read(salesServiceProvider)
+          .updateDraftInvoice(
+            saleId: sale.id,
+            tenantId: tenantId,
+            customerId: sale.customerId ?? customer?.id ?? '',
+            items: updatedItems,
+            salespersonId: _salespersonId,
+            notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
+            dueDate: _dueDate?.toIso8601String(),
+          );
 
       if (mounted) {
         context.pop();
@@ -197,9 +202,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -215,7 +220,8 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     final customersAsync = ref.watch(allCustomersProvider);
 
     return saleAsync.when(
-      loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+      loading: () =>
+          const Scaffold(body: Center(child: CircularProgressIndicator())),
       error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (sale) {
         if (sale == null) {
@@ -223,7 +229,8 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
         }
 
         return itemsAsync.when(
-          loading: () => const Scaffold(body: Center(child: CircularProgressIndicator())),
+          loading: () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
           error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
           data: (saleItems) {
             final customers = customersAsync.value ?? [];
@@ -249,8 +256,11 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                 actions: [
                   Consumer(
                     builder: (context, ref, _) {
-                      final branches = ref.watch(branchesProvider).value ?? const [];
-                      final options = branches.where((b) => b.id != 'all').toList();
+                      final branches =
+                          ref.watch(branchesProvider).value ?? const [];
+                      final options = branches
+                          .where((b) => b.id != 'all')
+                          .toList();
                       if (options.length <= 1) return const SizedBox.shrink();
 
                       final selectedId = ref.watch(currentBranchIdProvider);
@@ -274,7 +284,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                                 .toList(),
                             onChanged: (next) {
                               if (next == null) return;
-                              ref.read(branchSelectionProvider.notifier).selectBranch(next);
+                              ref
+                                  .read(branchSelectionProvider.notifier)
+                                  .selectBranch(next);
                             },
                           ),
                         ),
@@ -292,15 +304,21 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     // ── Customer ──
                     Text(
                       'Billed To',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest.withValues(alpha: 0.2),
+                        color: cs.surfaceContainerHighest.withValues(
+                          alpha: 0.2,
+                        ),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
+                        border: Border.all(
+                          color: cs.outline.withValues(alpha: 0.3),
+                        ),
                       ),
                       child: Column(
                         children: [
@@ -309,19 +327,27 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                             decoration: InputDecoration(
                               labelText: 'Customer Name',
                               prefixIcon: const Icon(PhosphorIconsRegular.user),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                               isDense: true,
                             ),
                             textCapitalization: TextCapitalization.words,
-                            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+                            validator: (v) => (v == null || v.trim().isEmpty)
+                                ? 'Required'
+                                : null,
                           ),
                           const SizedBox(height: 12),
                           TextFormField(
                             controller: _customerPhoneCtrl,
                             decoration: InputDecoration(
                               labelText: 'Phone (optional)',
-                              prefixIcon: const Icon(PhosphorIconsRegular.phone),
-                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                              prefixIcon: const Icon(
+                                PhosphorIconsRegular.phone,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
                               isDense: true,
                             ),
                             keyboardType: TextInputType.phone,
@@ -334,37 +360,55 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     // ── Due Date ──
                     Text(
                       'Due Date (Optional)',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     InkWell(
                       onTap: () async {
                         final picked = await showDatePicker(
                           context: context,
-                          initialDate: _dueDate ?? DateTime.now().add(const Duration(days: 30)),
-                          firstDate: DateTime.now().subtract(const Duration(days: 365)),
-                          lastDate: DateTime.now().add(const Duration(days: 365)),
+                          initialDate:
+                              _dueDate ??
+                              DateTime.now().add(const Duration(days: 30)),
+                          firstDate: DateTime.now().subtract(
+                            const Duration(days: 365),
+                          ),
+                          lastDate: DateTime.now().add(
+                            const Duration(days: 365),
+                          ),
                         );
                         if (picked != null) setState(() => _dueDate = picked);
                       },
                       borderRadius: BorderRadius.circular(12),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         decoration: BoxDecoration(
                           color: cs.surface,
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
+                          border: Border.all(
+                            color: cs.outline.withValues(alpha: 0.3),
+                          ),
                         ),
                         child: Row(
                           children: [
-                            PhosphorIcon(PhosphorIconsRegular.calendar, color: cs.onSurfaceVariant),
+                            PhosphorIcon(
+                              PhosphorIconsRegular.calendar,
+                              color: cs.onSurfaceVariant,
+                            ),
                             const SizedBox(width: 12),
                             Text(
                               _dueDate != null
                                   ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
                                   : 'Select due date',
                               style: theme.textTheme.bodyLarge?.copyWith(
-                                color: _dueDate != null ? cs.onSurface : cs.onSurfaceVariant,
+                                color: _dueDate != null
+                                    ? cs.onSurface
+                                    : cs.onSurfaceVariant,
                               ),
                             ),
                           ],
@@ -376,7 +420,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     // ── Salesperson ──
                     Text(
                       'Salesperson (Required)',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Consumer(
@@ -384,15 +430,21 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                         final staffAsync = ref.watch(humanStaffProvider);
                         return staffAsync.when(
                           data: (staffList) {
-                            if (staffList.isEmpty) return const SizedBox.shrink();
+                            if (staffList.isEmpty)
+                              return const SizedBox.shrink();
                             return DropdownButtonFormField<String>(
                               initialValue: _salespersonId,
                               decoration: InputDecoration(
-                                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                                prefixIcon: const PhosphorIcon(
+                                  PhosphorIconsRegular.user,
+                                ),
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
                                 isDense: true,
                                 filled: true,
-                                fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.2),
+                                fillColor: cs.surfaceContainerHighest
+                                    .withValues(alpha: 0.2),
                               ),
                               hint: const Text('Select Salesperson (Required)'),
                               items: [
@@ -400,12 +452,15 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                                   value: null,
                                   child: Text('None'),
                                 ),
-                                ...staffList.map((s) => DropdownMenuItem<String>(
-                                  value: s.id,
-                                  child: Text(s.name),
-                                )),
+                                ...staffList.map(
+                                  (s) => DropdownMenuItem<String>(
+                                    value: s.id,
+                                    child: Text(s.name),
+                                  ),
+                                ),
                               ],
-                              onChanged: (v) => setState(() => _salespersonId = v),
+                              onChanged: (v) =>
+                                  setState(() => _salespersonId = v),
                             );
                           },
                           loading: () => const LinearProgressIndicator(),
@@ -418,7 +473,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     // ── Items ──
                     Text(
                       'Items',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
 
@@ -437,7 +494,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                         children: [
                           Text(
                             'Estimated Total',
-                            style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
                           Text(
                             'Ksh ${_computeSubtotal().toStringAsFixed(0)}',
@@ -454,7 +513,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     // ── Notes ──
                     Text(
                       'Notes (Optional)',
-                      style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w600),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     TextFormField(
@@ -462,7 +523,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                       maxLines: 3,
                       decoration: InputDecoration(
                         hintText: 'e.g., Net 30 payment terms',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                         filled: true,
                         fillColor: cs.surface,
                       ),
@@ -475,16 +538,24 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                           ? const SizedBox(
                               width: 20,
                               height: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
                             )
                           : const PhosphorIcon(PhosphorIconsBold.floppyDisk),
                       label: Text(
                         _isLoading ? 'Saving...' : 'Save Changes',
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                       style: FilledButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
                       ),
                     ),
                     const SizedBox(height: 48),
@@ -498,7 +569,11 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     );
   }
 
-  Widget _buildItemRow(_EditableSaleItem item, ColorScheme cs, ThemeData theme) {
+  Widget _buildItemRow(
+    _EditableSaleItem item,
+    ColorScheme cs,
+    ThemeData theme,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -516,9 +591,12 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
             decoration: InputDecoration(
               labelText: 'Product Name',
               isDense: true,
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
             ),
-            validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+            validator: (v) =>
+                (v == null || v.trim().isEmpty) ? 'Required' : null,
             textCapitalization: TextCapitalization.words,
           ),
           const SizedBox(height: 10),
@@ -532,7 +610,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                   decoration: InputDecoration(
                     labelText: 'Qty',
                     isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
@@ -552,10 +632,16 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                   decoration: InputDecoration(
                     labelText: 'Unit Price (Ksh)',
                     isDense: true,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
                   ),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[\d.]')),
+                  ],
                   validator: (v) {
                     final p = double.tryParse(v ?? '');
                     if (p == null || p < 0) return 'Invalid';
@@ -567,11 +653,18 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  Text('Total', style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant)),
+                  Text(
+                    'Total',
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  ),
                   const SizedBox(height: 2),
                   Text(
                     'Ksh ${((double.tryParse(item.priceCtr.text) ?? 0) * (int.tryParse(item.qtyCtr.text) ?? 0)).toStringAsFixed(0)}',
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ],
               ),
