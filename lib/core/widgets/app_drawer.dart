@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/core/models/user_role.dart';
 
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
@@ -45,7 +46,8 @@ class AppDrawer extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  'Zynk',
+                  //chanegd from Zynk to PH for client needs
+                  'PH',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: -0.5,
@@ -59,98 +61,136 @@ class AppDrawer extends ConsumerWidget {
             child: ListView(
               padding: const EdgeInsets.symmetric(horizontal: 16),
               children: [
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.house,
-                  label: 'Dashboard',
-                  path: '/',
-                  currentPath: currentPath,
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.storefront,
-                  label: 'Point of Sale',
-                  path: '/pos',
-                  currentPath: currentPath,
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 8),
-                  child: Text('SALES', style: _headerStyle(theme)),
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.receipt,
-                  label: 'Invoices',
-                  path: '/sales',
-                  currentPath: currentPath,
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 8),
-                  child: Text('INVENTORY', style: _headerStyle(theme)),
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.package,
-                  label: 'Items',
-                  path: '/products',
-                  currentPath: currentPath,
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.package,
-                  label: 'Item Groups',
-                  path: '/products/groups',
-                  currentPath: currentPath,
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.stack,
-                  label: 'Composite Items',
-                  path: '/products/composite',
-                  currentPath: currentPath,
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.slidersHorizontal,
-                  label: 'Batch Adjust Stock',
-                  path: '/adjustments',
-                  currentPath: currentPath,
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.slidersHorizontal,
-                  label: 'Adjustments Review',
-                  path: '/settings/adjustments-review',
-                  currentPath: currentPath,
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 8),
-                  child: Text('REPORTS', style: _headerStyle(theme)),
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.currencyDollar,
-                  label: 'Reports',
-                  path: '/settings/reports',
-                  currentPath: currentPath,
-                ),
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.only(left: 16, bottom: 8),
-                  child: Text('SYSTEM', style: _headerStyle(theme)),
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.buildings,
-                  label: 'Branches',
-                  path: '/settings/branches',
-                  currentPath: currentPath,
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.users,
-                  label: 'Staff Members',
-                  path: '/settings/staff',
-                  currentPath: currentPath,
-                ),
-                _DrawerItem(
-                  icon: PhosphorIconsDuotone.gear,
-                  label: 'Settings',
-                  path: '/settings',
-                  currentPath: currentPath,
-                ),
+                if (profileAsync.value?.hasPermission(Permission.viewDashboard) == true)
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.house,
+                    label: 'Dashboard',
+                    path: '/',
+                    currentPath: currentPath,
+                  ),
+                  
+                if (profileAsync.value?.hasPermission(Permission.posAccess) == true)
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.storefront,
+                    label: 'Point of Sale',
+                    path: '/pos',
+                    currentPath: currentPath,
+                  ),
+                
+                // --- SALES ---
+                if (profileAsync.value?.hasPermission(Permission.createInvoices) == true ||
+                    profileAsync.value?.hasPermission(Permission.approveInvoices) == true) ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 8),
+                    child: Text('SALES', style: _headerStyle(theme)),
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.receipt,
+                    label: 'Invoices',
+                    path: '/sales',
+                    currentPath: currentPath,
+                  ),
+                ],
+
+                // --- INVENTORY ---
+                if (profileAsync.value?.hasPermission(Permission.manageProducts) == true ||
+                    profileAsync.value?.hasPermission(Permission.manageStock) == true) ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 8),
+                    child: Text('INVENTORY', style: _headerStyle(theme)),
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.package,
+                    label: 'Items',
+                    path: '/products',
+                    currentPath: currentPath,
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.package,
+                    label: 'Item Groups',
+                    path: '/products/groups',
+                    currentPath: currentPath,
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.stack,
+                    label: 'Composite Items',
+                    path: '/products/composite',
+                    currentPath: currentPath,
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.slidersHorizontal,
+                    label: 'Batch Adjust Stock',
+                    path: '/adjustments',
+                    currentPath: currentPath,
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.slidersHorizontal,
+                    label: 'Adjustments Review',
+                    path: '/settings/adjustments-review',
+                    currentPath: currentPath,
+                  ),
+                ],
+
+                // --- REPORTS ---
+                if (profileAsync.value?.hasPermission(Permission.viewReports) == true) ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 8),
+                    child: Text('REPORTS', style: _headerStyle(theme)),
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.currencyDollar,
+                    label: 'Reports',
+                    path: '/settings/reports',
+                    currentPath: currentPath,
+                  ),
+                ],
+
+                // --- SYSTEM ---
+                if (profileAsync.value?.hasPermission(Permission.manageBranches) == true ||
+                    profileAsync.value?.hasPermission(Permission.manageStaff) == true ||
+                    profileAsync.value?.role.isOwner == true ||
+                    profileAsync.value?.role.isManager == true) ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 8),
+                    child: Text('SYSTEM', style: _headerStyle(theme)),
+                  ),
+                  if (profileAsync.value?.hasPermission(Permission.manageBranches) == true)
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.buildings,
+                      label: 'Branches',
+                      path: '/settings/branches',
+                      currentPath: currentPath,
+                    ),
+                  if (profileAsync.value?.hasPermission(Permission.manageStaff) == true)
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.users,
+                      label: 'Staff Members',
+                      path: '/settings/staff',
+                      currentPath: currentPath,
+                    ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.gear,
+                    label: 'Settings',
+                    path: '/settings',
+                    currentPath: currentPath,
+                  ),
+                ] else ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.only(left: 16, bottom: 8),
+                    child: Text('SYSTEM', style: _headerStyle(theme)),
+                  ),
+                  _DrawerItem(
+                    icon: PhosphorIconsDuotone.gear,
+                    label: 'Settings',
+                    path: '/settings',
+                    currentPath: currentPath,
+                  ),
+                ]
               ],
             ),
           ),

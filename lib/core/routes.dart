@@ -21,6 +21,7 @@ import 'package:zynk/features/products/presentation/add_item_group_screen.dart';
 import 'package:zynk/features/products/presentation/add_composite_item_screen.dart';
 import 'package:zynk/features/products/presentation/composite_item_details_screen.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/features/sales/presentation/sales_list_screen.dart';
 import 'package:zynk/features/sales/presentation/create_invoice_screen.dart';
 import 'package:zynk/features/sales/presentation/edit_invoice_screen.dart';
@@ -61,6 +62,46 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       // Logged in → don't stay on auth screens
       if (isOnAuthRoute) return '/';
+
+      final profile = ref.read(currentUserProfileProvider).value;
+      if (profile != null) {
+        // Enforce Dashboard access
+        if (loc == '/' && !profile.hasPermission(Permission.viewDashboard)) {
+          // If no dashboard, redirect to pos or settings
+          return profile.hasPermission(Permission.posAccess) ? '/pos' : '/settings';
+        }
+
+        // Enforce POS access
+        if (loc.startsWith('/pos') && !profile.hasPermission(Permission.posAccess)) {
+          return '/';
+        }
+
+        // Enforce Product access
+        if (loc.startsWith('/products') || loc.startsWith('/adjustments')) {
+          if (!profile.hasPermission(Permission.manageProducts) &&
+              !profile.hasPermission(Permission.manageStock)) {
+            return profile.hasPermission(Permission.viewDashboard) ? '/' : '/pos';
+          }
+        }
+
+        // Enforce Branches access
+        if (loc.startsWith('/settings/branches') &&
+            !profile.hasPermission(Permission.manageBranches)) {
+          return '/settings';
+        }
+
+        // Enforce Staff access
+        if (loc.startsWith('/settings/staff') &&
+            !profile.hasPermission(Permission.manageStaff)) {
+          return '/settings';
+        }
+
+        // Enforce Reports access
+        if (loc.startsWith('/settings/reports') &&
+            !profile.hasPermission(Permission.viewReports)) {
+          return profile.hasPermission(Permission.viewDashboard) ? '/' : '/pos';
+        }
+      }
 
       return null;
     },

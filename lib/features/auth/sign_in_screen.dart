@@ -247,7 +247,8 @@ class _ZynkLogo extends StatelessWidget {
         ),
         const SizedBox(height: 12),
         Text(
-          'Zynk',
+          //Changed from Zynk to PH for client needs
+          'PH',
           style: Theme.of(context).textTheme.headlineMedium?.copyWith(
             fontWeight: FontWeight.w800,
             letterSpacing: -0.5,

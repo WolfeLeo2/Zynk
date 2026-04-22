@@ -11,6 +11,7 @@ import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/core/models/user_role.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -309,43 +310,49 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ),
 
-              if (isOwner)
+              if (isOwner || 
+                  (profile?.hasPermission(Permission.manageBranches) == true) || 
+                  (profile?.hasPermission(Permission.manageStaff) == true))
                 SettingsSection(
                   title: const Text('Business'),
                   tiles: <SettingsTile>[
-                    SettingsTile.navigation(
-                      leading: const Icon(PhosphorIconsDuotone.image),
-                      title: const Text('Business Logo'),
-                      description: const Text('Update your shop\'s logo'),
-                      trailing: _isLoading
-                          ? Text(
-                              'Updating',
-                              style: Theme.of(context).textTheme.labelSmall,
-                            )
-                          : null,
-                      enabled: !_isLoading,
-                      onPressed: (_) => _updateBusinessLogo(),
-                    ),
-                    SettingsTile.navigation(
-                      leading: const Icon(PhosphorIconsDuotone.storefront),
-                      title: const Text('Branches'),
-                      description: const Text('Manage your business locations'),
-                      onPressed: (_) => context.push('/settings/branches'),
-                    ),
-                    SettingsTile.navigation(
-                      leading: const Icon(PhosphorIconsDuotone.userList),
-                      title: const Text('People'),
-                      description: const Text(
-                        'Manage salespersons and adjusters',
+                    if (isOwner)
+                      SettingsTile.navigation(
+                        leading: const Icon(PhosphorIconsDuotone.image),
+                        title: const Text('Business Logo'),
+                        description: const Text('Update your shop\'s logo'),
+                        trailing: _isLoading
+                            ? Text(
+                                'Updating',
+                                style: Theme.of(context).textTheme.labelSmall,
+                              )
+                            : null,
+                        enabled: !_isLoading,
+                        onPressed: (_) => _updateBusinessLogo(),
                       ),
-                      onPressed: (_) => context.push('/settings/staff-members'),
-                    ),
-                    SettingsTile.navigation(
-                      leading: const Icon(PhosphorIconsDuotone.users),
-                      title: const Text('Staff'),
-                      description: const Text('Manage your team and roles'),
-                      onPressed: (_) => context.push('/settings/staff'),
-                    ),
+                    if (profile?.hasPermission(Permission.manageBranches) == true)
+                      SettingsTile.navigation(
+                        leading: const Icon(PhosphorIconsDuotone.storefront),
+                        title: const Text('Branches'),
+                        description: const Text('Manage your business locations'),
+                        onPressed: (_) => context.push('/settings/branches'),
+                      ),
+                    if (profile?.hasPermission(Permission.manageStaff) == true)
+                      SettingsTile.navigation(
+                        leading: const Icon(PhosphorIconsDuotone.userList),
+                        title: const Text('People'),
+                        description: const Text(
+                          'Manage salespersons and adjusters',
+                        ),
+                        onPressed: (_) => context.push('/settings/staff-members'),
+                      ),
+                    if (profile?.hasPermission(Permission.manageStaff) == true)
+                      SettingsTile.navigation(
+                        leading: const Icon(PhosphorIconsDuotone.users),
+                        title: const Text('Staff'),
+                        description: const Text('Manage your team and roles'),
+                        onPressed: (_) => context.push('/settings/staff'),
+                      ),
                   ],
                 ),
 

@@ -31,10 +31,16 @@ class ReceiptTemplate {
 
     pdf.addPage(
       pw.Page(
-        pageFormat: PdfPageFormat(
-          paperWidth,
-          double.infinity,
-          marginAll: margin,
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat(
+            paperWidth,
+            double.infinity,
+            marginAll: margin,
+          ),
+          buildBackground: (context) => pw.FullPage(
+            ignoreMargins: true,
+            child: pw.Container(color: PdfColors.white),
+          ),
         ),
         build: (context) {
           return pw.Column(

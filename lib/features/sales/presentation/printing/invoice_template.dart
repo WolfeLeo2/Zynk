@@ -38,8 +38,14 @@ class InvoiceTemplate {
 
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          buildBackground: (context) => pw.FullPage(
+            ignoreMargins: true,
+            child: pw.Container(color: PdfColors.white),
+          ),
+        ),
         header: (context) =>
             _buildHeader(tenant, branch, sale, dateFormat, logoImage),
         footer: (context) => _buildFooter(context, tenant),

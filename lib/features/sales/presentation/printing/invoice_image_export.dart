@@ -26,7 +26,7 @@ class InvoiceImageExport {
     if (share) {
       await Share.shareXFiles([
         XFile(file.path),
-      ], text: 'Receipt/Invoice image');
+      ], text: 'Invoice');
     }
 
     return file.path;

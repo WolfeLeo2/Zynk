@@ -52,6 +52,13 @@ dev_dependencies:
   riverpod_generator: ^4.0.0+1
   freezed: ^3.2.3
   json_serializable: ^6.13.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
@@ -60,6 +67,7 @@ flutter:
   assets:
     - .env
     - assets/animations/hero_login.json
+    - assets/images/logo.png
 
 fonts:
   - family: GoogleSansFlex
