@@ -13,6 +13,7 @@
 ### Task 1: Supabase schema + function updates (fixed commission, group defaults)
 
 **Files:**
+
 - Create: `supabase/migrations/20260429120000_item_group_defaults_and_fixed_commission.sql`
 
 - [ ] **Step 1: Write migration SQL**
@@ -103,6 +104,7 @@ git commit -m "feat(db): add item group price defaults and fixed commission"
 ### Task 2: Update local schema + models + repository
 
 **Files:**
+
 - Modify: `lib/core/models/schema_models.dart`
 - Modify: `lib/core/models/schema_models.g.dart`
 - Modify: `lib/core/config/powersync.dart`
@@ -243,6 +245,7 @@ Expected: `schema_models.g.dart` updates with new fields and nullable `base_pric
 ### Task 3: Add price resolution helpers + unit tests
 
 **Files:**
+
 - Create: `lib/core/models/product_pricing.dart`
 - Create: `test/core/models/product_pricing_test.dart`
 
@@ -338,6 +341,7 @@ Expected: PASS
 ### Task 4: CSV import format detection + group import flow
 
 **Files:**
+
 - Modify: `lib/features/products/data/csv_import_service.dart`
 - Modify: `lib/features/products/presentation/batch_upload_screen.dart`
 - Create: `test/features/products/csv_import_parser_test.dart`
@@ -456,6 +460,7 @@ Add a second format description in `batch_upload_screen.dart`:
 ### Task 5: Item group UI updates (create/edit/list)
 
 **Files:**
+
 - Modify: `lib/features/products/presentation/add_item_group_screen.dart`
 - Modify: `lib/features/products/presentation/group_details_screen.dart`
 - Modify: `lib/features/products/presentation/item_groups_screen.dart`
@@ -499,6 +504,7 @@ Update UI text to: "Set default selling price for group".
 ### Task 6: Product create/edit (inheritance + overrides)
 
 **Files:**
+
 - Modify: `lib/features/products/presentation/add_product_screen.dart`
 - Modify: `lib/features/products/presentation/providers/add_product_controller.dart`
 
@@ -518,6 +524,7 @@ final inheritedBuying = selectedGroup?.defaultBuyingPrice;
 ```
 
 Render a small panel under the group selector:
+
 - "Inherited Selling Price: Ksh X"
 - "Inherited Buying Price: Ksh Y"
 - Toggle: "Override group prices"
@@ -550,6 +557,7 @@ Use `basePrice: price` directly; allow null for inheritance.
 ### Task 7: Update price display across POS and product views
 
 **Files:**
+
 - Modify: `lib/features/pos/presentation/components/pos_product_card.dart`
 - Modify: `lib/features/pos/presentation/components/pos_ticket.dart`
 - Modify: `lib/features/pos/domain/pos_cart_item.dart`
@@ -637,6 +645,7 @@ overridePrice: price != effective ? price : null,
 ### Task 8: Analysis + verification
 
 **Files:**
+
 - N/A
 
 - [ ] **Step 1: Run tests**
@@ -664,14 +673,17 @@ git commit -m "feat: add item group pricing defaults and group CSV import"
 ---
 
 ## Self-Review Checklist
+
 - Spec coverage: all data model changes, CSV flow, UI updates, and pricing resolution are represented.
 - Placeholder scan: no TODOs or vague steps.
 - Type consistency: nullable `base_price` handled in model, UI, and DB.
 
 ## Execution Handoff
+
 Plan complete and saved to `docs/superpowers/plans/2026-04-29-item-group-pricing-and-group-csv-import.md`.
 
 Two execution options:
+
 1. Subagent-Driven (recommended)
 2. Inline Execution
 
