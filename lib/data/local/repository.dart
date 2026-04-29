@@ -82,6 +82,59 @@ class PowerSyncRepository {
     ]);
   }
 
+  /// Updates a staff member's profile fields and replaces their branch assignments.
+  Future<void> updateStaffProfile({
+    required String profileId,
+    required String userId,
+    required String tenantId,
+    required String displayName,
+    required String role,
+    required String permissions,
+    required String primaryBranchId,
+    required List<String> branchIds,
+    String? phone,
+    String? address,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      // 1. Update the profiles row
+      await tx.execute(
+        '''UPDATE profiles SET
+            display_name = ?,
+            role = ?,
+            permissions = ?,
+            branch_id = ?,
+            phone = ?,
+            address = ?,
+            updated_at = ?
+           WHERE user_id = ?''',
+        [
+          displayName,
+          role,
+          permissions,
+          primaryBranchId,
+          phone,
+          address,
+          DateTime.now().toIso8601String(),
+          userId,
+        ],
+      );
+
+      // 2. Clear old branch assignments then re-insert
+      await tx.execute(
+        'DELETE FROM profile_branches WHERE profile_id = ?',
+        [profileId],
+      );
+
+      for (final branchId in branchIds) {
+        await tx.execute(
+          '''INSERT OR REPLACE INTO profile_branches (tenant_id, profile_id, branch_id)
+             VALUES (?, ?, ?)''',
+          [tenantId, profileId, branchId],
+        );
+      }
+    });
+  }
+
   Future<void> updateTenant(
     String tenantId,
     Map<String, dynamic> updates,

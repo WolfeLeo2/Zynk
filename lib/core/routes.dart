@@ -289,7 +289,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'add-staff',
-                    builder: (context, state) => const AddStaffScreen(),
+                    builder: (context, state) {
+                      final existing = state.extra as Profile?;
+                      return AddStaffScreen(existingProfile: existing);
+                    },
                   ),
                   GoRoute(
                     path: 'staff-members',

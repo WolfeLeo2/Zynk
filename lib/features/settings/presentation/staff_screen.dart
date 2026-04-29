@@ -140,6 +140,7 @@ class _StaffCard extends StatelessWidget {
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.all(16),
+        onTap: () => context.push('/settings/add-staff', extra: member),
         leading: Container(
           width: 48,
           height: 48,
@@ -197,15 +198,13 @@ class _StaffCard extends StatelessWidget {
                   ),
                 ),
               ),
-              // Could fetch branch name here if needed via branch provider, but currently omitting to keep it simple.
             ],
           ),
         ),
-        trailing: IconButton(
-          icon: const PhosphorIcon(PhosphorIconsRegular.caretRight),
-          onPressed: () {
-            // Future: Edit staff
-          },
+        trailing: PhosphorIcon(
+          PhosphorIconsRegular.caretRight,
+          color: colorScheme.onSurfaceVariant,
+          size: 18,
         ),
       ),
     );

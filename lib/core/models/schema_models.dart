@@ -82,6 +82,8 @@ class Profile {
   final Set<Permission> permissions;
   final String? displayName;
   final String? profilePictureUrl;
+  final String? phone;
+  final String? address;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
@@ -96,6 +98,8 @@ class Profile {
     Set<Permission>? permissions,
     this.displayName,
     this.profilePictureUrl,
+    this.phone,
+    this.address,
     this.createdAt,
     this.updatedAt,
   }) : permissions = permissions ?? role.defaultPermissions;
@@ -120,6 +124,8 @@ class Profile {
       permissions: Permission.values.toSet(),
       displayName: parsed.displayName,
       profilePictureUrl: parsed.profilePictureUrl,
+      phone: parsed.phone,
+      address: parsed.address,
       createdAt: parsed.createdAt,
       updatedAt: parsed.updatedAt,
     );

@@ -39,6 +39,8 @@ Profile _$ProfileFromJson(Map<String, dynamic> json) => Profile(
   permissions: _permissionsFromJson(json['permissions']),
   displayName: json['display_name'] as String?,
   profilePictureUrl: json['profile_picture_url'] as String?,
+  phone: json['phone'] as String?,
+  address: json['address'] as String?,
   createdAt: _dateFromAny(json['created_at']),
   updatedAt: _dateFromAny(json['updated_at']),
 );
@@ -52,6 +54,8 @@ Map<String, dynamic> _$ProfileToJson(Profile instance) => <String, dynamic>{
   'permissions': _permissionsToJson(instance.permissions),
   'display_name': instance.displayName,
   'profile_picture_url': instance.profilePictureUrl,
+  'phone': instance.phone,
+  'address': instance.address,
   'created_at': _dateToIso(instance.createdAt),
   'updated_at': _dateToIso(instance.updatedAt),
 };
