@@ -367,6 +367,7 @@ class SalesService {
     return _manageSale('create_credit_note', {
       'tenant_id': tenantId,
       'branch_id': branchId,
+      'sale_id': originalSaleId,
       'original_sale_id': originalSaleId,
       'reason': reason,
       'items': items.map((i) => i.toMap()).toList(),

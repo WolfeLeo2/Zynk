@@ -6,13 +6,18 @@ import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/features/pos/providers/customer_providers.dart';
+import 'package:zynk/features/customers/providers/customer_providers.dart';
+import 'package:zynk/shared/widgets/shimmer_skeletons.dart';
+import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/presentation/components/pos_product_card.dart';
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:intl_phone_field/intl_phone_field.dart';
+
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -644,6 +649,9 @@ class _CustomerSelectorSheetState
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
+  bool _isPhoneValid = false;
+  String _completePhone = '';
+
 
   @override
   void dispose() {
@@ -671,6 +679,8 @@ class _CustomerSelectorSheetState
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final customersAsync = ref.watch(allCustomersProvider);
+    final profile = ref.watch(currentUserProfileProvider).value;
+    final canManage = profile?.hasPermission(Permission.manageCustomers) ?? false;
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.7,
@@ -746,7 +756,7 @@ class _CustomerSelectorSheetState
           const SizedBox(height: 12),
 
           // Create New Customer Toggle
-          if (!_creating)
+          if (!_creating && canManage)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: OutlinedButton.icon(
@@ -791,15 +801,22 @@ class _CustomerSelectorSheetState
                     textCapitalization: TextCapitalization.words,
                   ),
                   const SizedBox(height: 10),
-                  TextField(
+                  IntlPhoneField(
                     controller: _phoneCtrl,
+                    initialCountryCode: 'KE',
                     decoration: const InputDecoration(
-                      labelText: 'Phone',
+                      labelText: 'Phone *',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    keyboardType: TextInputType.phone,
+                    onChanged: (phone) {
+                      _completePhone = phone.completeNumber;
+                      setState(() {
+                        _isPhoneValid = phone.isValidNumber();
+                      });
+                    },
                   ),
+
                   const SizedBox(height: 10),
                   TextField(
                     controller: _emailCtrl,
@@ -820,15 +837,16 @@ class _CustomerSelectorSheetState
                       ),
                       const SizedBox(width: 8),
                       FilledButton(
-                        onPressed: _nameCtrl.text.trim().isEmpty
+                        onPressed: (_nameCtrl.text.trim().isEmpty || !_isPhoneValid)
                             ? null
                             : () => widget.onCreateNew(
-                                _nameCtrl.text.trim(),
-                                _phoneCtrl.text.trim(),
-                                _emailCtrl.text.trim(),
-                              ),
+                                  _nameCtrl.text.trim(),
+                                  _completePhone,
+                                  _emailCtrl.text.trim(),
+                                ),
                         child: const Text('Save & Select'),
                       ),
+
                     ],
                   ),
                 ],
@@ -836,10 +854,9 @@ class _CustomerSelectorSheetState
             ),
           const SizedBox(height: 8),
 
-          // Customer List — from stream
           Expanded(
             child: customersAsync.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
+              loading: () => const ListSkeleton(itemCount: 3, padding: EdgeInsets.symmetric(horizontal: 12)),
               error: (err, _) => Center(
                 child: Text(
                   'Failed to load customers: $err',

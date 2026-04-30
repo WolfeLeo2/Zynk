@@ -113,3 +113,34 @@ class SkeletonListItem extends StatelessWidget {
     );
   }
 }
+class SkeletonText extends StatelessWidget {
+  final double width;
+  final double height;
+  final double borderRadius;
+
+  const SkeletonText({
+    super.key,
+    required this.width,
+    this.height = 16,
+    this.borderRadius = 8,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.6,
+      ),
+      child: Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(borderRadius),
+        ),
+      ),
+    );
+  }
+}

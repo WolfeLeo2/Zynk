@@ -1070,15 +1070,21 @@ class PowerSyncRepository {
 
   Future<void> updateCustomer(Customer customer) async {
     await _db.execute(
-      'UPDATE customers SET name = ?, phone = ?, email = ?, updated_at = ? WHERE id = ?',
+      'UPDATE customers SET name = ?, phone = ?, email = ?, loyalty_points = ?, credit_limit = ?, updated_at = ? WHERE id = ?',
       [
         customer.name,
         customer.phone,
         customer.email,
+        customer.loyaltyPoints,
+        customer.creditLimit,
         DateTime.now().toIso8601String(),
         customer.id,
       ],
     );
+  }
+
+  Future<void> deleteCustomer(String id) async {
+    await _db.execute('DELETE FROM customers WHERE id = ?', [id]);
   }
 
   // --- Sales / Invoices ---

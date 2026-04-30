@@ -312,7 +312,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               if (isOwner || 
                   (profile?.hasPermission(Permission.manageBranches) == true) || 
-                  (profile?.hasPermission(Permission.manageStaff) == true))
+                  (profile?.hasPermission(Permission.manageStaff) == true) ||
+                  (profile?.hasPermission(Permission.manageCustomers) == true))
                 SettingsSection(
                   title: const Text('Business'),
                   tiles: <SettingsTile>[
@@ -352,6 +353,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         title: const Text('Staff'),
                         description: const Text('Manage your team and roles'),
                         onPressed: (_) => context.push('/settings/staff'),
+                      ),
+                    if (profile?.hasPermission(Permission.manageCustomers) == true)
+                      SettingsTile.navigation(
+                        leading: const Icon(PhosphorIconsDuotone.usersFour),
+                        title: const Text('Customers'),
+                        description: const Text('Manage your customer directory'),
+                        onPressed: (_) => context.push('/settings/customers'),
                       ),
                   ],
                 ),

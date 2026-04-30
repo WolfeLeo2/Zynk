@@ -15,6 +15,7 @@ import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/models/staff_model.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -30,7 +31,8 @@ class _InventoryAdjustmentScreenState
   final TextEditingController _referenceController = TextEditingController();
   String _searchQuery = '';
   bool _isLoading = false;
-  bool _applyToAllBranches = false;
+  Set<String> _selectedBranchIds = {};
+  bool _initializedBranches = false;
   String? _reasonId;
   StaffMember? _selectedAdjuster;
 
@@ -83,7 +85,7 @@ class _InventoryAdjustmentScreenState
       return;
     }
 
-    final allBranchesMode = selectedBranchId == 'all' || _applyToAllBranches;
+    final allBranchesMode = _selectedBranchIds.length > 1;
 
     final adjustmentItems = items
         .where((item) => item.quantityChange != 0)
@@ -108,18 +110,7 @@ class _InventoryAdjustmentScreenState
       return;
     }
 
-    if (allBranchesMode &&
-        adjustmentItems.any((item) => item.quantityChange <= 0)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'All Branches mode supports stock additions only. Use a specific branch for reductions or resets.',
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
-    }
+    // Removed restriction: All Branches mode now supports both additions and reductions.
 
     setState(() => _isLoading = true);
 
@@ -129,15 +120,15 @@ class _InventoryAdjustmentScreenState
           ? _referenceController.text
           : null;
 
-      if (allBranchesMode) {
+      if (_selectedBranchIds.length > 1) {
         final visibleBranches = ref.read(branchesProvider).value;
         final branches =
             (visibleBranches ?? await repo.getBranches(profile.tenantId))
-                .where((b) => b.id != 'all')
+                .where((b) => _selectedBranchIds.contains(b.id))
                 .toList();
 
         if (branches.isEmpty) {
-          throw Exception('No branches found to apply stock additions.');
+          throw Exception('No branches found to apply stock changes.');
         }
 
         for (final branch in branches) {
@@ -151,10 +142,10 @@ class _InventoryAdjustmentScreenState
             referenceNumber: referenceNumber,
           );
         }
-      } else {
+      } else if (_selectedBranchIds.isNotEmpty) {
         await repo.batchAdjustStock(
           tenantId: profile.tenantId,
-          branchId: selectedBranchId,
+          branchId: _selectedBranchIds.first,
           items: adjustmentItems,
           createdBy: adjusterId,
           adjustmentType: 'auto',
@@ -211,8 +202,7 @@ class _InventoryAdjustmentScreenState
     final branchesAsync = ref.watch(branchesProvider);
     final batchItems = ref.watch(batchStockProvider);
     final selectedBranchId = ref.watch(currentBranchIdProvider);
-    final effectiveAllBranchesMode =
-        selectedBranchId == 'all' || _applyToAllBranches;
+    final effectiveAllBranchesMode = _selectedBranchIds.length > 1;
 
     final isInvalidBranch = selectedBranchId == null;
 
@@ -392,16 +382,40 @@ class _InventoryAdjustmentScreenState
                               const SizedBox(height: 12),
                               branchesAsync.when(
                                 data: (branches) {
-                                  final targetBranches =
-                                      effectiveAllBranchesMode
-                                      ? branches
-                                      : branches
-                                            .where(
-                                              (b) => b.id == selectedBranchId,
-                                            )
-                                            .toList();
-                                  final canToggleAll =
-                                      selectedBranchId != 'all';
+                                  final branchesList = branches
+                                      .where((b) => b.id != 'all')
+                                      .toList();
+
+                                  if (!_initializedBranches &&
+                                      branchesList.isNotEmpty) {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                      if (mounted) {
+                                        final branchState =
+                                            ref.read(branchSelectionProvider);
+                                        setState(() {
+                                          if (branchState.isLocked &&
+                                              branchState.selectedBranchId !=
+                                                  null) {
+                                            _selectedBranchIds = {
+                                              branchState.selectedBranchId!,
+                                            };
+                                          } else if (selectedBranchId ==
+                                              'all') {
+                                            _selectedBranchIds =
+                                                branchesList
+                                                    .map((b) => b.id)
+                                                    .toSet();
+                                          } else {
+                                            _selectedBranchIds = {
+                                              selectedBranchId,
+                                            };
+                                          }
+                                          _initializedBranches = true;
+                                        });
+                                      }
+                                    });
+                                  }
 
                                   return Container(
                                     padding: const EdgeInsets.all(12),
@@ -417,55 +431,71 @@ class _InventoryAdjustmentScreenState
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                        SwitchListTile.adaptive(
-                                          contentPadding: EdgeInsets.zero,
-                                          title: const Text(
-                                            'Apply to all branches',
-                                          ),
-                                          subtitle: Text(
-                                            selectedBranchId == 'all'
-                                                ? 'All Branches is selected in the top bar.'
-                                                : effectiveAllBranchesMode
-                                                ? 'Adds stock to every visible branch.'
-                                                : 'Adds stock only to the selected branch.',
-                                          ),
-                                          value: effectiveAllBranchesMode,
-                                          onChanged: canToggleAll
-                                              ? (v) => setState(
-                                                  () => _applyToAllBranches = v,
-                                                )
-                                              : null,
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'Apply to branches:',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                color: colorScheme
+                                                    .onSurfaceVariant,
+                                                fontWeight: FontWeight.bold,
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            if (ref
+                                                .watch(branchSelectionProvider)
+                                                .isLoading)
+                                              const SkeletonText(
+                                                width: 60,
+                                                height: 12,
+                                              ),
+                                          ],
                                         ),
-                                        if (effectiveAllBranchesMode) ...[
-                                          const SizedBox(height: 8),
-                                          Text(
-                                            'All-branches mode supports stock additions only. Use a specific branch for reductions or resets.',
-                                            style: theme.textTheme.bodySmall
-                                                ?.copyWith(
-                                                  color: colorScheme
-                                                      .onSurfaceVariant,
-                                                ),
-                                          ),
-                                        ],
-                                        if (targetBranches.isNotEmpty) ...[
-                                          const SizedBox(height: 10),
-                                          Wrap(
-                                            spacing: 8,
-                                            runSpacing: 8,
-                                            children: targetBranches
-                                                .map(
-                                                  (b) => Chip(
-                                                    label: Text(b.name),
-                                                    avatar: const Icon(
-                                                      PhosphorIconsRegular
-                                                          .storefront,
-                                                      size: 14,
-                                                    ),
+                                        const SizedBox(height: 12),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: branchesList
+                                              .map(
+                                                (b) => FilterChip(
+                                                  label: Text(b.name),
+                                                  selected: _selectedBranchIds
+                                                      .contains(b.id),
+                                                  onSelected: ref
+                                                              .watch(
+                                                                branchSelectionProvider,
+                                                              )
+                                                              .isLocked
+                                                          ? null
+                                                          : (selected) {
+                                                              setState(() {
+                                                                if (selected) {
+                                                                  _selectedBranchIds
+                                                                      .add(
+                                                                        b.id,
+                                                                      );
+                                                                } else {
+                                                                  if (_selectedBranchIds
+                                                                          .length >
+                                                                      1) {
+                                                                    _selectedBranchIds
+                                                                        .remove(
+                                                                          b.id,
+                                                                        );
+                                                                  }
+                                                                }
+                                                              });
+                                                            },
+                                                  avatar: const Icon(
+                                                    PhosphorIconsRegular
+                                                        .storefront,
+                                                    size: 14,
                                                   ),
-                                                )
-                                                .toList(),
-                                          ),
-                                        ],
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
                                       ],
                                     ),
                                   );

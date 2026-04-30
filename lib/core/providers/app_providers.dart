@@ -10,6 +10,7 @@ import '../models/staff_model.dart';
 
 import '../services/auth_service.dart';
 import '../services/app_logger.dart';
+import 'user_provider.dart';
 
 final _log = AppLogger('AppProviders');
 
@@ -111,12 +112,14 @@ class BranchSelectionState {
   final List<Branch> availableBranches;
   final bool isLoading;
   final String? error;
+  final bool isLocked;
 
   const BranchSelectionState({
     this.selectedBranchId,
     this.availableBranches = const [],
     this.isLoading = false,
     this.error,
+    this.isLocked = false,
   });
 
   BranchSelectionState copyWith({
@@ -124,12 +127,14 @@ class BranchSelectionState {
     List<Branch>? availableBranches,
     bool? isLoading,
     String? error,
+    bool? isLocked,
   }) {
     return BranchSelectionState(
       selectedBranchId: selectedBranchId ?? this.selectedBranchId,
       availableBranches: availableBranches ?? this.availableBranches,
       isLoading: isLoading ?? this.isLoading,
       error: error ?? this.error,
+      isLocked: isLocked ?? this.isLocked,
     );
   }
 
@@ -177,7 +182,30 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
 
   Future<void> _initBranch() async {
     try {
-      // Step 1: Try loading from SharedPreferences
+      // Step 1: Check user metadata or profile for a forced branch
+      final user = Supabase.instance.client.auth.currentUser;
+      final profile = ref.read(currentProfileProvider);
+      final isOwner = ref.read(isOwnerProvider);
+
+      final forcedBranchId =
+          user?.appMetadata['branch_id'] as String? ??
+          user?.userMetadata?['branch_id'] as String? ??
+          profile?.branchId;
+
+      // If they have a forced branch and are not an owner, lock them
+      if (forcedBranchId != null && !isOwner) {
+        _log.i('Branch locked to assigned location: $forcedBranchId');
+        state = state.copyWith(
+          selectedBranchId: forcedBranchId,
+          isLocked: true,
+          isLoading: false,
+        );
+        // Persist for consistency, though we'll override it on next init
+        await _prefs.setString(_prefsKey, forcedBranchId);
+        return;
+      }
+
+      // Step 2: Try loading from SharedPreferences (for owners/staff with multi-branch)
       final savedBranchId = _prefs.getString(_prefsKey);
       _log.d('Saved branch from prefs: $savedBranchId');
 
@@ -189,32 +217,19 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
         return;
       }
 
-      // Step 2: Check user metadata for a default branch
-      final user = Supabase.instance.client.auth.currentUser;
-      final metaBranchId =
-          user?.appMetadata['branch_id'] as String? ??
-          user?.userMetadata?['branch_id'] as String?;
-      _log.d('Branch from user metadata: $metaBranchId');
-
-      if (metaBranchId != null) {
-        await _prefs.setString(_prefsKey, metaBranchId);
+      // Step 3: Fallback to metadata if no saved pref (e.g. first login)
+      if (forcedBranchId != null) {
         state = state.copyWith(
-          selectedBranchId: metaBranchId,
+          selectedBranchId: forcedBranchId,
           isLoading: false,
         );
         return;
       }
 
-      // Step 3: Auto-select first available branch
+      // Step 4: Auto-select first available branch
       final branches = ref.read(branchesProvider).value ?? [];
-      _log.d('Available branches for auto-select: ${branches.length}');
-
       if (branches.isNotEmpty) {
         final firstId = branches.first.id;
-        _log.i(
-          'Auto-selecting first branch: $firstId (${branches.first.name})',
-        );
-        await _prefs.setString(_prefsKey, firstId);
         state = state.copyWith(
           selectedBranchId: firstId,
           availableBranches: branches,
@@ -223,8 +238,6 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
         return;
       }
 
-      // No branch available yet — will auto-select when branchesProvider delivers
-      _log.d('No branches available yet, waiting for stream...');
       state = state.copyWith(isLoading: false);
     } catch (e) {
       _log.e('Branch init failed: $e');
@@ -236,6 +249,10 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
   }
 
   Future<void> selectBranch(String branchId) async {
+    if (state.isLocked) {
+      _log.w('Attempted to switch branch while locked to ${state.selectedBranchId}');
+      return;
+    }
     try {
       _log.i('Branch selected: $branchId');
       await _prefs.setString(_prefsKey, branchId);

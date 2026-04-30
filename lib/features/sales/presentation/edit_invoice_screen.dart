@@ -6,7 +6,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-import 'package:zynk/features/pos/providers/customer_providers.dart';
+import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 
 class EditInvoiceScreen extends ConsumerStatefulWidget {

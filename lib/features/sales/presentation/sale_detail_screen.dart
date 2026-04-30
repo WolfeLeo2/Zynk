@@ -12,7 +12,7 @@ import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
-import 'package:zynk/features/pos/providers/customer_providers.dart';
+import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_image_export.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_template.dart';
 import 'package:zynk/features/sales/presentation/printing/receipt_template.dart';

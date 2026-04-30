@@ -10,6 +10,7 @@ import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 
 class PosTicket extends ConsumerWidget {
   final List<PosCartItem> items;
@@ -100,7 +101,7 @@ class PosTicket extends ConsumerWidget {
                             child: DropdownButton<String>(
                               value: salespersonId,
                               hint: Text(
-                                'Salesperson',
+                                'Select Salesperson',
                                 style: tt.bodyMedium?.copyWith(
                                   color: cs.onSurfaceVariant.withValues(alpha: 0.5),
                                 ),
@@ -114,7 +115,7 @@ class PosTicket extends ConsumerWidget {
                               items: [
                                 const DropdownMenuItem<String>(
                                   value: null,
-                                  child: Text('None'),
+                                  child: Text('Select Salesperson'),
                                 ),
                                 ...staffList.map(
                                   (s) => DropdownMenuItem<String>(
@@ -150,13 +151,16 @@ class PosTicket extends ConsumerWidget {
                           size: 18,
                         ),
                         const SizedBox(width: 8),
-                        Text(
-                          branch?.name ?? 'No branch',
-                          style: tt.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w500,
-                            color: branch != null ? cs.onSurface : cs.error,
-                          ),
-                        ),
+                        ref.watch(branchSelectionProvider).isLoading
+                            ? const SkeletonText(width: 80, height: 16)
+                            : Text(
+                                branch?.name ?? 'No branch',
+                                style: tt.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w500,
+                                  color:
+                                      branch != null ? cs.onSurface : cs.error,
+                                ),
+                              ),
                       ],
                     ),
                   ),

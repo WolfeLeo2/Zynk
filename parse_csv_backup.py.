@@ -1,0 +1,86 @@
+import csv
+import uuid
+
+tenant_id = '870a2a76-4a11-4b6f-a537-ee71d4f82037'
+branch_id = '9b4d5a65-889f-40c0-919c-921c4eee91d8'
+
+item_groups = {} # name -> (id, commission)
+products = [] # (id, name, group_id, base_price, cost_price, commission)
+stocks = [] # (product_id, quantity)
+
+with open('Kitengela1.csv', 'r') as f:
+    reader = csv.DictReader(f)
+    for row in reader:
+        name = row['Name'].strip()
+        group_name = row['Item group'].strip()
+        stock = row['Stock'].strip()
+        selling_price = row['group selling price'].strip()
+        buying_price = row['group buying price'].strip()
+        commission = row['group commission'].strip()
+
+        if group_name not in item_groups:
+            item_groups[group_name] = {
+                'id': str(uuid.uuid4()),
+                'commission': commission if commission else 'NULL'
+            }
+        else:
+            # If a commission is found later and we didn't have one, update it.
+            # Assuming group commission is consistent across rows for a given group.
+            if commission and item_groups[group_name]['commission'] == 'NULL':
+                item_groups[group_name]['commission'] = commission
+
+        group_id = item_groups[group_name]['id']
+        product_id = str(uuid.uuid4())
+        
+        base_price = selling_price if selling_price else 'NULL'
+        cost_price = buying_price if buying_price else 'NULL'
+        
+        products.append({
+            'id': product_id,
+            'name': name,
+            'group_id': group_id,
+            'base_price': base_price,
+            'cost_price': cost_price
+        })
+        
+        # some stock values are floats in the CSV (e.g., 0.5, 1.5). The stock table uses integers. 
+        # Wait, the schema says quantity is int4. But the CSV has 0.5 and 1.5. 
+        # If it's int4, I must convert to float then int or round it, but wait, 
+        # "0.5" for Toilet DFT013? A half toilet? It's probably better to pass it as it is to PG and let it fail or cast, or better cast to int if needed.
+        # But wait, looking at stock schema: quantity is integer.
+        try:
+            qty = int(float(stock)) if stock else 0
+        except ValueError:
+            qty = 0
+
+        stocks.append({
+            'product_id': product_id,
+            'quantity': qty
+        })
+
+with open('seed_kitengela.sql', 'w') as f:
+    f.write("BEGIN;\n\n")
+    
+    # Insert Item Groups
+    for g_name, g_data in item_groups.items():
+        g_id = g_data['id']
+        comm = g_data['commission']
+        safe_g_name = g_name.replace("'", "''")
+        f.write(f"INSERT INTO public.item_groups (id, tenant_id, name, default_commission_value) VALUES ('{g_id}', '{tenant_id}', '{safe_g_name}', {comm});\n")
+    
+    f.write("\n")
+    
+    # Insert Products
+    for p in products:
+        safe_p_name = p['name'].replace("'", "''")
+        f.write(f"INSERT INTO public.products (id, tenant_id, name, item_group_id, base_price, cost_price) VALUES ('{p['id']}', '{tenant_id}', '{safe_p_name}', '{p['group_id']}', {p['base_price']}, {p['cost_price']});\n")
+
+    f.write("\n")
+
+    # Insert Stocks
+    for s in stocks:
+        f.write(f"INSERT INTO public.stock (tenant_id, branch_id, product_id, quantity) VALUES ('{tenant_id}', '{branch_id}', '{s['product_id']}', {s['quantity']});\n")
+
+    f.write("\nCOMMIT;\n")
+
+print("Generated seed_kitengela.sql")
