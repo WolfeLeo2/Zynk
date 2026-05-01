@@ -175,12 +175,49 @@ class PowerSyncRepository {
 
       for (final branchId in branchIds) {
         await tx.execute(
-          '''INSERT OR REPLACE INTO profile_branches (tenant_id, profile_id, branch_id)
-             VALUES (?, ?, ?)''',
-          [tenantId, profileId, branchId],
+          '''INSERT INTO profile_branches (id, tenant_id, profile_id, branch_id, created_at)
+             VALUES (?, ?, ?, ?, ?)''',
+          [
+            const Uuid().v4(),
+            tenantId,
+            profileId,
+            branchId,
+            DateTime.now().toIso8601String(),
+          ],
         );
       }
     });
+  }
+
+  /// Invokes the 'update-staff-user' Edge Function to sync Auth metadata and permissions.
+  Future<void> updateStaffRemote({
+    required String userId,
+    required String name,
+    required String role,
+    required String primaryBranchId,
+    required List<String> branchIds,
+    required List<String> permissions,
+    String? phone,
+    String? address,
+  }) async {
+    final response = await Supabase.instance.client.functions.invoke(
+      'update-staff-user',
+      body: {
+        'user_id': userId,
+        'name': name,
+        'role': role,
+        'branch_id': primaryBranchId,
+        'branch_ids': branchIds,
+        'permissions': permissions,
+        'phone': phone,
+        'address': address,
+      },
+    );
+
+    if (response.status != 200) {
+      throw Exception(
+          response.data?['error'] ?? 'Failed to update staff auth metadata');
+    }
   }
 
   Future<void> updateTenant(

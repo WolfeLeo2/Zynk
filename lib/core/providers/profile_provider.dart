@@ -32,11 +32,15 @@ final _log = AppLogger('ProfileProvider');
 /// the branch if no branch is selected yet and the state is not locked.
 /// Must be watched by an always-alive widget (e.g. AppShell).
 final profileBranchSyncProvider = Provider<void>((ref) {
+  bool isDisposed = false;
+  ref.onDispose(() => isDisposed = true);
+
   final profileAsync = ref.watch(currentUserProfileProvider);
   profileAsync.whenData((profile) {
     final branchId = profile?.branchId;
     if (branchId == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isDisposed) return;
       final notifier = ref.read(branchSelectionProvider.notifier);
       final currentState = ref.read(branchSelectionProvider);
       // Only act when:

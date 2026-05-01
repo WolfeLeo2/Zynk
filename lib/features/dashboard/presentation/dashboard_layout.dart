@@ -5,7 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/providers/app_providers.dart' hide userRoleProvider;
+import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 
 import 'package:zynk/core/widgets/app_drawer.dart';

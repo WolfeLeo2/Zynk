@@ -9,7 +9,7 @@ import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 // REFRESH TRIGGER
 // ─────────────────────────────────────────────────────────────────────────────
 
-final dashboardRefreshTriggerProvider = Provider.autoDispose<DateTime>(
+final dashboardRefreshTriggerProvider = Provider<DateTime>(
   (ref) => DateTime.now(),
 );
 

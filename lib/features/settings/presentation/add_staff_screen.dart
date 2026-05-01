@@ -136,6 +136,22 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
             : _addressController.text.trim(),
       );
 
+      // Sync with Supabase Auth metadata
+      await repo.updateStaffRemote(
+        userId: existing.userId,
+        name: _nameController.text.trim(),
+        role: _selectedRole.toShortString(),
+        primaryBranchId: _selectedBranchIds.first,
+        branchIds: _selectedBranchIds.toList(),
+        permissions: _permissions.map((p) => p.value).toList(),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        address: _addressController.text.trim().isEmpty
+            ? null
+            : _addressController.text.trim(),
+      );
+
       if (mounted) {
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(

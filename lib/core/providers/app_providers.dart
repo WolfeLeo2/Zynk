@@ -10,6 +10,7 @@ import '../models/staff_model.dart';
 
 import '../services/auth_service.dart';
 import '../services/app_logger.dart';
+import '../models/user_role.dart';
 import 'user_provider.dart';
 
 final _log = AppLogger('AppProviders');
@@ -65,21 +66,6 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authStateProvider).value != null;
 });
 
-/// Provider for current user role
-final userRoleProvider = Provider<String?>((ref) {
-  final user = ref.watch(authStateProvider).value;
-  final role =
-      user?.appMetadata['role'] as String? ??
-      user?.userMetadata?['role'] as String?;
-
-  if (role != null) {
-    if (role.toLowerCase() == 'owner') return 'Owner';
-    if (role.toLowerCase() == 'manager') return 'Manager';
-    if (role.toLowerCase() == 'admin') return 'Admin';
-  }
-  return 'Cashier';
-});
-
 /// Stream of all branches in the current tenant
 final branchesProvider = StreamProvider<List<Branch>>((ref) {
   final repository = ref.watch(repositoryProvider);
@@ -117,8 +103,14 @@ final allTenantBranchesProvider = StreamProvider<List<Branch>>((ref) {
 
 /// Provider to check if current user is owner
 final isOwnerProvider = Provider<bool>((ref) {
-  final role = ref.watch(userRoleProvider);
-  return role == 'Owner' || role == 'Admin';
+  final UserRole role = ref.watch(userRoleProvider);
+  return role.isOwner;
+});
+
+final isMultiBranchUserProvider = Provider<bool>((ref) {
+  final user = ref.watch(authStateProvider).value;
+  final branchIds = user?.appMetadata['branch_ids'];
+  return branchIds is List && branchIds.length > 1;
 });
 
 // ============================================
@@ -219,8 +211,7 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
           profile?.branchId;
 
       // Check for multi-branch assignment in metadata
-      final branchIds = user?.appMetadata['branch_ids'];
-      final isMultiBranch = branchIds is List && branchIds.length > 1;
+      final isMultiBranch = ref.read(isMultiBranchUserProvider);
 
       // 1. Lock if forced and not owner AND not multi-branch
       if (forcedBranchId != null && !isOwner && !isMultiBranch) {
@@ -236,8 +227,8 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
         return BranchSelectionState(selectedBranchId: savedBranchId);
       }
 
-      // 3. Default for owner
-      if (isOwner) {
+      // 3. Default for owner OR multi-branch
+      if (isOwner || isMultiBranch) {
         return const BranchSelectionState(selectedBranchId: 'all');
       }
 
@@ -339,14 +330,19 @@ final canSwitchBranchProvider = Provider<bool>((ref) {
 /// addPostFrameCallback guarantees state mutation happens strictly after build.
 /// Must be watched by an always-alive widget (e.g. AppShell).
 final branchSyncProvider = Provider<void>((ref) {
+  bool isDisposed = false;
+  ref.onDispose(() => isDisposed = true);
+
   final branchesAsync = ref.watch(branchesProvider);
   branchesAsync.whenData((branches) {
     final isOwner = ref.read(isOwnerProvider);
+    final isMultiBranch = ref.read(isMultiBranchUserProvider);
     final branchesWithAll = [
-      if (isOwner) BranchSelectionNotifier.allBranchesOption,
+      if (isOwner || isMultiBranch) BranchSelectionNotifier.allBranchesOption,
       ...branches,
     ];
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (isDisposed) return;
       ref
           .read(branchSelectionProvider.notifier)
           .setAvailableBranches(branchesWithAll);
