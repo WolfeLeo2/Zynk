@@ -246,6 +246,11 @@ class ReceiptTemplate {
                   'Change',
                   'Ksh ${currencyFormat.format(sale.amountPaid - sale.grandTotal)}',
                 ),
+              if (sale.amountPaid < sale.grandTotal)
+                _totalRow(
+                  'Balance',
+                  'Ksh ${currencyFormat.format(sale.grandTotal - sale.amountPaid)}',
+                ),
 
               pw.SizedBox(height: 6),
               _dashedDivider(),

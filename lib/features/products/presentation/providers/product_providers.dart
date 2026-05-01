@@ -24,6 +24,15 @@ final allItemGroupsProvider = StreamProvider.autoDispose<List<ItemGroup>>((
 /// ─────────────────────────────────────────
 /// Products
 /// ─────────────────────────────────────────
+/// ─────────────────────────────────────────
+/// Products
+/// ─────────────────────────────────────────
+final productsByBranchProvider =
+    StreamProvider.autoDispose.family<List<Product>, String?>((ref, branchId) {
+      final repository = ref.watch(repositoryProvider);
+      return repository.watchProducts(branchId: branchId);
+    });
+
 final allProductsProvider = StreamProvider.autoDispose<List<Product>>((ref) {
   final repository = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -33,6 +42,14 @@ final allProductsProvider = StreamProvider.autoDispose<List<Product>>((ref) {
 /// ─────────────────────────────────────────
 /// Stock
 /// ─────────────────────────────────────────
+typedef StockArg = ({String productId, String? branchId});
+
+final stockByBranchProvider = StreamProvider.autoDispose
+    .family<Stock?, StockArg>((ref, arg) {
+      final repository = ref.watch(repositoryProvider);
+      return repository.watchProductStock(arg.productId, branchId: arg.branchId);
+    });
+
 final stockProvider = StreamProvider.autoDispose.family<Stock?, String>((
   ref,
   productId,
@@ -46,6 +63,15 @@ final branchStocksProvider = StreamProvider.autoDispose
     .family<List<Stock>, String>((ref, productId) {
       final repository = ref.watch(repositoryProvider);
       return repository.watchProductBranchStocks(productId);
+    });
+
+final stockHistoryByBranchProvider = StreamProvider.autoDispose
+    .family<List<StockAdjustment>, StockArg>((ref, arg) {
+      final repository = ref.watch(repositoryProvider);
+      return repository.watchProductStockHistory(
+        arg.productId,
+        branchId: arg.branchId,
+      );
     });
 
 final stockHistoryProvider = StreamProvider.autoDispose
@@ -87,12 +113,19 @@ final compositeComponentsProvider = StreamProvider.autoDispose
 /// ─────────────────────────────────────────
 /// Composite Products (filtered)
 /// ─────────────────────────────────────────
+final compositeProductsByBranchProvider =
+    StreamProvider.autoDispose.family<List<Product>, String?>((ref, branchId) {
+      final repository = ref.watch(repositoryProvider);
+      return repository
+          .watchProducts(branchId: branchId)
+          .map((products) => products.toList());
+    });
+
 final compositeProductsProvider = StreamProvider.autoDispose<List<Product>>((
   ref,
 ) {
   final repository = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  // All products stream (composite filter removed temporarily)
   return repository
       .watchProducts(branchId: branchId)
       .map((products) => products.toList());

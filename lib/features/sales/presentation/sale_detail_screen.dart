@@ -13,6 +13,8 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_image_export.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_template.dart';
 import 'package:zynk/features/sales/presentation/printing/receipt_template.dart';
@@ -51,6 +53,20 @@ class SaleDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final saleAsync = ref.watch(saleDetailProvider(saleId));
+    // These are watched to keep the providers alive and warmed up for async actions like cloning
+    // ignore: unused_local_variable
+    final productsAsync = ref.watch(allProductsProvider);
+    // ignore: unused_local_variable
+    final itemsAsync = ref.watch(saleItemsProvider(saleId));
+
+    final canApprove = ref.watch(
+      hasPermissionProvider(Permission.approveInvoices),
+    );
+    final canPay = ref.watch(hasPermissionProvider(Permission.recordPayments));
+    final canVoid = ref.watch(hasPermissionProvider(Permission.voidSales));
+    final canCreateInvoices = ref.watch(
+      hasPermissionProvider(Permission.createInvoices),
+    );
 
     return saleAsync.when(
       data: (sale) {
@@ -103,22 +119,10 @@ class SaleDetailScreen extends ConsumerWidget {
               ),
               Builder(
                 builder: (ctx) {
-                  final canApprove = ref.watch(
-                    hasPermissionProvider(Permission.approveInvoices),
-                  );
-                  final canPay = ref.watch(
-                    hasPermissionProvider(Permission.recordPayments),
-                  );
-                  final canVoid = ref.watch(
-                    hasPermissionProvider(Permission.voidSales),
-                  );
-                  final canCreateInvoices = ref.watch(
-                    hasPermissionProvider(Permission.createInvoices),
-                  );
-
                   final items = <PopupMenuEntry<String>>[
                     if (sale.status == InvoiceStatus.pendingApproval &&
-                        sale.amountPaid <= 0)
+                        sale.amountPaid <= 0 &&
+                        canApprove)
                       const PopupMenuItem(
                         value: 'edit',
                         child: Text('Edit Invoice'),
@@ -128,14 +132,16 @@ class SaleDetailScreen extends ConsumerWidget {
                         value: 'clone_invoice',
                         child: Text('Clone Invoice'),
                       ),
-                    if ((sale.status.canBeApproved ||
-                            sale.status == InvoiceStatus.pendingApproval) &&
-                        canApprove)
+                    if (sale.status == InvoiceStatus.pendingApproval && canApprove)
                       const PopupMenuItem(
                         value: 'approve',
                         child: Text('Approve'),
                       ),
-                    const PopupMenuItem(value: 'reject', child: Text('Reject')),
+                    if (sale.status == InvoiceStatus.pendingApproval && canApprove)
+                      const PopupMenuItem(
+                        value: 'reject',
+                        child: Text('Reject'),
+                      ),
                     if (sale.canBeVoided && canVoid)
                       const PopupMenuItem(
                         value: 'void',
@@ -211,7 +217,13 @@ class SaleDetailScreen extends ConsumerWidget {
           ),
 
           // ── Bottom Action Buttons ──
-          bottomNavigationBar: _buildBottomActions(context, ref, sale),
+          bottomNavigationBar: _buildBottomActions(
+            context,
+            ref,
+            sale,
+            canApprove,
+            canPay,
+          ),
         );
       },
       loading: () => _SaleDetailSkeleton(),
@@ -222,20 +234,21 @@ class SaleDetailScreen extends ConsumerWidget {
     );
   }
 
-  Widget? _buildBottomActions(BuildContext context, WidgetRef ref, Sale sale) {
+  Widget? _buildBottomActions(
+    BuildContext context,
+    WidgetRef ref,
+    Sale sale,
+    bool canApprove,
+    bool canPay,
+  ) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
     final actions = <Widget>[];
-    final canPay = ref.watch(hasPermissionProvider(Permission.recordPayments));
     final canCreditNote = ref.watch(
       hasPermissionProvider(Permission.issueCreditNotes),
     );
     final loadingAction = ref.watch(_saleActionLoadingNotifier);
-
-    final canApprove = ref.watch(
-      hasPermissionProvider(Permission.approveInvoices),
-    );
 
     // Approve button (for pending approval invoices)
     if (sale.status == InvoiceStatus.pendingApproval) {
@@ -505,27 +518,66 @@ class SaleDetailScreen extends ConsumerWidget {
           }
           return;
         case 'clone_invoice':
-          final cloneResult = await service.cloneInvoice(
-            sale.id,
-            tenantId: sale.tenantId,
-          );
-          final clonedSaleId = cloneResult['sale_id']?.toString();
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Invoice cloned as pending approval'),
-              ),
+          try {
+            // Ensure all data is loaded before proceeding
+            final items = await ref.read(saleItemsProvider(sale.id).future);
+            final allProducts = await ref.read(allProductsProvider.future);
+            final allCustomers = await ref.read(allCustomersProvider.future);
+
+            final customer = allCustomers.firstWhere(
+              (c) => c.id == sale.customerId,
+              orElse: () => throw Exception('Customer not found for cloning'),
             );
-            if (clonedSaleId != null && clonedSaleId.isNotEmpty) {
-              context.push('/sales/$clonedSaleId');
+
+            final cartItems = items.map((item) {
+              final product = allProducts.where((p) => p.id == item.productId).firstOrNull;
+
+              if (product == null) {
+                throw Exception('Product "${item.productName ?? 'Unknown'}" no longer exists in inventory');
+              }
+
+              return PosCartItem(
+                product: product,
+                quantity: item.quantity,
+                overrideName: item.productName,
+                overridePrice: item.unitPrice,
+              );
+            }).toList();
+
+            if (context.mounted) {
+              context.push(
+                '/sales/create-invoice',
+                  extra: {
+                    'cartItems': cartItems,
+                    'customer': customer,
+                    'salespersonId': sale.salespersonId,
+                    'branchId': sale.branchId,
+                  },
+              );
+            }
+          } catch (e) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to clone: ${e.toString().replaceAll('Exception: ', '')}'),
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                ),
+              );
             }
           }
           return;
         case 'submit_for_approval':
           await service.submitForApproval(sale.id, tenantId: sale.tenantId);
+          ref.invalidate(saleDetailProvider(sale.id));
           break;
         case 'approve':
           await service.approveSale(sale.id, tenantId: sale.tenantId);
+          ref.invalidate(saleDetailProvider(sale.id));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invoice approved')),
+            );
+          }
           break;
 
         case 'reject':
@@ -534,9 +586,16 @@ class SaleDetailScreen extends ConsumerWidget {
             tenantId: sale.tenantId,
             reason: 'Rejected by manager',
           );
+          ref.invalidate(saleDetailProvider(sale.id));
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invoice rejected')),
+            );
+          }
           break;
         case 'fulfill':
           await service.fulfillSale(sale.id, tenantId: sale.tenantId);
+          ref.invalidate(saleDetailProvider(sale.id));
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -572,6 +631,12 @@ class SaleDetailScreen extends ConsumerWidget {
               tenantId: sale.tenantId,
               reason: 'Voided by user',
             );
+            ref.invalidate(saleDetailProvider(sale.id));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invoice voided')),
+              );
+            }
           }
           break;
         case 'delete_sale':
@@ -597,11 +662,12 @@ class SaleDetailScreen extends ConsumerWidget {
           );
           if (confirmed == true) {
             await service.deleteSale(saleId: sale.id, tenantId: sale.tenantId);
+            ref.invalidate(saleDetailProvider(sale.id));
             if (context.mounted) {
-              ScaffoldMessenger.of(
-                context,
-              ).showSnackBar(const SnackBar(content: Text('Invoice deleted')));
-              context.pop();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invoice deleted')),
+              );
+              Navigator.pop(context);
             }
           }
           break;
@@ -1098,6 +1164,9 @@ class _PaymentsList extends ConsumerWidget {
                                 ),
                               );
                             }
+                            // Force refresh of the sale and payments list
+                            ref.invalidate(salePaymentsProvider(saleId));
+                            ref.invalidate(saleDetailProvider(saleId));
                           } catch (e) {
                             if (context.mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
@@ -1259,13 +1328,13 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
     final amount = double.tryParse(_amountController.text) ?? 0;
     if (amount <= 0) return;
 
-    if (['mpesa', 'card', 'bank_transfer'].contains(_method)) {
+    if (['cash', 'mpesa', 'card', 'bank_transfer'].contains(_method)) {
       if (_refController.text.trim().isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
-                'Reference number is required for this payment method',
+                'Reference number is required for all payment methods',
               ),
             ),
           );
@@ -1287,6 +1356,11 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
                 ? null
                 : _refController.text.trim(),
           );
+
+      // Force refresh
+      ref.invalidate(saleDetailProvider(widget.sale.id));
+      ref.invalidate(salePaymentsProvider(widget.sale.id));
+
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
@@ -1359,11 +1433,9 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
             const SizedBox(height: 14),
             TextField(
               controller: _refController,
-              decoration: InputDecoration(
-                labelText: ['mpesa', 'card', 'bank_transfer'].contains(_method)
-                    ? 'Reference (Required)'
-                    : 'Reference (Optional)',
-                hintText: 'M-Pesa code, cheque number, etc.',
+              decoration: const InputDecoration(
+                labelText: 'Reference (Required)',
+                hintText: 'M-Pesa code, Cash receipt #, etc.',
               ),
             ),
             const SizedBox(height: 24),
@@ -1478,6 +1550,10 @@ class _CreateCreditNoteSheetState
             items: cnItems,
             restockItems: _restockItems,
           );
+
+      // Force refresh of sale details and credit notes
+      ref.invalidate(saleDetailProvider(widget.saleId));
+      ref.invalidate(creditNotesForSaleProvider(widget.saleId));
 
       if (mounted) Navigator.pop(context);
     } catch (e) {

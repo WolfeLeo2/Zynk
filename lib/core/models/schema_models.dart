@@ -39,6 +39,50 @@ int _boolToSqlite(bool value) => value ? 1 : 0;
 
 String _stringOrEmpty(dynamic value) => (value as String?) ?? '';
 
+enum ProfileStatus {
+  @JsonValue('active')
+  active,
+  @JsonValue('inactive')
+  inactive,
+  @JsonValue('blocked')
+  blocked,
+  @JsonValue('deleted')
+  deleted;
+
+  String get displayName {
+    switch (this) {
+      case ProfileStatus.active:
+        return 'Active';
+      case ProfileStatus.inactive:
+        return 'Inactive';
+      case ProfileStatus.blocked:
+        return 'Blocked';
+      case ProfileStatus.deleted:
+        return 'Deleted';
+    }
+  }
+}
+
+enum StockAdjustmentStatus {
+  @JsonValue('pending')
+  pending,
+  @JsonValue('approved')
+  approved,
+  @JsonValue('rejected')
+  rejected;
+
+  String get displayName {
+    switch (this) {
+      case StockAdjustmentStatus.pending:
+        return 'Pending';
+      case StockAdjustmentStatus.approved:
+        return 'Approved';
+      case StockAdjustmentStatus.rejected:
+        return 'Rejected';
+    }
+  }
+}
+
 @JsonSerializable(fieldRename: FieldRename.snake)
 class Tenant {
   final String id;
@@ -84,6 +128,7 @@ class Profile {
   final String? profilePictureUrl;
   final String? phone;
   final String? address;
+  final ProfileStatus status;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
@@ -96,6 +141,7 @@ class Profile {
     this.branchId,
     required this.role,
     Set<Permission>? permissions,
+    this.status = ProfileStatus.active,
     this.displayName,
     this.profilePictureUrl,
     this.phone,
@@ -122,6 +168,7 @@ class Profile {
       branchId: parsed.branchId,
       role: parsed.role,
       permissions: Permission.values.toSet(),
+      status: parsed.status,
       displayName: parsed.displayName,
       profilePictureUrl: parsed.profilePictureUrl,
       phone: parsed.phone,
@@ -364,7 +411,14 @@ class StockAdjustment {
   final String? reasonId;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
-  final String status; // 'pending', 'approved', 'rejected'
+  final StockAdjustmentStatus status;
+  final String? bundleId;
+  final String? approvedBy;
+  @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
+  final DateTime? approvedAt;
+  final String? rejectionReason;
+  final int? previousQuantity;
+
   // Populated from JOIN queries — not stored:
   @JsonKey(name: 'adjuster_display_name', includeToJson: false)
   final String? adjusterName;
@@ -372,6 +426,10 @@ class StockAdjustment {
   final String? reasonLabel;
   @JsonKey(includeToJson: false)
   final String? productName;
+  @JsonKey(includeToJson: false)
+  final String? uomAbbreviation;
+  @JsonKey(name: 'staff_name', includeToJson: false)
+  final String? staffName;
 
   StockAdjustment({
     required this.id,
@@ -385,10 +443,17 @@ class StockAdjustment {
     this.createdBy,
     this.reasonId,
     this.createdAt,
-    this.status = 'approved',
+    this.status = StockAdjustmentStatus.pending,
+    this.bundleId,
+    this.approvedBy,
+    this.approvedAt,
+    this.rejectionReason,
+    this.previousQuantity,
     this.adjusterName,
     this.reasonLabel,
     this.productName,
+    this.uomAbbreviation,
+    this.staffName,
   });
 
   factory StockAdjustment.fromMap(Map<String, dynamic> map) =>

@@ -329,7 +329,7 @@ class ProductDetailsScreen extends ConsumerWidget {
                   padding: const EdgeInsets.all(16),
                   child: Consumer(
                     builder: (context, ref, _) {
-                      final branchesAsync = ref.watch(branchesProvider);
+                      final branchesAsync = ref.watch(allTenantBranchesProvider);
                       final branchStocksAsync = ref.watch(
                         branchStocksProvider(product.id),
                       );

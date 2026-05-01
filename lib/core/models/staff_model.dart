@@ -2,6 +2,30 @@ import 'package:json_annotation/json_annotation.dart';
 
 part 'staff_model.g.dart';
 
+enum StaffStatus {
+  @JsonValue('active')
+  active,
+  @JsonValue('inactive')
+  inactive,
+  @JsonValue('blocked')
+  blocked,
+  @JsonValue('deleted')
+  deleted;
+
+  String get displayName {
+    switch (this) {
+      case StaffStatus.active:
+        return 'Active';
+      case StaffStatus.inactive:
+        return 'Inactive';
+      case StaffStatus.blocked:
+        return 'Blocked';
+      case StaffStatus.deleted:
+        return 'Deleted';
+    }
+  }
+}
+
 @JsonSerializable(fieldRename: FieldRename.snake)
 class StaffMember {
   final String id;
@@ -11,8 +35,8 @@ class StaffMember {
   final String? phone;
   final String? email;
   final String? profilePictureUrl;
-  @JsonKey(defaultValue: 'active')
-  final String status;
+  @JsonKey(defaultValue: StaffStatus.active)
+  final StaffStatus status;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -24,7 +48,7 @@ class StaffMember {
     this.phone,
     this.email,
     this.profilePictureUrl,
-    this.status = 'active',
+    this.status = StaffStatus.active,
     this.createdAt,
     this.updatedAt,
   });

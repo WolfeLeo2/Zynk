@@ -37,6 +37,9 @@ Profile _$ProfileFromJson(Map<String, dynamic> json) => Profile(
   branchId: json['branch_id'] as String?,
   role: _roleFromJson(json['role'] as String?),
   permissions: _permissionsFromJson(json['permissions']),
+  status:
+      $enumDecodeNullable(_$ProfileStatusEnumMap, json['status']) ??
+      ProfileStatus.active,
   displayName: json['display_name'] as String?,
   profilePictureUrl: json['profile_picture_url'] as String?,
   phone: json['phone'] as String?,
@@ -56,8 +59,16 @@ Map<String, dynamic> _$ProfileToJson(Profile instance) => <String, dynamic>{
   'profile_picture_url': instance.profilePictureUrl,
   'phone': instance.phone,
   'address': instance.address,
+  'status': _$ProfileStatusEnumMap[instance.status]!,
   'created_at': _dateToIso(instance.createdAt),
   'updated_at': _dateToIso(instance.updatedAt),
+};
+
+const _$ProfileStatusEnumMap = {
+  ProfileStatus.active: 'active',
+  ProfileStatus.inactive: 'inactive',
+  ProfileStatus.blocked: 'blocked',
+  ProfileStatus.deleted: 'deleted',
 };
 
 Branch _$BranchFromJson(Map<String, dynamic> json) => Branch(
@@ -208,10 +219,19 @@ StockAdjustment _$StockAdjustmentFromJson(Map<String, dynamic> json) =>
       createdBy: json['created_by'] as String?,
       reasonId: json['reason_id'] as String?,
       createdAt: _dateFromAny(json['created_at']),
-      status: json['status'] as String? ?? 'approved',
+      status:
+          $enumDecodeNullable(_$StockAdjustmentStatusEnumMap, json['status']) ??
+          StockAdjustmentStatus.pending,
+      bundleId: json['bundle_id'] as String?,
+      approvedBy: json['approved_by'] as String?,
+      approvedAt: _dateFromAny(json['approved_at']),
+      rejectionReason: json['rejection_reason'] as String?,
+      previousQuantity: (json['previous_quantity'] as num?)?.toInt(),
       adjusterName: json['adjuster_display_name'] as String?,
       reasonLabel: json['reason_label'] as String?,
       productName: json['product_name'] as String?,
+      uomAbbreviation: json['uom_abbreviation'] as String?,
+      staffName: json['staff_name'] as String?,
     );
 
 Map<String, dynamic> _$StockAdjustmentToJson(StockAdjustment instance) =>
@@ -227,8 +247,19 @@ Map<String, dynamic> _$StockAdjustmentToJson(StockAdjustment instance) =>
       'created_by': instance.createdBy,
       'reason_id': instance.reasonId,
       'created_at': _dateToIso(instance.createdAt),
-      'status': instance.status,
+      'status': _$StockAdjustmentStatusEnumMap[instance.status]!,
+      'bundle_id': instance.bundleId,
+      'approved_by': instance.approvedBy,
+      'approved_at': _dateToIso(instance.approvedAt),
+      'rejection_reason': instance.rejectionReason,
+      'previous_quantity': instance.previousQuantity,
     };
+
+const _$StockAdjustmentStatusEnumMap = {
+  StockAdjustmentStatus.pending: 'pending',
+  StockAdjustmentStatus.approved: 'approved',
+  StockAdjustmentStatus.rejected: 'rejected',
+};
 
 StockItemGroup _$StockItemGroupFromJson(Map<String, dynamic> json) =>
     StockItemGroup(

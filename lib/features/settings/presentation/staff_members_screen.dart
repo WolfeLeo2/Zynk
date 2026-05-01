@@ -29,7 +29,7 @@ class StaffMembersScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('People'),
+        title: const Text('Salespersons'),
         actions: [
           IconButton(
             onPressed: () => _showAddEditStaffSheet(context, ref, null),
@@ -167,7 +167,7 @@ class StaffMembersScreen extends ConsumerWidget {
 // STAFF MEMBER CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StaffMemberCard extends StatelessWidget {
+class _StaffMemberCard extends ConsumerWidget {
   final StaffMember member;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -179,11 +179,19 @@ class _StaffMemberCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isBlocked = member.status == StaffStatus.inactive || member.status == StaffStatus.blocked;
 
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: cs.outlineVariant.withValues(alpha: 0.5),
+        ),
+      ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 16,
@@ -191,7 +199,7 @@ class _StaffMemberCard extends StatelessWidget {
         ),
         leading: CircleAvatar(
           radius: 24,
-          backgroundColor: cs.primaryContainer,
+          backgroundColor: cs.surface,
           child: member.profilePictureUrl != null
               ? ClipOval(
                   child: CachedNetworkImage(
@@ -220,16 +228,41 @@ class _StaffMemberCard extends StatelessWidget {
               : Text(
                   member.name[0].toUpperCase(),
                   style: theme.textTheme.titleLarge?.copyWith(
-                    color: cs.onPrimaryContainer,
+                    color: cs.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
         ),
-        title: Text(
-          member.name,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                member.name,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+            if (isBlocked)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
+                ),
+                child: Text(
+                  member.status == StaffStatus.inactive ? 'BANNED' : 'BLOCKED',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.red,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,9 +284,25 @@ class _StaffMemberCard extends StatelessWidget {
           ],
         ),
         trailing: PopupMenuButton<String>(
-          onSelected: (value) {
+          icon: Icon(PhosphorIconsRegular.dotsThreeVertical, color: cs.onSurfaceVariant),
+          onSelected: (value) async {
             if (value == 'edit') onEdit();
             if (value == 'delete') onDelete();
+            if (value == 'block' || value == 'unblock') {
+              final newStatus = value == 'block' ? StaffStatus.blocked : StaffStatus.active;
+              try {
+                await ref.read(repositoryProvider).updateStaffMemberStatus(
+                  memberId: member.id,
+                  status: newStatus,
+                );
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            }
           },
           itemBuilder: (_) => [
             const PopupMenuItem(
@@ -264,6 +313,15 @@ class _StaffMemberCard extends StatelessWidget {
                 contentPadding: EdgeInsets.zero,
               ),
             ),
+            PopupMenuItem(
+              value: isBlocked ? 'unblock' : 'block',
+              child: ListTile(
+                leading: Icon(isBlocked ? PhosphorIconsRegular.checkCircle : PhosphorIconsRegular.prohibit),
+                title: Text(isBlocked ? 'Unblock' : 'Block'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuDivider(),
             const PopupMenuItem(
               value: 'delete',
               child: ListTile(
@@ -306,6 +364,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
 
   Uint8List? _imageBytes;
   String? _currentPictureUrl;
+  String? _selectedBranchId;
   bool _isLoading = false;
 
   @override
@@ -315,6 +374,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
     _phoneCtrl = TextEditingController(text: widget.existing?.phone ?? '');
     _emailCtrl = TextEditingController(text: widget.existing?.email ?? '');
     _currentPictureUrl = widget.existing?.profilePictureUrl;
+    _selectedBranchId = widget.existing?.branchId;
   }
 
   @override
@@ -373,7 +433,8 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         profilePictureUrl: pictureUrl,
-        status: 'active',
+        branchId: _selectedBranchId,
+        status: StaffStatus.active,
       );
 
       final repo = ref.read(repositoryProvider);
@@ -513,6 +574,46 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   ),
                   prefixIcon: const Icon(PhosphorIconsRegular.phone),
                 ),
+              ),
+              const SizedBox(height: 16),
+
+              // Branch Selection
+              Consumer(
+                builder: (context, ref, child) {
+                  final branchesAsync = ref.watch(branchesProvider);
+                  return branchesAsync.when(
+                    data: (branches) {
+                      final filteredBranches =
+                          branches.where((b) => b.id != 'all').toList();
+                      return DropdownButtonFormField<String>(
+                        initialValue: _selectedBranchId,
+                        decoration: InputDecoration(
+                          labelText: 'Assigned Branch',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const Icon(PhosphorIconsRegular.storefront),
+                          helperText: 'Leave empty for shared staff',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text('Shared (All Branches)'),
+                          ),
+                          ...filteredBranches.map(
+                            (b) => DropdownMenuItem<String>(
+                              value: b.id,
+                              child: Text(b.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => _selectedBranchId = v),
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (e, s) => const SizedBox.shrink(),
+                  );
+                },
               ),
               const SizedBox(height: 16),
 

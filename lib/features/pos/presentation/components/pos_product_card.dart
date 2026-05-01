@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class PosProductCard extends ConsumerWidget {
@@ -24,7 +25,11 @@ class PosProductCard extends ConsumerWidget {
     final colorScheme = theme.colorScheme;
     final textTheme = theme.textTheme;
 
-    final stockAsync = ref.watch(stockProvider(product.id));
+    final posBranchId = ref.watch(posBranchProvider);
+    final stockAsync = ref.watch(stockByBranchProvider((
+      productId: product.id,
+      branchId: posBranchId,
+    )));
     final currentStock = stockAsync.value?.quantity ?? 0;
     final isOutOfStock = !product.isService && currentStock <= 0;
 

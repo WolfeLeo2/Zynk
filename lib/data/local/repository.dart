@@ -1,4 +1,5 @@
 import 'package:powersync/powersync.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:zynk/core/models/schema_models.dart';
@@ -54,13 +55,14 @@ class PowerSyncRepository {
 
   Future<void> createProfile(Profile profile) async {
     await _db.execute(
-      'INSERT INTO profiles (id, user_id, tenant_id, role, display_name, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'INSERT INTO profiles (id, user_id, tenant_id, role, display_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
       [
         profile.id,
         profile.userId,
         profile.tenantId,
         profile.role.toShortString(),
         profile.displayName,
+        profile.status.name,
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -80,6 +82,52 @@ class PowerSyncRepository {
       ...values,
       userId,
     ]);
+  }
+
+  /// Updates a user profile's status (active, inactive, deleted).
+  /// This also invokes the 'manage-user-status' Edge Function to ban/unban the user in Supabase Auth.
+  Future<void> updateProfileStatus({
+    required String userId,
+    required ProfileStatus status,
+  }) async {
+    final statusStr = status.name;
+    // 1. Invoke Edge Function for Auth-level ban/unban
+    final response = await Supabase.instance.client.functions.invoke(
+      'manage-user-status',
+      body: {'userId': userId, 'status': statusStr},
+    );
+
+    if (response.status != 200) {
+      throw Exception(response.data?['error'] ?? 'Failed to update user auth status');
+    }
+
+    // 2. Update local DB status (PowerSync will sync this)
+    await _db.execute(
+      'UPDATE profiles SET status = ?, updated_at = ? WHERE user_id = ?',
+      [statusStr, DateTime.now().toIso8601String(), userId],
+    );
+  }
+
+  Stream<List<String>> watchProfileBranchIds(String profileId) {
+    return _db.watch(
+      'SELECT branch_id FROM profile_branches WHERE profile_id = ?',
+      parameters: [profileId],
+    ).map((results) => results.map((row) => row['branch_id'] as String).toList());
+  }
+
+  Future<void> deleteProfile(String userId) async {
+    // Soft delete via status
+    await updateProfileStatus(userId: userId, status: ProfileStatus.deleted);
+  }
+
+  Future<void> updateStaffMemberStatus({
+    required String memberId,
+    required StaffStatus status,
+  }) async {
+    await _db.execute(
+      'UPDATE staff_members SET status = ?, updated_at = ? WHERE id = ?',
+      [status.name, DateTime.now().toIso8601String(), memberId],
+    );
   }
 
   /// Updates a staff member's profile fields and replaces their branch assignments.
@@ -150,19 +198,26 @@ class PowerSyncRepository {
   }
 
   // --- Staff Members ---
-  Stream<List<StaffMember>> watchStaffMembers(String tenantId) {
-    return _db
-        .watch(
-          "SELECT * FROM staff_members WHERE tenant_id = ? ORDER BY name ASC",
-          parameters: [tenantId],
-        )
-        .map(
-          (results) => results
-              .map(
-                (row) => StaffMember.fromJson(Map<String, dynamic>.from(row)),
-              )
-              .toList(),
-        );
+  Stream<List<StaffMember>> watchStaffMembers(
+    String tenantId, {
+    String? branchId,
+  }) {
+    String sql =
+        "SELECT * FROM staff_members WHERE tenant_id = ? AND status != 'deleted'";
+    final params = <dynamic>[tenantId];
+
+    if (branchId != null && branchId != 'all') {
+      sql += " AND (branch_id = ? OR branch_id IS NULL)";
+      params.add(branchId);
+    }
+
+    sql += " ORDER BY name ASC";
+
+    return _db.watch(sql, parameters: params).map(
+      (results) => results
+          .map((row) => StaffMember.fromJson(Map<String, dynamic>.from(row)))
+          .toList(),
+    );
   }
 
   Future<void> createStaffMember(StaffMember member) async {
@@ -178,7 +233,7 @@ class PowerSyncRepository {
         member.phone,
         member.email,
         member.profilePictureUrl,
-        member.status,
+        member.status.name,
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -188,17 +243,18 @@ class PowerSyncRepository {
   Future<void> updateStaffMember(StaffMember member) async {
     await _db.execute(
       '''UPDATE staff_members
-        SET name = ?, phone = ?, email = ?, profile_picture_url = ?, status = ?, updated_at = ?
+        SET name = ?, phone = ?, email = ?, profile_picture_url = ?, status = ?, branch_id = ?, updated_at = ?
         WHERE id = ?''',
-      [
-        member.name,
-        member.phone,
-        member.email,
-        member.profilePictureUrl,
-        member.status,
-        DateTime.now().toIso8601String(),
-        member.id,
-      ],
+        [
+          member.name,
+          member.phone,
+          member.email,
+          member.profilePictureUrl,
+          member.status.name,
+          member.branchId,
+          DateTime.now().toIso8601String(),
+          member.id,
+        ],
     );
   }
 
@@ -206,7 +262,7 @@ class PowerSyncRepository {
     // Soft delete by setting status to inactive
     await _db.execute(
       'UPDATE staff_members SET status = ?, updated_at = ? WHERE id = ?',
-      ['inactive', DateTime.now().toIso8601String(), memberId],
+      [StaffStatus.inactive.name, DateTime.now().toIso8601String(), memberId],
     );
   }
 
@@ -396,6 +452,25 @@ class PowerSyncRepository {
     });
   }
 
+  Stream<List<Stock>> watchStockByProductIds(
+    List<String> productIds, {
+    String? branchId,
+  }) {
+    if (productIds.isEmpty) return Stream.value([]);
+    final placeholders = List.filled(productIds.length, '?').join(', ');
+    var sql = 'SELECT * FROM stock WHERE product_id IN ($placeholders)';
+    final params = List<dynamic>.from(productIds);
+
+    if (branchId != null) {
+      sql += ' AND branch_id = ?';
+      params.add(branchId);
+    }
+
+    return _db.watch(sql, parameters: params).map((rows) {
+      return rows.map((row) => Stock.fromMap(row)).toList();
+    });
+  }
+
   Stream<List<Stock>> watchProductBranchStocks(String productId) {
     return _db
         .watch(
@@ -470,6 +545,29 @@ class PowerSyncRepository {
         });
   }
 
+  Stream<List<Map<String, dynamic>>> watchLowStockProducts({
+    required String tenantId,
+    String? branchId,
+  }) {
+    String branchFilter = '';
+    final params = <dynamic>[tenantId];
+    if (branchId != null && branchId != 'all') {
+      branchFilter = ' AND st.branch_id = ?';
+      params.add(branchId);
+    }
+
+    return _db.watch('''
+      SELECT p.id, p.name, p.image_url, st.quantity, st.reorder_level 
+      FROM products p
+      JOIN stock st ON p.id = st.product_id
+      WHERE st.tenant_id = ? $branchFilter
+        AND st.quantity <= st.reorder_level
+        AND st.quantity >= 0
+      ORDER BY st.quantity ASC
+      LIMIT 20
+    ''', parameters: params).map((results) => results.toList());
+  }
+
   Stream<List<StockAdjustment>> watchProductStockHistory(
     String productId, {
     String? branchId,
@@ -503,12 +601,13 @@ class PowerSyncRepository {
     required String tenantId,
     required String branchId,
     required String productId,
-    required String
-    adjustmentType, // 'addition', 'reduction', 'initial', 'damage'
+    required String adjustmentType, // 'addition', 'reduction', 'initial', 'damage'
     required int quantityChange,
     required String createdBy,
     String? referenceNumber,
     String? notes,
+    String? reasonId,
+    String? bundleId,
   }) async {
     _ensureSpecificBranchId(branchId);
 
@@ -523,6 +622,8 @@ class PowerSyncRepository {
         createdBy: createdBy,
         referenceNumber: referenceNumber,
         notes: notes,
+        reasonId: reasonId,
+        bundleId: bundleId,
       );
     });
   }
@@ -537,53 +638,37 @@ class PowerSyncRepository {
     required String createdBy,
     String? referenceNumber,
     String? notes,
+    String? reasonId,
+    String? bundleId,
   }) async {
     if (quantityChange == 0) return;
 
-    final now = DateTime.now().toIso8601String();
+    final now = DateTime.now().toUtc().toIso8601String();
     final resolvedAdjustmentType = _resolveStockAdjustmentType(
       adjustmentType,
       quantityChange,
     );
 
-    // 1. Get current stock
-    final stockResult = await tx.getAll(
-      'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
-      [productId, branchId],
-    );
-
-    if (stockResult.isEmpty) {
-      // Interacting with uuid from dart requires import 'package:uuid/uuid.dart', or we can use the built in uuid() function of powersync sqlite
-      await tx.execute(
-        '''INSERT INTO stock (
-          id, tenant_id, branch_id, product_id, quantity, reorder_level, 
-          last_updated
-        ) VALUES (uuid(), ?, ?, ?, ?, 0, ?)''',
-        [tenantId, branchId, productId, quantityChange, now],
-      );
-    } else {
-      await tx.execute(
-        'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ? AND branch_id = ?',
-        [quantityChange, now, productId, branchId],
-      );
-    }
-
-    // 2. Insert stock adjustment log
+    // Insert stock adjustment log with status 'pending'
+    // Stock movement now happens only upon Approval.
     await tx.execute(
       '''INSERT INTO stock_adjustments (
-        id, tenant_id, branch_id, product_id, adjustment_type, quantity, 
-        reference_number, notes, created_by, created_at
-      ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        id, tenant_id, branch_id, product_id, quantity, 
+        reference_number, notes, created_by, reason_id, 
+        adjustment_type, created_at, status, bundle_id
+      ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)''',
       [
         tenantId,
         branchId,
         productId,
-        resolvedAdjustmentType,
         quantityChange,
         referenceNumber,
         notes,
         createdBy,
+        reasonId,
+        resolvedAdjustmentType,
         now,
+        bundleId,
       ],
     );
   }
@@ -601,7 +686,8 @@ class PowerSyncRepository {
 
     await _db.writeTransaction((tx) async {
       final now = DateTime.now().toUtc().toIso8601String();
-
+      final bundleId = const Uuid().v4();
+      
       for (final item in items) {
         if (item.quantityChange == 0) continue;
 
@@ -610,34 +696,12 @@ class PowerSyncRepository {
           item.quantityChange,
         );
 
-        // 1. Get current stock
-        final stockResult = await tx.getAll(
-          'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
-          [item.productId, branchId],
-        );
-
-        if (stockResult.isEmpty) {
-          await tx.execute(
-            '''INSERT INTO stock (
-              id, tenant_id, branch_id, product_id, quantity, reorder_level, 
-              last_updated
-            ) VALUES (uuid(), ?, ?, ?, ?, 0, ?)''',
-            [tenantId, branchId, item.productId, item.quantityChange, now],
-          );
-        } else {
-          await tx.execute(
-            'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ? AND branch_id = ?',
-            [item.quantityChange, now, item.productId, branchId],
-          );
-        }
-
-        // 2. Insert stock adjustment log
         await tx.execute(
           '''INSERT INTO stock_adjustments (
             id, tenant_id, branch_id, product_id, quantity, 
             reference_number, notes, created_by, reason_id, 
-            adjustment_type, created_at
-          ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+            adjustment_type, created_at, status, bundle_id
+          ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)''',
           [
             tenantId,
             branchId,
@@ -649,6 +713,7 @@ class PowerSyncRepository {
             reasonId,
             resolvedAdjustmentType,
             now,
+            bundleId,
           ],
         );
       }
@@ -1827,13 +1892,21 @@ class PowerSyncRepository {
     });
   }
 
-  Stream<List<Profile>> watchStaff(String tenantId) {
-    return _db
-        .watch(
-          'SELECT * FROM profiles WHERE tenant_id = ? ORDER BY created_at ASC',
-          parameters: [tenantId],
-        )
-        .map((results) => results.map((row) => Profile.fromMap(row)).toList());
+  Stream<List<Profile>> watchStaff(String tenantId, {String? branchId}) {
+    String sql =
+        "SELECT * FROM profiles WHERE tenant_id = ? AND role != 'Owner' AND status != 'deleted'";
+    final params = <dynamic>[tenantId];
+
+    if (branchId != null && branchId != 'all') {
+      sql += " AND (branch_id = ? OR branch_id IS NULL)";
+      params.add(branchId);
+    }
+
+    sql += " ORDER BY created_at ASC";
+
+    return _db.watch(sql, parameters: params).map(
+      (results) => results.map((row) => Profile.fromMap(row)).toList(),
+    );
   }
 
   /// Watch daily sales aggregated data for charts (last [days] days)
@@ -2137,12 +2210,16 @@ class PowerSyncRepository {
       SELECT 
         sa.*,
         p.display_name AS adjuster_display_name,
+        sm.name AS staff_name,
         r.label AS reason_label,
-        prod.name AS product_name
+        prod.name AS product_name,
+        uom.abbreviation AS uom_abbreviation
       FROM stock_adjustments sa
       LEFT JOIN profiles p ON p.user_id = sa.created_by
+      LEFT JOIN staff_members sm ON sm.id = sa.created_by
       LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
       LEFT JOIN products prod ON prod.id = sa.product_id
+      LEFT JOIN units_of_measurement uom ON uom.id = prod.uom_id
       WHERE sa.tenant_id = ?
     ''';
     final params = <dynamic>[tenantId];
@@ -2162,45 +2239,112 @@ class PowerSyncRepository {
 
       final normalizedStatus = status.toLowerCase();
       return adjustments
-          .where((adj) => adj.status.toLowerCase() == normalizedStatus)
+          .where((adj) => adj.status.name == normalizedStatus)
           .toList();
     });
   }
 
-  /// Approve a pending stock adjustment and apply the quantity change to stock.
-  Future<void> approveAdjustment({
-    required String adjustmentId,
-    required String approverId,
-  }) async {
-    await _db.writeTransaction((tx) async {
-      await tx.execute('UPDATE stock_adjustments SET status = ? WHERE id = ?', [
-        'approved',
-        adjustmentId,
-      ]);
-      // Stock was already applied at batchAdjustStock time; no re-movement needed.
+  Stream<List<StockAdjustment>> watchStockAdjustmentsByBundle(String bundleId) {
+    const sql = '''
+      SELECT 
+        sa.*,
+        p.display_name AS adjuster_display_name,
+        sm.name AS staff_name,
+        r.label AS reason_label,
+        prod.name AS product_name,
+        uom.abbreviation AS uom_abbreviation
+      FROM stock_adjustments sa
+      LEFT JOIN profiles p ON p.user_id = sa.created_by
+      LEFT JOIN staff_members sm ON sm.id = sa.created_by
+      LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
+      LEFT JOIN products prod ON prod.id = sa.product_id
+      LEFT JOIN units_of_measurement uom ON uom.id = prod.uom_id
+      WHERE sa.bundle_id = ? OR sa.id = ?
+      ORDER BY sa.created_at DESC
+    ''';
+    return _db.watch(sql, parameters: [bundleId, bundleId]).map((rows) {
+      return rows.map((row) => StockAdjustment.fromMap(row)).toList();
     });
   }
 
-  /// Reject a pending stock adjustment (reverses the stock if it was already applied).
-  Future<void> rejectAdjustment({required String adjustmentId}) async {
+  /// Approve a pending stock adjustment and apply the quantity change to stock.
+  /// This can approve a single adjustment or a whole bundle.
+  Future<void> approveAdjustment({
+    String? adjustmentId,
+    String? bundleId,
+    required String approverId,
+  }) async {
     await _db.writeTransaction((tx) async {
+      final now = DateTime.now().toUtc().toIso8601String();
+
+      // 1. Find pending adjustments to approve
+      final String whereClause =
+          bundleId != null ? 'bundle_id = ?' : 'id = ?';
+      final dynamic filterVal = bundleId ?? adjustmentId;
+
       final rows = await tx.getAll(
-        'SELECT * FROM stock_adjustments WHERE id = ?',
-        [adjustmentId],
+        'SELECT * FROM stock_adjustments WHERE $whereClause AND status = ?',
+        [filterVal, 'pending'],
       );
-      if (rows.isEmpty) return;
-      final adj = StockAdjustment.fromMap(rows.first);
 
-      // Reverse the stock quantity
+      for (final row in rows) {
+        final adjId = row['id'];
+        final productId = row['product_id'];
+        final branchId = row['branch_id'];
+        final tenantId = row['tenant_id'];
+        final quantityChange = row['quantity'] as int;
+
+        // 2. Update stock
+        final stockResult = await tx.getAll(
+          'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+          [productId, branchId],
+        );
+
+        if (stockResult.isEmpty) {
+          await tx.execute(
+            '''INSERT INTO stock (
+              id, tenant_id, branch_id, product_id, quantity, reorder_level, 
+              last_updated
+            ) VALUES (uuid(), ?, ?, ?, ?, 0, ?)''',
+            [tenantId, branchId, productId, quantityChange, now],
+          );
+        } else {
+          await tx.execute(
+            'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ? AND branch_id = ?',
+            [quantityChange, now, productId, branchId],
+          );
+        }
+
+        // 3. Update adjustment status
+        await tx.execute(
+          '''UPDATE stock_adjustments 
+             SET status = ?, approved_by = ?, approved_at = ? 
+             WHERE id = ?''',
+          ['approved', approverId, now, adjId],
+        );
+      }
+    });
+  }
+
+  /// Reject a pending stock adjustment.
+  Future<void> rejectAdjustment({
+    String? adjustmentId,
+    String? bundleId,
+    required String rejectorId,
+    String? reason,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      final now = DateTime.now().toUtc().toIso8601String();
+      final String whereClause =
+          bundleId != null ? 'bundle_id = ?' : 'id = ?';
+      final dynamic filterVal = bundleId ?? adjustmentId;
+
       await tx.execute(
-        'UPDATE stock SET quantity = quantity - ?, last_updated = ? WHERE product_id = ?',
-        [adj.quantity, DateTime.now().toUtc().toIso8601String(), adj.productId],
+        '''UPDATE stock_adjustments 
+           SET status = ?, approved_by = ?, approved_at = ?, rejection_reason = ? 
+           WHERE $whereClause AND status = ?''',
+        ['rejected', rejectorId, now, reason, filterVal, 'pending'],
       );
-
-      await tx.execute('UPDATE stock_adjustments SET status = ? WHERE id = ?', [
-        'rejected',
-        adjustmentId,
-      ]);
     });
   }
 
@@ -2358,6 +2502,16 @@ class PowerSyncRepository {
     await _db.execute(
       "UPDATE commissions SET status = 'paid' WHERE tenant_id = ? AND salesperson_id = ? AND status = 'pending'",
       [tenantId, salespersonId],
+    );
+  }
+
+  Future<void> updateStockAdjustmentQuantity({
+    required String adjustmentId,
+    required int newQuantity,
+  }) async {
+    await _db.execute(
+      'UPDATE stock_adjustments SET quantity = ? WHERE id = ?',
+      [newQuantity, adjustmentId],
     );
   }
 }

@@ -23,13 +23,13 @@ enum Permission {
   approveInvoices(
     'approve_invoices',
     'Approve Invoices',
-    'Can approve or reject pending invoices',
+    'Can approve or reject pending invoices. Can delete, reject and edit . Can delete payments',
     PermissionCategory.sales,
   ),
   voidSales(
     'void_sales',
     'Void Sales',
-    'Can void completed sales and reverse stock',
+    'Can void completed sales and reverse stock.',
     PermissionCategory.sales,
   ),
   recordPayments(
@@ -62,6 +62,12 @@ enum Permission {
     'manage_stock',
     'Manage Stock',
     'Can adjust stock levels manually',
+    PermissionCategory.inventory,
+  ),
+  approveStock(
+    'approve_stock',
+    'Approve Stock',
+    'Can approve or reject pending stock adjustments',
     PermissionCategory.inventory,
   ),
   viewCostPrices(
@@ -221,6 +227,7 @@ enum UserRole {
           Permission.applyDiscounts,
           Permission.manageProducts,
           Permission.manageStock,
+          Permission.approveStock,
           Permission.viewCostPrices,
           Permission.viewReports,
           Permission.viewDashboard,
@@ -232,6 +239,7 @@ enum UserRole {
           Permission.posAccess,
           Permission.recordPayments,
           Permission.manageCustomers,
+          Permission.manageStock,
         };
     }
   }

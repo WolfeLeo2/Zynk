@@ -143,6 +143,7 @@ class AddProductController extends _$AddProductController {
 
         if (initialStock != null && initialStock > 0) {
           // Initial stock stays branch-scoped even for shared catalog products.
+          final bundleId = const Uuid().v4();
           for (final branchId in normalizedBranchIds) {
             await repository.adjustStock(
               tenantId: tenantId,
@@ -152,6 +153,7 @@ class AddProductController extends _$AddProductController {
               quantityChange: initialStock,
               createdBy: createdBy,
               notes: 'Initial stock on creation',
+              bundleId: bundleId,
             );
           }
         }

@@ -792,6 +792,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "3.3.2"
+  m3e_card_list:
+    dependency: "direct main"
+    description:
+      name: m3e_card_list
+      sha256: da954780ecdd6cfdb52c72c5b82256f9977266023b4f5bb74c7f6df11f8f55e3
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.0.1"
   matcher:
     dependency: transitive
     description:
@@ -1662,5 +1670,5 @@ packages:
     source: hosted
     version: "2.1.0"
 sdks:
-  dart: ">=3.10.7 <4.0.0"
+  dart: ">=3.11.0 <4.0.0"
   flutter: ">=3.38.4"

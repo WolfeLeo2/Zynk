@@ -32,7 +32,7 @@ final chartTypeProvider = NotifierProvider<ChartTypeNotifier, ChartType>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Today's revenue (sum of completed sales grand_total for today)
-final todaysRevenueProvider = StreamProvider.autoDispose<double>((ref) {
+final todaysRevenueProvider = StreamProvider<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
@@ -44,7 +44,7 @@ final todaysRevenueProvider = StreamProvider.autoDispose<double>((ref) {
 });
 
 /// Total all-time revenue
-final salesDataProvider = StreamProvider.autoDispose<double>((ref) {
+final salesDataProvider = StreamProvider<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repository = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -52,7 +52,7 @@ final salesDataProvider = StreamProvider.autoDispose<double>((ref) {
 });
 
 /// Today's order count
-final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
+final todaysOrderCountProvider = StreamProvider<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
@@ -64,7 +64,7 @@ final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
 });
 
 /// Pending Approvals Count
-final pendingApprovalsCountProvider = StreamProvider.autoDispose<int>((ref) {
+final pendingApprovalsCountProvider = StreamProvider<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
@@ -76,7 +76,7 @@ final pendingApprovalsCountProvider = StreamProvider.autoDispose<int>((ref) {
 });
 
 /// Low stock item count
-final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
+final lowStockCountProvider = StreamProvider<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
@@ -88,7 +88,7 @@ final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
 });
 
 /// Total Inventory Value
-final totalInventoryValueProvider = StreamProvider.autoDispose<double>((ref) {
+final totalInventoryValueProvider = StreamProvider<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
@@ -100,7 +100,7 @@ final totalInventoryValueProvider = StreamProvider.autoDispose<double>((ref) {
 });
 
 /// Recent Adjustments Count
-final recentAdjustmentsCountProvider = StreamProvider.autoDispose<int>((ref) {
+final recentAdjustmentsCountProvider = StreamProvider<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -108,14 +108,14 @@ final recentAdjustmentsCountProvider = StreamProvider.autoDispose<int>((ref) {
 });
 
 /// Staff count
-final staffCountProvider = StreamProvider.autoDispose<int>((ref) {
+final staffCountProvider = StreamProvider<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   return repo.watchStaffCount();
 });
 
 /// Customer count
-final customerCountProvider = StreamProvider.autoDispose<int>((ref) {
+final customerCountProvider = StreamProvider<int>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   return repo.watchCustomers().map((list) => list.length);
@@ -125,7 +125,7 @@ final customerCountProvider = StreamProvider.autoDispose<int>((ref) {
 // RECENT SALES (replaces mock ordersDataProvider)
 // ─────────────────────────────────────────────────────────────────────────────
 
-final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
+final recentSalesProvider = StreamProvider<List<Sale>>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -137,7 +137,7 @@ final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 final topProductsProvider =
-    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
       ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
       final branchId = ref.watch(currentBranchIdProvider);
@@ -145,11 +145,25 @@ final topProductsProvider =
     });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// LOW STOCK PRODUCTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+final lowStockProductsProvider =
+    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+      ref.watch(dashboardRefreshTriggerProvider);
+      final repo = ref.watch(repositoryProvider);
+      final tenantId = ref.watch(tenantIdProvider);
+      final branchId = ref.watch(currentBranchIdProvider);
+      if (tenantId == null) return Stream.value([]);
+      return repo.watchLowStockProducts(tenantId: tenantId, branchId: branchId);
+    });
+
+// ─────────────────────────────────────────────────────────────────────────────
 // PAYMENT METHOD BREAKDOWN (replaces mock paymentMethodsProvider)
 // ─────────────────────────────────────────────────────────────────────────────
 
 final paymentBreakdownProvider =
-    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
       ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
       final branchId = ref.watch(currentBranchIdProvider);
@@ -229,7 +243,7 @@ String _formatMethodName(String raw) {
 // Sparklines show a mini trend indicator. Since we don't store daily aggregates
 // locally, we just show a flat line at the current value for now. The sparkline
 // widget handles empty lists gracefully.
-final revenueSparklineProvider = Provider.autoDispose<AsyncValue<List<double>>>(
+final revenueSparklineProvider = Provider<AsyncValue<List<double>>>(
   (ref) {
     final revenue = ref.watch(todaysRevenueProvider);
     return revenue.when(
@@ -247,7 +261,7 @@ final revenueSparklineProvider = Provider.autoDispose<AsyncValue<List<double>>>(
   },
 );
 
-final ordersSparklineProvider = Provider.autoDispose<AsyncValue<List<double>>>((
+final ordersSparklineProvider = Provider<AsyncValue<List<double>>>((
   ref,
 ) {
   final orders = ref.watch(todaysOrderCountProvider);
@@ -338,7 +352,7 @@ int _rangeToDays(String range) {
 
 /// Daily revenue + order data for the interactive chart
 final dailySalesChartProvider =
-    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+    StreamProvider<List<Map<String, dynamic>>>((ref) {
       ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
       final tenantId = ref.watch(tenantIdProvider);

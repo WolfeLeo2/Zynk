@@ -163,7 +163,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
                 ),
               ),
               const SizedBox(height: 16),
-              Row(
+              /*Row(
                 children: [
                   Expanded(
                     child: TextFormField(
@@ -193,7 +193,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
                     ),
                   ),
                 ],
-              ),
+              ),*/
               const SizedBox(height: 32),
               SizedBox(
                 height: 52,

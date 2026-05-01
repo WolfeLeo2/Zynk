@@ -89,8 +89,8 @@ Deno.serve(async (req: Request) => {
     const seq = counterData as number;
     const invoiceNumber = `RCT-${currentYear}-${String(seq).padStart(5, "0")}`;
 
-    // ── Generate UUIDv7 ──
-    const saleId = crypto.randomUUID(); // Deno uses v4; for v7 we'd need a lib, using v4 for now
+    // ── Generate UUID ──
+    const saleId = crypto.randomUUID();
 
     const now = new Date().toISOString();
 
@@ -174,8 +174,6 @@ Deno.serve(async (req: Request) => {
     if (paymentError) {
       console.error("Payment insert error:", paymentError);
     }
-
-
 
     // ── Decrement stock ──
     for (const item of items) {

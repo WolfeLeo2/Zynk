@@ -55,8 +55,9 @@ final currentTenantProvider = StreamProvider<Tenant?>((ref) {
 final staffProvider = StreamProvider<List<Profile>>((ref) {
   final repository = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
   if (tenantId == null) return const Stream.empty();
-  return repository.watchStaff(tenantId);
+  return repository.watchStaff(tenantId, branchId: branchId);
 });
 
 /// Provider to check if user is authenticated
@@ -94,6 +95,24 @@ final branchesProvider = StreamProvider<List<Branch>>((ref) {
     userId: user.id,
     isOwner: isOwner,
   );
+});
+
+/// Stream of branches assigned to a specific profile
+final profileBranchesProvider =
+    StreamProvider.family<List<String>, String>((ref, profileId) {
+  final repository = ref.watch(repositoryProvider);
+  return repository.watchProfileBranchIds(profileId);
+});
+
+/// Stream of ALL branches in the current tenant (unfiltered by access rules)
+/// Useful for system-wide displays like the product stock matrix.
+final allTenantBranchesProvider = StreamProvider<List<Branch>>((ref) {
+  final repository = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+
+  if (tenantId == null) return const Stream.empty();
+
+  return repository.watchBranches(tenantId);
 });
 
 /// Provider to check if current user is owner
@@ -171,18 +190,25 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
 
   @override
   BranchSelectionState build() {
-    // Defer stateful initialization until after the current frame.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initBranch();
-    });
-    return const BranchSelectionState(isLoading: true);
+    final state = _getInitialState();
+
+    // If we picked a default that needs persisting, do it after the build
+    if (state.selectedBranchId != null) {
+      final savedBranchId = _prefs.getString(_prefsKey);
+      if (savedBranchId == null) {
+        Future.microtask(
+          () => _prefs.setString(_prefsKey, state.selectedBranchId!),
+        );
+      }
+    }
+
+    return state;
   }
 
   SharedPreferences get _prefs => ref.read(sharedPreferencesProvider);
 
-  Future<void> _initBranch() async {
+  BranchSelectionState _getInitialState() {
     try {
-      // Step 1: Check user metadata or profile for a forced branch
       final user = Supabase.instance.client.auth.currentUser;
       final profile = ref.read(currentProfileProvider);
       final isOwner = ref.read(isOwnerProvider);
@@ -192,59 +218,47 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
           user?.userMetadata?['branch_id'] as String? ??
           profile?.branchId;
 
-      // If they have a forced branch and are not an owner, lock them
-      if (forcedBranchId != null && !isOwner) {
-        _log.i('Branch locked to assigned location: $forcedBranchId');
-        state = state.copyWith(
+      // Check for multi-branch assignment in metadata
+      final branchIds = user?.appMetadata['branch_ids'];
+      final isMultiBranch = branchIds is List && branchIds.length > 1;
+
+      // 1. Lock if forced and not owner AND not multi-branch
+      if (forcedBranchId != null && !isOwner && !isMultiBranch) {
+        return BranchSelectionState(
           selectedBranchId: forcedBranchId,
           isLocked: true,
-          isLoading: false,
         );
-        // Persist for consistency, though we'll override it on next init
-        await _prefs.setString(_prefsKey, forcedBranchId);
-        return;
       }
 
-      // Step 2: Try loading from SharedPreferences (for owners/staff with multi-branch)
+      // 2. Load saved preference
       final savedBranchId = _prefs.getString(_prefsKey);
-      _log.d('Saved branch from prefs: $savedBranchId');
-
       if (savedBranchId != null) {
-        state = state.copyWith(
-          selectedBranchId: savedBranchId,
-          isLoading: false,
-        );
-        return;
+        return BranchSelectionState(selectedBranchId: savedBranchId);
       }
 
-      // Step 3: Fallback to metadata if no saved pref (e.g. first login)
+      // 3. Default for owner
+      if (isOwner) {
+        return const BranchSelectionState(selectedBranchId: 'all');
+      }
+
+      // 4. Fallback to forced branch if any
       if (forcedBranchId != null) {
-        state = state.copyWith(
-          selectedBranchId: forcedBranchId,
-          isLoading: false,
-        );
-        return;
+        return BranchSelectionState(selectedBranchId: forcedBranchId);
       }
 
-      // Step 4: Auto-select first available branch
+      // 5. Fallback to first available from cache if possible
       final branches = ref.read(branchesProvider).value ?? [];
       if (branches.isNotEmpty) {
-        final firstId = branches.first.id;
-        state = state.copyWith(
-          selectedBranchId: firstId,
+        return BranchSelectionState(
+          selectedBranchId: branches.first.id,
           availableBranches: branches,
-          isLoading: false,
         );
-        return;
       }
 
-      state = state.copyWith(isLoading: false);
+      return const BranchSelectionState();
     } catch (e) {
-      _log.e('Branch init failed: $e');
-      state = state.copyWith(
-        error: 'Failed to load saved branch: $e',
-        isLoading: false,
-      );
+      _log.e('Branch synchronous init failed: $e');
+      return BranchSelectionState(error: e.toString());
     }
   }
 
@@ -268,9 +282,15 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
   }
 
   void setAvailableBranches(List<Branch> branches) {
+    // Always update the available list so the UI can show branch names.
     state = state.copyWith(availableBranches: branches);
 
-    // If no branch selected yet and branches are available, auto-select
+    // If the branch is locked (set from auth metadata), never clear or switch it.
+    // The locked branch ID is the canonical truth — even if it's not yet in the
+    // locally-synced branches list (e.g. PowerSync hasn't finished syncing).
+    if (state.isLocked) return;
+
+    // If no branch selected yet and branches are available, auto-select the first.
     if (state.selectedBranchId == null && branches.isNotEmpty) {
       _log.i(
         'Auto-selecting first branch: ${branches.first.id} (${branches.first.name})',
@@ -279,7 +299,7 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
       return;
     }
 
-    // Verify current selection is still valid
+    // Verify current selection is still valid.
     if (state.selectedBranchId != null) {
       final stillValid = branches.any((b) => b.id == state.selectedBranchId);
       if (!stillValid && branches.isNotEmpty) {
@@ -326,9 +346,6 @@ final branchSyncProvider = Provider<void>((ref) {
       if (isOwner) BranchSelectionNotifier.allBranchesOption,
       ...branches,
     ];
-    // addPostFrameCallback guarantees this runs AFTER the current frame
-    // completes — far safer than Future.microtask which can still fire
-    // during a build phase in some Flutter internals.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref
           .read(branchSelectionProvider.notifier)
@@ -410,16 +427,19 @@ final itemsGroupsStreamProvider = StreamProvider<List<ItemGroup>>((ref) {
 // -----------------------------------------------------------------------------
 
 final humanStaffProvider = StreamProvider<List<StaffMember>>((ref) {
+  final repository = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  if (tenantId == null) return const Stream.empty();
+  return repository.watchStaffMembers(tenantId, branchId: branchId);
+});
+
+/// Returns staff for a specific branch. Includes staff explicitly assigned to that branch
+/// OR staff with NO branch assigned (shared staff).
+final humanStaffByBranchProvider =
+    StreamProvider.family<List<StaffMember>, String?>((ref, branchId) {
+  final repository = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   if (tenantId == null) return const Stream.empty();
-  return db
-      .watch(
-        "SELECT * FROM staff_members WHERE tenant_id = ? AND status = 'active' ORDER BY name ASC",
-        parameters: [tenantId],
-      )
-      .map(
-        (rows) => rows
-            .map((row) => StaffMember.fromJson(Map<String, dynamic>.from(row)))
-            .toList(),
-      );
+  return repository.watchStaffMembers(tenantId, branchId: branchId);
 });

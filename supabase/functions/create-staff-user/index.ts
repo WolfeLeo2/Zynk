@@ -26,10 +26,7 @@ serve(async (req) => {
 
     if (!user) throw new Error('Not authenticated')
 
-    // 3. Verify they are an 'Owner' or 'Manager' (Managers might need to create Cashiers)
-    // For now, let's restrict to 'Owner' for high security, or 'Manager' if PRD allows.
-    // PRD says: "Owner: Full access. Can invite staff." "Manager: ...cannot delete shop." 
-    // Implicitly Managers might need to manage staff? Let's stick to Owner for now based on strict interpretation.
+    // 3. Verify they are an Owner
     const { data: callerProfile, error: profileError } = await supabaseClient
       .from('profiles')
       .select('*')
@@ -42,7 +39,7 @@ serve(async (req) => {
       throw new Error('Unauthorized: You must be an Owner to create staff.')
     }
 
-    // 4. Initialize Admin Client (Service Role) to create the new user
+    // 4. Initialize Admin Client (Service Role)
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -50,6 +47,7 @@ serve(async (req) => {
 
     const {
       email,
+      password,
       name,
       branch_id,
       branch_ids,
@@ -60,6 +58,7 @@ serve(async (req) => {
     } = await req.json()
 
     if (!email || !name) throw new Error('Missing required fields: email, name')
+    if (!password || password.length < 6) throw new Error('Password must be at least 6 characters')
 
     const selectedBranchIds = Array.from(
       new Set(
@@ -92,21 +91,28 @@ serve(async (req) => {
       throw new Error('One or more selected branches are invalid')
     }
 
-    // 5. Invite the User via Email
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    // 5. Create the user directly with email + password (no invite email sent)
+    const primaryForMeta = selectedBranchIds[0]
+    const { data: createdUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
-      {
-        data: {
-          tenant_id: callerProfile.tenant_id,
-          role: role || 'Cashier',
-          display_name: name
-        }
-      }
-    )
+      password,
+      email_confirm: true, // skip email verification
+      user_metadata: {
+        tenant_id: callerProfile.tenant_id,
+        role: role || 'Cashier',
+        display_name: name,
+      },
+      app_metadata: {
+        tenant_id: callerProfile.tenant_id,
+        role: role || 'Cashier',
+        branch_id: primaryForMeta,
+        branch_ids: selectedBranchIds,
+      },
+    })
 
-    if (inviteError) throw inviteError
+    if (createError) throw createError
 
-    const newUserId = inviteData.user.id;
+    const newUserId = createdUser.user.id
 
     // 6. Create Profile for the new user
     const primaryBranchId = selectedBranchIds[0]
@@ -120,13 +126,14 @@ serve(async (req) => {
         display_name: name,
         phone,
         address,
+        status: 'active',
         permissions: Array.isArray(permissions) ? permissions : null,
       })
       .select('id')
       .single()
 
     if (insertError) {
-      // Rollback: Delete the user if profile creation fails to prevent orphan users
+      // Rollback: delete the auth user if profile creation fails
       await supabaseAdmin.auth.admin.deleteUser(newUserId)
       throw new Error('Failed to create profile: ' + insertError.message)
     }
@@ -148,7 +155,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ user: inviteData.user, message: 'Staff invited successfully' }),
+      JSON.stringify({ user: createdUser.user, message: 'Staff account created successfully' }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200 }
     )
 

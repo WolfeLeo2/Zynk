@@ -27,6 +27,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
   late UserRole _selectedRole;
   late Set<String> _selectedBranchIds;
   bool _isLoading = false;
+  bool _initialized = false;
   late Set<Permission> _permissions;
 
   bool get _isEditMode => widget.existingProfile != null;
@@ -174,7 +175,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
           onPressed: () => context.pop(),
         ),
         title: Text(
-          _isEditMode ? 'Edit Staff Member' : 'Create Staff',
+          _isEditMode ? 'Edit User Account' : 'Create Account',
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
           ),
@@ -204,7 +205,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     ),
                     const SizedBox(height: 8),
                     const Text(
-                      'You must create at least one branch before adding staff.',
+                      'You must create at least one branch before adding accounts.',
                       textAlign: TextAlign.center,
                     ),
                     const SizedBox(height: 24),
@@ -219,24 +220,37 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
           }
 
           // Seed the selected branches once
-          if (_selectedBranchIds.isEmpty && branches.isNotEmpty) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (!mounted) return;
-              setState(() {
-                if (_isEditMode) {
-                  // Prefill from the profile's primary branch as default
-                  final primaryId = widget.existingProfile!.branchId;
-                  if (primaryId != null &&
-                      branches.any((b) => b.id == primaryId)) {
-                    _selectedBranchIds.add(primaryId);
-                  } else {
-                    _selectedBranchIds.add(branches.first.id);
-                  }
-                } else {
-                  _selectedBranchIds.add(branches.first.id);
+          if (!_initialized && branches.isNotEmpty) {
+            if (_isEditMode) {
+              final profileBranches = ref.watch(
+                profileBranchesProvider(widget.existingProfile!.id),
+              );
+              profileBranches.whenData((ids) {
+                if (!_initialized) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    if (!mounted) return;
+                    setState(() {
+                      final primaryId = widget.existingProfile?.branchId;
+                      if (primaryId != null) {
+                        _selectedBranchIds.add(primaryId);
+                      }
+                      if (ids.isNotEmpty) {
+                        _selectedBranchIds.addAll(ids);
+                      }
+                      _initialized = true;
+                    });
+                  });
                 }
               });
-            });
+            } else {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() {
+                  _selectedBranchIds.add(branches.first.id);
+                  _initialized = true;
+                });
+              });
+            }
           }
 
           return Form(
@@ -266,14 +280,14 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                 const SizedBox(height: 32),
 
                 // Name Field
-                _FieldLabel(label: 'Full Name'),
+                _FieldLabel(label: 'Account Name'),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _nameController,
                   autofocus: !_isEditMode,
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
-                    hintText: 'e.g., John Doe',
+                    hintText: 'e.g., Main Register or Branch Cashier',
                     prefixIcon: const Icon(PhosphorIconsRegular.user),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -343,7 +357,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                   controller: _phoneController,
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
-                    hintText: 'e.g., +254 700 123 456',
+                    hintText: 'e.g., +254 700 123 456 (Optional)',
                     prefixIcon: const Icon(PhosphorIconsRegular.phone),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -351,19 +365,18 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     filled: true,
                     fillColor: colorScheme.surface,
                   ),
-                  validator: (value) =>
-                      value?.trim().isEmpty == true ? 'Required' : null,
+                  validator: (value) => null,
                 ),
                 const SizedBox(height: 24),
 
-                // Address Field
-                _FieldLabel(label: 'Home Address'),
+                // Address Field (Optional)
+                _FieldLabel(label: 'Physical Address (Optional)'),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _addressController,
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
-                    hintText: 'e.g., Kenyatta Ave, Nairobi',
+                    hintText: 'e.g., Branch Location or Station Spot',
                     prefixIcon: const Icon(PhosphorIconsRegular.mapPin),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
@@ -371,8 +384,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     filled: true,
                     fillColor: colorScheme.surface,
                   ),
-                  validator: (value) =>
-                      value?.trim().isEmpty == true ? 'Required' : null,
+                  validator: (value) => null,
                 ),
                 const SizedBox(height: 24),
 
@@ -466,7 +478,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                 _FieldLabel(label: 'Permissions'),
                 const SizedBox(height: 4),
                 Text(
-                  'Customize what this staff member can do. '
+                  'Customize what can be done with this account. '
                   'Changing the role resets to defaults.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: colorScheme.onSurfaceVariant,
@@ -516,8 +528,8 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                       : const PhosphorIcon(PhosphorIconsBold.check),
                   label: Text(
                     _isLoading
-                        ? (_isEditMode ? 'Saving...' : 'Creating Staff...')
-                        : (_isEditMode ? 'Save Changes' : 'Create Staff'),
+                        ? (_isEditMode ? 'Saving...' : 'Creating Account...')
+                        : (_isEditMode ? 'Save Changes' : 'Create Account'),
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,

@@ -101,10 +101,10 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     try {
       final repo = ref.read(repositoryProvider);
       final tenantId = ref.read(tenantIdProvider);
-      final branchId = ref.read(currentBranchIdProvider);
+      final branchId = sale.branchId;
 
-      if (tenantId == null || branchId == null) {
-        throw Exception('Missing tenant or branch context');
+      if (tenantId == null) {
+        throw Exception('Missing tenant context');
       }
 
       // Build updated SaleItem list
@@ -254,44 +254,33 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                 title: Text('Edit ${sale.invoiceNumber ?? 'Invoice'}'),
                 centerTitle: true,
                 actions: [
-                  Consumer(
-                    builder: (context, ref, _) {
-                      final branches =
-                          ref.watch(branchesProvider).value ?? const [];
-                      final options = branches
-                          .where((b) => b.id != 'all')
-                          .toList();
-                      if (options.length <= 1) return const SizedBox.shrink();
-
-                      final selectedId = ref.watch(currentBranchIdProvider);
-                      final value = options.any((b) => b.id == selectedId)
-                          ? selectedId
-                          : options.first.id;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 12),
-                        child: DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            value: value,
-                            icon: const Icon(PhosphorIconsRegular.caretDown),
-                            items: options
-                                .map(
-                                  (b) => DropdownMenuItem<String>(
-                                    value: b.id,
-                                    child: Text(b.name),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (next) {
-                              if (next == null) return;
-                              ref
-                                  .read(branchSelectionProvider.notifier)
-                                  .selectBranch(next);
-                            },
+                  Padding(
+                    padding: const EdgeInsets.only(right: 16),
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: cs.primaryContainer.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          ref
+                                  .watch(branchesProvider)
+                                  .value
+                                  ?.where((b) => b.id == sale.branchId)
+                                  .firstOrNull
+                                  ?.name ??
+                              '',
+                          style: theme.textTheme.labelMedium?.copyWith(
+                            color: cs.primary,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      );
-                    },
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -427,11 +416,12 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     const SizedBox(height: 8),
                     Consumer(
                       builder: (context, ref, child) {
-                        final staffAsync = ref.watch(humanStaffProvider);
+                        final staffAsync = ref.watch(humanStaffByBranchProvider(sale.branchId));
                         return staffAsync.when(
                           data: (staffList) {
-                            if (staffList.isEmpty)
+                            if (staffList.isEmpty) {
                               return const SizedBox.shrink();
+                            }
                             return DropdownButtonFormField<String>(
                               initialValue: _salespersonId,
                               decoration: InputDecoration(

@@ -12,6 +12,7 @@ import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
+import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/pos/presentation/components/pos_product_card.dart';
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:uuid/uuid.dart';
@@ -31,7 +32,6 @@ class _PosScreenState extends ConsumerState<PosScreen>
   // No local cart state — use cartProvider instead (persists across navigation)
   late TabController _tabController;
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
   String? _selectedCategoryId;
   String? _selectedGroupId;
   Customer? _selectedCustomer;
@@ -57,7 +57,11 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
     // Validate against current stock if the item is not a service
     if (!product.isService) {
-      final stockState = ref.read(stockProvider(product.id)).value;
+      final posBranchId = ref.read(posBranchProvider);
+      final stockState = ref.read(stockByBranchProvider((
+        productId: product.id,
+        branchId: posBranchId,
+      ))).value;
       final availableStock = stockState?.quantity ?? 0;
 
       final currentCartQty = ref
@@ -127,8 +131,8 @@ class _PosScreenState extends ConsumerState<PosScreen>
         },
         onCreateNew: (name, phone, email) async {
           final tenantId = ref.read(tenantIdProvider);
-          final branchId = ref.read(currentBranchIdProvider);
-          if (tenantId == null || branchId == null || branchId == 'all') return;
+          final branchId = ref.read(posBranchProvider);
+          if (tenantId == null || branchId == null) return; // Removed 'all' check as POS now defaults to a real branch
           final repo = ref.read(repositoryProvider);
           final customer = Customer(
             id: const Uuid().v4(),
@@ -150,7 +154,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 
   @override
   Widget build(BuildContext context) {
-    final productsAsync = ref.watch(allProductsProvider);
+    final posBranchId = ref.watch(posBranchProvider);
     final categoriesAsync = ref.watch(allCategoriesProvider);
     final itemGroupsAsync = ref.watch(allItemGroupsProvider);
     final cart = ref.watch(cartProvider);
@@ -161,151 +165,124 @@ class _PosScreenState extends ConsumerState<PosScreen>
     final categories = categoriesAsync.value ?? [];
     final itemGroups = itemGroupsAsync.value ?? [];
 
-    return productsAsync.when(
-      data: (products) {
-        var filtered = products.toList();
-        if (_selectedCategoryId != null) {
-          filtered = filtered
-              .where((p) => p.categoryId == _selectedCategoryId)
-              .toList();
-        }
-        if (_selectedGroupId != null) {
-          filtered = filtered
-              .where((p) => p.itemGroupId == _selectedGroupId)
-              .toList();
-        }
-        if (_searchQuery.isNotEmpty) {
-          filtered = filtered
-              .where(
-                (p) =>
-                    p.name.toLowerCase().contains(_searchQuery.toLowerCase()),
-              )
-              .toList();
-        }
-
-        if (!isMobile) {
-          return Scaffold(
-            drawer: const AppDrawer(),
-            body: Row(
-              children: [
-                // Product Grid Area
-                Expanded(
-                  flex: 2,
-                  child: _ProductGrid(
-                    isMobile: false,
-                    products: filtered,
-                    categories: categories,
-                    itemGroups: itemGroups,
-                    selectedCategoryId: _selectedCategoryId,
-                    selectedGroupId: _selectedGroupId,
-                    onCategoryChanged: (id) =>
-                        setState(() => _selectedCategoryId = id),
-                    onGroupChanged: (id) =>
-                        setState(() => _selectedGroupId = id),
-                    searchController: _searchController,
-                    onSearchChanged: (q) => setState(() => _searchQuery = q),
-                    onAddToCart: _addToCart,
-                  ),
-                ),
-                const VerticalDivider(width: 1),
-                // Ticket Area
-                Expanded(
-                  flex: 1,
-                  child: PosTicket(
-                    items: cartItems,
-                    total: _total,
-                    onRemoveItem: _removeFromCart,
-                    onClearTicket: _clearCart,
-                    selectedCustomer: _selectedCustomer,
-                    salespersonId: _salespersonId,
-                    onSelectCustomer: _showCustomerSelector,
-                    onSalespersonIdChanged: (id) =>
-                        setState(() => _salespersonId = id),
-                  ),
-                ),
-              ],
+    if (!isMobile) {
+      return Scaffold(
+        drawer: const AppDrawer(),
+        body: Row(
+          children: [
+            // Product Grid Area
+            Expanded(
+              flex: 2,
+              child: _ProductGrid(
+                isMobile: false,
+                posBranchId: posBranchId,
+                categories: categories,
+                itemGroups: itemGroups,
+                selectedCategoryId: _selectedCategoryId,
+                selectedGroupId: _selectedGroupId,
+                onCategoryChanged: (id) =>
+                    setState(() => _selectedCategoryId = id),
+                onGroupChanged: (id) =>
+                    setState(() => _selectedGroupId = id),
+                searchController: _searchController,
+                onSearchChanged: (q) => setState(() {}),
+                onAddToCart: _addToCart,
+              ),
             ),
-          );
-        }
-
-        // Mobile Layout (Tabbed)
-        return Scaffold(
-          drawer: const AppDrawer(),
-          body: NestedScrollView(
-            headerSliverBuilder: (context, innerBoxIsScrolled) {
-              return [
-                SliverAppBar(
-                  leading: Builder(
-                    builder: (context) {
-                      if (MediaQuery.of(context).size.width < 840) {
-                        return IconButton(
-                          icon: const PhosphorIcon(PhosphorIconsRegular.list),
-                          onPressed: () => Scaffold.of(context).openDrawer(),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                  automaticallyImplyLeading: false,
-                  title: const Text('POS'),
-                  pinned: true,
-                  floating: true,
-                  bottom: TabBar(
-                    controller: _tabController,
-                    tabs: [
-                      const Tab(
-                        text: 'Items',
-                        icon: Icon(PhosphorIconsDuotone.gridFour),
-                      ),
-                      Tab(
-                        text: 'Ticket (${cartItems.length})',
-                        icon: Badge(
-                          isLabelVisible: cartItems.isNotEmpty,
-                          label: Text('${cartItems.length}'),
-                          child: const Icon(PhosphorIconsDuotone.receipt),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ];
-            },
-            body: TabBarView(
-              controller: _tabController,
-              children: [
-                _ProductGrid(
-                  isMobile: true,
-                  products: filtered,
-                  categories: categories,
-                  itemGroups: itemGroups,
-                  selectedCategoryId: _selectedCategoryId,
-                  selectedGroupId: _selectedGroupId,
-                  onCategoryChanged: (id) =>
-                      setState(() => _selectedCategoryId = id),
-                  onGroupChanged: (id) => setState(() => _selectedGroupId = id),
-                  searchController: _searchController,
-                  onSearchChanged: (q) => setState(() => _searchQuery = q),
-                  onAddToCart: _addToCart,
-                ),
-                PosTicket(
-                  items: cartItems,
-                  total: _total,
-                  onRemoveItem: _removeFromCart,
-                  onClearTicket: _clearCart,
-                  selectedCustomer: _selectedCustomer,
-                  salespersonId: _salespersonId,
-                  onSelectCustomer: _showCustomerSelector,
-                  onSalespersonIdChanged: (id) =>
-                      setState(() => _salespersonId = id),
-                ),
-              ],
+            const VerticalDivider(width: 1),
+            // Ticket Area
+            Expanded(
+              flex: 1,
+              child: PosTicket(
+                items: cartItems,
+                total: _total,
+                onRemoveItem: _removeFromCart,
+                onClearTicket: _clearCart,
+                selectedCustomer: _selectedCustomer,
+                salespersonId: _salespersonId,
+                onSelectCustomer: _showCustomerSelector,
+                onSalespersonIdChanged: (id) =>
+                    setState(() => _salespersonId = id),
+              ),
             ),
-          ),
-        );
-      },
-      loading: () =>
-          const Scaffold(body: Center(child: CircularProgressIndicator())),
-      error: (err, stack) => Scaffold(body: Center(child: Text('Error: $err'))),
+          ],
+        ),
+      );
+    }
+
+    // Mobile Layout (Tabbed)
+    return Scaffold(
+      drawer: const AppDrawer(),
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) {
+          return [
+            SliverAppBar(
+              leading: Builder(
+                builder: (context) {
+                  if (MediaQuery.of(context).size.width < 840) {
+                    return IconButton(
+                      icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    );
+                  }
+                  return const SizedBox.shrink();
+                },
+              ),
+              automaticallyImplyLeading: false,
+              title: const Text('POS'),
+              pinned: true,
+              floating: true,
+              bottom: TabBar(
+                controller: _tabController,
+                tabs: [
+                  const Tab(
+                    text: 'Items',
+                    icon: Icon(PhosphorIconsDuotone.gridFour),
+                  ),
+                  Tab(
+                    text: 'Ticket (${cartItems.length})',
+                    icon: Badge(
+                      isLabelVisible: cartItems.isNotEmpty,
+                      label: Text('${cartItems.length}'),
+                      child: const Icon(PhosphorIconsDuotone.receipt),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ];
+        },
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            _ProductGrid(
+              isMobile: true,
+              posBranchId: posBranchId,
+              categories: categories,
+              itemGroups: itemGroups,
+              selectedCategoryId: _selectedCategoryId,
+              selectedGroupId: _selectedGroupId,
+              onCategoryChanged: (id) =>
+                  setState(() => _selectedCategoryId = id),
+              onGroupChanged: (id) => setState(() => _selectedGroupId = id),
+              searchController: _searchController,
+              onSearchChanged: (q) => setState(() {}),
+              onAddToCart: _addToCart,
+            ),
+            PosTicket(
+              items: cartItems,
+              total: _total,
+              onRemoveItem: _removeFromCart,
+              onClearTicket: _clearCart,
+              selectedCustomer: _selectedCustomer,
+              salespersonId: _salespersonId,
+              onSelectCustomer: _showCustomerSelector,
+              onSalespersonIdChanged: (id) =>
+                  setState(() => _salespersonId = id),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -314,7 +291,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
 // PRODUCT GRID
 class _ProductGrid extends ConsumerWidget {
   final bool isMobile;
-  final List<Product> products;
+  final String? posBranchId;
   final List<Category> categories;
   final List<ItemGroup> itemGroups;
   final String? selectedCategoryId;
@@ -327,7 +304,7 @@ class _ProductGrid extends ConsumerWidget {
 
   const _ProductGrid({
     this.isMobile = false,
-    required this.products,
+    required this.posBranchId,
     required this.categories,
     required this.itemGroups,
     required this.selectedCategoryId,
@@ -344,7 +321,7 @@ class _ProductGrid extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final branches = ref.watch(branchesProvider).value ?? const [];
     final branchOptions = branches.where((b) => b.id != 'all').toList();
-    final selectedBranchId = ref.watch(currentBranchIdProvider);
+    final productsAsync = ref.watch(productsByBranchProvider(posBranchId));
 
     return CustomScrollView(
       slivers: [
@@ -355,9 +332,10 @@ class _ProductGrid extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
               child: DropdownButtonFormField<String>(
-                initialValue: branchOptions.any((b) => b.id == selectedBranchId)
-                    ? selectedBranchId
-                    : branchOptions.first.id,
+                key: ValueKey(posBranchId),
+                initialValue: branchOptions.any((b) => b.id == posBranchId)
+                    ? posBranchId
+                    : (branchOptions.isNotEmpty ? branchOptions.first.id : null),
                 decoration: const InputDecoration(
                   labelText: 'Selling Branch',
                   border: OutlineInputBorder(),
@@ -373,7 +351,7 @@ class _ProductGrid extends ConsumerWidget {
                     .toList(),
                 onChanged: (next) {
                   if (next == null) return;
-                  ref.read(branchSelectionProvider.notifier).selectBranch(next);
+                  ref.read(posBranchProvider.notifier).setBranch(next);
                 },
               ),
             ),
@@ -490,63 +468,99 @@ class _ProductGrid extends ConsumerWidget {
               ),
             ),
           ),
-        if (products.isEmpty)
-          SliverFillRemaining(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  PhosphorIcon(
-                    searchController.text.isNotEmpty
-                        ? PhosphorIconsDuotone.magnifyingGlass
-                        : PhosphorIconsDuotone.package,
-                    size: 64,
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    searchController.text.isNotEmpty
-                        ? 'No items match "${searchController.text}"'
-                        : 'No items found',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                  if (searchController.text.isEmpty) ...[
-                    const SizedBox(height: 8),
-                    Text(
-                      'Add items from to get started.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant.withValues(
-                          alpha: 0.6,
-                        ),
+        productsAsync.when(
+          data: (products) {
+            var filtered = products.toList();
+            if (selectedCategoryId != null) {
+              filtered = filtered
+                  .where((p) => p.categoryId == selectedCategoryId)
+                  .toList();
+            }
+            if (selectedGroupId != null) {
+              filtered = filtered
+                  .where((p) => p.itemGroupId == selectedGroupId)
+                  .toList();
+            }
+            if (searchController.text.isNotEmpty) {
+              filtered = filtered
+                  .where(
+                    (p) => p.name
+                        .toLowerCase()
+                        .contains(searchController.text.toLowerCase()),
+                  )
+                  .toList();
+            }
+
+            if (filtered.isEmpty) {
+              return SliverFillRemaining(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      PhosphorIcon(
+                        searchController.text.isNotEmpty
+                            ? PhosphorIconsDuotone.magnifyingGlass
+                            : PhosphorIconsDuotone.package,
+                        size: 64,
+                        color:
+                            colorScheme.onSurfaceVariant.withValues(alpha: 0.4),
                       ),
-                    ),
-                  ],
-                ],
+                      const SizedBox(height: 16),
+                      Text(
+                        searchController.text.isNotEmpty
+                            ? 'No items match "${searchController.text}"'
+                            : 'No items found',
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                      ),
+                      if (searchController.text.isEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Add items to get started.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: colorScheme.onSurfaceVariant
+                                    .withValues(alpha: 0.6),
+                              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return SliverPadding(
+              padding: const EdgeInsets.all(12),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                  maxCrossAxisExtent: 200,
+                  childAspectRatio: 0.7,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final product = filtered[index];
+                    return PosProductCard(
+                      product: product,
+                      onTap: () => onAddToCart(product),
+                      onAddToCart: () => onAddToCart(product),
+                    );
+                  },
+                  childCount: filtered.length,
+                ),
               ),
-            ),
-          )
-        else
-          SliverPadding(
-            padding: const EdgeInsets.all(12),
-            sliver: SliverGrid(
-              gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                maxCrossAxisExtent: 200,
-                childAspectRatio: 0.7,
-                crossAxisSpacing: 12,
-                mainAxisSpacing: 12,
-              ),
-              delegate: SliverChildBuilderDelegate((context, index) {
-                final product = products[index];
-                return PosProductCard(
-                  product: product,
-                  onTap: () => onAddToCart(product),
-                  onAddToCart: () => onAddToCart(product),
-                );
-              }, childCount: products.length),
-            ),
+            );
+          },
+          loading: () => const SliverFillRemaining(
+            child: GridSkeleton(),
           ),
+          error: (err, stack) => SliverFillRemaining(
+            child: Center(child: Text('Error: $err')),
+          ),
+        ),
       ],
     );
   }

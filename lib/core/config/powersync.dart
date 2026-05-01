@@ -52,6 +52,9 @@ final schema = Schema([
     Column.text('permissions'),
     Column.text('display_name'),
     Column.text('profile_picture_url'),
+    Column.text('phone'),
+    Column.text('address'),
+    Column.text('status'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -159,6 +162,7 @@ final schema = Schema([
     Column.text('created_by'),
     Column.text('reason_id'),
     Column.text('status'),
+    Column.text('bundle_id'),
     Column.text('created_at'),
   ]),
 
@@ -567,10 +571,34 @@ Future<void> _runLocalCompatMigrations() async {
   }
 
   try {
+    await db.execute('ALTER TABLE stock_adjustments ADD COLUMN bundle_id TEXT');
+  } catch (_) {
+    // Ignore if table/column is not yet available.
+  }
+
+  try {
     await db.execute("DELETE FROM stock_adjustments WHERE branch_id = 'all'");
     await db.execute("DELETE FROM stock WHERE branch_id = 'all'");
     await db.execute("DELETE FROM product_branches WHERE branch_id = 'all'");
   } catch (_) {
     // Ignore if tables are not yet available.
+  }
+
+  try {
+    await db.execute('ALTER TABLE profiles ADD COLUMN status TEXT DEFAULT "active"');
+  } catch (_) {
+    // Ignore if column already exists.
+  }
+
+  try {
+    await db.execute('ALTER TABLE profiles ADD COLUMN phone TEXT');
+  } catch (_) {
+    // Ignore if column already exists.
+  }
+
+  try {
+    await db.execute('ALTER TABLE profiles ADD COLUMN address TEXT');
+  } catch (_) {
+    // Ignore if column already exists.
   }
 }

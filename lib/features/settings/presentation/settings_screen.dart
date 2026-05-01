@@ -183,10 +183,94 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(authServiceProvider).signOut();
   }
 
+  void _showDefaultBranchSelector(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final branches = ref.read(branchSelectionProvider).availableBranches;
+    final selectedId = ref.read(currentBranchIdProvider);
+
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      backgroundColor: colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  'Select Default Branch',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const Divider(height: 1),
+              Flexible(
+                child: ListView.builder(
+                  shrinkWrap: true,
+                  itemCount: branches.length,
+                  itemBuilder: (context, index) {
+                    final branch = branches[index];
+                    final isSelected = selectedId == branch.id;
+                    return ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isSelected
+                              ? colorScheme.primaryContainer
+                              : colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Icon(
+                          branch.id == 'all'
+                              ? PhosphorIconsDuotone.chartPieSlice
+                              : PhosphorIconsDuotone.storefront,
+                          color: isSelected
+                              ? colorScheme.onPrimaryContainer
+                              : colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      title: Text(branch.name),
+                      trailing: isSelected
+                          ? Icon(
+                              PhosphorIconsBold.check,
+                              color: colorScheme.primary,
+                            )
+                          : null,
+                      onTap: () {
+                        ref
+                            .read(branchSelectionProvider.notifier)
+                            .selectBranch(branch.id);
+                        Navigator.pop(sheetContext);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
     final profileAsync = ref.watch(currentUserProfileProvider);
+    final canSwitch = ref.watch(canSwitchBranchProvider);
+    final selectedBranchId = ref.watch(currentBranchIdProvider);
+    final branchName = ref.watch(currentBranchProvider)?.name ??
+        (selectedBranchId == 'all'
+            ? 'All Branches'
+            : selectedBranchId != null
+                ? 'Loading…'
+                : 'Not assigned');
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -315,13 +399,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   (profile?.hasPermission(Permission.manageStaff) == true) ||
                   (profile?.hasPermission(Permission.manageCustomers) == true))
                 SettingsSection(
-                  title: const Text('Business'),
+                  title: Text('Business', style: Theme.of(context).textTheme.titleMedium),
                   tiles: <SettingsTile>[
                     if (isOwner)
                       SettingsTile.navigation(
                         leading: const Icon(PhosphorIconsDuotone.image),
-                        title: const Text('Business Logo'),
-                        description: const Text('Update your shop\'s logo'),
+                        title: Text('Business Logo', style: Theme.of(context).textTheme.titleMedium),
+                        description: Text('Update your shop\'s logo', style: Theme.of(context).textTheme.bodySmall),
                         trailing: _isLoading
                             ? Text(
                                 'Updating',
@@ -334,45 +418,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     if (profile?.hasPermission(Permission.manageBranches) == true)
                       SettingsTile.navigation(
                         leading: const Icon(PhosphorIconsDuotone.storefront),
-                        title: const Text('Branches'),
-                        description: const Text('Manage your business locations'),
+                        title: Text('Branches', style: Theme.of(context).textTheme.titleMedium),
+                        description: Text('Manage your business locations', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/branches'),
                       ),
                     if (profile?.hasPermission(Permission.manageStaff) == true)
                       SettingsTile.navigation(
                         leading: const Icon(PhosphorIconsDuotone.userList),
-                        title: const Text('People'),
-                        description: const Text(
-                          'Manage salespersons and adjusters',
-                        ),
+                        title: Text('Salespersons', style: Theme.of(context).textTheme.titleMedium),
+                        description: Text('Manage actual employees', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/staff-members'),
                       ),
                     if (profile?.hasPermission(Permission.manageStaff) == true)
                       SettingsTile.navigation(
                         leading: const Icon(PhosphorIconsDuotone.users),
-                        title: const Text('Staff'),
-                        description: const Text('Manage your team and roles'),
+                        title: Text('User Accounts', style: Theme.of(context).textTheme.titleMedium),
+                        description: Text('Manage branch logins and permissions', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/staff'),
                       ),
                     if (profile?.hasPermission(Permission.manageCustomers) == true)
                       SettingsTile.navigation(
                         leading: const Icon(PhosphorIconsDuotone.usersFour),
-                        title: const Text('Customers'),
-                        description: const Text('Manage your customer directory'),
+                        title: Text('Customers', style: Theme.of(context).textTheme.titleMedium),
+                        description: Text('Manage your customer directory', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/customers'),
                       ),
                   ],
                 ),
 
               SettingsSection(
-                title: const Text('App Settings'),
-                bottomInfo: const Text(
-                  'Used for product dimensions and weight',
-                ),
+                title: Text('App Settings', style: Theme.of(context).textTheme.titleMedium),
                 tiles: <SettingsTile>[
                   SettingsTile<MeasurementSystem>.radioTile(
                     leading: const Icon(PhosphorIconsDuotone.ruler),
-                    title: const Text('Metric (cm, kg)'),
+                    title: Text('Metric (cm, kg)', style: Theme.of(context).textTheme.titleMedium),
                     radioValue: MeasurementSystem.metric,
                     groupValue: measurementSystem,
                     onChanged: (value) {
@@ -385,7 +464,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   SettingsTile<MeasurementSystem>.radioTile(
                     leading: const Icon(PhosphorIconsDuotone.ruler),
-                    title: const Text('Imperial (in, lb)'),
+                    title: Text('Imperial (in, lb)', style: Theme.of(context).textTheme.titleMedium),
                     radioValue: MeasurementSystem.imperial,
                     groupValue: measurementSystem,
                     onChanged: (value) {
@@ -398,8 +477,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   SettingsTile.navigation(
                     leading: const Icon(PhosphorIconsDuotone.palette),
-                    title: const Text('Theme'),
-                    description: const Text('System Default'),
+                    title: Text('Theme', style: Theme.of(context).textTheme.titleMedium),
+                    description: Text('System Default', style: Theme.of(context).textTheme.bodySmall),
                     onPressed: (_) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -408,21 +487,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       );
                     },
                   ),
+                  // Branch tile — always visible for all users.
+                  // Single-branch / locked users see it as read-only (tap is a no-op).
+                  // Multi-branch users get the full branch selector.
+                  SettingsTile.navigation(
+                    leading: const Icon(PhosphorIconsDuotone.storefront),
+                    title: Text(
+                      canSwitch ? 'Default Branch' : 'Assigned Branch',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    description: Text(
+                      branchName,
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    // No-op for single-branch users — silent, no visual change.
+                    onPressed: canSwitch
+                        ? (_) => _showDefaultBranchSelector(context)
+                        : (_) {},
+                  ),
                 ],
               ),
 
               SettingsSection(
-                title: const Text('Account'),
                 tiles: <SettingsTile>[
                   SettingsTile.navigation(
-                    leading: const Icon(
+                    leading: Icon(
                       PhosphorIconsDuotone.signOut,
-                      color: Colors.red,
+                      color: Theme.of(context).colorScheme.error,
                     ),
-                    title: const Text(
-                      'Sign Out',
-                      style: TextStyle(color: Colors.red),
-                    ),
+                    title: Text('Sign Out', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error)),
                     onPressed: (_) async {
                       final confirm = await showDialog<bool>(
                         context: context,
@@ -476,10 +569,7 @@ class _SettingsSection extends StatelessWidget {
           padding: const EdgeInsets.only(left: 4, bottom: 8),
           child: Text(
             title,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: Theme.of(context).colorScheme.primary,
-            ),
+            style: Theme.of(context).textTheme.titleMedium,
           ),
         ),
         Card(

@@ -7,10 +7,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Providers
-// ─────────────────────────────────────────────────────────────────────────────
+import 'package:go_router/go_router.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
@@ -24,18 +21,18 @@ class _StatusFilterNotifier extends Notifier<String?> {
 }
 
 final _adjustmentStatusFilterProvider =
-    NotifierProvider<_StatusFilterNotifier, String?>(_StatusFilterNotifier.new);
+    NotifierProvider.autoDispose<_StatusFilterNotifier, String?>(_StatusFilterNotifier.new);
 
 final _adjustmentsProvider = StreamProvider.autoDispose
     .family<
       List<StockAdjustment>,
-      ({String tenantId, String? status, String? branchId})
+      ({String tenantId, String? branchId})
     >((ref, args) {
       final repo = ref.watch(repositoryProvider);
       return repo.watchAllStockAdjustments(
         tenantId: args.tenantId,
         branchId: args.branchId,
-        status: args.status,
+        status: null, // Always fetch all to allow client-side filtering
       );
     });
 
@@ -52,18 +49,16 @@ class AdjustmentsScreen extends ConsumerWidget {
     final tenantId = profile?.tenantId ?? '';
     final branchId = ref.watch(currentBranchIdProvider);
 
-    // Can this user approve/reject adjustments?
+    // Can this user approve adjustments?
     final canApprove =
         profile?.role.isOwner == true ||
-        profile?.role.isManager == true ||
-        profile?.permissions.contains(Permission.manageStock) == true;
+        profile?.permissions.contains(Permission.approveStock) == true;
 
     final statusFilter = ref.watch(_adjustmentStatusFilterProvider);
 
     final adjustmentsAsync = ref.watch(
       _adjustmentsProvider((
         tenantId: tenantId,
-        status: statusFilter,
         branchId: branchId,
       )),
     );
@@ -82,7 +77,7 @@ class AdjustmentsScreen extends ConsumerWidget {
             return const SizedBox.shrink();
           },
         ),
-        title: const Text('Adjustment Review'),
+        title: const Text('Stock Adjustments'),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: _StatusFilterBar(
@@ -95,18 +90,37 @@ class AdjustmentsScreen extends ConsumerWidget {
       body: adjustmentsAsync.when(
         loading: () => const _AdjustmentSkeletonList(),
         error: (e, _) => _ErrorState(message: e.toString()),
-        data: (adjustments) {
+        data: (allAdjustments) {
+          // Filter locally to prevent flashes
+          final adjustments = allAdjustments.where((adj) {
+            if (statusFilter == null) return true;
+            return adj.status.name == statusFilter;
+          }).toList();
+
           if (adjustments.isEmpty) {
             return _EmptyState(filter: statusFilter);
           }
 
+          // Group by bundleId
+          final grouped = <String, List<StockAdjustment>>{};
+          for (final adj in adjustments) {
+            final key = adj.bundleId ?? adj.id;
+            grouped.putIfAbsent(key, () => []).add(adj);
+          }
+          final bundleIds = grouped.keys.toList();
+
           return ListView.builder(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
-            itemCount: adjustments.length,
-            itemBuilder: (context, i) => _AdjustmentTile(
-              adjustment: adjustments[i],
-              canApprove: canApprove,
-            ),
+            itemCount: bundleIds.length,
+            itemBuilder: (context, i) {
+               final bundleId = bundleIds[i];
+               final items = grouped[bundleId]!;
+               return _BundleTile(
+                 bundleId: bundleId,
+                 items: items,
+                 canApprove: canApprove,
+               );
+            },
           );
         },
       ),
@@ -124,11 +138,11 @@ class _StatusFilterBar extends StatelessWidget {
   final String? selected;
   final ValueChanged<String?> onSelected;
 
-  static const _options = [
-    (label: 'All', value: null),
-    (label: 'Pending', value: 'pending'),
-    (label: 'Approved', value: 'approved'),
-    (label: 'Rejected', value: 'rejected'),
+  static final _options = [
+    (label: 'All', value: null as String?),
+    (label: 'Pending', value: StockAdjustmentStatus.pending.name),
+    (label: 'Approved', value: StockAdjustmentStatus.approved.name),
+    (label: 'Rejected', value: StockAdjustmentStatus.rejected.name),
   ];
 
   @override
@@ -171,49 +185,33 @@ class _StatusFilterBar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Adjustment Tile
+// Bundle Tile
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _AdjustmentTile extends ConsumerStatefulWidget {
-  const _AdjustmentTile({required this.adjustment, required this.canApprove});
-
-  final StockAdjustment adjustment;
+class _BundleTile extends StatelessWidget {
+  final String bundleId;
+  final List<StockAdjustment> items;
   final bool canApprove;
 
-  @override
-  ConsumerState<_AdjustmentTile> createState() => _AdjustmentTileState();
-}
-
-class _AdjustmentTileState extends ConsumerState<_AdjustmentTile> {
-  bool _isLoading = false;
+  const _BundleTile({
+    required this.bundleId,
+    required this.items,
+    required this.canApprove,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final adjustment = widget.adjustment;
-    final canApprove = widget.canApprove;
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final dateFmt = DateFormat('dd MMM yyyy, hh:mm a');
-
-    final isIncrease = adjustment.quantity > 0;
-    final qtyText = isIncrease
-        ? '+${adjustment.quantity}'
-        : '${adjustment.quantity}';
-    final qtyColor = isIncrease ? colorScheme.primary : colorScheme.error;
-
-    final status = adjustment.status.trim().toLowerCase();
-    final (statusLabel, statusTextColor, statusBg) = switch (status) {
-      'pending' => (
-        'Pending',
-        colorScheme.onSecondaryContainer,
-        colorScheme.secondaryContainer,
-      ),
-      'rejected' => (
-        'Rejected',
-        colorScheme.onErrorContainer,
-        colorScheme.errorContainer,
-      ),
-      _ => ('Approved', colorScheme.onPrimary, colorScheme.primary),
+    final dateFmt = DateFormat('dd MMM yyyy');
+    
+    final first = items.first;
+    final status = first.status;
+    
+    final (statusLabel, statusColor) = switch (status) {
+      StockAdjustmentStatus.pending => ('Pending', colorScheme.secondary),
+      StockAdjustmentStatus.approved => ('Approved', colorScheme.primary),
+      StockAdjustmentStatus.rejected => ('Rejected', colorScheme.error),
     };
 
     return Padding(
@@ -222,251 +220,87 @@ class _AdjustmentTileState extends ConsumerState<_AdjustmentTile> {
         elevation: 0,
         color: colorScheme.surfaceContainerLow,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: colorScheme.outlineVariant.withAlpha(80)),
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15)),
         ),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header row
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          adjustment.productName ?? 'Unknown Product',
-                          style: textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        if (adjustment.adjusterName != null)
-                          Text(
-                            'By ${adjustment.adjusterName}',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                  Text(
-                    qtyText,
-                    style: textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: qtyColor,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              // Meta row
-              Row(
-                children: [
-                  if (adjustment.reasonLabel != null) ...[
-                    Icon(
-                      Icons.label_outline_rounded,
-                      size: 14,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      adjustment.reasonLabel!,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                  ],
-                  if (adjustment.adjustmentType != null) ...[
-                    Icon(
-                      Icons.category_outlined,
-                      size: 14,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      adjustment.adjustmentType!,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                  const Spacer(),
-                  // Status badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 3,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusBg,
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      statusLabel,
-                      style: textTheme.labelSmall?.copyWith(
-                        color: statusTextColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (adjustment.notes != null && adjustment.notes!.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  adjustment.notes!,
-                  style: textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant,
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-              if (adjustment.createdAt != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  dateFmt.format(adjustment.createdAt!),
-                  style: textTheme.labelSmall?.copyWith(
-                    color: colorScheme.outlineVariant,
-                  ),
-                ),
-              ],
-              // Approve/Reject buttons for pending adjustments
-              if (status == 'pending' && canApprove) ...[
-                const SizedBox(height: 12),
+        child: InkWell(
+          onTap: () => context.push('/settings/adjustments-review/$bundleId'),
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _isLoading ? null : () => _reject(context),
-                        icon: _isLoading
-                            ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    colorScheme.error,
-                                  ),
-                                ),
-                              )
-                            : const Icon(Icons.close_rounded, size: 16),
-                        label: _isLoading
-                            ? const Text('Rejecting...')
-                            : const Text('Reject'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: colorScheme.error,
-                          side: BorderSide(color: colorScheme.error),
-                        ),
+                      child: Text(
+                        first.referenceNumber ?? 'ADJ-${bundleId.substring(0, 5).toUpperCase()}',
+                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: FilledButton.icon(
-                        onPressed: _isLoading ? null : () => _approve(context),
-                        icon: _isLoading
-                            ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    colorScheme.onPrimary,
-                                  ),
-                                ),
-                              )
-                            : const Icon(Icons.check_rounded, size: 16),
-                        label: _isLoading
-                            ? const Text('Approving...')
-                            : const Text('Approve'),
-                      ),
+                    _StatusBadge(label: statusLabel, color: statusColor),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  items.length == 1 
+                    ? first.productName ?? 'Unknown Product'
+                    : '${first.productName ?? "Unknown"} and ${items.length - 1} others',
+                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Icon(PhosphorIconsRegular.user, size: 14, color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(
+                      first.adjusterName ?? 'System',
+                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),
+                    const SizedBox(width: 16),
+                    Icon(PhosphorIconsRegular.calendar, size: 14, color: colorScheme.onSurfaceVariant),
+                    const SizedBox(width: 4),
+                    Text(
+                      dateFmt.format(first.createdAt ?? DateTime.now()),
+                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                    ),
+                    const Spacer(),
+                    const Icon(PhosphorIconsRegular.caretRight, size: 16),
                   ],
                 ),
               ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _approve(BuildContext context) async {
-    if (_isLoading) return;
-
-    setState(() => _isLoading = true);
-    try {
-      final profile = ref.read(currentUserProfileProvider).value;
-      if (profile == null) return;
-
-      await ref
-          .read(repositoryProvider)
-          .approveAdjustment(
-            adjustmentId: widget.adjustment.id,
-            approverId: profile.userId,
-          );
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Adjustment approved.')));
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  Future<void> _reject(BuildContext context) async {
-    if (_isLoading) return;
-
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Reject Adjustment'),
-        content: const Text(
-          'This will reverse the stock change. Are you sure?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(
-              backgroundColor: Theme.of(ctx).colorScheme.error,
             ),
-            child: const Text('Reject'),
           ),
-        ],
+        ),
       ),
     );
-    if (confirmed != true) return;
+  }
+}
 
-    setState(() => _isLoading = true);
-    try {
-      await ref
-          .read(repositoryProvider)
-          .rejectAdjustment(adjustmentId: widget.adjustment.id);
+class _StatusBadge extends StatelessWidget {
+  final String label;
+  final Color color;
+  const _StatusBadge({required this.label, required this.color});
 
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Adjustment rejected and stock reversed.'),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withAlpha(25),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: color.withAlpha(51)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: color,
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+    );
   }
 }
 
@@ -483,7 +317,7 @@ class _AdjustmentSkeletonList extends StatelessWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: 6,
-      itemBuilder: (_, __) => Padding(
+      itemBuilder: (context, index) => Padding(
         padding: const EdgeInsets.only(bottom: 12),
         child: Container(
           height: 110,
@@ -497,36 +331,6 @@ class _AdjustmentSkeletonList extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  const _EmptyState({this.filter});
-  final String? filter;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final label = filter == null ? 'adjustments' : '$filter adjustments';
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.inventory_2_outlined,
-            size: 72,
-            color: colorScheme.outlineVariant,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'No $label found',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _ErrorState extends StatelessWidget {
   const _ErrorState({required this.message});
   final String message;
@@ -534,7 +338,38 @@ class _ErrorState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Padding(padding: const EdgeInsets.all(24), child: Text(message)),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(PhosphorIconsRegular.warningCircle, size: 48, color: Colors.red),
+          const SizedBox(height: 16),
+          Text(message),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState({this.filter});
+  final String? filter;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(PhosphorIconsRegular.clipboardText, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          Text(
+            filter == null
+                ? 'No stock adjustments yet'
+                : 'No $filter adjustments found',
+            style: const TextStyle(color: Colors.grey),
+          ),
+        ],
+      ),
     );
   }
 }

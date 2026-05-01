@@ -9,18 +9,18 @@ import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 
-/// Screen for creating a new B2B invoice (starts as pending approval).
-/// Received pre-filled data from POS cart and allows editing before submission.
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final List<PosCartItem> cartItems;
   final Customer customer;
   final String? salespersonId;
+  final String? branchId;
 
   const CreateInvoiceScreen({
     super.key,
     required this.cartItems,
     required this.customer,
     this.salespersonId,
+    this.branchId,
   });
 
   @override
@@ -116,7 +116,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
     try {
       final tenantId = ref.read(tenantIdProvider);
-      final branchId = ref.read(currentBranchIdProvider);
+      final branchId = widget.branchId ?? ref.read(currentBranchIdProvider);
       final repo = ref.read(repositoryProvider);
 
       if (tenantId == null || branchId == null) {
@@ -138,12 +138,13 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
         // Stock validation — prevent overselling
         if (!item.product.isService) {
-          final stockResult = await repo.db.get(
+          final stockResult = await repo.db.getAll(
             'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
             [item.product.id, branchId],
           );
-          final availableStock =
-              (stockResult['quantity'] as num?)?.toInt() ?? 0;
+          final availableStock = stockResult.isEmpty
+              ? 0
+              : (stockResult.first['quantity'] as num?)?.toInt() ?? 0;
           if (qty > availableStock) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -232,11 +233,43 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
           icon: const PhosphorIcon(PhosphorIconsRegular.x),
           onPressed: () => context.pop(),
         ),
-        title: const Text('Review & Create Invoice'),
-        centerTitle: true,
+        title: const Text('Create Invoice'),
         actions: [
           Consumer(
             builder: (context, ref, _) {
+              if (widget.branchId != null) {
+                final branch = ref
+                    .watch(branchesProvider)
+                    .value
+                    ?.where((b) => b.id == widget.branchId)
+                    .firstOrNull;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 16),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primaryContainer
+                            .withValues(alpha: 0.2),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        branch?.name ?? '',
+                        style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                              color: Theme.of(context).colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ),
+                  ),
+                );
+              }
+
               final branches = ref.watch(branchesProvider).value ?? const [];
               final options = branches.where((b) => b.id != 'all').toList();
               if (options.length <= 1) return const SizedBox.shrink();
@@ -284,7 +317,8 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             const SizedBox(height: 8),
             Consumer(
               builder: (context, ref, child) {
-                final staffAsync = ref.watch(humanStaffProvider);
+                final currentBranchId = widget.branchId ?? ref.watch(currentBranchIdProvider);
+                final staffAsync = ref.watch(humanStaffByBranchProvider(currentBranchId));
                 return staffAsync.when(
                   data: (staffList) {
                     if (staffList.isEmpty) return const SizedBox.shrink();

@@ -1,7 +1,7 @@
 name: zynk
 description: "A smart inventory and stock tracker and overall business solution for SMEs"
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.0+2
 
 environment:
   sdk: ^3.10.7
@@ -42,6 +42,7 @@ dependencies:
   intl_phone_field: ^3.2.0
   http: ^1.6.0
   json_annotation: ^4.11.0
+  m3e_card_list: ^0.0.1
 
 dev_dependencies:
   flutter_test:

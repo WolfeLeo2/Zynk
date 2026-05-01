@@ -22,14 +22,14 @@ class AppDrawer extends ConsumerWidget {
 
     return Drawer(
       backgroundColor: theme.scaffoldBackgroundColor,
-      elevation: 0,
+      elevation: 1,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Branding
           Padding(
-            padding: const EdgeInsets.fromLTRB(24, 64, 24, 24),
+            padding: const EdgeInsets.fromLTRB(24, 64, 24, 12),
             child: Row(
               children: [
                 Container(
@@ -47,7 +47,7 @@ class AppDrawer extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Text(
                   //chanegd from Zynk to PH for client needs
-                  'PH',
+                  'Passionate Homes',
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: -0.5,
@@ -58,140 +58,172 @@ class AppDrawer extends ConsumerWidget {
           ),
 
           Expanded(
-            child: ListView(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              children: [
-                if (profileAsync.value?.hasPermission(Permission.viewDashboard) == true)
+            child: Material(
+              color: Colors.transparent,
+              clipBehavior: Clip.hardEdge,
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                children: [
+                  // Always show Dashboard, conditionally rendered internally
                   _DrawerItem(
                     icon: PhosphorIconsDuotone.house,
                     label: 'Dashboard',
                     path: '/',
                     currentPath: currentPath,
                   ),
-                  
-                if (profileAsync.value?.hasPermission(Permission.posAccess) == true)
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.storefront,
-                    label: 'Point of Sale',
-                    path: '/pos',
-                    currentPath: currentPath,
-                  ),
-                
-                // --- SALES ---
-                if (profileAsync.value?.hasPermission(Permission.createInvoices) == true ||
-                    profileAsync.value?.hasPermission(Permission.approveInvoices) == true) ...[
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, bottom: 8),
-                    child: Text('SALES', style: _headerStyle(theme)),
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.receipt,
-                    label: 'Invoices',
-                    path: '/sales',
-                    currentPath: currentPath,
-                  ),
-                ],
 
-                // --- INVENTORY ---
-                if (profileAsync.value?.hasPermission(Permission.manageProducts) == true ||
-                    profileAsync.value?.hasPermission(Permission.manageStock) == true) ...[
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, bottom: 8),
-                    child: Text('INVENTORY', style: _headerStyle(theme)),
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.package,
-                    label: 'Items',
-                    path: '/products',
-                    currentPath: currentPath,
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.package,
-                    label: 'Item Groups',
-                    path: '/products/groups',
-                    currentPath: currentPath,
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.stack,
-                    label: 'Composite Items',
-                    path: '/products/composite',
-                    currentPath: currentPath,
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.slidersHorizontal,
-                    label: 'Batch Adjust Stock',
-                    path: '/adjustments',
-                    currentPath: currentPath,
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.slidersHorizontal,
-                    label: 'Adjustments Review',
-                    path: '/settings/adjustments-review',
-                    currentPath: currentPath,
-                  ),
-                ],
-
-                // --- REPORTS ---
-                if (profileAsync.value?.hasPermission(Permission.viewReports) == true) ...[
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, bottom: 8),
-                    child: Text('REPORTS', style: _headerStyle(theme)),
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.currencyDollar,
-                    label: 'Reports',
-                    path: '/settings/reports',
-                    currentPath: currentPath,
-                  ),
-                ],
-
-                // --- SYSTEM ---
-                if (profileAsync.value?.hasPermission(Permission.manageBranches) == true ||
-                    profileAsync.value?.hasPermission(Permission.manageStaff) == true ||
-                    profileAsync.value?.role.isOwner == true ||
-                    profileAsync.value?.role.isManager == true) ...[
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, bottom: 8),
-                    child: Text('SYSTEM', style: _headerStyle(theme)),
-                  ),
-                  if (profileAsync.value?.hasPermission(Permission.manageBranches) == true)
+                  if (profileAsync.value?.hasPermission(Permission.posAccess) ==
+                      true)
                     _DrawerItem(
-                      icon: PhosphorIconsDuotone.buildings,
-                      label: 'Branches',
-                      path: '/settings/branches',
+                      icon: PhosphorIconsDuotone.storefront,
+                      label: 'Point of Sale',
+                      path: '/pos',
                       currentPath: currentPath,
                     ),
-                  if (profileAsync.value?.hasPermission(Permission.manageStaff) == true)
+
+                  // --- SALES ---
+                  if (profileAsync.value?.hasPermission(
+                            Permission.createInvoices,
+                          ) ==
+                          true ||
+                      profileAsync.value?.hasPermission(
+                            Permission.approveInvoices,
+                          ) ==
+                          true) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Text('SALES', style: _headerStyle(theme)),
+                    ),
                     _DrawerItem(
-                      icon: PhosphorIconsDuotone.users,
-                      label: 'Staff Members',
-                      path: '/settings/staff',
+                      icon: PhosphorIconsDuotone.receipt,
+                      label: 'Invoices',
+                      path: '/sales',
                       currentPath: currentPath,
                     ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.gear,
-                    label: 'Settings',
-                    path: '/settings',
-                    currentPath: currentPath,
-                  ),
-                ] else ...[
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.only(left: 16, bottom: 8),
-                    child: Text('SYSTEM', style: _headerStyle(theme)),
-                  ),
-                  _DrawerItem(
-                    icon: PhosphorIconsDuotone.gear,
-                    label: 'Settings',
-                    path: '/settings',
-                    currentPath: currentPath,
-                  ),
-                ]
-              ],
+                  ],
+
+                  // --- INVENTORY ---
+                  if (profileAsync.value?.hasPermission(
+                            Permission.manageProducts,
+                          ) ==
+                          true ||
+                      profileAsync.value?.hasPermission(
+                            Permission.manageStock,
+                          ) ==
+                          true) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Text('INVENTORY', style: _headerStyle(theme)),
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.package,
+                      label: 'Items',
+                      path: '/products',
+                      currentPath: currentPath,
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.package,
+                      label: 'Item Groups',
+                      path: '/products/groups',
+                      currentPath: currentPath,
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.stack,
+                      label: 'Composite Items',
+                      path: '/products/composite',
+                      currentPath: currentPath,
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.slidersHorizontal,
+                      label: 'Batch Adjust Stock',
+                      path: '/adjustments',
+                      currentPath: currentPath,
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.slidersHorizontal,
+                      label: 'Adjustments Review',
+                      path: '/settings/adjustments-review',
+                      currentPath: currentPath,
+                    ),
+                  ],
+
+                  // --- REPORTS ---
+                  if (profileAsync.value?.hasPermission(
+                        Permission.viewReports,
+                      ) ==
+                      true) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Text('REPORTS', style: _headerStyle(theme)),
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.currencyDollar,
+                      label: 'Reports',
+                      path: '/settings/reports',
+                      currentPath: currentPath,
+                    ),
+                  ],
+
+                  // --- SYSTEM ---
+                  if (profileAsync.value?.hasPermission(
+                            Permission.manageBranches,
+                          ) ==
+                          true ||
+                      profileAsync.value?.hasPermission(
+                            Permission.manageStaff,
+                          ) ==
+                          true ||
+                      profileAsync.value?.role.isOwner == true ||
+                      profileAsync.value?.role.isManager == true) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Text('SYSTEM', style: _headerStyle(theme)),
+                    ),
+                    if (profileAsync.value?.hasPermission(
+                          Permission.manageBranches,
+                        ) ==
+                        true)
+                      _DrawerItem(
+                        icon: PhosphorIconsDuotone.buildings,
+                        label: 'Branches',
+                        path: '/settings/branches',
+                        currentPath: currentPath,
+                      ),
+                    if (profileAsync.value?.hasPermission(
+                          Permission.manageStaff,
+                        ) ==
+                        true)
+                      _DrawerItem(
+                        icon: PhosphorIconsDuotone.users,
+                        label: 'User Accounts',
+                        path: '/settings/staff',
+                        currentPath: currentPath,
+                      ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.gear,
+                      label: 'Settings',
+                      path: '/settings',
+                      currentPath: currentPath,
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.only(left: 16),
+                      child: Text('SYSTEM', style: _headerStyle(theme)),
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.gear,
+                      label: 'Settings',
+                      path: '/settings',
+                      currentPath: currentPath,
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
 
@@ -201,9 +233,7 @@ class AppDrawer extends ConsumerWidget {
             child: Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: theme.brightness == Brightness.light
-                    ? Colors.white
-                    : AppTokens.bgSurfaceHighlightDark,
+                color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: theme.colorScheme.outline.withValues(alpha: 0.5),
@@ -248,7 +278,7 @@ class AppDrawer extends ConsumerWidget {
                         Text(
                           'Active',
                           style: theme.textTheme.labelSmall?.copyWith(
-                            color: AppTokens.brandSecondary,
+                            color: colorScheme.secondary,
                           ),
                         ),
                       ],

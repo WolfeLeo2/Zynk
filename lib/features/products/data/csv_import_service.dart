@@ -64,6 +64,7 @@ class CsvImportService {
       );
     }
     final createdBy = profile?.userId ?? 'system';
+    final bundleId = const Uuid().v4();
 
     final categoriesSnapshot = await repo.watchCategories().first;
     final Map<String, String> categoryMap = {
@@ -133,6 +134,7 @@ class CsvImportService {
               quantityChange: initialStock,
               createdBy: createdBy,
               notes: 'Batch CSV import (all branches)',
+              bundleId: bundleId,
             );
           }
         } else {
@@ -144,6 +146,7 @@ class CsvImportService {
             quantityChange: initialStock,
             createdBy: createdBy,
             notes: 'Batch CSV import',
+            bundleId: bundleId,
           );
         }
       }

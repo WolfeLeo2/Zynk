@@ -35,6 +35,7 @@ import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
 import 'package:zynk/features/products/presentation/adjustments_screen.dart';
 import 'package:zynk/features/reports/presentation/reports_screen.dart';
 import 'package:zynk/features/customers/presentation/customers_screen.dart';
+import 'package:zynk/features/products/presentation/adjustment_detail_screen.dart';
 
 // Keys
 final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -66,11 +67,7 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final profile = ref.read(currentUserProfileProvider).value;
       if (profile != null) {
-        // Enforce Dashboard access
-        if (loc == '/' && !profile.hasPermission(Permission.viewDashboard)) {
-          // If no dashboard, redirect to pos or settings
-          return profile.hasPermission(Permission.posAccess) ? '/pos' : '/settings';
-        }
+        // (Dashboard access is now handled internally by DashboardLayout conditionally rendering StaffDashboard)
 
         // Enforce POS access
         if (loc.startsWith('/pos') && !profile.hasPermission(Permission.posAccess)) {
@@ -252,6 +249,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                         cartItems: extra['cartItems'] ?? [],
                         customer: extra['customer'],
                         salespersonId: extra['salespersonId'],
+                        branchId: extra['branchId'],
                       );
                     },
                   ),
@@ -308,6 +306,15 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'adjustments-review',
                     builder: (context, state) => const AdjustmentsScreen(),
+                    routes: [
+                      GoRoute(
+                        path: ':bundleId',
+                        builder: (context, state) {
+                          final bundleId = state.pathParameters['bundleId']!;
+                          return AdjustmentDetailScreen(bundleId: bundleId);
+                        },
+                      ),
+                    ],
                   ),
                   GoRoute(
                     path: 'reports',

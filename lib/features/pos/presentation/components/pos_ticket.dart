@@ -9,6 +9,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
+import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 
@@ -42,8 +43,8 @@ class PosTicket extends ConsumerWidget {
     final cs = theme.colorScheme;
     final tt = theme.textTheme;
     final itemCount = items.fold<int>(0, (sum, i) => sum + i.quantity);
-    final branch = ref.watch(currentBranchProvider);
-    final staffAsync = ref.watch(humanStaffProvider);
+    final branch = ref.watch(selectedPosBranchProvider);
+    final staffAsync = ref.watch(humanStaffByBranchProvider(branch?.id));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -376,11 +377,12 @@ class PosTicket extends ConsumerWidget {
                               }
                               GoRouter.of(context).push(
                                 '/sales/create-invoice',
-                                extra: {
-                                  'cartItems': items,
-                                  'customer': selectedCustomer,
-                                  'salespersonId': salespersonId,
-                                },
+                                  extra: {
+                                    'cartItems': items,
+                                    'customer': selectedCustomer,
+                                    'salespersonId': salespersonId,
+                                    'branchId': branch?.id,
+                                  },
                               );
                             },
                       style: FilledButton.styleFrom(
@@ -430,8 +432,9 @@ class _TicketItemRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final posBranchId = ref.watch(posBranchProvider);
     // Watch the stock provider so that the value is actively cached for the synchronously tapped + button
-    final stockState = ref.watch(stockProvider(item.product.id)).value;
+    final stockState = ref.watch(stockByBranchProvider((productId: item.product.id, branchId: posBranchId))).value;
 
     return Dismissible(
       key: ValueKey(item.product.id),

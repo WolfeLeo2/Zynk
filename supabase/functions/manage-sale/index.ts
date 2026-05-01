@@ -17,8 +17,8 @@ const ACTION_PERMISSIONS: Record<string, string> = {
     apply_credit: "issue_credit_notes",
     submit_for_approval: "create_invoices",
     fulfill_sale: "record_payments",
-    delete_payment: "void_sales",
-    delete_sale: "void_sales",
+    delete_payment: "approve_invoices",
+    delete_sale: "approve_invoices",
 };
 
 const corsHeaders = {
@@ -74,8 +74,6 @@ Deno.serve(async (req: Request) => {
         }
 
         // ── Get tenant context ──
-        // The client can pass tenant_id directly to avoid a DB lookup race condition
-        // (e.g. approving an invoice that may not have synced to Supabase yet).
         const saleId = params.sale_id;
         if (!saleId && action !== "apply_credit") {
             return new Response(JSON.stringify({ error: "Missing sale_id" }), {
@@ -86,7 +84,6 @@ Deno.serve(async (req: Request) => {
 
         let tenantId: string;
         if (params.tenant_id) {
-            // Prefer client-provided tenant_id to avoid the sale lookup entirely.
             tenantId = params.tenant_id;
         } else if (saleId) {
             const { data: sale } = await supabase
@@ -236,7 +233,6 @@ Deno.serve(async (req: Request) => {
             }
 
             case "submit_for_approval": {
-                // Backward compatibility: invoices are now created directly in pending_approval.
                 return jsonResponse({ status: "pending_approval", sale_id: saleId });
             }
 
@@ -389,7 +385,7 @@ Deno.serve(async (req: Request) => {
                     .from("sale_approvals")
                     .select("id", { count: "exact", head: true })
                     .eq("sale_id", saleId)
-                    .eq("decision", "approved");
+                    .eq("decision", "approved\");
 
                 if (approvalCountError) {
                     throw new Error(`Approval count failed: ${approvalCountError.message}`);
@@ -426,7 +422,6 @@ Deno.serve(async (req: Request) => {
             }
 
             case "fulfill_sale": {
-                // Get sale to check branch for stock decrement
                 const { data: sale } = await supabase
                     .from("sales")
                     .select("*, sale_items(*)")
@@ -443,7 +438,6 @@ Deno.serve(async (req: Request) => {
 
                 const decrementedItems: Array<{ product_id: string; quantity: number }> = [];
 
-                // Decrement stock before flipping the release flag.
                 for (const item of sale.sale_items || []) {
                     const quantity = Number(item.quantity || 0);
                     if (quantity <= 0) continue;
@@ -500,18 +494,53 @@ Deno.serve(async (req: Request) => {
             }
 
             case "reject_sale": {
-                const { data: existingSale } = await supabase
+                const { data: sale } = await supabase
                     .from("sales")
-                    .select("id, status")
+                    .select("*, sale_items(*)")
                     .eq("id", saleId)
                     .single();
 
-                if (!existingSale) {
+                if (!sale) {
                     throw new Error("Sale not found");
                 }
 
-                if (existingSale.status !== "pending_approval") {
-                    throw new Error(`Sale (${existingSale.status}) must be pending approval to be rejected`);
+                if (sale.status !== "pending_approval") {
+                    throw new Error(`Sale (${sale.status}) must be pending approval to be rejected`);
+                }
+
+                if ((sale.amount_paid || 0) > 0) {
+                    throw new Error("Cannot reject an invoice with recorded payments. Delete payments first.");
+                }
+
+                const restockedItems: Array<{ product_id: string; quantity: number }> = [];
+
+                if (sale.fulfillment_status === 'fulfilled') {
+                    for (const item of sale.sale_items || []) {
+                        const quantity = Number(item.quantity || 0);
+                        if (quantity <= 0) continue;
+
+                        const { error: incrementError } = await supabase.rpc("increment_stock", {
+                            p_product_id: item.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: quantity,
+                        });
+
+                        if (incrementError) {
+                            for (const reverted of restockedItems) {
+                                await supabase.rpc("decrement_stock", {
+                                    p_product_id: reverted.product_id,
+                                    p_branch_id: sale.branch_id,
+                                    p_quantity: reverted.quantity,
+                                });
+                            }
+                            throw new Error(`Stock rollback failed: ${incrementError.message}`);
+                        }
+
+                        restockedItems.push({
+                            product_id: item.product_id,
+                            quantity,
+                        });
+                    }
                 }
 
                 const { error: rejectRecordError } = await supabase
@@ -530,6 +559,15 @@ Deno.serve(async (req: Request) => {
                     if (rejectRecordError.code === "23505") {
                         throw new Error("You have already made a decision on this invoice.");
                     }
+                    if (sale.fulfillment_status === 'fulfilled') {
+                        for (const reverted of restockedItems) {
+                            await supabase.rpc("decrement_stock", {
+                                p_product_id: reverted.product_id,
+                                p_branch_id: sale.branch_id,
+                                p_quantity: reverted.quantity,
+                            });
+                        }
+                    }
                     throw new Error(`Reject record failed: ${rejectRecordError.message}`);
                 }
 
@@ -537,15 +575,27 @@ Deno.serve(async (req: Request) => {
                     .from("sales")
                     .update({
                         status: "rejected",
+                        fulfillment_status: "unfulfilled",
                         approved_by: userId,
                         approval_count: 0,
                         notes: params.reason || "Rejected",
                         updated_at: now,
                     })
                     .eq("id", saleId)
-                    .eq("status", "pending_approval");
+                    .eq("status", "pending_approval\");
 
-                if (error) throw new Error(`Reject failed: ${error.message}`);
+                if (error) {
+                    if (sale.fulfillment_status === 'fulfilled') {
+                        for (const reverted of restockedItems) {
+                            await supabase.rpc("decrement_stock", {
+                                p_product_id: reverted.product_id,
+                                p_branch_id: sale.branch_id,
+                                p_quantity: reverted.quantity,
+                            });
+                        }
+                    }
+                    throw new Error(`Reject failed: ${error.message}`);
+                }
                 return jsonResponse({ status: "rejected", sale_id: saleId });
             }
 
@@ -567,7 +617,6 @@ Deno.serve(async (req: Request) => {
 
                 const restockedItems: Array<{ product_id: string; quantity: number }> = [];
 
-                // Reverse stock if it was fulfilled
                 if (sale.fulfillment_status === 'fulfilled') {
                     for (const item of sale.sale_items || []) {
                         const quantity = Number(item.quantity || 0);
@@ -601,6 +650,8 @@ Deno.serve(async (req: Request) => {
                     .from("sales")
                     .update({
                         status: "voided",
+                        fulfillment_status: "unfulfilled",
+                        voided_at: now,
                         notes: `${sale.notes || ""}\n[VOIDED] ${params.reason || "Voided by user"}`,
                         updated_at: now,
                     })
@@ -639,14 +690,12 @@ Deno.serve(async (req: Request) => {
 
                 if (!sale) throw new Error("Sale not found. Ensure the invoice has synced before recording payment.");
 
-                // Can only accept payment if it's not fully paid and not voided.
                 if (sale.payment_status === "paid" || sale.status === "voided" || sale.status === "rejected") {
                     throw new Error(`Cannot record payment on ${sale.status} sale or an already paid sale`);
                 }
 
                 const paymentId = crypto.randomUUID();
 
-                // Insert payment
                 const { error: payError } = await supabase
                     .from("sale_payments")
                     .insert({
@@ -664,7 +713,6 @@ Deno.serve(async (req: Request) => {
 
                 if (payError) throw new Error(`Payment failed: ${payError.message}`);
                 
-                // Update sale totals
                 const newAmountPaid = (sale.amount_paid || 0) + amount;
                 const grandTotal = sale.grand_total || 0;
 
@@ -673,7 +721,6 @@ Deno.serve(async (req: Request) => {
                     newPaymentStatus = "paid";
                 }
 
-                // Auto-release goods on first payment so stock is decremented immediately.
                 let fulfillmentStatus = sale.fulfillment_status;
                 let releasedNow = false;
                 const decrementedItems: Array<{ product_id: string; quantity: number }> = [];
@@ -761,6 +808,98 @@ Deno.serve(async (req: Request) => {
                 });
             }
 
+            case "delete_payment": {
+                const { payment_id } = params;
+                if (!payment_id) throw new Error("Missing payment_id");
+
+                const { data: payment } = await supabase
+                    .from("sale_payments")
+                    .select("*")
+                    .eq("id", payment_id)
+                    .single();
+
+                if (!payment) throw new Error("Payment not found");
+
+                const { data: sale } = await supabase
+                    .from("sales")
+                    .select("*")
+                    .eq("id", saleId)
+                    .single();
+
+                if (!sale) throw new Error("Sale not found");
+
+                const newAmountPaid = Math.max(0, (sale.amount_paid || 0) - (payment.amount || 0));
+                const grandTotal = sale.grand_total || 0;
+
+                let newPaymentStatus = "partially_paid";
+                if (newAmountPaid <= 0) {
+                    newPaymentStatus = "unpaid";
+                } else if (newAmountPaid >= grandTotal) {
+                    newPaymentStatus = "paid";
+                }
+
+                const { error: updateError } = await supabase
+                    .from("sales")
+                    .update({
+                        amount_paid: newAmountPaid,
+                        payment_status: newPaymentStatus,
+                        completed_at: null,
+                        updated_at: now,
+                    })
+                    .eq("id", saleId);
+
+                if (updateError) throw new Error(`Sale update failed: ${updateError.message}`);
+
+                const { error: deleteError } = await supabase
+                    .from("sale_payments")
+                    .delete()
+                    .eq("id", payment_id);
+
+                if (deleteError) throw new Error(`Payment deletion failed: ${deleteError.message}`);
+
+                return jsonResponse({
+                    sale_id: saleId,
+                    amount_paid: newAmountPaid,
+                    payment_status: newPaymentStatus,
+                });
+            }
+
+            case "delete_sale": {
+                const { data: sale } = await supabase
+                    .from("sales")
+                    .select("*, sale_items(*)")
+                    .eq("id", saleId)
+                    .single();
+
+                if (!sale) throw new Error("Sale not found");
+
+                if (sale.fulfillment_status === "fulfilled") {
+                    for (const item of sale.sale_items || []) {
+                        const quantity = Number(item.quantity || 0);
+                        if (quantity <= 0) continue;
+
+                        await supabase.rpc("increment_stock", {
+                            p_product_id: item.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: quantity,
+                        });
+                    }
+                }
+
+                await supabase.from("sale_items").delete().eq("sale_id", saleId);
+                await supabase.from("sale_payments").delete().eq("sale_id", saleId);
+                await supabase.from("sale_approvals").delete().eq("sale_id", saleId);
+                
+                const { error: deleteError } = await supabase
+                    .from("sales")
+                    .delete()
+                    .eq("id", saleId);
+
+                if (deleteError) throw new Error(`Sale deletion failed: ${deleteError.message}`);
+
+                return jsonResponse({ success: true, deleted_sale_id: saleId });
+            }
+
             case "create_credit_note": {
                 const { original_sale_id, reason, items: cnItems, restock_items } = params;
 
@@ -810,7 +949,6 @@ Deno.serve(async (req: Request) => {
                     0
                 );
 
-                // Generate CN number
                 const currentYear = new Date().getFullYear();
                 const { data: seq, error: cnCounterError } = await supabase.rpc(
                     "next_invoice_number",
@@ -847,7 +985,6 @@ Deno.serve(async (req: Request) => {
                 if (cnError)
                     throw new Error(`Credit note creation failed: ${cnError.message}`);
 
-                // Insert CN items
                 const creditItems = normalizedItems.map((item: any) => ({
                     id: crypto.randomUUID(),
                     credit_note_id: cnId,
@@ -910,7 +1047,6 @@ Deno.serve(async (req: Request) => {
 
                 const restockedItems: Array<{ product_id: string; quantity: number }> = [];
 
-                // Restock items (if toggled) before marking as approved.
                 if (cn.restock_items) {
                     if (!branchForStock) {
                         throw new Error("Missing branch context for restock");
@@ -978,7 +1114,6 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Credit note not found or not approved");
                 }
 
-                // Update target sale directly to apply credit as payment
                 const { data: targetSale } = await supabase
                     .from("sales")
                     .select("*")
@@ -1046,7 +1181,6 @@ Deno.serve(async (req: Request) => {
 
                 if (payError) throw new Error(`Credit application failed: ${payError.message}`);
 
-                // Mark CN as applied
                 const { error: cnApplyError } = await supabase
                     .from("credit_notes")
                     .update({

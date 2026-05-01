@@ -13,6 +13,7 @@ import 'widgets/metric_cards.dart';
 import 'widgets/charts.dart';
 import 'widgets/orders_list.dart';
 import 'widgets/products_list.dart';
+import 'staff_dashboard_layout.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN DASHBOARD LAYOUT
@@ -41,6 +42,17 @@ class DashboardLayout extends ConsumerWidget {
 
     final displayName = profileAsync.value?.displayName ?? 'User';
     final tenantName = tenantAsync.value?.name ?? 'Passionate Homes';
+
+    final hasDashboardPermission = profileAsync.value?.hasPermission(Permission.viewDashboard) ?? false;
+    if (!hasDashboardPermission && profileAsync.value != null) {
+      return StaffDashboardLayout(
+        role: role,
+        displayName: displayName,
+        tenantName: tenantName,
+        photoUrl: profileAsync.value?.profilePictureUrl,
+        greeting: greeting,
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -113,12 +125,13 @@ class _DesktopDashboard extends StatelessWidget {
         backgroundColor: colorScheme.surface,
         child: Column(
           children: [
-            _DesktopAppBar(
+            DesktopAppBar(
               colorScheme: colorScheme,
               theme: theme,
               tenantName: tenantName,
               displayName: displayName,
               role: role,
+              greeting: greeting,
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -260,19 +273,22 @@ class _MobileDashboard extends StatelessWidget {
 // APP BAR COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _DesktopAppBar extends StatelessWidget {
+class DesktopAppBar extends StatelessWidget {
   final ColorScheme colorScheme;
   final ThemeData theme;
   final String tenantName;
   final String displayName;
   final UserRole role;
+  final String greeting;
 
-  const _DesktopAppBar({
+  const DesktopAppBar({
+    super.key,
     required this.colorScheme,
     required this.theme,
     required this.tenantName,
     required this.displayName,
     required this.role,
+    required this.greeting,
   });
 
   @override
@@ -294,7 +310,7 @@ class _DesktopAppBar extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Welcome back, $displayName',
+                '$greeting, $displayName',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
