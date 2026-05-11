@@ -120,6 +120,9 @@ ItemGroup _$ItemGroupFromJson(Map<String, dynamic> json) => ItemGroup(
   defaultCommissionType: json['default_commission_type'] as String?,
   defaultCommissionValue: (json['default_commission_value'] as num?)
       ?.toDouble(),
+  defaultSellingPrice: (json['default_selling_price'] as num?)?.toDouble(),
+  defaultBuyingPrice: (json['default_buying_price'] as num?)?.toDouble(),
+  attributes: json['attributes'] as String?,
   createdAt: _dateFromAny(json['created_at']),
   updatedAt: _dateFromAny(json['updated_at']),
 );
@@ -132,6 +135,9 @@ Map<String, dynamic> _$ItemGroupToJson(ItemGroup instance) => <String, dynamic>{
   'description': instance.description,
   'default_commission_type': instance.defaultCommissionType,
   'default_commission_value': instance.defaultCommissionValue,
+  'default_selling_price': instance.defaultSellingPrice,
+  'default_buying_price': instance.defaultBuyingPrice,
+  'attributes': instance.attributes,
   'created_at': _dateToIso(instance.createdAt),
   'updated_at': _dateToIso(instance.updatedAt),
 };
@@ -147,7 +153,7 @@ Product _$ProductFromJson(Map<String, dynamic> json) => Product(
   barcode: json['barcode'] as String?,
   description: json['description'] as String?,
   imageUrl: json['image_url'] as String?,
-  basePrice: (json['base_price'] as num).toDouble(),
+  basePrice: (json['base_price'] as num?)?.toDouble(),
   costPrice: (json['cost_price'] as num?)?.toDouble(),
   weight: (json['weight'] as num?)?.toDouble(),
   length: (json['length'] as num?)?.toDouble(),
@@ -158,6 +164,9 @@ Product _$ProductFromJson(Map<String, dynamic> json) => Product(
       ? false
       : _boolFromSqlite(json['is_service']),
   uomId: json['uom_id'] as String?,
+  commissionType: json['commission_type'] as String?,
+  commissionValue: (json['commission_value'] as num?)?.toDouble(),
+  parentId: json['parent_id'] as String?,
   createdAt: _dateFromAny(json['created_at']),
   updatedAt: _dateFromAny(json['updated_at']),
 );
@@ -182,6 +191,9 @@ Map<String, dynamic> _$ProductToJson(Product instance) => <String, dynamic>{
   'tax_category': instance.taxCategory,
   'is_service': _boolToSqlite(instance.isService),
   'uom_id': instance.uomId,
+  'commission_type': instance.commissionType,
+  'commission_value': instance.commissionValue,
+  'parent_id': instance.parentId,
   'created_at': _dateToIso(instance.createdAt),
   'updated_at': _dateToIso(instance.updatedAt),
 };
@@ -217,6 +229,7 @@ StockAdjustment _$StockAdjustmentFromJson(Map<String, dynamic> json) =>
       referenceNumber: json['reference_number'] as String?,
       notes: json['notes'] as String?,
       createdBy: json['created_by'] as String?,
+      salespersonId: json['salesperson_id'] as String?,
       reasonId: json['reason_id'] as String?,
       createdAt: _dateFromAny(json['created_at']),
       status:
@@ -245,6 +258,7 @@ Map<String, dynamic> _$StockAdjustmentToJson(StockAdjustment instance) =>
       'reference_number': instance.referenceNumber,
       'notes': instance.notes,
       'created_by': instance.createdBy,
+      'salesperson_id': instance.salespersonId,
       'reason_id': instance.reasonId,
       'created_at': _dateToIso(instance.createdAt),
       'status': _$StockAdjustmentStatusEnumMap[instance.status]!,

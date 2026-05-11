@@ -72,15 +72,26 @@ class CsvImportService {
         cat.name.trim().toLowerCase(): cat.id,
     };
 
+    final groupsSnapshot = await repo.watchItemGroups().first;
+    final Map<String, String> groupMap = {
+      for (final group in groupsSnapshot)
+        group.name.trim().toLowerCase(): group.id,
+    };
+
     for (final p in parsedProducts) {
       final newProductId = const Uuid().v4();
-      final double basePrice =
-          double.tryParse(p['selling_price'].toString()) ?? 0.0;
-      final double? costPrice = double.tryParse(p['cost_price'].toString());
+      
+      // Pricing
+      final sellingPriceRaw = p['selling_price']?.toString() ?? '';
+      final double? basePrice = sellingPriceRaw.isEmpty ? null : double.tryParse(sellingPriceRaw);
+      
+      final costPriceRaw = p['cost_price']?.toString() ?? '';
+      final double? costPrice = costPriceRaw.isEmpty ? null : double.tryParse(costPriceRaw);
+      
       final int initialStock = int.tryParse(p['initial_stock'].toString()) ?? 0;
 
-      final String categoryNameRaw =
-          p['category']?.toString() ?? 'Uncategorized';
+      // Category Resolution
+      final String categoryNameRaw = p['category']?.toString() ?? 'Uncategorized';
       final String categoryNameClean = categoryNameRaw.trim();
       final String categoryKey = categoryNameClean.toLowerCase();
 
@@ -101,12 +112,45 @@ class CsvImportService {
         categoryMap[categoryKey] = categoryId;
       }
 
+      // Item Group Resolution
+      final String groupNameRaw = p['item_group']?.toString() ?? 'Default';
+      final String groupNameClean = groupNameRaw.trim();
+      final String groupKey = groupNameClean.toLowerCase();
+
+      String? itemGroupId;
+      if (groupMap.containsKey(groupKey)) {
+        itemGroupId = groupMap[groupKey]!;
+      } else {
+        itemGroupId = const Uuid().v4();
+        
+        // Parse optional group defaults from CSV row if present
+        final defSelling = double.tryParse(p['group_selling_price']?.toString() ?? '');
+        final defBuying = double.tryParse(p['group_buying_price']?.toString() ?? '');
+        final commType = p['group_commission_type']?.toString();
+        final commValue = double.tryParse(p['group_commission_value']?.toString() ?? '');
+
+        final newGroup = ItemGroup(
+          id: itemGroupId,
+          tenantId: tenantId,
+          branchId: allBranchesMode ? null : selectedBranchId,
+          name: groupNameClean,
+          description: p['group_description']?.toString(),
+          defaultSellingPrice: defSelling,
+          defaultBuyingPrice: defBuying,
+          defaultCommissionType: commType,
+          defaultCommissionValue: commValue,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        await repo.createItemGroup(newGroup);
+        groupMap[groupKey] = itemGroupId;
+      }
+
       final product = Product(
         id: newProductId,
         tenantId: tenantId,
         branchId: null,
-        itemGroupId:
-            null, // CSV batch imports don't link to groups by default yet
+        itemGroupId: itemGroupId,
         categoryId: categoryId,
         name: p['name'].toString(),
         sku: p['sku']?.toString(),

@@ -207,7 +207,7 @@ class InvoiceTemplate {
               ),
               pw.SizedBox(height: 4),
               pw.Text(
-                'Date: ${dateFormat.format(sale.createdAt ?? DateTime.now())}',
+                'Date: ${dateFormat.format((sale.createdAt ?? DateTime.now()).toLocal())}',
                 style: const pw.TextStyle(
                   fontSize: 9,
                   color: PdfColors.grey400,
@@ -476,7 +476,7 @@ class InvoiceTemplate {
           headers: ['Date', 'Method', 'Reference', 'Amount'],
           data: payments.map((p) {
             return [
-              dateFormat.format(p.createdAt ?? DateTime.now()),
+              dateFormat.format((p.createdAt ?? DateTime.now()).toLocal()),
               p.paymentMethod,
               p.referenceNumber ?? '—',
               'Ksh ${currencyFormat.format(p.amount)}',

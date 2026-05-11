@@ -244,6 +244,9 @@ class ItemGroup {
   final String? description;
   final String? defaultCommissionType;
   final double? defaultCommissionValue;
+  final double? defaultSellingPrice;
+  final double? defaultBuyingPrice;
+  final String? attributes;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
@@ -257,6 +260,9 @@ class ItemGroup {
     this.description,
     this.defaultCommissionType,
     this.defaultCommissionValue,
+    this.defaultSellingPrice,
+    this.defaultBuyingPrice,
+    this.attributes,
     this.createdAt,
     this.updatedAt,
   });
@@ -279,7 +285,7 @@ class Product {
   final String? barcode;
   final String? description;
   final String? imageUrl;
-  final double basePrice;
+  final double? basePrice;
   final double? costPrice;
   final double? weight;
   final double? length;
@@ -289,6 +295,9 @@ class Product {
   @JsonKey(fromJson: _boolFromSqlite, toJson: _boolToSqlite)
   final bool isService;
   final String? uomId;
+  final String? commissionType;
+  final double? commissionValue;
+  final String? parentId;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
@@ -314,6 +323,9 @@ class Product {
     String? taxCategory,
     bool? isService,
     String? uomId,
+    String? commissionType,
+    double? commissionValue,
+    String? parentId,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -337,6 +349,9 @@ class Product {
       taxCategory: taxCategory ?? this.taxCategory,
       isService: isService ?? this.isService,
       uomId: uomId ?? this.uomId,
+      commissionType: commissionType ?? this.commissionType,
+      commissionValue: commissionValue ?? this.commissionValue,
+      parentId: parentId ?? this.parentId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -353,7 +368,7 @@ class Product {
     this.barcode,
     this.description,
     this.imageUrl,
-    required this.basePrice,
+    this.basePrice,
     this.costPrice,
     this.weight,
     this.length,
@@ -362,6 +377,9 @@ class Product {
     this.taxCategory,
     this.isService = false,
     this.uomId,
+    this.commissionType,
+    this.commissionValue,
+    this.parentId,
     this.createdAt,
     this.updatedAt,
   });
@@ -408,6 +426,7 @@ class StockAdjustment {
   final String? referenceNumber;
   final String? notes;
   final String? createdBy;
+  final String? salespersonId;
   final String? reasonId;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
@@ -441,6 +460,7 @@ class StockAdjustment {
     this.referenceNumber,
     this.notes,
     this.createdBy,
+    this.salespersonId,
     this.reasonId,
     this.createdAt,
     this.status = StockAdjustmentStatus.pending,

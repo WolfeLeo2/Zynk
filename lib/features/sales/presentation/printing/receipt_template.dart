@@ -92,7 +92,7 @@ class ReceiptTemplate {
                     ),
                   ),
                   pw.Text(
-                    dateFormat.format(sale.createdAt ?? DateTime.now()),
+                    dateFormat.format((sale.createdAt ?? DateTime.now()).toLocal()),
                     style: const pw.TextStyle(fontSize: 8),
                   ),
                 ],

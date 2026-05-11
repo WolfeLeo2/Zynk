@@ -4,7 +4,6 @@ import 'package:path/path.dart';
 import '../services/app_logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 final _log = AppLogger('PowerSync');
 
@@ -89,6 +88,9 @@ final schema = Schema([
     Column.text('description'),
     Column.text('default_commission_type'),
     Column.real('default_commission_value'),
+    Column.real('default_selling_price'),
+    Column.real('default_buying_price'),
+    Column.text('attributes'), // JSON string
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -127,7 +129,10 @@ final schema = Schema([
     Column.real('cost_price'),
     Column.text('tax_category'),
     Column.integer('is_service'), // Boolean as Integer (0/1)
+    Column.text('commission_type'),
+    Column.real('commission_value'),
     Column.text('uom_id'),
+    Column.text('parent_id'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -160,6 +165,7 @@ final schema = Schema([
     Column.text('reference_number'),
     Column.text('notes'),
     Column.text('created_by'),
+    Column.text('salesperson_id'),
     Column.text('reason_id'),
     Column.text('status'),
     Column.text('bundle_id'),
@@ -419,9 +425,9 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     final token = session.accessToken;
 
     // 3. Retrieve the PowerSync URL from environment
-    final powerSyncUrl = dotenv.env['POWERSYNC_URL'];
-    if (powerSyncUrl == null) {
-      throw Exception('POWERSYNC_URL not found in .env');
+    const powerSyncUrl = String.fromEnvironment('POWERSYNC_URL');
+    if (powerSyncUrl.isEmpty) {
+      throw Exception('POWERSYNC_URL not found in environment');
     }
 
     // 4. Return credentials
@@ -466,7 +472,19 @@ class SupabaseConnector extends PowerSyncBackendConnector {
             );
             payload['created_by'] = _normalizeCreatedBy(payload['created_by']);
           }
-          await supabase.from(table).upsert(payload);
+          if (table == 'product_branches') {
+            await supabase.from(table).upsert(
+              payload,
+              onConflict: 'product_id,branch_id',
+            );
+          } else if (table == 'profile_branches') {
+            await supabase.from(table).upsert(
+              payload,
+              onConflict: 'profile_id,branch_id',
+            );
+          } else {
+            await supabase.from(table).upsert(payload);
+          }
         } else if (op.op == UpdateType.patch) {
           // UPDATE
           final payload = <String, dynamic>{...data!};
@@ -572,6 +590,14 @@ Future<void> _runLocalCompatMigrations() async {
 
   try {
     await db.execute('ALTER TABLE stock_adjustments ADD COLUMN bundle_id TEXT');
+  } catch (_) {
+    // Ignore if table/column is not yet available.
+  }
+
+  try {
+    await db.execute(
+      'ALTER TABLE stock_adjustments ADD COLUMN salesperson_id TEXT',
+    );
   } catch (_) {
     // Ignore if table/column is not yet available.
   }

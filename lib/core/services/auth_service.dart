@@ -74,8 +74,9 @@ class AuthService {
     required String name,
     required String phone,
     required String address,
-    String? branchId,
+    List<String>? branchIds,
     String role = 'Cashier',
+    List<String>? permissions,
   }) async {
     await _supabase.functions.invoke(
       'create-staff-user',
@@ -85,8 +86,9 @@ class AuthService {
         'name': name,
         'phone': phone,
         'address': address,
-        'branch_id': branchId,
+        'branch_ids': branchIds,
         'role': role,
+        'permissions': permissions,
       },
     );
   }

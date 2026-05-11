@@ -460,6 +460,8 @@ class SaleApproval {
   final DateTime? createdAt;
   @JsonKey(includeToJson: false)
   final String? approverDisplayName;
+  @JsonKey(includeToJson: false)
+  final String? approverRole;
 
   SaleApproval({
     required this.id,
@@ -470,6 +472,7 @@ class SaleApproval {
     this.notes,
     this.createdAt,
     this.approverDisplayName,
+    this.approverRole,
   });
 
   factory SaleApproval.fromMap(Map<String, dynamic> map) =>

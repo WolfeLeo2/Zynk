@@ -11,6 +11,7 @@ import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 
 class PosTicket extends ConsumerWidget {
@@ -473,12 +474,22 @@ class _TicketItemRow extends ConsumerWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  Text(
-                    'Ksh ${item.product.basePrice.toStringAsFixed(0)} each',
-                    style: tt.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                      fontSize: 11,
-                    ),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final group = item.product.itemGroupId != null
+                          ? ref.watch(itemGroupProvider(item.product.itemGroupId!)).value
+                          : null;
+                      final resolvedPrice = ref
+                          .watch(productPricingServiceProvider)
+                          .resolveSellingPrice(item.product, group);
+                      return Text(
+                        'Ksh ${resolvedPrice.toStringAsFixed(0)} each',
+                        style: tt.bodySmall?.copyWith(
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                          fontSize: 11,
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

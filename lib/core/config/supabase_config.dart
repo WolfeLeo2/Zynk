@@ -1,18 +1,16 @@
-import 'package:flutter_dotenv/flutter_dotenv.dart';
-
 class SupabaseConfig {
   static String get url {
-    final url = dotenv.env['SUPABASE_URL'];
-    if (url == null || url.isEmpty) {
-      throw Exception('SUPABASE_URL not found in .env');
+    const url = String.fromEnvironment('SUPABASE_URL');
+    if (url.isEmpty) {
+      throw Exception('SUPABASE_URL not found in environment');
     }
     return url;
   }
 
   static String get anonKey {
-    final key = dotenv.env['SUPABASE_ANON_KEY'];
-    if (key == null || key.isEmpty) {
-      throw Exception('SUPABASE_ANON_KEY not found in .env');
+    const key = String.fromEnvironment('SUPABASE_ANON_KEY');
+    if (key.isEmpty) {
+      throw Exception('SUPABASE_ANON_KEY not found in environment');
     }
     return key;
   }

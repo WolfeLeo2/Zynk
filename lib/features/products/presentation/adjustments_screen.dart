@@ -215,13 +215,13 @@ class _BundleTile extends StatelessWidget {
     };
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 6),
+      padding: const EdgeInsets.symmetric(vertical: 2),
       child: Card(
         elevation: 0,
         color: colorScheme.surfaceContainerLow,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15)),
+          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5)),
         ),
         child: InkWell(
           onTap: () => context.push('/settings/adjustments-review/$bundleId'),
@@ -235,18 +235,31 @@ class _BundleTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        first.referenceNumber ?? 'ADJ-${bundleId.substring(0, 5).toUpperCase()}',
-                        style: textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                        first.reasonLabel ?? 'ADJ-${bundleId.substring(0, 5).toUpperCase()}',
+                        style: textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: first.reasonLabel != null ? colorScheme.primary : null,
+                        ),
                       ),
                     ),
                     _StatusBadge(label: statusLabel, color: statusColor),
                   ],
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: 4),
+                if (first.referenceNumber != null && first.referenceNumber!.isNotEmpty) ...[
+                  Text(
+                    'Ref: ${first.referenceNumber}',
+                    style: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                ],
                 Text(
-                  items.length == 1 
-                    ? first.productName ?? 'Unknown Product'
-                    : '${first.productName ?? "Unknown"} and ${items.length - 1} others',
+                  items.length == 1
+                      ? first.productName ?? 'Unknown Product'
+                      : '${first.productName ?? "Unknown"} and ${items.length - 1} others',
                   style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                 ),
                 const SizedBox(height: 12),

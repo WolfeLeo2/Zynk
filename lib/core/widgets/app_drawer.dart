@@ -23,6 +23,7 @@ class AppDrawer extends ConsumerWidget {
     return Drawer(
       backgroundColor: theme.scaffoldBackgroundColor,
       elevation: 1,
+      semanticLabel: 'Main navigation menu',
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -47,7 +48,8 @@ class AppDrawer extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Text(
                   //chanegd from Zynk to PH for client needs
-                  'Passionate Homes',
+                  'Passionate\nHomes',
+                  overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,
                     letterSpacing: -0.5,

@@ -469,7 +469,19 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     ),
                     const SizedBox(height: 8),
 
-                    ..._items.map((item) => _buildItemRow(item, cs, theme)),
+                    ..._items.map(
+                      (item) => _buildItemRow(
+                        item,
+                        cs,
+                        theme,
+                        onRemove: () {
+                          setState(() {
+                            item.dispose();
+                            _items.remove(item);
+                          });
+                        },
+                      ),
+                    ),
                     const SizedBox(height: 16),
 
                     // ── Total ──
@@ -562,8 +574,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
   Widget _buildItemRow(
     _EditableSaleItem item,
     ColorScheme cs,
-    ThemeData theme,
-  ) {
+    ThemeData theme, {
+    required VoidCallback onRemove,
+  }) {
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(14),
@@ -575,19 +588,35 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextFormField(
-            controller: item.nameCtr,
-            onChanged: (_) => setState(() {}),
-            decoration: InputDecoration(
-              labelText: 'Product Name',
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  controller: item.nameCtr,
+                  onChanged: (_) => setState(() {}),
+                  decoration: InputDecoration(
+                    labelText: 'Product Name',
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  textCapitalization: TextCapitalization.words,
+                ),
               ),
-            ),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Required' : null,
-            textCapitalization: TextCapitalization.words,
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onRemove,
+                icon: Icon(
+                  PhosphorIconsRegular.trash,
+                  color: cs.error,
+                  size: 20,
+                ),
+                tooltip: 'Remove item',
+              ),
+            ],
           ),
           const SizedBox(height: 10),
           Row(

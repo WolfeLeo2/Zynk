@@ -21,6 +21,11 @@ final allItemGroupsProvider = StreamProvider.autoDispose<List<ItemGroup>>((
   return repository.watchItemGroups();
 });
 
+final itemGroupProvider = StreamProvider.autoDispose.family<ItemGroup?, String>((ref, id) {
+  final repository = ref.watch(repositoryProvider);
+  return repository.watchItemGroup(id);
+});
+
 /// ─────────────────────────────────────────
 /// Products
 /// ─────────────────────────────────────────
@@ -38,6 +43,12 @@ final allProductsProvider = StreamProvider.autoDispose<List<Product>>((ref) {
   final branchId = ref.watch(currentBranchIdProvider);
   return repository.watchProducts(branchId: branchId);
 });
+
+final productsByGroupProvider =
+    StreamProvider.autoDispose.family<List<Product>, String>((ref, groupId) {
+      final repository = ref.watch(repositoryProvider);
+      return repository.watchProductsByGroup(groupId);
+    });
 
 /// ─────────────────────────────────────────
 /// Stock
@@ -130,3 +141,9 @@ final compositeProductsProvider = StreamProvider.autoDispose<List<Product>>((
       .watchProducts(branchId: branchId)
       .map((products) => products.toList());
 });
+
+final productCountByGroupProvider =
+    Provider.autoDispose.family<int, String>((ref, groupId) {
+      final products = ref.watch(allProductsProvider).value ?? [];
+      return products.where((p) => p.itemGroupId == groupId).length;
+    });

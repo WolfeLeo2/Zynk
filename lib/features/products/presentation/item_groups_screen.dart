@@ -6,9 +6,8 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/models/staff_model.dart';
-import 'package:zynk/core/models/adjustment_reason.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_pricing_update_sheet.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_stock_update_sheet.dart';
 
 class ItemGroupsScreen extends ConsumerWidget {
   const ItemGroupsScreen({super.key});
@@ -33,16 +32,7 @@ class ItemGroupsScreen extends ConsumerWidget {
           },
         ),
         title: const Text('Item Groups'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: FilledButton.icon(
-              onPressed: () => context.push('/products/groups/add'),
-              icon: const Icon(PhosphorIconsBold.plus, size: 18),
-              label: const Text('Add Group'),
-            ),
-          ),
-        ],
+        actions: const [],
       ),
       body: itemGroupsAsync.when(
         data: (groups) {
@@ -85,6 +75,11 @@ class ItemGroupsScreen extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push("/products/groups/add"),
+        icon: const Icon(PhosphorIconsBold.plus),
+        label: const Text("Add Group"),
       ),
     );
   }
@@ -189,106 +184,143 @@ class _ItemGroupCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
+    final productCount = ref.watch(productCountByGroupProvider(group.id));
+
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: cs.outlineVariant),
         ),
-        child: InkWell(
+        child: ListTile(
           onTap: () =>
               context.push('/products/groups/${group.id}', extra: group),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: PhosphorIcon(
-                    PhosphorIconsDuotone.folder,
-                    color: cs.onPrimaryContainer,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        group.name,
-                        style: theme.textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (group.description != null &&
-                          group.description!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          group.description!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                PopupMenuButton<String>(
-                  icon: const PhosphorIcon(
-                    PhosphorIconsRegular.dotsThreeVertical,
-                  ),
-                  tooltip: 'Batch Actions',
-                  onSelected: (value) {
-                    switch (value) {
-                      case 'view':
-                        context.push('/products?groupId=${group.id}');
-                      case 'price':
-                        _showBatchPriceSheet(context, ref, group);
-                      case 'stock':
-                        _showBatchStockSheet(context, ref, group);
-                      case 'delete':
-                        _showDeleteDialog(context, ref, group);
-                    }
-                  },
-                  itemBuilder: (context) => [
-                    const PopupMenuItem(
-                      value: 'view',
-                      child: Text('View Items'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'price',
-                      child: Text('Batch Update Price'),
-                    ),
-                    const PopupMenuItem(
-                      value: 'stock',
-                      child: Text('Batch Update Stock'),
-                    ),
-                    const PopupMenuDivider(),
-                    PopupMenuItem(
-                      value: 'delete',
-                      child: Text(
-                        'Delete Group',
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: PhosphorIcon(
+              PhosphorIconsDuotone.folder,
+              color: cs.onPrimaryContainer,
+              size: 22,
+            ),
+          ),
+          title: Text(
+            group.name,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (group.description != null && group.description!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    group.description!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  _buildStat(
+                    theme,
+                    PhosphorIconsRegular.package,
+                    '$productCount Items',
+                  ),
+                  _buildStat(
+                    theme,
+                    PhosphorIconsRegular.tag,
+                    'KES ${group.defaultSellingPrice?.toStringAsFixed(0) ?? "0"}',
+                  ),
+                  if (group.defaultCommissionValue != null &&
+                      group.defaultCommissionValue! > 0)
+                    _buildStat(
+                      theme,
+                      PhosphorIconsRegular.handCoins,
+                      group.defaultCommissionType == 'percentage'
+                          ? '${group.defaultCommissionValue}%'
+                          : 'KES ${group.defaultCommissionValue}',
+                    ),
+                ],
+              ),
+            ],
+          ),
+          trailing: PopupMenuButton<String>(
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.dotsThreeVertical,
+            ),
+            tooltip: 'Batch Actions',
+            onSelected: (value) {
+              switch (value) {
+                case 'view':
+                  context.push('/products?groupId=${group.id}');
+                case 'price':
+                  _showBatchPriceSheet(context, ref, group);
+                case 'stock':
+                  _showBatchStockSheet(context, ref, group);
+                case 'delete':
+                  _showDeleteDialog(context, ref, group);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'view',
+                child: Text('View Items'),
+              ),
+              const PopupMenuItem(
+                value: 'price',
+                child: Text('Batch Update Price'),
+              ),
+              const PopupMenuItem(
+                value: 'stock',
+                child: Text('Batch Update Stock'),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(
+                  'Delete Group',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildStat(ThemeData theme, IconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          icon,
+          size: 14,
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -298,66 +330,12 @@ void _showBatchPriceSheet(
   WidgetRef ref,
   ItemGroup group,
 ) {
-  final controller = TextEditingController();
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    builder: (context) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        top: 24,
-        left: 24,
-        right: 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Set Price for All Items in "${group.name}"',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'This will update the base price for every item in this group.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            decoration: const InputDecoration(
-              labelText: 'New Price',
-              prefixText: 'KES ',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: () async {
-                final price = double.tryParse(controller.text);
-                if (price == null) return;
-                final repo = ref.read(repositoryProvider);
-                await repo.batchSetPriceForGroup(group.id, price);
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Price updated successfully for items in "${group.name}"',
-                      ),
-                    ),
-                  );
-                  Navigator.pop(context);
-                }
-              },
-              child: const Text('Apply to All Items'),
-            ),
-          ),
-        ],
-      ),
+    useSafeArea: true,
+    builder: (context) => BatchPricingUpdateSheet(
+      group: group,
     ),
   );
 }
@@ -370,273 +348,9 @@ void _showBatchStockSheet(
   showModalBottomSheet(
     context: context,
     isScrollControlled: true,
-    builder: (context) => _BatchStockSheet(group: group),
+    useSafeArea: true,
+    builder: (context) => BatchStockUpdateSheet(group: group),
   );
-}
-
-class _BatchStockSheet extends ConsumerStatefulWidget {
-  final ItemGroup group;
-  const _BatchStockSheet({required this.group});
-
-  @override
-  ConsumerState<_BatchStockSheet> createState() => _BatchStockSheetState();
-}
-
-class _BatchStockSheetState extends ConsumerState<_BatchStockSheet> {
-  final _qtyController = TextEditingController();
-  final _referenceController = TextEditingController();
-  String _mode = 'set'; // 'set' | 'add' | 'subtract'
-
-  StaffMember? _selectedAdjuster;
-  AdjustmentReason? _selectedReason;
-  bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _qtyController.dispose();
-    _referenceController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _submit() async {
-    final qtyInfo = int.tryParse(_qtyController.text);
-    if (qtyInfo == null || qtyInfo < 0) return;
-
-    // created_by must reference auth.users(id), so we always use current profile userId.
-    final currentUser = ref.read(currentProfileProvider);
-    final adjusterId = currentUser?.userId;
-    if (adjusterId == null) return;
-
-    final tenantId = ref.read(tenantIdProvider) ?? '';
-    final branchId = ref.read(currentBranchIdProvider) ?? '';
-
-    if (branchId.isEmpty) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please select a branch first.')),
-        );
-      }
-      return;
-    }
-
-    final allBranchesMode = branchId == 'all';
-    if (allBranchesMode && _mode != 'add') {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'All Branches mode supports additions only. Use a specific branch for set/subtract.',
-            ),
-          ),
-        );
-      }
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    try {
-      final repo = ref.read(repositoryProvider);
-      final referenceNumber = _referenceController.text.trim().isEmpty
-          ? null
-          : _referenceController.text.trim();
-
-      if (allBranchesMode) {
-        final branches = (await repo.getBranches(
-          tenantId,
-        )).where((b) => b.id != 'all').toList();
-
-        if (branches.isEmpty) {
-          throw Exception('No branches found to apply stock additions.');
-        }
-
-        for (final branch in branches) {
-          await repo.batchAdjustStockForGroup(
-            groupId: widget.group.id,
-            tenantId: tenantId,
-            branchId: branch.id,
-            quantity: qtyInfo,
-            mode: _mode,
-            adjusterId: adjusterId,
-            adjustmentType: 'auto',
-            reasonId: _selectedReason?.id,
-            referenceNumber: referenceNumber,
-          );
-        }
-      } else {
-        await repo.batchAdjustStockForGroup(
-          groupId: widget.group.id,
-          tenantId: tenantId,
-          branchId: branchId,
-          quantity: qtyInfo,
-          mode: _mode,
-          adjusterId: adjusterId,
-          adjustmentType: 'auto',
-          reasonId: _selectedReason?.id,
-          referenceNumber: referenceNumber,
-        );
-      }
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              allBranchesMode
-                  ? 'Stock added for group "${widget.group.name}" across all branches'
-                  : 'Stock updated successfully for items in "${widget.group.name}"',
-            ),
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final staffAsync = ref.watch(humanStaffProvider);
-    final reasonsAsync = ref.watch(adjustmentReasonsProvider);
-
-    return Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        top: 24,
-        left: 24,
-        right: 24,
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Batch Update Stock for "${widget.group.name}"',
-            style: theme.textTheme.titleMedium,
-          ),
-          const SizedBox(height: 16),
-
-          // Adjuster Selection
-          Text('Adjuster', style: theme.textTheme.labelMedium),
-          const SizedBox(height: 8),
-          staffAsync.when(
-            data: (staffList) {
-              return DropdownButtonFormField<StaffMember>(
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                ),
-                hint: const Text('Select a person...'),
-                initialValue: _selectedAdjuster,
-                items: staffList.map((staff) {
-                  return DropdownMenuItem(
-                    value: staff,
-                    child: Text(staff.name),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _selectedAdjuster = val),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, _) => const Text('Error loading staff'),
-          ),
-          const SizedBox(height: 16),
-
-          // Reason Selection
-          Text('Reason', style: theme.textTheme.labelMedium),
-          const SizedBox(height: 8),
-          reasonsAsync.when(
-            data: (reasonsList) {
-              return DropdownButtonFormField<AdjustmentReason>(
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                ),
-                hint: const Text('Select a reason...'),
-                initialValue: _selectedReason,
-                items: reasonsList.map((reason) {
-                  return DropdownMenuItem(
-                    value: reason,
-                    child: Text(reason.label),
-                  );
-                }).toList(),
-                onChanged: (val) => setState(() => _selectedReason = val),
-              );
-            },
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (_, _) => const Text('Error loading reasons'),
-          ),
-          const SizedBox(height: 16),
-
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'set', label: Text('Set to')),
-              ButtonSegment(value: 'add', label: Text('Add')),
-              ButtonSegment(value: 'subtract', label: Text('Subtract')),
-            ],
-            selected: {_mode},
-            onSelectionChanged: (val) => setState(() => _mode = val.first),
-          ),
-          const SizedBox(height: 16),
-
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: _qtyController,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  decoration: InputDecoration(
-                    labelText: _mode == 'set' ? 'New Quantity' : 'Amount',
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: TextField(
-                  controller: _referenceController,
-                  decoration: const InputDecoration(
-                    labelText: 'Reference / Invoice #',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            width: double.infinity,
-            child: FilledButton(
-              onPressed: (_selectedAdjuster == null || _isLoading)
-                  ? null
-                  : _submit,
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: Colors.white,
-                      ),
-                    )
-                  : const Text('Update Stock'),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
 void _showDeleteDialog(BuildContext context, WidgetRef ref, ItemGroup group) {

@@ -5,6 +5,9 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_pricing_update_sheet.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_stock_update_sheet.dart';
 
 class GroupDetailsScreen extends ConsumerStatefulWidget {
   final ItemGroup group;
@@ -18,6 +21,8 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
   final Set<String> _selectedProductIds = {};
   late TextEditingController _nameController;
   late TextEditingController _commissionValueController;
+  late TextEditingController _defaultSellingPriceController;
+  late TextEditingController _defaultBuyingPriceController;
   late String _commissionType;
 
   @override
@@ -26,6 +31,12 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
     _nameController = TextEditingController(text: widget.group.name);
     _commissionValueController = TextEditingController(
       text: widget.group.defaultCommissionValue?.toString() ?? '',
+    );
+    _defaultSellingPriceController = TextEditingController(
+      text: widget.group.defaultSellingPrice?.toString() ?? '',
+    );
+    _defaultBuyingPriceController = TextEditingController(
+      text: widget.group.defaultBuyingPrice?.toString() ?? '',
     );
     final existingType = (widget.group.defaultCommissionType ?? 'none')
         .toLowerCase();
@@ -36,6 +47,8 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
   void dispose() {
     _nameController.dispose();
     _commissionValueController.dispose();
+    _defaultSellingPriceController.dispose();
+    _defaultBuyingPriceController.dispose();
     super.dispose();
   }
 
@@ -52,6 +65,8 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
   Future<void> _updateGroupSettings() async {
     final rep = ref.read(repositoryProvider);
     final val = double.tryParse(_commissionValueController.text);
+    final selling = double.tryParse(_defaultSellingPriceController.text);
+    final buying = double.tryParse(_defaultBuyingPriceController.text);
 
     final updated = ItemGroup(
       id: widget.group.id,
@@ -62,10 +77,61 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
       description: widget.group.description,
       defaultCommissionType: _commissionType,
       defaultCommissionValue: val,
+      defaultSellingPrice: selling,
+      defaultBuyingPrice: buying,
       createdAt: widget.group.createdAt,
       updatedAt: DateTime.now(),
     );
+
+    final priceChanged = selling != widget.group.defaultSellingPrice ||
+        buying != widget.group.defaultBuyingPrice;
+
+    if (priceChanged) {
+      final products = ref.read(allProductsProvider).value ?? [];
+      final groupProducts =
+          products.where((p) => p.itemGroupId == widget.group.id).toList();
+
+      if (groupProducts.isNotEmpty) {
+        final apply = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Apply to all items?'),
+            content: const Text(
+              'You changed the default prices. Would you like to apply these to all existing items in this group?',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('No'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text('Yes, review changes'),
+              ),
+            ],
+          ),
+        );
+
+        if (apply == true && mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            useSafeArea: true,
+            builder: (context) => BatchPricingUpdateSheet(
+              group: updated,
+              initialItems: groupProducts,
+              groupToUpdate: updated,
+              oldPrice: widget.group.defaultSellingPrice,
+            ),
+          );
+          return; // Save will be handled by the sheet atomically
+        }
+      }
+    }
+
+    // Normal save (if no price change or user said 'No' to review)
     await rep.updateItemGroup(updated);
+
     if (mounted) {
       ScaffoldMessenger.of(
         context,
@@ -96,6 +162,50 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                   setState(() {
                     _selectedProductIds.clear();
                   });
+                },
+              ),
+              ListTile(
+                leading: const Icon(PhosphorIconsRegular.pencilSimple),
+                title: const Text('Batch Update Pricing'),
+                subtitle: const Text('Inherit from group or set manual override'),
+                onTap: () {
+                  Navigator.pop(context);
+                  final products = ref.read(allProductsProvider).value ?? [];
+                  final toProcess = products
+                      .where((p) => _selectedProductIds.contains(p.id))
+                      .toList();
+                  
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (context) => BatchPricingUpdateSheet(
+                      group: widget.group,
+                      initialItems: toProcess,
+                    ),
+                  );
+                },
+              ),
+              ListTile(
+                leading: const Icon(PhosphorIconsRegular.package),
+                title: const Text('Batch Update Stock'),
+                subtitle: const Text('Adjust quantities for selected items'),
+                onTap: () {
+                  Navigator.pop(context);
+                  final products = ref.read(allProductsProvider).value ?? [];
+                  final toProcess = products
+                      .where((p) => _selectedProductIds.contains(p.id))
+                      .toList();
+
+                  showModalBottomSheet(
+                    context: context,
+                    isScrollControlled: true,
+                    useSafeArea: true,
+                    builder: (context) => BatchStockUpdateSheet(
+                      group: widget.group,
+                      initialItems: toProcess,
+                    ),
+                  );
                 },
               ),
               ListTile(
@@ -352,6 +462,36 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                                 border: const OutlineInputBorder(),
                               ),
                             ),
+                          )
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: _defaultSellingPriceController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                labelText: 'Default Selling Price',
+                                hintText: 'e.g. 500',
+                                border: OutlineInputBorder(),
+                                prefixText: 'KES ',
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: TextFormField(
+                              controller: _defaultBuyingPriceController,
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              decoration: const InputDecoration(
+                                labelText: 'Default Buying Price',
+                                hintText: 'e.g. 350',
+                                border: OutlineInputBorder(),
+                                prefixText: 'KES ',
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -435,8 +575,15 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                           : null,
                     ),
                     title: Text(product.name),
-                    subtitle: Text(
-                      'KES ${product.basePrice.toStringAsFixed(2)}',
+                    subtitle: Consumer(
+                      builder: (context, ref, child) {
+                        final resolvedPrice = ref
+                            .watch(productPricingServiceProvider)
+                            .resolveSellingPrice(product, widget.group);
+                        return Text(
+                          'KES ${resolvedPrice.toStringAsFixed(2)}',
+                        );
+                      },
                     ),
                     trailing: Checkbox(
                       value: isSelected,

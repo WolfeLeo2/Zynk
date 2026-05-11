@@ -18,6 +18,10 @@ class PowerSyncRepository {
   };
 
   PowerSyncRepository(this._db);
+  
+  // Deterministic UUID Namespaces for relationship tables
+  static const String _productBranchNamespace = 'e7b8c8d8-e8f8-4a8a-b8c8-d8e8f8a8b8c8';
+  static const String _profileBranchNamespace = 'f8a8b8c8-d8e8-4a8a-b8c8-d8e8f8a8b8c8';
 
   PowerSyncDatabase get db => _db;
 
@@ -174,11 +178,15 @@ class PowerSyncRepository {
       );
 
       for (final branchId in branchIds) {
+        final deterministicId = const Uuid().v5(
+          _profileBranchNamespace,
+          '$profileId:$branchId',
+        );
         await tx.execute(
           '''INSERT INTO profile_branches (id, tenant_id, profile_id, branch_id, created_at)
              VALUES (?, ?, ?, ?, ?)''',
           [
-            const Uuid().v4(),
+            deterministicId,
             tenantId,
             profileId,
             branchId,
@@ -304,6 +312,21 @@ class PowerSyncRepository {
   }
 
   // --- Products ---
+  Stream<List<Product>> watchProductsByGroup(String groupId) {
+    return _db.watch(
+      'SELECT * FROM products WHERE item_group_id = ? ORDER BY name ASC',
+      parameters: [groupId],
+    ).map((results) => results.map((m) => Product.fromMap(m)).toList());
+  }
+
+  Future<List<Product>> getProductsByGroup(String groupId) async {
+    final results = await _db.getAll(
+      'SELECT * FROM products WHERE item_group_id = ? ORDER BY name ASC',
+      [groupId],
+    );
+    return results.map((m) => Product.fromMap(m)).toList();
+  }
+
   Stream<List<Product>> watchProducts({String? branchId}) {
     String sql;
     final params = <dynamic>[];
@@ -362,12 +385,16 @@ class PowerSyncRepository {
       ]);
 
       for (final branchId in normalizedBranchIds) {
+        final deterministicId = const Uuid().v5(
+          _productBranchNamespace,
+          '$productId:$branchId',
+        );
         await tx.execute(
           '''INSERT INTO product_branches (
                id, tenant_id, product_id, branch_id, created_at
              ) VALUES (?, ?, ?, ?, ?)''',
           [
-            const Uuid().v4(),
+            deterministicId,
             tenantId,
             productId,
             branchId,
@@ -392,8 +419,9 @@ class PowerSyncRepository {
         '''INSERT INTO products (
           id, tenant_id, branch_id, item_group_id, category_id, uom_id, name, sku, barcode,
           description, image_url, base_price, cost_price, tax_category, is_service,
+          commission_type, commission_value, parent_id,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         [
           product.id,
           product.tenantId,
@@ -410,18 +438,25 @@ class PowerSyncRepository {
           product.costPrice,
           product.taxCategory,
           product.isService ? 1 : 0,
+          product.commissionType,
+          product.commissionValue,
+          product.parentId,
           DateTime.now().toIso8601String(),
           DateTime.now().toIso8601String(),
         ],
       );
 
       for (final branchId in effectiveBranchIds) {
+        final deterministicId = const Uuid().v5(
+          _productBranchNamespace,
+          '${product.id}:$branchId',
+        );
         await tx.execute(
           '''INSERT INTO product_branches (
                id, tenant_id, product_id, branch_id, created_at
              ) VALUES (?, ?, ?, ?, ?)''',
           [
-            const Uuid().v4(),
+            deterministicId,
             product.tenantId,
             product.id,
             branchId,
@@ -446,7 +481,7 @@ class PowerSyncRepository {
         '''UPDATE products SET
           branch_id = ?, item_group_id = ?, category_id = ?, uom_id = ?, name = ?, sku = ?, barcode = ?,
           description = ?, image_url = ?, base_price = ?, cost_price = ?, tax_category = ?,
-          is_service = ?, updated_at = ?
+          is_service = ?, commission_type = ?, commission_value = ?, parent_id = ?, updated_at = ?
         WHERE id = ?''',
         [
           product.branchId,
@@ -462,22 +497,46 @@ class PowerSyncRepository {
           product.costPrice,
           product.taxCategory,
           product.isService ? 1 : 0,
+          product.commissionType,
+          product.commissionValue,
+          product.parentId,
           DateTime.now().toIso8601String(),
           product.id,
         ],
       );
 
       if (normalizedBranchIds != null) {
-        await tx.execute('DELETE FROM product_branches WHERE product_id = ?', [
-          product.id,
-        ]);
-        for (final branchId in normalizedBranchIds) {
+        // Delta update for product_branches to avoid unique constraint conflicts
+        final currentRows = await tx.getAll(
+          'SELECT branch_id FROM product_branches WHERE product_id = ?',
+          [product.id],
+        );
+        final currentBranchIds =
+            currentRows.map((row) => row['branch_id'] as String).toSet();
+        final targetBranchIds = normalizedBranchIds.toSet();
+
+        // 1. Remove branches that are no longer targeted
+        final toRemove = currentBranchIds.difference(targetBranchIds);
+        for (final branchId in toRemove) {
+          await tx.execute(
+            'DELETE FROM product_branches WHERE product_id = ? AND branch_id = ?',
+            [product.id, branchId],
+          );
+        }
+
+        // 2. Add new branches that weren't already there
+        final toAdd = targetBranchIds.difference(currentBranchIds);
+        for (final branchId in toAdd) {
+          final deterministicId = const Uuid().v5(
+            _productBranchNamespace,
+            '${product.id}:$branchId',
+          );
           await tx.execute(
             '''INSERT INTO product_branches (
                  id, tenant_id, product_id, branch_id, created_at
                ) VALUES (?, ?, ?, ?, ?)''',
             [
-              const Uuid().v4(),
+              deterministicId,
               product.tenantId,
               product.id,
               branchId,
@@ -580,6 +639,14 @@ class PowerSyncRepository {
             lastUpdated: latestUpdatedAt,
           );
         });
+  }
+
+  Future<int> getProductStockValue(String productId, String branchId) async {
+    final rows = await _db.getAll(
+      'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+      [productId, branchId],
+    );
+    return rows.isNotEmpty ? (rows.first['quantity'] as num?)?.toInt() ?? 0 : 0;
   }
 
   Stream<List<Map<String, dynamic>>> watchLowStockProducts({
@@ -715,6 +782,7 @@ class PowerSyncRepository {
     required String branchId,
     required List<BatchAdjustmentItem> items,
     required String createdBy,
+    String? salespersonId,
     required String adjustmentType,
     String? reasonId,
     String? referenceNumber,
@@ -736,9 +804,9 @@ class PowerSyncRepository {
         await tx.execute(
           '''INSERT INTO stock_adjustments (
             id, tenant_id, branch_id, product_id, quantity, 
-            reference_number, notes, created_by, reason_id, 
+            reference_number, notes, created_by, salesperson_id, reason_id, 
             adjustment_type, created_at, status, bundle_id
-          ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)''',
+          ) VALUES (uuid(), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)''',
           [
             tenantId,
             branchId,
@@ -747,6 +815,7 @@ class PowerSyncRepository {
             referenceNumber,
             item.notes,
             createdBy,
+            salespersonId,
             reasonId,
             resolvedAdjustmentType,
             now,
@@ -916,9 +985,20 @@ class PowerSyncRepository {
         );
   }
 
+  Stream<ItemGroup?> watchItemGroup(String id) {
+    return _db.watch('SELECT * FROM item_groups WHERE id = ?', parameters: [
+      id,
+    ]).map((rows) => rows.isNotEmpty ? ItemGroup.fromMap(rows.first) : null);
+  }
+
   Future<void> createItemGroup(ItemGroup group) async {
     await _db.execute(
-      'INSERT INTO item_groups (id, tenant_id, branch_id, name, description, default_commission_type, default_commission_value, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      '''INSERT INTO item_groups (
+        id, tenant_id, branch_id, name, description, 
+        default_commission_type, default_commission_value,
+        default_selling_price, default_buying_price, attributes,
+        created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         group.id,
         group.tenantId,
@@ -927,6 +1007,9 @@ class PowerSyncRepository {
         group.description,
         group.defaultCommissionType,
         group.defaultCommissionValue,
+        group.defaultSellingPrice,
+        group.defaultBuyingPrice,
+        group.attributes,
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -935,16 +1018,73 @@ class PowerSyncRepository {
 
   Future<void> updateItemGroup(ItemGroup group) async {
     await _db.execute(
-      'UPDATE item_groups SET name = ?, description = ?, default_commission_type = ?, default_commission_value = ?, updated_at = ? WHERE id = ?',
+      '''UPDATE item_groups SET 
+        name = ?, description = ?, 
+        default_commission_type = ?, default_commission_value = ?, 
+        default_selling_price = ?, default_buying_price = ?, attributes = ?,
+        updated_at = ? 
+      WHERE id = ?''',
       [
         group.name,
         group.description,
         group.defaultCommissionType,
         group.defaultCommissionValue,
+        group.defaultSellingPrice,
+        group.defaultBuyingPrice,
+        group.attributes,
         DateTime.now().toIso8601String(),
         group.id,
       ],
     );
+  }
+
+  Future<void> batchUpdatePricingAndGroup({
+    required List<String> adoptGroupIds,
+    required Map<String, double> manualPrices,
+    ItemGroup? updatedGroup,
+  }) async {
+    await _db.writeTransaction((tx) async {
+      final now = DateTime.now().toIso8601String();
+
+      // 1. Adopt group pricing (set NULL)
+      for (final id in adoptGroupIds) {
+        await tx.execute(
+          'UPDATE products SET base_price = NULL, cost_price = NULL, updated_at = ? WHERE id = ?',
+          [now, id],
+        );
+      }
+
+      // 2. Set manual overrides
+      for (final entry in manualPrices.entries) {
+        await tx.execute(
+          'UPDATE products SET base_price = ?, updated_at = ? WHERE id = ?',
+          [entry.value, now, entry.key],
+        );
+      }
+
+      // 3. Update the group itself if provided
+      if (updatedGroup != null) {
+        await tx.execute(
+          '''UPDATE item_groups SET 
+            name = ?, description = ?, 
+            default_commission_type = ?, default_commission_value = ?, 
+            default_selling_price = ?, default_buying_price = ?, attributes = ?,
+            updated_at = ? 
+          WHERE id = ?''',
+          [
+            updatedGroup.name,
+            updatedGroup.description,
+            updatedGroup.defaultCommissionType,
+            updatedGroup.defaultCommissionValue,
+            updatedGroup.defaultSellingPrice,
+            updatedGroup.defaultBuyingPrice,
+            updatedGroup.attributes,
+            now,
+            updatedGroup.id,
+          ],
+        );
+      }
+    });
   }
 
   /// Nullifies item_group_id for all products in a group (ungroup items)
@@ -984,6 +1124,17 @@ class PowerSyncRepository {
     );
   }
 
+  Future<void> batchSetPrice(List<String> productIds, double newPrice) async {
+    await _db.writeTransaction((tx) async {
+      for (final id in productIds) {
+        await tx.execute(
+          'UPDATE products SET base_price = ?, updated_at = ? WHERE id = ?',
+          [newPrice, DateTime.now().toIso8601String(), id],
+        );
+      }
+    });
+  }
+
   /// Adjusts stock for all products in a group with full audit trail.
   /// Delegates to [batchAdjustStock] so every change is logged in
   /// stock_adjustments with a reason, reference number, and adjuster.
@@ -994,7 +1145,8 @@ class PowerSyncRepository {
     required String branchId,
     required int quantity,
     required String mode,
-    required String adjusterId,
+    required String createdBy,
+    String? salespersonId,
     required String adjustmentType,
     String? reasonId,
     String? referenceNumber,
@@ -1043,7 +1195,8 @@ class PowerSyncRepository {
       tenantId: tenantId,
       branchId: branchId,
       items: items,
-      createdBy: adjusterId,
+      createdBy: createdBy,
+      salespersonId: salespersonId,
       adjustmentType: adjustmentType,
       reasonId: reasonId,
       referenceNumber: referenceNumber,
@@ -1064,6 +1217,17 @@ class PowerSyncRepository {
               .map((row) => CompositeItemComponent.fromMap(row))
               .toList(),
         );
+  }
+
+  Future<void> batchAdoptGroupPricing(List<String> productIds) async {
+    await _db.writeTransaction((tx) async {
+      for (final id in productIds) {
+        await tx.execute(
+          'UPDATE products SET base_price = NULL, cost_price = NULL, updated_at = ? WHERE id = ?',
+          [DateTime.now().toIso8601String(), id],
+        );
+      }
+    });
   }
 
   Future<void> createCompositeProduct(
@@ -1246,7 +1410,7 @@ class PowerSyncRepository {
   Stream<List<SaleApproval>> watchSaleApprovals(String saleId) {
     return _db
         .watch(
-          '''SELECT sa.*, p.display_name AS approver_display_name
+          '''SELECT sa.*, p.display_name AS approver_display_name, p.role AS approver_role
              FROM sale_approvals sa
              LEFT JOIN profiles p ON p.user_id = sa.approver_user_id
              WHERE sa.sale_id = ?
@@ -1930,13 +2094,20 @@ class PowerSyncRepository {
   }
 
   Stream<List<Profile>> watchStaff(String tenantId, {String? branchId}) {
-    String sql =
-        "SELECT * FROM profiles WHERE tenant_id = ? AND role != 'Owner' AND status != 'deleted'";
-    final params = <dynamic>[tenantId];
+    // Normalize inputs to prevent case-sensitivity or whitespace issues
+    final normalizedTenantId = tenantId.trim().toLowerCase();
+    final normalizedBranchId = branchId?.trim().toLowerCase();
 
-    if (branchId != null && branchId != 'all') {
-      sql += " AND (branch_id = ? OR branch_id IS NULL)";
-      params.add(branchId);
+    // Use LOWER() in SQL for robust matching against potentially inconsistent UUID casing
+    // Remove the 'owner' filter so that owners are included for identity resolution
+    String sql =
+        "SELECT * FROM profiles WHERE LOWER(tenant_id) = ? AND LOWER(status) != 'deleted'";
+    final params = <dynamic>[normalizedTenantId];
+
+    // Handle branch filtering
+    if (normalizedBranchId != null && normalizedBranchId != 'all') {
+      sql += " AND (LOWER(branch_id) = ? OR branch_id IS NULL)";
+      params.add(normalizedBranchId);
     }
 
     sql += " ORDER BY created_at ASC";
@@ -2253,7 +2424,7 @@ class PowerSyncRepository {
         uom.abbreviation AS uom_abbreviation
       FROM stock_adjustments sa
       LEFT JOIN profiles p ON p.user_id = sa.created_by
-      LEFT JOIN staff_members sm ON sm.id = sa.created_by
+      LEFT JOIN staff_members sm ON sm.id = sa.salesperson_id
       LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
       LEFT JOIN products prod ON prod.id = sa.product_id
       LEFT JOIN units_of_measurement uom ON uom.id = prod.uom_id
@@ -2292,7 +2463,7 @@ class PowerSyncRepository {
         uom.abbreviation AS uom_abbreviation
       FROM stock_adjustments sa
       LEFT JOIN profiles p ON p.user_id = sa.created_by
-      LEFT JOIN staff_members sm ON sm.id = sa.created_by
+      LEFT JOIN staff_members sm ON sm.id = sa.salesperson_id
       LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
       LEFT JOIN products prod ON prod.id = sa.product_id
       LEFT JOIN units_of_measurement uom ON uom.id = prod.uom_id

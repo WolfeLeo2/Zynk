@@ -38,10 +38,8 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   late TextEditingController _customerNameCtrl;
   late TextEditingController _customerPhoneCtrl;
 
-  // Editable item fields (parallel lists)
-  late List<TextEditingController> _itemNameCtrls;
-  late List<TextEditingController> _itemPriceCtrls;
-  late List<TextEditingController> _itemQtyCtrls;
+  // Editable items in memory
+  List<_EditableInvoiceItem> _items = [];
 
   String? _salespersonId;
 
@@ -54,18 +52,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       text: widget.customer.phone ?? '',
     );
 
-    _itemNameCtrls = widget.cartItems
-        .map((i) => TextEditingController(text: i.effectiveName))
-        .toList();
-    _itemPriceCtrls = widget.cartItems
-        .map(
-          (i) =>
-              TextEditingController(text: i.effectivePrice.toStringAsFixed(0)),
-        )
-        .toList();
-    _itemQtyCtrls = widget.cartItems
-        .map((i) => TextEditingController(text: i.quantity.toString()))
-        .toList();
+    _items = widget.cartItems.map((i) => _EditableInvoiceItem(i)).toList();
   }
 
   @override
@@ -73,26 +60,18 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     _notesController.dispose();
     _customerNameCtrl.dispose();
     _customerPhoneCtrl.dispose();
-    for (final c in _itemNameCtrls) {
-      c.dispose();
-    }
-    for (final c in _itemPriceCtrls) {
-      c.dispose();
-    }
-    for (final c in _itemQtyCtrls) {
-      c.dispose();
+    for (final item in _items) {
+      item.dispose();
     }
     super.dispose();
   }
 
   double _computeSubtotal() {
     double subtotal = 0;
-    for (var i = 0; i < widget.cartItems.length; i++) {
+    for (final item in _items) {
       final price =
-          double.tryParse(_itemPriceCtrls[i].text) ??
-          widget.cartItems[i].effectivePrice;
-      final qty =
-          int.tryParse(_itemQtyCtrls[i].text) ?? widget.cartItems[i].quantity;
+          double.tryParse(item.priceCtr.text) ?? item.originalItem.effectivePrice;
+      final qty = int.tryParse(item.qtyCtr.text) ?? item.originalItem.quantity;
       subtotal += price * qty;
     }
     return subtotal;
@@ -123,24 +102,23 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         throw Exception('Missing tenant or branch context');
       }
 
-      // Apply edits back onto cartItems before submitting
+      // Apply edits onto cartItems before submitting
       final editedItems = <PosCartItem>[];
-      for (var i = 0; i < widget.cartItems.length; i++) {
-        final item = widget.cartItems[i];
-        final qty = int.tryParse(_itemQtyCtrls[i].text) ?? item.quantity;
+      for (final item in _items) {
+        final qty = int.tryParse(item.qtyCtr.text) ?? item.originalItem.quantity;
         if (qty <= 0) continue;
 
         final price =
-            double.tryParse(_itemPriceCtrls[i].text) ?? item.effectivePrice;
-        final name = _itemNameCtrls[i].text.trim().isEmpty
-            ? item.effectiveName
-            : _itemNameCtrls[i].text.trim();
+            double.tryParse(item.priceCtr.text) ?? item.originalItem.effectivePrice;
+        final name = item.nameCtr.text.trim().isEmpty
+            ? item.originalItem.effectiveName
+            : item.nameCtr.text.trim();
 
         // Stock validation — prevent overselling
-        if (!item.product.isService) {
+        if (!item.originalItem.product.isService) {
           final stockResult = await repo.db.getAll(
             'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
-            [item.product.id, branchId],
+            [item.originalItem.product.id, branchId],
           );
           final availableStock = stockResult.isEmpty
               ? 0
@@ -164,10 +142,11 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
         editedItems.add(
           PosCartItem(
-            product: item.product,
+            product: item.originalItem.product,
             quantity: qty,
-            overrideName: name != item.product.name ? name : null,
-            overridePrice: price != item.product.basePrice ? price : null,
+            overrideName: name != item.originalItem.product.name ? name : null,
+            overridePrice:
+                price != item.originalItem.product.basePrice ? price : null,
           ),
         );
       }
@@ -455,7 +434,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               children: [
                 _SectionLabel('Items'),
                 Text(
-                  '${widget.cartItems.length} product${widget.cartItems.length != 1 ? 's' : ''}',
+                  '${_items.length} product${_items.length != 1 ? 's' : ''}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: cs.onSurfaceVariant,
                   ),
@@ -464,15 +443,21 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             ),
             const SizedBox(height: 8),
 
-            ...List.generate(widget.cartItems.length, (i) {
+            ..._items.asMap().entries.map((entry) {
+              final i = entry.key;
+              final item = entry.value;
               return _EditableItemRow(
                 index: i,
                 cs: cs,
                 theme: theme,
-                nameCtr: _itemNameCtrls[i],
-                priceCtr: _itemPriceCtrls[i],
-                qtyCtr: _itemQtyCtrls[i],
+                item: item,
                 onChanged: () => setState(() {}),
+                onRemove: () {
+                  setState(() {
+                    _items[i].dispose();
+                    _items.removeAt(i);
+                  });
+                },
               );
             }),
             const SizedBox(height: 16),
@@ -561,6 +546,27 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 // HELPERS
 // ─────────────────────────────────────────────────────────────────────────────
 
+class _EditableInvoiceItem {
+  final PosCartItem originalItem;
+  late final TextEditingController nameCtr;
+  late final TextEditingController priceCtr;
+  late final TextEditingController qtyCtr;
+
+  _EditableInvoiceItem(this.originalItem) {
+    nameCtr = TextEditingController(text: originalItem.effectiveName);
+    priceCtr = TextEditingController(
+      text: originalItem.effectivePrice.toStringAsFixed(0),
+    );
+    qtyCtr = TextEditingController(text: originalItem.quantity.toString());
+  }
+
+  void dispose() {
+    nameCtr.dispose();
+    priceCtr.dispose();
+    qtyCtr.dispose();
+  }
+}
+
 class _SectionLabel extends StatelessWidget {
   final String text;
   const _SectionLabel(this.text);
@@ -580,19 +586,17 @@ class _EditableItemRow extends StatelessWidget {
   final int index;
   final ColorScheme cs;
   final ThemeData theme;
-  final TextEditingController nameCtr;
-  final TextEditingController priceCtr;
-  final TextEditingController qtyCtr;
+  final _EditableInvoiceItem item;
   final VoidCallback onChanged;
+  final VoidCallback onRemove;
 
   const _EditableItemRow({
     required this.index,
     required this.cs,
     required this.theme,
-    required this.nameCtr,
-    required this.priceCtr,
-    required this.qtyCtr,
+    required this.item,
     required this.onChanged,
+    required this.onRemove,
   });
 
   @override
@@ -608,30 +612,45 @@ class _EditableItemRow extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Item name
-          TextFormField(
-            controller: nameCtr,
-            onChanged: (_) => onChanged(),
-            decoration: InputDecoration(
-              labelText: 'Product Name',
-              isDense: true,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+          Row(
+            children: [
+              // Item name
+              Expanded(
+                child: TextFormField(
+                  controller: item.nameCtr,
+                  onChanged: (_) => onChanged(),
+                  decoration: InputDecoration(
+                    labelText: 'Product Name',
+                    isDense: true,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  validator: (v) =>
+                      (v == null || v.trim().isEmpty) ? 'Required' : null,
+                  textCapitalization: TextCapitalization.words,
+                ),
               ),
-            ),
-            validator: (v) =>
-                (v == null || v.trim().isEmpty) ? 'Required' : null,
-            textCapitalization: TextCapitalization.words,
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: onRemove,
+                icon: Icon(
+                  PhosphorIconsRegular.trash,
+                  color: cs.error,
+                  size: 20,
+                ),
+                tooltip: 'Remove item',
+              ),
+            ],
           ),
           const SizedBox(height: 10),
 
           Row(
             children: [
-              // Quantity
               Expanded(
                 flex: 2,
                 child: TextFormField(
-                  controller: qtyCtr,
+                  controller: item.qtyCtr,
                   onChanged: (_) => onChanged(),
                   decoration: InputDecoration(
                     labelText: 'Qty',
@@ -654,7 +673,7 @@ class _EditableItemRow extends StatelessWidget {
               Expanded(
                 flex: 3,
                 child: TextFormField(
-                  controller: priceCtr,
+                  controller: item.priceCtr,
                   onChanged: (_) => onChanged(),
                   decoration: InputDecoration(
                     labelText: 'Unit Price (Ksh)',
@@ -689,7 +708,7 @@ class _EditableItemRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Ksh ${((double.tryParse(priceCtr.text) ?? 0) * (int.tryParse(qtyCtr.text) ?? 0)).toStringAsFixed(0)}',
+                    'Ksh ${((double.tryParse(item.priceCtr.text) ?? 0) * (int.tryParse(item.qtyCtr.text) ?? 0)).toStringAsFixed(0)}',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),

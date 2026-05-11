@@ -11,6 +11,7 @@ import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
@@ -62,11 +63,39 @@ class SaleDetailScreen extends ConsumerWidget {
     final canApprove = ref.watch(
       hasPermissionProvider(Permission.approveInvoices),
     );
+    final canEdit = ref.watch(hasPermissionProvider(Permission.editSales));
+    final canDelete = ref.watch(hasPermissionProvider(Permission.deleteSales));
     final canPay = ref.watch(hasPermissionProvider(Permission.recordPayments));
     final canVoid = ref.watch(hasPermissionProvider(Permission.voidSales));
     final canCreateInvoices = ref.watch(
       hasPermissionProvider(Permission.createInvoices),
     );
+
+    // Evaluate dual-approval slots
+    final profileAsync = ref.watch(currentUserProfileProvider);
+    final isOwner = profileAsync.value?.role == UserRole.owner;
+    final currentUserId = profileAsync.value?.userId;
+
+    final approvalsAsync = ref.watch(saleApprovalsProvider(saleId));
+    final approvals = approvalsAsync.value ?? [];
+
+    bool hasOwnerApproval = approvals.any((a) => a.approverRole?.toLowerCase() == 'owner' && a.decision == SaleApprovalDecision.approved);
+    bool hasStaffApproval = approvals.any((a) => a.approverRole?.toLowerCase() != 'owner' && a.decision == SaleApprovalDecision.approved);
+    bool hasCurrentUserApproved = approvals.any((a) => a.approverUserId == currentUserId && a.decision == SaleApprovalDecision.approved);
+
+    bool canSubmitApproval = false;
+    if (canApprove && !hasCurrentUserApproved) {
+      if (isOwner && !hasOwnerApproval) {
+        canSubmitApproval = true;
+      } else if (!isOwner && !hasStaffApproval) {
+        canSubmitApproval = true;
+      }
+    }
+    
+    // Fail-safe: if approval count is already met, don't allow more
+    if (saleAsync.value != null && saleAsync.value!.approvalCount >= saleAsync.value!.requiredApprovals) {
+      canSubmitApproval = false;
+    }
 
     return saleAsync.when(
       data: (sale) {
@@ -80,8 +109,8 @@ class SaleDetailScreen extends ConsumerWidget {
           appBar: AppBar(
             title: Text(
               sale.saleType == 'pos_sale'
-                  ? 'Receipt ${sale.invoiceNumber ?? ""}'
-                  : 'Invoice ${sale.invoiceNumber ?? ""}',
+                  ? sale.invoiceNumber ?? ""
+                  : sale.invoiceNumber ?? "",
             ),
             actions: [
               PopupMenuButton<String>(
@@ -122,7 +151,7 @@ class SaleDetailScreen extends ConsumerWidget {
                   final items = <PopupMenuEntry<String>>[
                     if (sale.status == InvoiceStatus.pendingApproval &&
                         sale.amountPaid <= 0 &&
-                        canApprove)
+                        canEdit)
                       const PopupMenuItem(
                         value: 'edit',
                         child: Text('Edit Invoice'),
@@ -132,12 +161,12 @@ class SaleDetailScreen extends ConsumerWidget {
                         value: 'clone_invoice',
                         child: Text('Clone Invoice'),
                       ),
-                    if (sale.status == InvoiceStatus.pendingApproval && canApprove)
+                    if (sale.status == InvoiceStatus.pendingApproval && canSubmitApproval)
                       const PopupMenuItem(
                         value: 'approve',
                         child: Text('Approve'),
                       ),
-                    if (sale.status == InvoiceStatus.pendingApproval && canApprove)
+                    if (sale.status == InvoiceStatus.pendingApproval && canSubmitApproval)
                       const PopupMenuItem(
                         value: 'reject',
                         child: Text('Reject'),
@@ -152,7 +181,7 @@ class SaleDetailScreen extends ConsumerWidget {
                         value: 'fulfill',
                         child: Text('Release Goods'),
                       ),
-                    if (canApprove && sale.amountPaid <= 0)
+                    if (canDelete && sale.amountPaid <= 0)
                       const PopupMenuItem(
                         value: 'delete_sale',
                         child: Text(
@@ -223,6 +252,8 @@ class SaleDetailScreen extends ConsumerWidget {
             sale,
             canApprove,
             canPay,
+            canSubmitApproval,
+            hasCurrentUserApproved,
           ),
         );
       },
@@ -240,6 +271,8 @@ class SaleDetailScreen extends ConsumerWidget {
     Sale sale,
     bool canApprove,
     bool canPay,
+    bool canSubmitApproval,
+    bool hasCurrentUserApproved,
   ) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
@@ -251,12 +284,12 @@ class SaleDetailScreen extends ConsumerWidget {
     final loadingAction = ref.watch(_saleActionLoadingNotifier);
 
     // Approve button (for pending approval invoices)
-    if (sale.status == InvoiceStatus.pendingApproval) {
+    if (sale.status == InvoiceStatus.pendingApproval && canSubmitApproval) {
       final isLoading = loadingAction == 'approve';
       actions.add(
         Expanded(
           child: FilledButton.icon(
-            onPressed: canApprove && !isLoading
+            onPressed: canSubmitApproval && !isLoading
                 ? () => _handleAction(context, ref, sale, 'approve')
                 : null,
             icon: isLoading
@@ -266,7 +299,7 @@ class SaleDetailScreen extends ConsumerWidget {
                     child: CircularProgressIndicator(
                       strokeWidth: 2,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        canApprove ? cs.onPrimary : cs.onSurfaceVariant,
+                        canSubmitApproval ? cs.onPrimary : cs.onSurfaceVariant,
                       ),
                     ),
                   )
@@ -274,13 +307,17 @@ class SaleDetailScreen extends ConsumerWidget {
             label: isLoading
                 ? const Text('Approving...')
                 : Text(
-                    'Approve (${sale.approvalCount}/${sale.requiredApprovals})',
+                    hasCurrentUserApproved
+                        ? 'Already Approved'
+                        : (!canSubmitApproval && canApprove
+                            ? 'Slot Filled'
+                            : 'Approve (${sale.approvalCount}/${sale.requiredApprovals})'),
                   ),
             style: FilledButton.styleFrom(
-              backgroundColor: canApprove && !isLoading
+              backgroundColor: canSubmitApproval && !isLoading
                   ? cs.primary
                   : cs.surfaceContainerHighest,
-              foregroundColor: canApprove && !isLoading
+              foregroundColor: canSubmitApproval && !isLoading
                   ? cs.onPrimary
                   : cs.onSurfaceVariant,
               padding: const EdgeInsets.symmetric(vertical: 14),
@@ -573,6 +610,7 @@ class SaleDetailScreen extends ConsumerWidget {
         case 'approve':
           await service.approveSale(sale.id, tenantId: sale.tenantId);
           ref.invalidate(saleDetailProvider(sale.id));
+          ref.invalidate(saleApprovalsProvider(sale.id));
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Invoice approved')),
@@ -766,7 +804,9 @@ class _StatusHero extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 8),
-                Row(
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
                   children: [
                     // Release badge
                     Container(
@@ -794,7 +834,7 @@ class _StatusHero extends StatelessWidget {
                         ),
                       ),
                     ),
-                    const SizedBox(width: 6),
+
                     // Payment badge
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -1053,7 +1093,7 @@ class _PaymentsList extends ConsumerWidget {
     final cs = theme.colorScheme;
     final paymentsAsync = ref.watch(salePaymentsProvider(saleId));
     final isAdmin = ref.watch(
-      hasPermissionProvider(Permission.approveInvoices),
+      hasPermissionProvider(Permission.deleteSales),
     );
 
     return paymentsAsync.when(
@@ -1879,22 +1919,26 @@ class _DetailsSection extends ConsumerWidget {
       children: [
         Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 12),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: theme.textTheme.labelMedium?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            Text(
-              value,
-              style: theme.textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
+              Text(
+                value,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ],
     );
@@ -1910,6 +1954,7 @@ class _ApprovalTimeline extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final approvalsAsync = ref.watch(saleApprovalsProvider(sale.id));
+    final profilesAsync = ref.watch(staffProvider);
     final requiredApprovals = sale.requiredApprovals < 1
         ? 1
         : sale.requiredApprovals;
@@ -1919,6 +1964,13 @@ class _ApprovalTimeline extends ConsumerWidget {
         final approved = approvals
             .where((a) => a.decision == SaleApprovalDecision.approved)
             .toList();
+
+        final profiles = profilesAsync.value ?? [];
+        final ownerProfile = profiles.firstWhere((p) => p.role.isOwner, orElse: () => Profile(id: '', userId: '', tenantId: '', role: UserRole.owner, displayName: 'Owner'));
+        
+        final eligibleStaff = profiles.where((p) => p.hasPermission(Permission.approveInvoices) && !p.role.isOwner).toList();
+        eligibleStaff.sort((a, b) => (a.createdAt ?? DateTime.now()).compareTo(b.createdAt ?? DateTime.now()));
+        final designatedStaff = eligibleStaff.isNotEmpty ? eligibleStaff.first : null;
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -1941,34 +1993,37 @@ class _ApprovalTimeline extends ConsumerWidget {
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
-                children: List.generate(requiredApprovals, (index) {
-                  final slot = index + 1;
-                  if (index < approved.length) {
-                    final approval = approved[index];
-                    final approverName =
-                        approval.approverDisplayName?.trim().isNotEmpty == true
-                        ? approval.approverDisplayName!.trim()
-                        : approval.approverUserId;
-                    final ts = approval.createdAt != null
-                        ? _formatFull(approval.createdAt)
-                        : 'time unavailable';
-
-                    return Chip(
-                      avatar: const Icon(
-                        PhosphorIconsRegular.checkCircle,
-                        size: 16,
-                      ),
-                      label: Text('Approval #$slot · $approverName · $ts'),
-                      backgroundColor: cs.primaryContainer,
-                      side: BorderSide.none,
-                    );
-                  }
-
-                  return Chip(
-                    avatar: const Icon(PhosphorIconsRegular.clock, size: 16),
-                    label: Text('Approval #$slot · Pending'),
-                  );
-                }),
+                children: [
+                  if (requiredApprovals >= 2) ...[
+                    _buildApprovalChip(
+                      cs,
+                      approved.cast<SaleApproval?>().firstWhere(
+                            (a) => a?.approverRole?.toLowerCase() == 'owner' || 
+                                   a?.approverUserId == ownerProfile.userId,
+                            orElse: () => null,
+                          ),
+                      pendingName: ownerProfile.displayName?.trim().isNotEmpty == true ? ownerProfile.displayName!.trim() : 'Owner',
+                    ),
+                    _buildApprovalChip(
+                      cs,
+                      approved.cast<SaleApproval?>().firstWhere(
+                            (a) => a?.approverRole?.toLowerCase() != 'owner' && 
+                                   a?.approverUserId != ownerProfile.userId,
+                            orElse: () => null,
+                          ),
+                      pendingName: designatedStaff?.displayName?.trim().isNotEmpty == true ? designatedStaff!.displayName!.trim() : 'Staff',
+                    ),
+                  ] else ...[
+                    /* Fallback for single approval or generic setup
+                    ...List.generate(requiredApprovals, (index) {
+                      final approval =
+                          index < approved.length ? approved[index] : null;
+                      return _buildApprovalChip(
+                          cs, 'Approval #${index + 1}', approval);
+                    }),
+                  ],*/
+                  ]
+                ],
               ),
             ],
           ),
@@ -1976,6 +2031,33 @@ class _ApprovalTimeline extends ConsumerWidget {
       },
       loading: () => _ShimmerSection(height: 60),
       error: (e, _) => Text('Error loading approvals: $e'),
+    );
+  }
+
+  Widget _buildApprovalChip(
+      ColorScheme cs, SaleApproval? approval, {String? pendingName}) {
+    if (approval != null) {
+      final approverName =
+          approval.approverDisplayName?.trim().isNotEmpty == true
+              ? approval.approverDisplayName!.trim()
+              : approval.approverUserId;
+      final ts = approval.createdAt != null
+          ? _formatFull(approval.createdAt)
+          : 'time unavailable';
+
+      return Chip(
+        avatar: Icon(PhosphorIconsRegular.checkCircle, size: 16, color: cs.onPrimaryContainer),
+        label: Text('$approverName · $ts'),
+        backgroundColor: cs.primaryContainer,
+        side: BorderSide.none,
+      );
+    }
+
+    final pendingDisplay = pendingName != null ? '$pendingName' : 'Pending';
+    return Chip(
+      avatar: const Icon(PhosphorIconsRegular.clock, size: 16),
+      label: Text('$pendingDisplay · Pending'),
+      side: BorderSide(color: cs.outline.withValues(alpha: 0.8)),
     );
   }
 }
@@ -2035,24 +2117,15 @@ IconData _paymentIcon(PaymentMethod method) {
 
 String _formatFull(DateTime? date) {
   if (date == null) return '';
+  final d = date.toLocal();
   final months = [
-    '',
-    'Jan',
-    'Feb',
-    'Mar',
-    'Apr',
-    'May',
-    'Jun',
-    'Jul',
-    'Aug',
-    'Sep',
-    'Oct',
-    'Nov',
-    'Dec',
+    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
   ];
-  final hour = date.hour > 12 ? date.hour - 12 : date.hour;
-  final amPm = date.hour >= 12 ? 'PM' : 'AM';
-  return '${months[date.month]} ${date.day}, ${date.year} · $hour:${date.minute.toString().padLeft(2, '0')} $amPm';
+  final hour = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
+  final min = d.minute.toString().padLeft(2, '0');
+  final amPm = d.hour >= 12 ? 'PM' : 'AM';
+  return '${months[d.month]} ${d.day}, ${d.year} · $hour:$min $amPm';
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

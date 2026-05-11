@@ -7,6 +7,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 
 class SalesListScreen extends ConsumerStatefulWidget {
@@ -308,14 +309,27 @@ class _SalesListSkeleton extends StatelessWidget {
 // SALE CARD (Shopify-style)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _SaleCard extends StatelessWidget {
+class _SaleCard extends ConsumerWidget {
   final Sale sale;
   const _SaleCard({required this.sale});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+
+    // Resolve customer name from local memory provider
+    final customersAsync = ref.watch(allCustomersProvider);
+    final customerName = customersAsync.maybeWhen(
+      data: (customers) {
+        if (sale.customerId == null) return 'Walk-in Customer';
+        return customers
+            .where((c) => c.id == sale.customerId)
+            .firstOrNull
+            ?.name ?? 'Walk-in Customer';
+      },
+      orElse: () => 'Loading...',
+    );
 
     return InkWell(
       onTap: () => context.push('/sales/${sale.id}'),
@@ -347,86 +361,82 @@ class _SaleCard extends StatelessWidget {
             ),
             const SizedBox(width: 14),
 
-            // Info
+            // Info & Status
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // Type label: Receipt or Invoice
-                  Text(
-                    sale.saleType == 'pos_sale' ? 'Receipt' : 'Invoice',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: sale.saleType == 'pos_sale'
-                          ? cs.onSurfaceVariant
-                          : cs.primary,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    sale.invoiceNumber ?? '#—',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDate(sale.createdAt),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 6,
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _LifecycleBadge(status: sale.status),
-                      _PaymentStatusBadge(status: sale.paymentStatus),
-                      _FulfillmentStatusBadge(status: sale.fulfillmentStatus),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              sale.invoiceNumber ?? '#—',
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              customerName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      // Time Ago (Top Right)
+                      Text(
+                        _formatDate(sale.createdAt),
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          color: cs.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      // Badges
+                      Expanded(
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            _LifecycleBadge(status: sale.status),
+                            _PaymentStatusBadge(status: sale.paymentStatus),
+                            _FulfillmentStatusBadge(
+                              status: sale.fulfillmentStatus,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      // Amount
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          _buildPaymentStatusText(theme, sale),
+                        ],
+                      ),
                     ],
                   ),
                 ],
               ),
-            ),
-
-            // Amount
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (sale.paymentStatus == PaymentStatus.unpaid)
-                  Text(
-                    'Unpaid',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFFEF5350),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                else if (sale.paymentStatus == PaymentStatus.partiallyPaid)
-                  Text(
-                    'Due: ${sale.remainingBalance.toStringAsFixed(0)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFFFFA726),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  )
-                else
-                  Text(
-                    'Paid',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFF66BB6A),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-              ],
             ),
 
             const SizedBox(width: 4),
@@ -441,14 +451,43 @@ class _SaleCard extends StatelessWidget {
     );
   }
 
+  Widget _buildPaymentStatusText(ThemeData theme, Sale sale) {
+    if (sale.paymentStatus == PaymentStatus.unpaid) {
+      return Text(
+        'Unpaid',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: const Color(0xFFEF5350),
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    } else if (sale.paymentStatus == PaymentStatus.partiallyPaid) {
+      return Text(
+        'Due: ${sale.remainingBalance.toStringAsFixed(0)}',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: const Color(0xFFFFA726),
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    } else {
+      return Text(
+        'Paid',
+        style: theme.textTheme.bodySmall?.copyWith(
+          color: const Color(0xFF66BB6A),
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+  }
+
   String _formatDate(DateTime? date) {
     if (date == null) return '';
+    final localDate = date.toLocal();
     final now = DateTime.now();
-    final diff = now.difference(date);
+    final diff = now.difference(localDate);
     if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
     if (diff.inHours < 24) return '${diff.inHours}h ago';
     if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${date.day}/${date.month}/${date.year}';
+    return '${localDate.day}/${localDate.month}/${localDate.year}';
   }
 }
 

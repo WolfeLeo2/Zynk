@@ -88,7 +88,12 @@ class _PosScreenState extends ConsumerState<PosScreen>
       }
     }
 
-    ref.read(cartProvider.notifier).addItem(product);
+    final itemGroups = ref.read(allItemGroupsProvider).value ?? [];
+    final itemGroup = product.itemGroupId != null
+        ? itemGroups.where((g) => g.id == product.itemGroupId).firstOrNull
+        : null;
+
+    ref.read(cartProvider.notifier).addItem(product, itemGroup: itemGroup);
 
     final isMobile = MediaQuery.of(context).size.width <= 900;
     if (isMobile) {

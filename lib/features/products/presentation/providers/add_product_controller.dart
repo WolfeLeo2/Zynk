@@ -29,8 +29,8 @@ class AddProductController extends _$AddProductController {
     required String? itemGroupId,
     required String? uomId, // Added
 
-    required double price,
-    required double? costPrice, // Added
+    double? price,
+    double? costPrice, // Added
     double? weight,
     double? length,
     double? width,
@@ -40,6 +40,9 @@ class AddProductController extends _$AddProductController {
     required File? imageFile,
     int? initialStock, // Added for new products
     List<CompositeItemComponent>? components, // Added for composite items
+    String? commissionType,
+    double? commissionValue,
+    String? parentId,
   }) async {
     state = const AsyncLoading();
 
@@ -99,6 +102,9 @@ class AddProductController extends _$AddProductController {
           height: height,
           taxCategory: 'standard',
           isService: false,
+          commissionType: commissionType,
+          commissionValue: commissionValue,
+          parentId: parentId,
           createdAt: DateTime.now(), // Will be ignored by DB
           updatedAt: DateTime.now(),
         );
@@ -128,6 +134,9 @@ class AddProductController extends _$AddProductController {
           height: height,
           taxCategory: 'standard', // Default
           isService: false, // Default
+          commissionType: commissionType,
+          commissionValue: commissionValue,
+          parentId: parentId,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );

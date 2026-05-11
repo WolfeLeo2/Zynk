@@ -7,6 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 
 class ProductDetailsScreen extends ConsumerWidget {
   final Product product;
@@ -283,26 +284,39 @@ class ProductDetailsScreen extends ConsumerWidget {
                     ],
                   ),
                   const Divider(height: 32),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: _buildInfoItem(
-                          theme,
-                          'Cost Price',
-                          product.costPrice != null
-                              ? 'KES ${product.costPrice!.toStringAsFixed(2)}'
-                              : 'Not Set',
-                        ),
-                      ),
-                      Expanded(
-                        child: _buildInfoItem(
-                          theme,
-                          'Selling Price',
-                          'KES ${product.basePrice.toStringAsFixed(2)}',
-                          valueColor: Theme.of(context).colorScheme.secondary,
-                        ),
-                      ),
-                    ],
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final group = product.itemGroupId != null
+                          ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
+                          : null;
+                      final pricingService = ref.watch(productPricingServiceProvider);
+                      final resolvedSelling = pricingService.resolveSellingPrice(product, group);
+                      final resolvedBuying = pricingService.resolveBuyingPrice(product, group);
+
+                      return Row(
+                        children: [
+                          Expanded(
+                            child: _buildInfoItem(
+                              theme,
+                              'Cost Price',
+                              resolvedBuying > 0
+                                  ? 'KES ${resolvedBuying.toStringAsFixed(2)}'
+                                  : 'Not Set',
+                            ),
+                          ),
+                          Expanded(
+                            child: _buildInfoItem(
+                              theme,
+                              'Selling Price',
+                              resolvedSelling > 0
+                                  ? 'KES ${resolvedSelling.toStringAsFixed(2)}'
+                                  : 'Not Set',
+                              valueColor: Theme.of(context).colorScheme.secondary,
+                            ),
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   const SizedBox(height: 24),
                   Row(

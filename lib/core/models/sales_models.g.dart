@@ -145,6 +145,7 @@ SaleApproval _$SaleApprovalFromJson(Map<String, dynamic> json) => SaleApproval(
   notes: json['notes'] as String?,
   createdAt: _parseDate(json['created_at']),
   approverDisplayName: json['approver_display_name'] as String?,
+  approverRole: json['approver_role'] as String?,
 );
 
 Map<String, dynamic> _$SaleApprovalToJson(SaleApproval instance) =>

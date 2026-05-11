@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -13,10 +12,7 @@ import 'core/routes.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Load Env
-  await dotenv.load(fileName: ".env");
-
-  // 2. Initialize Supabase
+  // 1. Initialize Supabase
   await Supabase.initialize(
     url: SupabaseConfig.url,
     anonKey: SupabaseConfig.anonKey,

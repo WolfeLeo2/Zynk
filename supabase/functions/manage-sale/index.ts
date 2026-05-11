@@ -241,7 +241,7 @@ Deno.serve(async (req: Request) => {
 
                 const { data: sourceSale, error: sourceSaleError } = await supabase
                     .from("sales")
-                    .select("*")
+                    .select("id, tenant_id, branch_id, customer_id, invoice_number, sale_type, subtotal, tax_amount, discount_amount, grand_total, total_amount, notes, due_date")
                     .eq("id", sourceSaleId)
                     .single();
 
@@ -255,7 +255,7 @@ Deno.serve(async (req: Request) => {
 
                 const { data: sourceItems, error: sourceItemsError } = await supabase
                     .from("sale_items")
-                    .select("*")
+                    .select("id, product_id, quantity, unit_price, cost_price, tax_amount, discount, total, product_name")
                     .eq("sale_id", sourceSaleId);
 
                 if (sourceItemsError) {
@@ -362,6 +362,43 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Sale (${sale.status}) must be pending approval to be approved`);
                 }
 
+                // Check existing approvals to enforce Earliest Account Wins per slot
+                const { data: existingApprovals } = await supabase
+                    .from("sale_approvals")
+                    .select("approver_user_id")
+                    .eq("sale_id", saleId)
+                    .eq("decision", "approved");
+
+                let hasOwnerApproval = false;
+                let hasStaffApproval = false;
+
+                if (existingApprovals && existingApprovals.length > 0) {
+                    const approverIds = existingApprovals.map((a: any) => a.approver_user_id);
+                    const { data: approverProfiles } = await supabase
+                        .from("profiles")
+                        .select("user_id, role")
+                        .in("user_id", approverIds)
+                        .eq("tenant_id", tenantId);
+
+                    if (approverProfiles) {
+                        for (const p of approverProfiles) {
+                            if (p.role?.toLowerCase() === "owner") {
+                                hasOwnerApproval = true;
+                            } else {
+                                hasStaffApproval = true;
+                            }
+                        }
+                    }
+                }
+
+                // Enforce slots
+                if (isOwner && hasOwnerApproval) {
+                    throw new Error("An Owner has already approved this invoice.");
+                }
+                if (!isOwner && hasStaffApproval) {
+                    throw new Error("An authorized staff member has already approved this invoice.");
+                }
+
                 const { error: approvalInsertError } = await supabase
                     .from("sale_approvals")
                     .insert({
@@ -381,19 +418,21 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Approval record failed: ${approvalInsertError.message}`);
                 }
 
-                const { count: approvalCount, error: approvalCountError } = await supabase
-                    .from("sale_approvals")
-                    .select("id", { count: "exact", head: true })
-                    .eq("sale_id", saleId)
-                    .eq("decision", "approved\");
-
-                if (approvalCountError) {
-                    throw new Error(`Approval count failed: ${approvalCountError.message}`);
-                }
+                // Recalculate slots with the new approval
+                if (isOwner) hasOwnerApproval = true;
+                else hasStaffApproval = true;
 
                 const requiredApprovals = Math.max(1, Number(sale.required_approvals || 2));
-                const nextApprovalCount = Math.min(requiredApprovals, Number(approvalCount || 0));
-                const isFinalApproval = nextApprovalCount >= requiredApprovals;
+                let nextApprovalCount = Number(sale.approval_count || 0) + 1;
+                let isFinalApproval = false;
+
+                if (requiredApprovals === 2) {
+                    isFinalApproval = hasOwnerApproval && hasStaffApproval;
+                    // Fix count just in case it got out of sync
+                    nextApprovalCount = (hasOwnerApproval ? 1 : 0) + (hasStaffApproval ? 1 : 0);
+                } else {
+                    isFinalApproval = nextApprovalCount >= requiredApprovals;
+                }
 
                 const updateData: any = {
                     approval_count: nextApprovalCount,
@@ -582,7 +621,7 @@ Deno.serve(async (req: Request) => {
                         updated_at: now,
                     })
                     .eq("id", saleId)
-                    .eq("status", "pending_approval\");
+                    .eq("status", "pending_approval");
 
                 if (error) {
                     if (sale.fulfillment_status === 'fulfilled') {
@@ -1106,7 +1145,7 @@ Deno.serve(async (req: Request) => {
 
                 const { data: cn } = await supabase
                     .from("credit_notes")
-                    .select("*")
+                    .select("id, status, total, credit_number")
                     .eq("id", credit_note_id)
                     .single();
 
@@ -1116,7 +1155,7 @@ Deno.serve(async (req: Request) => {
 
                 const { data: targetSale } = await supabase
                     .from("sales")
-                    .select("*")
+                    .select("id, tenant_id, branch_id, status, payment_status, fulfillment_status, grand_total, amount_paid")
                     .eq("id", target_sale_id)
                     .single();
 

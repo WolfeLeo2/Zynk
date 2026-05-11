@@ -31,6 +31,7 @@ streams:
       - "SELECT sales.* FROM sales,user_data_param AS bucket WHERE sales.tenant_id = bucket.tenant_id"
       - "SELECT sale_items.* FROM sale_items,user_data_param AS bucket WHERE sale_items.tenant_id = bucket.tenant_id"
       - "SELECT sale_payments.* FROM sale_payments,user_data_param AS bucket WHERE sale_payments.tenant_id = bucket.tenant_id"
+      - "SELECT sale_approvals.* FROM sale_approvals,user_data_param AS bucket WHERE sale_approvals.tenant_id = bucket.tenant_id"
       - "SELECT credit_notes.* FROM credit_notes,user_data_param AS bucket WHERE credit_notes.tenant_id = bucket.tenant_id"
       - "SELECT credit_note_items.* FROM credit_note_items,user_data_param AS bucket WHERE credit_note_items.tenant_id = bucket.tenant_id"
       - "SELECT commissions.* FROM commissions,user_data_param AS bucket WHERE commissions.tenant_id = bucket.tenant_id"

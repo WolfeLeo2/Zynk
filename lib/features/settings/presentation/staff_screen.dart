@@ -6,6 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/shared/widgets/shimmer_skeletons.dart';
 
 class StaffScreen extends ConsumerWidget {
   const StaffScreen({super.key});
@@ -19,10 +20,7 @@ class StaffScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        leading: IconButton(
-          icon: const PhosphorIcon(PhosphorIconsRegular.caretLeft),
-          onPressed: () => context.pop(),
-        ),
+        
         title: Text(
           'User Accounts',
           style: theme.textTheme.titleLarge?.copyWith(
@@ -35,20 +33,27 @@ class StaffScreen extends ConsumerWidget {
       ),
       body: staffAsync.when(
         data: (staff) {
-          if (staff.isEmpty) {
+          // Filter out the owner from the user accounts list to keep it focused on staff management
+          final humanStaff = staff.where((member) => member.role != UserRole.owner).toList();
+          
+          if (humanStaff.isEmpty) {
             return _buildEmptyState(context, colorScheme);
           }
           return ListView.separated(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-            itemCount: staff.length,
+            itemCount: humanStaff.length,
             separatorBuilder: (context, index) => const SizedBox(height: 12),
             itemBuilder: (context, index) {
-              final member = staff[index];
+              final member = humanStaff[index];
               return _StaffCard(member: member, colorScheme: colorScheme);
             },
           );
         },
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => const ListSkeleton(
+          itemCount: 8,
+          height: 80,
+          padding: EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+        ),
         error: (err, stack) => Center(child: Text('Error: $err')),
       ),
       floatingActionButton: FloatingActionButton.extended(

@@ -110,7 +110,8 @@ IconData getStatusIcon(String status) {
 
 String formatTimeAgo(DateTime timestamp) {
   final now = DateTime.now();
-  final diff = now.difference(timestamp);
+  final localTimestamp = timestamp.toLocal();
+  final diff = now.difference(localTimestamp);
 
   if (diff.inMinutes < 60) {
     return '${diff.inMinutes}m ago';

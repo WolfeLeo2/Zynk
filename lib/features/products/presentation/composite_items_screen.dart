@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 
 class CompositeItemsScreen extends ConsumerWidget {
@@ -209,12 +210,22 @@ class _CompositeItemCard extends ConsumerWidget {
                             textColor: cs.onSecondaryContainer,
                           ),
                           const SizedBox(width: 8),
-                          Text(
-                            'KES ${product.basePrice.toStringAsFixed(0)}',
-                            style: theme.textTheme.labelMedium?.copyWith(
-                              color: cs.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          Consumer(
+                            builder: (context, ref, child) {
+                              final group = product.itemGroupId != null
+                                  ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
+                                  : null;
+                              final resolvedPrice = ref
+                                  .watch(productPricingServiceProvider)
+                                  .resolveSellingPrice(product, group);
+                              return Text(
+                                'KES ${resolvedPrice.toStringAsFixed(0)}',
+                                style: theme.textTheme.labelMedium?.copyWith(
+                                  color: cs.primary,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              );
+                            },
                           ),
                         ],
                       ),

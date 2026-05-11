@@ -196,6 +196,12 @@ class _MetadataSection extends ConsumerWidget {
 
     return Column(
       children: [
+        _MetaItem(
+          label: 'Reference',
+          value: (adjustment.referenceNumber != null && adjustment.referenceNumber!.isNotEmpty)
+              ? adjustment.referenceNumber!
+              : 'ADJ-${adjustment.bundleId?.substring(0, 5).toUpperCase() ?? adjustment.id.substring(0, 5).toUpperCase()}',
+        ),
         _MetaItem(label: 'Account', value: adjustment.adjusterName ?? 'System'),
         _MetaItem(label: 'Adjusted By', value: adjustment.staffName ?? adjustment.adjusterName ?? 'System'),
         _MetaItem(label: 'Adjustment Type', value: 'Quantity'),

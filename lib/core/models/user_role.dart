@@ -23,7 +23,19 @@ enum Permission {
   approveInvoices(
     'approve_invoices',
     'Approve Invoices',
-    'Can approve or reject pending invoices. Can delete, reject and edit . Can delete payments',
+    'Can approve or reject pending invoices.',
+    PermissionCategory.sales,
+  ),
+  editSales(
+    'edit_sales',
+    'Edit Invoices',
+    'Can edit pending invoices',
+    PermissionCategory.sales,
+  ),
+  deleteSales(
+    'delete_sales',
+    'Delete Invoices',
+    'Can delete invoices and payments',
     PermissionCategory.sales,
   ),
   voidSales(
@@ -221,6 +233,8 @@ enum UserRole {
           Permission.posAccess,
           Permission.createInvoices,
           Permission.approveInvoices,
+          Permission.editSales,
+          Permission.deleteSales,
           Permission.voidSales,
           Permission.recordPayments,
           Permission.issueCreditNotes,

@@ -9,6 +9,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 
 const _uuid = Uuid();
 
@@ -362,7 +363,17 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                               return ListTile(
                                 dense: true,
                                 title: Text(p.name, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
-                                subtitle: Text('KES ${p.basePrice.toStringAsFixed(0)}', style: theme.textTheme.bodySmall),
+                                subtitle: Consumer(
+                                  builder: (context, ref, child) {
+                                    final group = p.itemGroupId != null
+                                        ? ref.watch(itemGroupProvider(p.itemGroupId!)).value
+                                        : null;
+                                    final resolvedPrice = ref
+                                        .watch(productPricingServiceProvider)
+                                        .resolveSellingPrice(p, group);
+                                    return Text('KES ${resolvedPrice.toStringAsFixed(0)}', style: theme.textTheme.bodySmall);
+                                  },
+                                ),
                                 trailing: const Icon(PhosphorIconsBold.plus, size: 18),
                                 onTap: () {
                                   _addComponent(p);

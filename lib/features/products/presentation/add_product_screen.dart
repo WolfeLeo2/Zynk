@@ -50,10 +50,16 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   bool _trackStock = true;
   String? _existingImageUrl;
 
+  // Inheritance / Overrides
+  bool _overrideSellingPrice = false;
+  bool _overrideBuyingPrice = false;
+
   // Item Group BottomSheet state
   String _newGroupCommissionType = 'none';
   final _newGroupDescController = TextEditingController();
   final _newGroupCommissionValueController = TextEditingController();
+  final _newGroupSellingPriceController = TextEditingController();
+  final _newGroupBuyingPriceController = TextEditingController();
 
   // Logistics / Dimensions
   final _weightController = TextEditingController();
@@ -82,10 +88,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _selectedCategoryId = p.categoryId;
       _selectedItemGroupId = p.itemGroupId;
       _selectedUomId = p.uomId;
-      if (p.branchId != null && p.branchId!.isNotEmpty) {
-        _selectedTargetBranchId = p.branchId;
-      }
+      _selectedTargetBranchId = p.branchId;
       _existingImageUrl = p.imageUrl;
+
+      // Initialize override flags
+      _overrideSellingPrice = p.basePrice != null;
+      _overrideBuyingPrice = p.costPrice != null;
 
       // Logistics
       if (p.weight != null) _weightController.text = p.weight.toString();
@@ -106,6 +114,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _lowStockController.dispose();
     _newGroupDescController.dispose();
     _newGroupCommissionValueController.dispose();
+    _newGroupSellingPriceController.dispose();
+    _newGroupBuyingPriceController.dispose();
     _weightController.dispose();
     _lengthController.dispose();
     _widthController.dispose();
@@ -133,6 +143,24 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       setState(() {
         _barcodeController.text = result;
       });
+    }
+  }
+
+  void _updateInheritedPrices() {
+    if (_selectedItemGroupId == null) return;
+    
+    final groupsAsync = ref.read(allItemGroupsProvider);
+    final group = groupsAsync.whenOrNull(
+      data: (groups) => groups.where((g) => g.id == _selectedItemGroupId).firstOrNull,
+    );
+
+    if (group != null) {
+      if (!_overrideSellingPrice && group.defaultSellingPrice != null) {
+        _priceController.text = group.defaultSellingPrice!.toString();
+      }
+      if (!_overrideBuyingPrice && group.defaultBuyingPrice != null) {
+        _costPriceController.text = group.defaultBuyingPrice!.toString();
+      }
     }
   }
 
@@ -168,8 +196,21 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         return;
       }
 
-      final price = double.tryParse(_priceController.text) ?? 0.0;
-      final costPrice = double.tryParse(_costPriceController.text);
+      final price = _overrideSellingPrice || _selectedItemGroupId == null
+          ? double.tryParse(_priceController.text.trim())
+          : null;
+      
+      final costPrice = _overrideBuyingPrice || _selectedItemGroupId == null
+          ? double.tryParse(_costPriceController.text.trim())
+          : null;
+
+      // Validation: If no group, we MUST have a selling price
+      if (_selectedItemGroupId == null && price == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please provide a price or select an Item Group to inherit prices.')),
+        );
+        return;
+      }
 
       String skuToSave = _skuController.text;
       if (_autoGenerateSku && skuToSave.isEmpty) {
@@ -371,6 +412,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     final nameController = TextEditingController();
     _newGroupDescController.clear();
     _newGroupCommissionValueController.clear();
+    _newGroupSellingPriceController.clear();
+    _newGroupBuyingPriceController.clear();
     setState(() => _newGroupCommissionType = 'none');
 
     await showModalBottomSheet(
@@ -411,6 +454,36 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   hintText: 'Short description of this group',
                   border: OutlineInputBorder(),
                 ),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _newGroupSellingPriceController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Default Selling Price',
+                        hintText: 'e.g. 500',
+                        border: OutlineInputBorder(),
+                        prefixText: 'KES ',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextFormField(
+                      controller: _newGroupBuyingPriceController,
+                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      decoration: const InputDecoration(
+                        labelText: 'Default Buying Price',
+                        hintText: 'e.g. 350',
+                        border: OutlineInputBorder(),
+                        prefixText: 'KES ',
+                      ),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 24),
               Text('Commission', style: Theme.of(context).textTheme.labelLarge),
@@ -497,6 +570,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                             _newGroupCommissionType == 'none'
                             ? null
                             : commissionValue,
+                        defaultSellingPrice: double.tryParse(_newGroupSellingPriceController.text),
+                        defaultBuyingPrice: double.tryParse(_newGroupBuyingPriceController.text),
                         createdAt: DateTime.now(),
                         updatedAt: DateTime.now(),
                       );
@@ -914,6 +989,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               setState(() {
                 _selectedItemGroupId = g?.id;
               });
+              _updateInheritedPrices();
             },
             onAddPressed: _showAddGroupBottomSheet,
           ),
@@ -1087,39 +1163,159 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   // Step 2: Pricing & Commission
   Widget _buildStep2() {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        if (_selectedItemGroupId == null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16),
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: cs.secondaryContainer.withValues(alpha: 0.3),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: cs.secondary.withValues(alpha: 0.2)),
+              ),
+              child: Row(
+                children: [
+                  Icon(PhosphorIconsDuotone.info, size: 20, color: cs.secondary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Select an Item Group to enable price inheritance.',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSecondaryContainer,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+        // Selling Price Section
         Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Expanded(
-              child: TextFormField(
-                controller: _costPriceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Cost Price',
-                  prefixText: 'KES ',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(PhosphorIconsDuotone.money),
+              child: Text(
+                'Selling Price',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: TextFormField(
-                controller: _priceController,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(
-                  labelText: 'Selling Price *',
-                  prefixText: 'KES ',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(PhosphorIconsDuotone.currencyDollar),
-                ),
-                validator: (value) =>
-                    value == null || value.isEmpty ? 'Required' : null,
+            if (_selectedItemGroupId != null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Override',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: _overrideSellingPrice ? cs.primary : cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Transform.scale(
+                    scale: 0.8,
+                    child: Switch(
+                      value: _overrideSellingPrice,
+                      onChanged: (val) {
+                        setState(() => _overrideSellingPrice = val);
+                        if (!val) _updateInheritedPrices();
+                      },
+                    ),
+                  ),
+                ],
               ),
-            ),
           ],
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _priceController,
+          readOnly: _selectedItemGroupId != null && !_overrideSellingPrice,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: _overrideSellingPrice ? 'Custom Selling Price' : 'Inherited Selling Price',
+            prefixText: 'KES ',
+            hintText: '0.00',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(PhosphorIconsDuotone.currencyCircleDollar),
+            fillColor: (_selectedItemGroupId != null && !_overrideSellingPrice) 
+                ? cs.surfaceContainerHighest.withValues(alpha: 0.8) 
+                : null,
+            filled: (_selectedItemGroupId != null && !_overrideSellingPrice),
+            helperText: _selectedItemGroupId != null 
+              ? (_overrideSellingPrice ? 'Using custom override price' : 'Using group default price')
+              : 'Enter standard selling price',
+            helperStyle: TextStyle(
+              color: _overrideSellingPrice ? cs.primary : cs.onSurfaceVariant,
+              fontWeight: _overrideSellingPrice ? FontWeight.bold : null,
+            ),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        // Cost Price Section
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Cost Price',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (_selectedItemGroupId != null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Override',
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: _overrideBuyingPrice ? cs.primary : cs.onSurfaceVariant,
+                    ),
+                  ),
+                  Transform.scale(
+                    scale: 0.8,
+                    child: Switch(
+                      value: _overrideBuyingPrice,
+                      onChanged: (val) {
+                        setState(() => _overrideBuyingPrice = val);
+                        if (!val) _updateInheritedPrices();
+                      },
+                    ),
+                  ),
+                ],
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: _costPriceController,
+          readOnly: _selectedItemGroupId != null && !_overrideBuyingPrice,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          decoration: InputDecoration(
+            labelText: _overrideBuyingPrice ? 'Custom Cost Price' : 'Inherited Cost Price',
+            prefixText: 'KES ',
+            hintText: '0.00',
+            border: const OutlineInputBorder(),
+            prefixIcon: const Icon(PhosphorIconsDuotone.money),
+            fillColor: (_selectedItemGroupId != null && !_overrideBuyingPrice) 
+                ? cs.surfaceContainerHighest.withValues(alpha: 0.8) 
+                : null,
+            filled: (_selectedItemGroupId != null && !_overrideBuyingPrice),
+            helperText: _selectedItemGroupId != null 
+              ? (_overrideBuyingPrice ? 'Using custom override cost' : 'Using group default cost')
+              : 'Enter standard purchase cost',
+            helperStyle: TextStyle(
+              color: _overrideBuyingPrice ? cs.primary : cs.onSurfaceVariant,
+              fontWeight: _overrideBuyingPrice ? FontWeight.bold : null,
+            ),
+          ),
         ),
       ],
     );
@@ -1202,58 +1398,59 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         ),
         const SizedBox(height: 24),
 
-        // Stock
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            children: [
-              SwitchListTile(
-                title: const Text('Track Stock'),
-                subtitle: const Text('Manage inventory levels for this item'),
-                value: _trackStock,
-                onChanged: (val) => setState(() => _trackStock = val),
-                contentPadding: EdgeInsets.zero,
-              ),
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _stockController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'Initial Stock *',
-                          border: OutlineInputBorder(),
-                        ),
-                        validator: (value) => value == null || value.isEmpty
-                            ? 'Please enter initial stock'
-                            : null,
-                      ),
-                    ),
-                    if (_trackStock) ...[
-                      const SizedBox(width: 16),
+        // Stock - Only shown during creation
+        if (widget.existingProduct == null)
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
+            ),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: const Text('Track Stock'),
+                  subtitle: const Text('Manage inventory levels for this item'),
+                  value: _trackStock,
+                  onChanged: (val) => setState(() => _trackStock = val),
+                  contentPadding: EdgeInsets.zero,
+                ),
+                Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Row(
+                    children: [
                       Expanded(
                         child: TextFormField(
-                          controller: _lowStockController,
+                          controller: _stockController,
                           keyboardType: TextInputType.number,
                           decoration: const InputDecoration(
-                            labelText: 'Low Stock Alert',
+                            labelText: 'Initial Stock *',
                             border: OutlineInputBorder(),
                           ),
+                          validator: (value) => value == null || value.isEmpty
+                              ? 'Please enter initial stock'
+                              : null,
                         ),
                       ),
+                      if (_trackStock) ...[
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: TextFormField(
+                            controller: _lowStockController,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(
+                              labelText: 'Low Stock Alert',
+                              border: OutlineInputBorder(),
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
         const SizedBox(height: 24),
       ],
     );

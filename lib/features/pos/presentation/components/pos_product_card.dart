@@ -5,6 +5,7 @@ import 'package:zynk/core/models/schema_models.dart';
 
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/pos/providers/pos_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class PosProductCard extends ConsumerWidget {
@@ -33,107 +34,140 @@ class PosProductCard extends ConsumerWidget {
     final currentStock = stockAsync.value?.quantity ?? 0;
     final isOutOfStock = !product.isService && currentStock <= 0;
 
-    return Card(
-      elevation: 0,
-      color: colorScheme.surfaceContainerLow,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
+    return Container(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // Product Image
-            Expanded(flex: 3, child: _buildImage(colorScheme)),
-            // Content
-            Expanded(
-              flex: 2,
-              child: Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      style: textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w600,
-                        color: colorScheme.onSurface,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(24),
+          child: Stack(
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Product Image
+                  Expanded(
+                    flex: 4,
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: _buildImage(colorScheme),
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
                     ),
-                    if (!product.isService) ...[
-                      const SizedBox(height: 2),
-                      stockAsync.when(
-                        data: (stock) {
-                          final qty = stock?.quantity ?? 0;
-                          return Text(
-                            qty > 0 ? '$qty in stock' : 'Out of stock',
-                            style: textTheme.labelSmall?.copyWith(
-                              color: qty > 0
-                                  ? colorScheme.primary
-                                  : colorScheme.error,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          );
-                        },
-                        loading: () => const SizedBox(
-                          height: 12,
-                          width: 12,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        ),
-                        error: (e, s) => const SizedBox(),
-                      ),
-                    ],
-                    const Spacer(),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.end,
+                  ),
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Flexible(
-                          child: Text(
-                            'Ksh ${product.basePrice.toStringAsFixed(0)}',
-                            style: textTheme.bodyMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: colorScheme.primary,
-                            ),
+                        Text(
+                          product.name,
+                          style: textTheme.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: colorScheme.onSurface,
+                            fontSize: 15,
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        // Quick Add Button
-                        Material(
-                          color: isOutOfStock
-                              ? colorScheme.surfaceContainerHighest
-                              : colorScheme.primary,
-                          borderRadius: BorderRadius.circular(8),
-                          child: InkWell(
-                            onTap: isOutOfStock ? null : onAddToCart,
-                            borderRadius: BorderRadius.circular(8),
-                            child: Padding(
-                              padding: const EdgeInsets.all(6),
-                              child: PhosphorIcon(
-                                PhosphorIconsBold.plus,
-                                size: 14,
-                                color: isOutOfStock
-                                    ? colorScheme.onSurface.withValues(
-                                        alpha: 0.3,
-                                      )
-                                    : colorScheme.onPrimary,
-                              ),
-                            ),
+                        if (!product.isService) ...[
+                          const SizedBox(height: 2),
+                          stockAsync.when(
+                            data: (stock) {
+                              final qty = stock?.quantity ?? 0;
+                              return Text(
+                                qty > 0 ? '$qty in stock' : 'Out of stock',
+                                style: textTheme.labelSmall?.copyWith(
+                                  color: qty > 0
+                                      ? colorScheme.onSurfaceVariant
+                                      : colorScheme.error,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              );
+                            },
+                            loading: () => const SizedBox(height: 12),
+                            error: (e, s) => const SizedBox(),
                           ),
+                        ],
+                        const SizedBox(height: 12),
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final group = product.itemGroupId != null
+                                ? ref
+                                    .watch(itemGroupProvider(product.itemGroupId!))
+                                    .value
+                                : null;
+                            final resolvedPrice = ref
+                                .watch(productPricingServiceProvider)
+                                .resolveSellingPrice(product, group);
+                            return Text(
+                              'Ksh ${resolvedPrice.toStringAsFixed(0)}',
+                              style: textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.w800,
+                                color: colorScheme.onSurface,
+                              ),
+                            );
+                          },
                         ),
                       ],
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              // Floating Plus Button at Bottom Right
+              Positioned(
+                bottom: 12,
+                right: 12,
+                child: Material(
+                  color: isOutOfStock
+                      ? colorScheme.surfaceContainerHighest
+                      : colorScheme.surface,
+                  shape: const CircleBorder(),
+                  elevation: isOutOfStock ? 0 : 2,
+                  shadowColor: Colors.black26,
+                  child: InkWell(
+                    onTap: isOutOfStock ? null : onAddToCart,
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: isOutOfStock
+                            ? colorScheme.surfaceContainerHighest
+                            : colorScheme.primaryContainer,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Center(
+                        child: PhosphorIcon(
+                          PhosphorIconsBold.plus,
+                          size: 18,
+                          color: isOutOfStock
+                              ? colorScheme.onPrimaryContainer.withValues(
+                                  alpha: 0.3,
+                                )
+                              : colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
