@@ -103,6 +103,16 @@ class AppDrawer extends ConsumerWidget {
                       path: '/sales',
                       currentPath: currentPath,
                     ),
+                    if (profileAsync.value?.hasPermission(
+                          Permission.manageExpenses,
+                        ) ==
+                        true)
+                      _DrawerItem(
+                        icon: PhosphorIconsDuotone.money,
+                        label: 'Expenses',
+                        path: '/expenses',
+                        currentPath: currentPath,
+                      ),
                   ],
 
                   // --- INVENTORY ---
@@ -165,6 +175,12 @@ class AppDrawer extends ConsumerWidget {
                       icon: PhosphorIconsDuotone.currencyDollar,
                       label: 'Reports',
                       path: '/settings/reports',
+                      currentPath: currentPath,
+                    ),
+                    _DrawerItem(
+                      icon: PhosphorIconsDuotone.trendUp,
+                      label: 'Commissions',
+                      path: '/settings/commissions',
                       currentPath: currentPath,
                     ),
                   ],

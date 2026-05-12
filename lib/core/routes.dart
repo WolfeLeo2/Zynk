@@ -34,8 +34,10 @@ import 'package:zynk/features/settings/presentation/add_staff_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
 import 'package:zynk/features/products/presentation/adjustments_screen.dart';
 import 'package:zynk/features/reports/presentation/reports_screen.dart';
+import 'package:zynk/features/reports/presentation/commissions_report_screen.dart';
 import 'package:zynk/features/customers/presentation/customers_screen.dart';
 import 'package:zynk/features/products/presentation/adjustment_detail_screen.dart';
+import 'package:zynk/features/expenses/presentation/screens/expenses_screen.dart';
 
 // Keys
 final rootNavigatorKey = GlobalKey<NavigatorState>();
@@ -104,6 +106,12 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (loc.startsWith('/settings/customers') &&
             !profile.hasPermission(Permission.manageCustomers)) {
           return '/settings';
+        }
+
+        // Enforce Expenses access
+        if (loc.startsWith('/expenses') &&
+            !profile.hasPermission(Permission.manageExpenses)) {
+          return '/';
         }
       }
 
@@ -221,6 +229,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) =>
                         const InventoryAdjustmentScreen(),
                   ),
+                  GoRoute(
+                    path: 'expenses',
+                    builder: (context, state) => const ExpensesScreen(),
+                  ),
                 ],
               ),
             ],
@@ -322,7 +334,7 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'commissions',
-                    builder: (context, state) => const ReportsScreen(),
+                    builder: (context, state) => const CommissionsReportScreen(),
                   ),
                   GoRoute(
                     path: 'customers',

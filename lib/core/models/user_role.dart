@@ -62,6 +62,12 @@ enum Permission {
     'Can apply discounts at POS or on invoices',
     PermissionCategory.sales,
   ),
+  manageExpenses(
+    'manage_expenses',
+    'Manage Expenses',
+    'Can log and view business expenses',
+    PermissionCategory.sales,
+  ),
 
   // ── Inventory ──
   manageProducts(
@@ -247,6 +253,7 @@ enum UserRole {
           Permission.viewDashboard,
           Permission.exportData,
           Permission.manageCustomers,
+          Permission.manageExpenses,
         };
       case UserRole.cashier:
         return {
