@@ -1,0 +1,1 @@
+{"type":"convention","content":"StateProvider is removed in Riverpod 3.0. Use Notifier with a public 'state' setter override for simple state management migration.","classification":"tactical","recorded_at":"2026-05-11T10:55:00.206Z","id":"mx-7209c6"}

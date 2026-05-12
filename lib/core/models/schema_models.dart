@@ -206,8 +206,17 @@ class Branch {
   });
 
   factory Branch.fromMap(Map<String, dynamic> map) => _$BranchFromJson(map);
-
   Map<String, dynamic> toMap() => _$BranchToJson(this);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Branch &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
 
 @JsonSerializable(fieldRename: FieldRename.snake)

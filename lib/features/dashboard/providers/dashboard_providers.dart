@@ -43,6 +43,34 @@ final todaysRevenueProvider = StreamProvider<double>((ref) {
       .map((row) => ((row['payments_collected'] as num?) ?? 0).toDouble());
 });
 
+/// Today's expenses
+final todaysExpensesProvider = StreamProvider<double>((ref) {
+  ref.watch(dashboardRefreshTriggerProvider);
+  final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  if (tenantId == null) return Stream.value(0.0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['expenses_total'] as num?) ?? 0).toDouble());
+});
+
+/// Today's Net Profit (Payments Collected - Expenses)
+final todaysNetProfitProvider = Provider<AsyncValue<double>>((ref) {
+  final revenue = ref.watch(todaysRevenueProvider);
+  final expenses = ref.watch(todaysExpensesProvider);
+
+  return revenue.when(
+    data: (rev) => expenses.when(
+      data: (exp) => AsyncValue.data(rev - exp),
+      loading: () => const AsyncValue.loading(),
+      error: (e, st) => AsyncValue.error(e, st),
+    ),
+    loading: () => const AsyncValue.loading(),
+    error: (e, st) => AsyncValue.error(e, st),
+  );
+});
+
 /// Total all-time revenue
 final salesDataProvider = StreamProvider<double>((ref) {
   ref.watch(dashboardRefreshTriggerProvider);
@@ -296,6 +324,10 @@ final metricDetailDataProvider =
             params.value.toInt(),
             params.colorScheme,
           );
+        case MetricType.expenses:
+          return createExpensesDetailData(params.value, params.colorScheme);
+        case MetricType.netProfit:
+          return createNetProfitDetailData(params.value, params.colorScheme);
         default:
           return createRevenueDetailData(params.value, params.colorScheme);
       }
@@ -359,12 +391,18 @@ final dailySalesChartProvider =
       final branchId = ref.watch(currentBranchIdProvider);
       final range = ref.watch(chartTimeRangeProvider);
       final days = _rangeToDays(range);
+
+      final now = DateTime.now();
+      final startDate = now.subtract(Duration(days: days - 1));
+      final endDate = now;
+
       if (tenantId == null) {
         return repo.watchDailySalesData(branchId: branchId, days: days);
       }
       return repo.watchDailySalesDataSmart(
         tenantId: tenantId,
         branchId: branchId,
-        days: days,
+        startDate: startDate,
+        endDate: endDate,
       );
     });

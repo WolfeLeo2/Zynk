@@ -3,12 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/sales_models.dart';
-import 'package:zynk/core/providers/app_providers.dart';
+
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/shared/widgets/branch_filter_chips.dart';
 
 class SalesListScreen extends ConsumerStatefulWidget {
   const SalesListScreen({super.key});
@@ -135,49 +136,9 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Branch filter (only visible when "All Branches" is selected)
-        Consumer(
-          builder: (context, ref, _) {
-            final branchesAsync = ref.watch(branchesProvider);
-            final currentBranch = ref.watch(currentBranchIdProvider);
-            final isAllBranches =
-                currentBranch == null || currentBranch == 'all';
-
-            if (!isAllBranches) return const SizedBox.shrink();
-
-            return branchesAsync.when(
-              data: (branches) {
-                if (branches.length <= 1) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Row(
-                    children: [
-                      PhosphorIcon(
-                        PhosphorIconsRegular.storefront,
-                        size: 16,
-                        color: cs.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _branchChip(theme, cs, null, 'All Branches'),
-                              ...branches.map(
-                                (b) => _branchChip(theme, cs, b.id, b.name),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => const SizedBox.shrink(),
-            );
-          },
+        BranchFilterChips(
+          selectedBranchId: _branchFilter,
+          onSelected: (id) => setState(() => _branchFilter = id),
         ),
         // Status filter chips
         SingleChildScrollView(
@@ -217,34 +178,6 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     );
   }
 
-  Widget _branchChip(
-    ThemeData theme,
-    ColorScheme cs,
-    String? branchId,
-    String label,
-  ) {
-    final isActive = _branchFilter == branchId;
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ChoiceChip(
-        selected: isActive,
-        showCheckmark: false,
-        label: Text(
-          label,
-          style: TextStyle(
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            color: isActive ? cs.onSecondary : cs.onSurface,
-            fontSize: 12,
-          ),
-        ),
-        selectedColor: cs.secondary,
-        side: BorderSide(
-          color: isActive ? cs.secondary : cs.outline.withValues(alpha: 0.2),
-        ),
-        onSelected: (_) => setState(() => _branchFilter = branchId),
-      ),
-    );
-  }
 
   Widget _buildEmpty(ThemeData theme, ColorScheme cs) {
     return Center(

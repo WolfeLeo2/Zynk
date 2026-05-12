@@ -6,7 +6,16 @@ import 'package:flutter/material.dart';
 
 enum ChartType { line, bar, pie }
 
-enum MetricType { revenue, orders, lowStock, aov, conversion, customers }
+enum MetricType {
+  revenue,
+  orders,
+  lowStock,
+  aov,
+  conversion,
+  customers,
+  expenses,
+  netProfit
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS
@@ -196,6 +205,50 @@ MetricDetailData createLowStockDetailData(int count, ColorScheme colorScheme) {
         value: '$count',
         icon: Icons.warning_amber,
         color: count > 0 ? Colors.red : Colors.green,
+      ),
+    ],
+    chartData: [],
+  );
+}
+
+MetricDetailData createExpensesDetailData(
+  double expenses,
+  ColorScheme colorScheme,
+) {
+  return MetricDetailData(
+    type: MetricType.expenses,
+    title: 'Expenses Details',
+    value: 'Ksh ${expenses.toStringAsFixed(0)}',
+    rawValue: expenses,
+    subtitle: "Today's total expenses",
+    relatedMetrics: [
+      MetricRelation(
+        label: 'Total Expenses',
+        value: 'Ksh ${expenses.toStringAsFixed(0)}',
+        icon: Icons.receipt,
+        color: Colors.red,
+      ),
+    ],
+    chartData: [],
+  );
+}
+
+MetricDetailData createNetProfitDetailData(
+  double netProfit,
+  ColorScheme colorScheme,
+) {
+  return MetricDetailData(
+    type: MetricType.netProfit,
+    title: 'Net Profit Details',
+    value: 'Ksh ${netProfit.toStringAsFixed(0)}',
+    rawValue: netProfit,
+    subtitle: "Today's net profit (Revenue - Expenses)",
+    relatedMetrics: [
+      MetricRelation(
+        label: 'Net Profit',
+        value: 'Ksh ${netProfit.toStringAsFixed(0)}',
+        icon: Icons.account_balance_wallet,
+        color: netProfit >= 0 ? Colors.green : Colors.red,
       ),
     ],
     chartData: [],

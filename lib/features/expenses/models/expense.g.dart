@@ -18,6 +18,9 @@ Expense _$ExpenseFromJson(Map<String, dynamic> json) => Expense(
   expenseDate: _dateFromAny(json['expense_date']),
   createdAt: _dateFromAny(json['created_at']),
   updatedAt: _dateFromAny(json['updated_at']),
+  branchName: json['branch_name'] as String?,
+  staffName: json['staff_name'] as String?,
+  categoryName: json['category_name'] as String?,
 );
 
 Map<String, dynamic> _$ExpenseToJson(Expense instance) => <String, dynamic>{
@@ -32,4 +35,5 @@ Map<String, dynamic> _$ExpenseToJson(Expense instance) => <String, dynamic>{
   'expense_date': _dateToIso(instance.expenseDate),
   'created_at': _dateToIso(instance.createdAt),
   'updated_at': _dateToIso(instance.updatedAt),
+  'branch_name': instance.branchName,
 };

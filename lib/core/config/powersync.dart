@@ -67,6 +67,28 @@ final schema = Schema([
     Column.text('updated_at'),
   ]),
 
+  // Expense Categories
+  const Table('expense_categories', [
+    Column.text('tenant_id'),
+    Column.text('name'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Expenses
+  const Table('expenses', [
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('category_id'),
+    Column.text('staff_member_id'),
+    Column.real('amount'),
+    Column.text('description'),
+    Column.text('payment_method'),
+    Column.text('expense_date'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
   // Staff Members
   const Table('staff_members', [
     Column.text('tenant_id'),
@@ -322,6 +344,8 @@ final schema = Schema([
     Column.integer('orders_count'),
     Column.real('gross_sales'),
     Column.real('payments_collected'),
+    Column.real('total_expenses'),
+    Column.real('net_profit'),
     Column.integer('pending_approval_count'),
     Column.integer('low_stock_count'),
     Column.real('inventory_value'),

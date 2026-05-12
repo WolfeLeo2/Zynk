@@ -6,39 +6,68 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/services/commission_service.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
 // ─────────────────────────────────────────────────────────────────────────────
 
-final _dateRangeProvider = NotifierProvider<_DateRangeNotifier, DateTimeRange?>(
-  _DateRangeNotifier.new,
+enum CommissionStatus { all, pending, paid }
+
+final _selectedMonthProvider = NotifierProvider<_SelectedMonthNotifier, DateTime>(
+  _SelectedMonthNotifier.new,
 );
 
-class _DateRangeNotifier extends Notifier<DateTimeRange?> {
+class _SelectedMonthNotifier extends Notifier<DateTime> {
   @override
-  DateTimeRange? build() => null;
+  DateTime build() {
+    final now = DateTime.now();
+    return DateTime(now.year, now.month);
+  }
 
-  void setRange(DateTimeRange? range) {
-    state = range;
+  void previousMonth() {
+    state = DateTime(state.year, state.month - 1);
+  }
+
+  void nextMonth() {
+    state = DateTime(state.year, state.month + 1);
+  }
+
+  void setMonth(DateTime date) {
+    state = DateTime(date.year, date.month);
   }
 }
+
+class _CommissionStatusNotifier extends Notifier<CommissionStatus> {
+  @override
+  CommissionStatus build() => CommissionStatus.all;
+  @override
+  set state(CommissionStatus val) => super.state = val;
+}
+
+final _commissionStatusProvider =
+    NotifierProvider<_CommissionStatusNotifier, CommissionStatus>(
+      _CommissionStatusNotifier.new,
+    );
 
 final _commissionSummaryProvider = StreamProvider.autoDispose
     .family<
       List<SalespersonCommissionSummary>,
-      ({String tenantId, String? branchId, DateTimeRange? range})
+      ({String tenantId, String? branchId, DateTime month, CommissionStatus status})
     >((ref, args) {
       final repo = ref.watch(repositoryProvider);
+      final startDate = args.month;
+      final endDate = DateTime(args.month.year, args.month.month + 1, 0, 23, 59, 59);
+
       return repo
           .watchCommissionSummaryRaw(
             tenantId: args.tenantId,
             branchId: args.branchId,
-            startDate: args.range?.start,
-            endDate: args.range?.end,
+            startDate: startDate,
+            endDate: endDate,
           )
-          .map(
-            (rows) => rows.map((row) {
+          .map((rows) {
+            final summaries = rows.map((row) {
               return SalespersonCommissionSummary(
                 salespersonId: row['salesperson_id'] as String? ?? '',
                 salespersonName:
@@ -51,8 +80,15 @@ final _commissionSummaryProvider = StreamProvider.autoDispose
                     (row['total_sales_amount'] as num?)?.toDouble() ?? 0.0,
                 salesCount: (row['sales_count'] as num?)?.toInt() ?? 0,
               );
-            }).toList(),
-          );
+            }).toList();
+
+            if (args.status == CommissionStatus.pending) {
+              return summaries.where((s) => s.totalPending > 0).toList();
+            } else if (args.status == CommissionStatus.paid) {
+              return summaries.where((s) => s.totalPaid > 0 && s.totalPending == 0).toList();
+            }
+            return summaries;
+          });
     });
 
 final _salespersonDetailProvider = StreamProvider.autoDispose
@@ -62,16 +98,19 @@ final _salespersonDetailProvider = StreamProvider.autoDispose
         String tenantId,
         String? branchId,
         String salespersonId,
-        DateTimeRange? range,
+        DateTime month,
       })
     >((ref, args) {
       final repo = ref.watch(repositoryProvider);
+      final startDate = args.month;
+      final endDate = DateTime(args.month.year, args.month.month + 1, 0, 23, 59, 59);
+      
       return repo.watchCommissions(
         tenantId: args.tenantId,
         branchId: args.branchId,
         salespersonId: args.salespersonId,
-        startDate: args.range?.start,
-        endDate: args.range?.end,
+        startDate: startDate,
+        endDate: endDate,
       );
     });
 
@@ -90,272 +129,196 @@ class CommissionsReportScreen extends ConsumerWidget {
     final tenantId = profile?.tenantId ?? '';
     final branchId = ref.watch(currentBranchIdProvider);
 
-    final dateRange = ref.watch(_dateRangeProvider);
+    final selectedMonth = ref.watch(_selectedMonthProvider);
+    final status = ref.watch(_commissionStatusProvider);
     final summaryAsync = ref.watch(
       _commissionSummaryProvider((
         tenantId: tenantId,
         branchId: branchId,
-        range: dateRange,
+        month: selectedMonth,
+        status: status,
       )),
     );
 
     return Scaffold(
       drawer: const AppDrawer(),
-      body: CustomScrollView(
-        slivers: [
-          SliverAppBar.large(
-            leading: Builder(
-              builder: (context) {
-                if (MediaQuery.of(context).size.width < 840) {
-                  return IconButton(
-                    icon: const PhosphorIcon(PhosphorIconsRegular.list),
-                    onPressed: () => Scaffold.of(context).openDrawer(),
-                  );
-                }
-                return const SizedBox.shrink();
-              },
-            ),
-            title: const Text('Commission Report'),
-            backgroundColor: colorScheme.surface,
-            foregroundColor: colorScheme.onSurface,
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.date_range_rounded),
-                onPressed: () async {
-                  final currentRange = ref.read(_dateRangeProvider);
-                  final picked = await showDateRangePicker(
-                    context: context,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime.now().add(const Duration(days: 1)),
-                    initialDateRange: currentRange,
-                    builder: (context, child) {
-                      return Theme(
-                        data: Theme.of(context).copyWith(
-                          appBarTheme: AppBarTheme(
-                            backgroundColor: colorScheme.surface,
-                            foregroundColor: colorScheme.onSurface,
-                          ),
-                        ),
-                        child: child!,
-                      );
-                    },
-                  );
-                  if (picked != null) {
-                    ref.read(_dateRangeProvider.notifier).setRange(picked);
-                  }
-                },
-              ),
-              if (ref.watch(_dateRangeProvider) != null)
-                IconButton(
-                  icon: const Icon(Icons.clear),
-                  onPressed: () =>
-                      ref.read(_dateRangeProvider.notifier).setRange(null),
-                ),
-            ],
-          ),
-          summaryAsync.when(
-            loading: () =>
-                const SliverFillRemaining(child: _CommissionSkeletonList()),
-            error: (e, _) =>
-                SliverFillRemaining(child: _ErrorState(message: e.toString())),
-            data: (summaries) {
-              if (summaries.isEmpty) {
-                return const SliverFillRemaining(child: _EmptyState());
-              }
+      body: summaryAsync.when(
+        loading: () => const _CommissionSkeletonList(),
+        error: (e, _) => _ErrorState(message: e.toString()),
+        data: (summaries) {
+          final grandSales = summaries.fold(0.0, (a, s) => a + s.totalSalesAmount);
+          final grandPending = summaries.fold(0.0, (a, s) => a + s.totalPending);
+          final grandPaid = summaries.fold(0.0, (a, s) => a + s.totalPaid);
 
-              // Totals bar
-              final grandTotal = summaries.fold(
-                0.0,
-                (a, s) => a + s.totalEarned,
-              );
-              final grandPending = summaries.fold(
-                0.0,
-                (a, s) => a + s.totalPending,
-              );
-              final grandPaid = summaries.fold(0.0, (a, s) => a + s.totalPaid);
-              final grandSales = summaries.fold(
-                0.0,
-                (a, s) => a + s.totalSalesAmount,
-              );
-
-              return SliverList(
-                delegate: SliverChildListDelegate([
-                  if (dateRange != null)
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
+          return NestedScrollView(
+            headerSliverBuilder: (context, innerBoxIsScrolled) => [
+              SliverAppBar(
+                expandedHeight: 220,
+                pinned: true,
+                stretch: true,
+                backgroundColor: colorScheme.surface,
+                flexibleSpace: FlexibleSpaceBar(
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          colorScheme.primaryContainer.withAlpha(80),
+                          colorScheme.surface,
+                        ],
                       ),
-                      child: Row(
+                    ),
+                    child: SafeArea(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(
-                            Icons.filter_alt,
-                            size: 16,
-                            color: colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Filtered: ${DateFormat.yMd().format(dateRange.start)} - ${DateFormat.yMd().format(dateRange.end)}',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.bold,
-                            ),
+                          const SizedBox(height: 48),
+                          const _MonthPill(),
+                          const SizedBox(height: 24),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                            children: [
+                              _HeroStat(
+                                label: 'SALES',
+                                value: grandSales,
+                                color: colorScheme.primary,
+                              ),
+                              _HeroStat(
+                                label: 'PENDING',
+                                value: grandPending,
+                                color: Colors.orange,
+                              ),
+                              _HeroStat(
+                                label: 'PAID',
+                                value: grandPaid,
+                                color: Colors.green,
+                              ),
+                            ],
                           ),
                         ],
                       ),
                     ),
-                  _TotalsCard(
-                    grandTotal: grandTotal,
-                    grandPending: grandPending,
-                    grandPaid: grandPaid,
-                    grandSales: grandSales,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    child: Text(
-                      'BY SALESPERSON',
-                      style: textTheme.labelMedium?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                        letterSpacing: 1.2,
-                      ),
+                ),
+                leading: Builder(
+                  builder: (context) {
+                    return IconButton(
+                      icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                      onPressed: () => Scaffold.of(context).openDrawer(),
+                    );
+                  },
+                ),
+                title: Text(
+                  'Commissions',
+                  style: textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                centerTitle: true,
+              ),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        FilterChip(
+                          label: const Text('All'),
+                          selected: status == CommissionStatus.all,
+                          onSelected: (_) => ref.read(_commissionStatusProvider.notifier).state = CommissionStatus.all,
+                        ),
+                        const SizedBox(width: 8),
+                        FilterChip(
+                          label: const Text('Pending'),
+                          selected: status == CommissionStatus.pending,
+                          onSelected: (_) => ref.read(_commissionStatusProvider.notifier).state = CommissionStatus.pending,
+                        ),
+                        const SizedBox(width: 8),
+                        FilterChip(
+                          label: const Text('Paid'),
+                          selected: status == CommissionStatus.paid,
+                          onSelected: (_) => ref.read(_commissionStatusProvider.notifier).state = CommissionStatus.paid,
+                        ),
+                      ],
                     ),
                   ),
-                  ...summaries.map(
-                    (s) => _SalespersonCard(
-                      summary: s,
-                      tenantId: tenantId,
-                      branchId: branchId,
-                    ),
+                ),
+              ),
+            ],
+            body: summaries.isEmpty
+                ? const _EmptyState()
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemCount: summaries.length + 1,
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return Padding(
+                          padding: const EdgeInsets.only(top: 16, bottom: 8),
+                          child: Text(
+                            'BY SALESPERSON',
+                            style: textTheme.labelMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                        );
+                      }
+                      final s = summaries[index - 1];
+                      return _SalespersonCard(
+                        summary: s,
+                        tenantId: tenantId,
+                        branchId: branchId,
+                      );
+                    },
                   ),
-                  const SizedBox(height: 32),
-                ]),
-              );
-            },
-          ),
-        ],
+          );
+        },
       ),
     );
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Totals Card
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _TotalsCard extends StatelessWidget {
-  const _TotalsCard({
-    required this.grandTotal,
-    required this.grandPending,
-    required this.grandPaid,
-    this.grandSales = 0.0,
-  });
-
-  final double grandTotal;
-  final double grandPending;
-  final double grandPaid;
-  final double grandSales;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final fmt = NumberFormat.currency(symbol: 'KES ', decimalDigits: 2);
-
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: colorScheme.outlineVariant.withAlpha(50)),
-        ),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Total Commissions',
-              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                color: colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              fmt.format(grandTotal),
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                color: colorScheme.onSurface,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _MiniStat(
-                    label: 'Generated Revenue',
-                    value: fmt.format(grandSales),
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                Expanded(
-                  child: _MiniStat(
-                    label: 'Pending',
-                    value: fmt.format(grandPending),
-                    color: colorScheme.primary, // Highlight pending
-                  ),
-                ),
-                Expanded(
-                  child: _MiniStat(
-                    label: 'Paid Out',
-                    value: fmt.format(grandPaid),
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({
+class _HeroStat extends StatelessWidget {
+  const _HeroStat({
     required this.label,
     required this.value,
     required this.color,
   });
+
   final String label;
-  final String value;
+  final double value;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final fmt = NumberFormat.compactCurrency(symbol: 'KES ', decimalDigits: 1);
+
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(color: color.withAlpha(160)),
+          style: textTheme.labelSmall?.copyWith(
+            color: colorScheme.onSurfaceVariant,
+            letterSpacing: 1.1,
+            fontWeight: FontWeight.bold,
+          ),
         ),
+        const SizedBox(height: 4),
         Text(
-          value,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fmt.format(value),
+          style: textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
             color: color,
-            fontWeight: FontWeight.w600,
           ),
         ),
       ],
     );
   }
 }
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Salesperson Card
-// ─────────────────────────────────────────────────────────────────────────────
-
 class _SalespersonCard extends ConsumerWidget {
   const _SalespersonCard({
     required this.summary,
@@ -371,190 +334,72 @@ class _SalespersonCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    final fmt = NumberFormat.currency(symbol: 'KES ', decimalDigits: 2);
+    final fmt = NumberFormat.compactCurrency(symbol: 'KES ', decimalDigits: 1);
 
-    final pendingPct = summary.totalEarned > 0
-        ? summary.totalPending / summary.totalEarned
-        : 0.0;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Card(
-        elevation: 0,
-        color: colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: colorScheme.outlineVariant.withAlpha(80)),
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withAlpha(50),
         ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: () => _showDetail(context, ref),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+      ),
+      child: InkWell(
+        onTap: () => _showDetail(context, ref),
+        borderRadius: BorderRadius.circular(16),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              _SalespersonAvatar(name: summary.salespersonName),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      backgroundColor: colorScheme.primaryContainer,
-                      child: Text(
-                        summary.salespersonName.isNotEmpty
-                            ? summary.salespersonName[0].toUpperCase()
-                            : '?',
-                        style: TextStyle(
-                          color: colorScheme.onPrimaryContainer,
-                          fontWeight: FontWeight.bold,
-                        ),
+                    Text(
+                      summary.salespersonName,
+                      style: textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            summary.salespersonName,
-                            style: textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            'Generated ${fmt.format(summary.totalSalesAmount)} Rev (${summary.salesCount} sale${summary.salesCount == 1 ? '' : 's'})',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            '${summary.transactionCount} commission${summary.transactionCount == 1 ? '' : 's'}',
-                            style: textTheme.bodySmall?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
+                    const SizedBox(height: 2),
+                    Text(
+                      '${summary.salesCount} Sales • ${fmt.format(summary.totalSalesAmount)} Revenue',
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
                       ),
-                    ),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          fmt.format(summary.totalEarned),
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                            color: colorScheme.primary,
-                          ),
-                        ),
-                        if (summary.totalPending > 0)
-                          Text(
-                            '${fmt.format(summary.totalPending)} pending',
-                            style: textTheme.labelSmall?.copyWith(
-                              color: colorScheme.error,
-                            ),
-                          ),
-                      ],
                     ),
                   ],
                 ),
-                const SizedBox(height: 12),
-                // Progress bar: paid vs pending
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: 1 - pendingPct,
-                    backgroundColor: colorScheme.errorContainer,
-                    color: colorScheme.primary,
-                    minHeight: 6,
+              ),
+              const SizedBox(width: 8),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    fmt.format(summary.totalEarned),
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: colorScheme.primary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: colorScheme.primary,
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'Paid ${fmt.format(summary.totalPaid)}',
-                          style: textTheme.labelSmall?.copyWith(
-                            color: colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (summary.totalPending > 0)
-                      FilledButton.tonal(
-                        onPressed: () => _markAllPaid(context, ref),
-                        style: FilledButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 4,
-                          ),
-                          minimumSize: Size.zero,
-                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        ),
-                        child: const Text(
-                          'Mark Paid',
-                          style: TextStyle(fontSize: 12),
-                        ),
+                  if (summary.totalPending > 0)
+                    Text(
+                      '${fmt.format(summary.totalPending)} pending',
+                      style: textTheme.labelSmall?.copyWith(
+                        color: Colors.orange,
+                        fontWeight: FontWeight.bold,
                       ),
-                  ],
-                ),
-              ],
-            ),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
     );
-  }
-
-  Future<void> _markAllPaid(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Mark All as Paid'),
-        content: Text(
-          'Mark all pending commissions for ${summary.salespersonName} as paid?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Confirm'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-
-    await ref
-        .read(repositoryProvider)
-        .markAllCommissionsPaid(
-          tenantId: tenantId,
-          salespersonId: summary.salespersonId,
-          branchId: branchId,
-        );
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'All commissions for ${summary.salespersonName} marked as paid.',
-          ),
-        ),
-      );
-    }
   }
 
   void _showDetail(BuildContext context, WidgetRef ref) {
@@ -573,6 +418,42 @@ class _SalespersonCard extends ConsumerWidget {
     );
   }
 }
+
+class _SalespersonAvatar extends StatelessWidget {
+  const _SalespersonAvatar({required this.name});
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      width: 48,
+      height: 48,
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            colorScheme.primary,
+            colorScheme.primary.withAlpha(150),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        shape: BoxShape.circle,
+      ),
+      child: Center(
+        child: Text(
+          name.isNotEmpty ? name[0].toUpperCase() : '?',
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Detail Bottom Sheet
@@ -601,7 +482,7 @@ class _CommissionDetailSheet extends ConsumerWidget {
         tenantId: tenantId,
         branchId: branchId,
         salespersonId: summary.salespersonId,
-        range: ref.watch(_dateRangeProvider),
+        month: ref.watch(_selectedMonthProvider),
       )),
     );
 
@@ -700,9 +581,34 @@ class _CommissionDetailSheet extends ConsumerWidget {
                             )
                           : FilledButton.tonal(
                               onPressed: () async {
-                                await ref
-                                    .read(repositoryProvider)
-                                    .markCommissionPaid(c.id);
+                                try {
+                                  await ref
+                                      .read(commissionServiceProvider)
+                                      .markPaid(
+                                        tenantId: tenantId,
+                                        commissionId: c.id,
+                                      );
+
+                                  // Force refresh
+                                  ref.invalidate(_commissionSummaryProvider);
+                                  ref.invalidate(
+                                    _salespersonDetailProvider((
+                                      tenantId: tenantId,
+                                      branchId: branchId,
+                                      salespersonId: summary.salespersonId,
+                                      month: ref.read(_selectedMonthProvider),
+                                    )),
+                                  );
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Error: $e'),
+                                        backgroundColor: colorScheme.error,
+                                      ),
+                                    );
+                                  }
+                                }
                               },
                               style: FilledButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
@@ -824,6 +730,181 @@ class _ErrorState extends StatelessWidget {
             Text(message),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _MonthPill extends ConsumerWidget {
+  const _MonthPill();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedMonth = ref.watch(_selectedMonthProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Center(
+      child: UnconstrainedBox(
+        child: InkWell(
+          onTap: () => _showMonthPicker(context, ref),
+          borderRadius: BorderRadius.circular(32),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: colorScheme.secondaryContainer.withAlpha(150),
+              borderRadius: BorderRadius.circular(32),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withAlpha(100),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PhosphorIcon(
+                  PhosphorIconsRegular.calendarBlank,
+                  size: 18,
+                  color: colorScheme.onSecondaryContainer,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  DateFormat('MMMM yyyy').format(selectedMonth),
+                  style: textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSecondaryContainer,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                PhosphorIcon(
+                  PhosphorIconsRegular.caretDown,
+                  size: 14,
+                  color: colorScheme.onSecondaryContainer,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showMonthPicker(BuildContext context, WidgetRef ref) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => const _MonthPickerSheet(),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+    );
+  }
+}
+
+class _MonthPickerSheet extends ConsumerWidget {
+  const _MonthPickerSheet();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final selectedMonth = ref.watch(_selectedMonthProvider);
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Select Month',
+            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 24),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 2.2,
+            ),
+            itemCount: 12,
+            itemBuilder: (context, index) {
+              final month = DateTime(selectedMonth.year, index + 1);
+              final isSelected = month.month == selectedMonth.month;
+              final isFuture = month.isAfter(DateTime.now());
+
+              return InkWell(
+                onTap: isFuture
+                    ? null
+                    : () {
+                        ref
+                            .read(_selectedMonthProvider.notifier)
+                            .setMonth(month);
+                        Navigator.pop(context);
+                      },
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color:
+                        isSelected
+                            ? colorScheme.primary
+                            : colorScheme.surfaceContainerHigh,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color:
+                          isSelected
+                              ? colorScheme.primary
+                              : colorScheme.outlineVariant.withAlpha(100),
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    DateFormat('MMM').format(month),
+                    style: textTheme.labelLarge?.copyWith(
+                      color:
+                          isSelected
+                              ? colorScheme.onPrimary
+                              : isFuture
+                              ? colorScheme.outline
+                              : colorScheme.onSurface,
+                      fontWeight: isSelected ? FontWeight.bold : null,
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          // Simple Year Selector
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.chevron_left),
+                onPressed: () {
+                   ref.read(_selectedMonthProvider.notifier).setMonth(
+                     DateTime(selectedMonth.year - 1, selectedMonth.month),
+                   );
+                },
+              ),
+              Text(
+                selectedMonth.year.toString(),
+                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
+              IconButton(
+                icon: const Icon(Icons.chevron_right),
+                onPressed: selectedMonth.year >= DateTime.now().year
+                  ? null
+                  : () {
+                   ref.read(_selectedMonthProvider.notifier).setMonth(
+                     DateTime(selectedMonth.year + 1, selectedMonth.month),
+                   );
+                },
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }

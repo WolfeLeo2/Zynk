@@ -5,15 +5,16 @@ import 'package:zynk/features/expenses/data/expenses_repository.dart';
 import 'package:zynk/features/expenses/models/expense.dart';
 import 'package:zynk/features/expenses/models/expense_category.dart';
 
+
 part 'expenses_provider.g.dart';
 
 @riverpod
-ExpensesRepository expensesRepository(ExpensesRepositoryRef ref) {
+ExpensesRepository expensesRepository(Ref ref) {
   return ExpensesRepository(db);
 }
 
 @riverpod
-Stream<List<ExpenseCategory>> expenseCategories(ExpenseCategoriesRef ref) {
+Stream<List<ExpenseCategory>> expenseCategories(Ref ref) {
   final repo = ref.watch(expensesRepositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   if (tenantId == null) return const Stream.empty();
@@ -21,7 +22,7 @@ Stream<List<ExpenseCategory>> expenseCategories(ExpenseCategoriesRef ref) {
 }
 
 @riverpod
-Stream<List<Expense>> expensesList(ExpensesListRef ref, {DateTime? month}) {
+Stream<List<Expense>> expensesList(Ref ref, {DateTime? month}) {
   final repo = ref.watch(expensesRepositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);

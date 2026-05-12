@@ -1803,17 +1803,15 @@ class PowerSyncRepository {
         .map((rows) => rows.toList());
   }
 
-  /// Report summary metrics for a trailing [days] window.
+  /// Report summary metrics for a given date range.
   Stream<Map<String, dynamic>> watchReportSummary({
     required String tenantId,
     String? branchId,
-    int days = 30,
+    required DateTime startDate,
+    required DateTime endDate,
   }) {
-    final startTs = DateTime.now()
-        .toUtc()
-        .subtract(Duration(days: days - 1))
-        .toIso8601String()
-        .substring(0, 10);
+    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     if (branchId != null && branchId != 'all') {
       return _db
@@ -1824,6 +1822,7 @@ class PowerSyncRepository {
               FROM sales
               WHERE tenant_id = ?
                 AND created_at >= ?
+                AND created_at <= ?
                 AND branch_id = ?
             ),
             payments_scope AS (
@@ -1831,6 +1830,7 @@ class PowerSyncRepository {
               FROM sale_payments
               WHERE tenant_id = ?
                 AND created_at >= ?
+                AND created_at <= ?
                 AND branch_id = ?
             ),
             stock_scope AS (
@@ -1873,10 +1873,12 @@ class PowerSyncRepository {
             ''',
             parameters: [
               tenantId,
-              '${startTs}T00:00:00',
+              startTs,
+              endTs,
               branchId,
               tenantId,
-              '${startTs}T00:00:00',
+              startTs,
+              endTs,
               branchId,
               tenantId,
               branchId,
@@ -1893,12 +1895,14 @@ class PowerSyncRepository {
             FROM sales
             WHERE tenant_id = ?
               AND created_at >= ?
+              AND created_at <= ?
           ),
           payments_scope AS (
             SELECT *
             FROM sale_payments
             WHERE tenant_id = ?
               AND created_at >= ?
+              AND created_at <= ?
           ),
           stock_scope AS (
             SELECT st.quantity, st.reorder_level, p.cost_price
@@ -1939,26 +1943,26 @@ class PowerSyncRepository {
           ''',
           parameters: [
             tenantId,
-            '${startTs}T00:00:00',
+            startTs,
+            endTs,
             tenantId,
-            '${startTs}T00:00:00',
+            startTs,
+            endTs,
             tenantId,
           ],
         )
         .map((rows) => rows.isEmpty ? <String, dynamic>{} : rows.first);
   }
 
-  /// Payment method totals for a trailing [days] window.
+  /// Payment method totals for a given date range.
   Stream<List<Map<String, dynamic>>> watchPaymentMethodBreakdownInRange({
     required String tenantId,
     String? branchId,
-    int days = 30,
+    required DateTime startDate,
+    required DateTime endDate,
   }) {
-    final startTs = DateTime.now()
-        .toUtc()
-        .subtract(Duration(days: days - 1))
-        .toIso8601String()
-        .substring(0, 10);
+    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     if (branchId != null && branchId != 'all') {
       return _db
@@ -1971,11 +1975,12 @@ class PowerSyncRepository {
             FROM sale_payments
             WHERE tenant_id = ?
               AND created_at >= ?
+              AND created_at <= ?
               AND branch_id = ?
             GROUP BY COALESCE(NULLIF(payment_method, ''), 'unknown')
             ORDER BY total DESC
             ''',
-            parameters: [tenantId, '${startTs}T00:00:00', branchId],
+            parameters: [tenantId, startTs, endTs, branchId],
           )
           .map((rows) => rows.toList());
     }
@@ -1990,28 +1995,27 @@ class PowerSyncRepository {
           FROM sale_payments
           WHERE tenant_id = ?
             AND created_at >= ?
+            AND created_at <= ?
           GROUP BY COALESCE(NULLIF(payment_method, ''), 'unknown')
           ORDER BY total DESC
           ''',
-          parameters: [tenantId, '${startTs}T00:00:00'],
+          parameters: [tenantId, startTs, endTs],
         )
         .map((rows) => rows.toList());
   }
 
-  /// Top products for a trailing [days] window.
+  /// Top products for a given date range.
   Stream<List<Map<String, dynamic>>> watchTopProductsInRange({
     required String tenantId,
     String? branchId,
-    int days = 30,
+    required DateTime startDate,
+    required DateTime endDate,
     int limit = 8,
   }) {
-    final startTs = DateTime.now()
-        .toUtc()
-        .subtract(Duration(days: days - 1))
-        .toIso8601String()
-        .substring(0, 10);
+    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
-    final params = <dynamic>[tenantId, '${startTs}T00:00:00'];
+    final params = <dynamic>[tenantId, startTs, endTs];
     var branchFilter = '';
     if (branchId != null && branchId != 'all') {
       branchFilter = ' AND s.branch_id = ?';
@@ -2033,6 +2037,7 @@ class PowerSyncRepository {
           JOIN sales s ON si.sale_id = s.id
           WHERE s.tenant_id = ?
             AND s.created_at >= ?
+            AND s.created_at <= ?
             AND s.status = 'approved'
             AND s.fulfillment_status = 'fulfilled'$branchFilter
           GROUP BY p.id, p.name, p.image_url, p.base_price
@@ -2042,17 +2047,15 @@ class PowerSyncRepository {
         .map((rows) => rows.toList());
   }
 
-  /// Invoice lifecycle status breakdown for a trailing [days] window.
+  /// Invoice lifecycle status breakdown for a given date range.
   Stream<List<Map<String, dynamic>>> watchInvoiceStatusBreakdown({
     required String tenantId,
     String? branchId,
-    int days = 30,
+    required DateTime startDate,
+    required DateTime endDate,
   }) {
-    final startTs = DateTime.now()
-        .toUtc()
-        .subtract(Duration(days: days - 1))
-        .toIso8601String()
-        .substring(0, 10);
+    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     if (branchId != null && branchId != 'all') {
       return _db
@@ -2062,11 +2065,12 @@ class PowerSyncRepository {
             FROM sales
             WHERE tenant_id = ?
               AND created_at >= ?
+              AND created_at <= ?
               AND branch_id = ?
             GROUP BY status
             ORDER BY count DESC
             ''',
-            parameters: [tenantId, '${startTs}T00:00:00', branchId],
+            parameters: [tenantId, startTs, endTs, branchId],
           )
           .map((rows) => rows.toList());
     }
@@ -2078,10 +2082,11 @@ class PowerSyncRepository {
           FROM sales
           WHERE tenant_id = ?
             AND created_at >= ?
+            AND created_at <= ?
           GROUP BY status
           ORDER BY count DESC
           ''',
-          parameters: [tenantId, '${startTs}T00:00:00'],
+          parameters: [tenantId, startTs, endTs],
         )
         .map((rows) => rows.toList());
   }
@@ -2154,14 +2159,13 @@ class PowerSyncRepository {
   Stream<List<Map<String, dynamic>>> watchDailySalesDataSmart({
     required String tenantId,
     String? branchId,
-    int days = 7,
+    required DateTime startDate,
+    required DateTime endDate,
   }) {
-    final startDate = DateTime.now()
-        .toUtc()
-        .subtract(Duration(days: days - 1))
-        .toIso8601String()
-        .substring(0, 10);
-    final startTs = '${startDate}T00:00:00';
+    final startTsString = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTsString = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+    final startDay = startDate.toUtc().toIso8601String().substring(0, 10);
+    final endDay = endDate.toUtc().toIso8601String().substring(0, 10);
 
     if (branchId != null && branchId != 'all') {
       return _db
@@ -2175,6 +2179,7 @@ class PowerSyncRepository {
               FROM daily_kpi_snapshots
               WHERE tenant_id = ?
                 AND snapshot_date >= ?
+                AND snapshot_date <= ?
                 AND branch_id = ?
               GROUP BY snapshot_date
             ),
@@ -2187,6 +2192,7 @@ class PowerSyncRepository {
               WHERE tenant_id = ?
                 AND status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
                 AND created_at >= ?
+                AND created_at <= ?
                 AND branch_id = ?
               GROUP BY substr(created_at, 1, 10)
             )
@@ -2200,10 +2206,12 @@ class PowerSyncRepository {
             ''',
             parameters: [
               tenantId,
-              startDate,
+              startDay,
+              endDay,
               branchId,
               tenantId,
-              startTs,
+              startTsString,
+              endTsString,
               branchId,
             ],
           )
@@ -2221,6 +2229,7 @@ class PowerSyncRepository {
             FROM daily_kpi_snapshots
             WHERE tenant_id = ?
               AND snapshot_date >= ?
+              AND snapshot_date <= ?
             GROUP BY snapshot_date
           ),
           raw_range AS (
@@ -2232,6 +2241,7 @@ class PowerSyncRepository {
             WHERE tenant_id = ?
               AND status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
               AND created_at >= ?
+              AND created_at <= ?
             GROUP BY substr(created_at, 1, 10)
           )
           SELECT day, revenue, order_count
@@ -2242,9 +2252,59 @@ class PowerSyncRepository {
           WHERE NOT EXISTS (SELECT 1 FROM snapshot_data s WHERE s.day = r.day)
           ORDER BY day ASC
           ''',
-          parameters: [tenantId, startDate, tenantId, startTs],
+          parameters: [tenantId, startDay, endDay, tenantId, startTsString, endTsString],
         )
         .map((rows) => rows.toList());
+  }
+
+  /// Watches the weekly profit based on the historically recorded `cost_price` in `sale_items`.
+  Stream<List<Map<String, dynamic>>> watchWeeklyProfit({
+    required String tenantId,
+    String? branchId,
+    required DateTime startDate,
+    required DateTime endDate,
+  }) {
+    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+
+    String sql = '''
+      WITH invoice_profit AS (
+        SELECT 
+          s.id,
+          s.created_at,
+          COALESCE(s.discount_amount, 0) as discount_amount,
+          SUM(si.total) as items_revenue,
+          SUM(si.cost_price * si.quantity) as items_cost
+        FROM sales s
+        JOIN sale_items si ON s.id = si.sale_id
+        WHERE s.tenant_id = ?
+          AND s.created_at >= ?
+          AND s.created_at <= ?
+          AND s.status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
+    ''';
+    
+    final params = <dynamic>[tenantId, startTs, endTs];
+    
+    if (branchId != null && branchId != 'all') {
+      sql += ' AND s.branch_id = ?';
+      params.add(branchId);
+    }
+    
+    sql += '''
+        GROUP BY s.id, s.created_at, s.discount_amount
+      )
+      SELECT 
+        strftime('%Y-%W', created_at) as week,
+        MIN(created_at) as week_start,
+        SUM(items_revenue - discount_amount - items_cost) as profit,
+        SUM(items_revenue - discount_amount) as revenue,
+        COUNT(id) as invoice_count
+      FROM invoice_profit
+      GROUP BY strftime('%Y-%W', created_at)
+      ORDER BY week DESC
+    ''';
+
+    return _db.watch(sql, parameters: params).map((rows) => rows.toList());
   }
 
   /// Snapshot-aware KPI row for today's dashboard metrics.
@@ -2639,78 +2699,56 @@ class PowerSyncRepository {
 
     final params = [...paramsComm, ...paramsSales];
 
-    // Using UNION to simulate FULL OUTER JOIN
     return _db.watch('''
-      WITH CommAgg AS (
+      SELECT 
+        sm.id AS salesperson_id,
+        sm.name AS salesperson_name,
+        COALESCE(c.total_pending, 0) AS total_pending,
+        COALESCE(c.total_paid, 0) AS total_paid,
+        COALESCE(c.transaction_count, 0) AS transaction_count,
+        COALESCE(s.total_sales, 0) AS total_sales_amount,
+        COALESCE(s.sales_count, 0) AS sales_count
+      FROM staff_members sm
+      LEFT JOIN (
         SELECT salesperson_id,
                SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS total_pending,
                SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS total_paid,
                COUNT(id) AS transaction_count
         FROM commissions
-         WHERE tenant_id = ? $dateFilterComm $branchFilterComm
+        WHERE tenant_id = ? $dateFilterComm $branchFilterComm
         GROUP BY salesperson_id
-      ),
-      SalesAgg AS (
+      ) c ON sm.id = c.salesperson_id
+      LEFT JOIN (
         SELECT salesperson_id,
                SUM(grand_total) AS total_sales,
                COUNT(id) AS sales_count
         FROM sales
-         WHERE tenant_id = ? AND status != 'voided' AND salesperson_id IS NOT NULL $dateFilterSales $branchFilterSales
+        WHERE tenant_id = ? AND status != 'voided' AND salesperson_id IS NOT NULL $dateFilterSales $branchFilterSales
         GROUP BY salesperson_id
-      )
-      SELECT 
-        COALESCE(c.salesperson_id, s.salesperson_id) AS salesperson_id,
-        sm.name AS salesperson_name,
-        COALESCE(c.total_pending, 0) AS total_pending,
-        COALESCE(c.total_paid, 0) AS total_paid,
-        COALESCE(c.transaction_count, 0) AS transaction_count,
-        COALESCE(s.total_sales, 0) AS total_sales_amount,
-        COALESCE(s.sales_count, 0) AS sales_count
-      FROM CommAgg c
-      LEFT JOIN SalesAgg s ON c.salesperson_id = s.salesperson_id
-      LEFT JOIN staff_members sm ON sm.id = COALESCE(c.salesperson_id, s.salesperson_id)
-      UNION
-      SELECT 
-        COALESCE(c.salesperson_id, s.salesperson_id) AS salesperson_id,
-        sm.name AS salesperson_name,
-        COALESCE(c.total_pending, 0) AS total_pending,
-        COALESCE(c.total_paid, 0) AS total_paid,
-        COALESCE(c.transaction_count, 0) AS transaction_count,
-        COALESCE(s.total_sales, 0) AS total_sales_amount,
-        COALESCE(s.sales_count, 0) AS sales_count
-      FROM SalesAgg s
-      LEFT JOIN CommAgg c ON s.salesperson_id = c.salesperson_id
-      LEFT JOIN staff_members sm ON sm.id = COALESCE(c.salesperson_id, s.salesperson_id)
+      ) s ON sm.id = s.salesperson_id
+      WHERE (c.salesperson_id IS NOT NULL OR s.salesperson_id IS NOT NULL)
       ORDER BY total_sales_amount DESC, total_pending DESC
-      ''', parameters: params);
+    ''', parameters: params);
   }
 
   /// Mark a commission as paid.
+  /// 
+  /// [WARNING] This table is server-authoritative. Direct writes from the client
+  /// are blocked by PowerSync. Use [CommissionService] instead.
   Future<void> markCommissionPaid(String commissionId) async {
-    await _db.execute('UPDATE commissions SET status = ? WHERE id = ?', [
-      'paid',
-      commissionId,
-    ]);
+    throw UnimplementedError('Direct writes to commissions table are blocked. Use CommissionService.');
   }
 
   /// Mark ALL pending commissions for a salesperson as paid.
+  /// 
+  /// [WARNING] This table is server-authoritative. Direct writes from the client
+  /// are blocked by PowerSync. Use [CommissionService] instead.
   Future<void> markAllCommissionsPaid({
     required String tenantId,
     required String salespersonId,
     String? branchId,
   }) async {
-    if (branchId != null && branchId != 'all') {
-      await _db.execute(
-        "UPDATE commissions SET status = 'paid' WHERE tenant_id = ? AND salesperson_id = ? AND status = 'pending' AND sale_id IN (SELECT id FROM sales WHERE tenant_id = ? AND branch_id = ?)",
-        [tenantId, salespersonId, tenantId, branchId],
-      );
-      return;
-    }
-
-    await _db.execute(
-      "UPDATE commissions SET status = 'paid' WHERE tenant_id = ? AND salesperson_id = ? AND status = 'pending'",
-      [tenantId, salespersonId],
-    );
+    throw UnimplementedError('Direct writes to commissions table are blocked. Use CommissionService.');
   }
 
   Future<void> updateStockAdjustmentQuantity({

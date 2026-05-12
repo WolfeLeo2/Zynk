@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/expenses/models/expense.dart';
 import 'package:zynk/features/expenses/models/expense_category.dart';
 import 'package:zynk/features/expenses/providers/expenses_provider.dart';
@@ -111,7 +110,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 filled: true,
-                fillColor: cs.surfaceContainerHighest.withOpacity(0.3),
+                fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.3),
               ),
               validator: (val) {
                 if (val == null || val.isEmpty) return 'Required';
@@ -129,7 +128,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                     data: (branches) {
                       final selectable = branches.where((b) => b.id != 'all').toList();
                       return DropdownButtonFormField<Branch>(
-                        value: _selectedBranch,
+                        initialValue: _selectedBranch,
                         decoration: const InputDecoration(
                           labelText: 'Branch',
                           border: OutlineInputBorder(),
@@ -144,14 +143,14 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                       );
                     },
                     loading: () => const LinearProgressIndicator(),
-                    error: (_, __) => const Text('Error'),
+                    error: (_, _) => const Text('Error'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: categoriesAsync.when(
                     data: (categories) => DropdownButtonFormField<ExpenseCategory>(
-                      value: _selectedCategory,
+                      initialValue: _selectedCategory,
                       decoration: const InputDecoration(
                         labelText: 'Category',
                         border: OutlineInputBorder(),
@@ -177,7 +176,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                       validator: (val) => val == null ? 'Required' : null,
                     ),
                     loading: () => const LinearProgressIndicator(),
-                    error: (_, __) => const Text('Error'),
+                    error: (_, _) => const Text('Error'),
                   ),
                 ),
               ],
@@ -190,9 +189,9 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                 Expanded(
                   child: staffAsync.when(
                     data: (staff) => DropdownButtonFormField<StaffMember>(
-                      value: _selectedStaff,
+                      initialValue: _selectedStaff,
                       decoration: const InputDecoration(
-                        labelText: 'Spent By',
+                        labelText: 'Logged By',
                         border: OutlineInputBorder(),
                         isDense: true,
                       ),
@@ -200,16 +199,17 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                         value: s,
                         child: Text(s.name, overflow: TextOverflow.ellipsis),
                       )).toList(),
+                      validator: (val) => val == null ? 'Please select who is logging this' : null,
                       onChanged: (val) => setState(() => _selectedStaff = val),
                     ),
                     loading: () => const LinearProgressIndicator(),
-                    error: (_, __) => const Text('Error'),
+                    error: (_, _) => const Text('Error'),
                   ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: DropdownButtonFormField<String>(
-                    value: _paymentMethod,
+                    initialValue: _paymentMethod,
                     decoration: const InputDecoration(
                       labelText: 'Payment',
                       border: OutlineInputBorder(),

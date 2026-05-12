@@ -29,6 +29,15 @@ class ExpenseCategory {
   });
 
   factory ExpenseCategory.fromMap(Map<String, dynamic> map) => _$ExpenseCategoryFromJson(map);
-
   Map<String, dynamic> toMap() => _$ExpenseCategoryToJson(this);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ExpenseCategory &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

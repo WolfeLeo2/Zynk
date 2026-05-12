@@ -55,7 +55,7 @@ final class ExpensesRepositoryProvider
 }
 
 String _$expensesRepositoryHash() =>
-    r'c4f791f22c6452e4b80855bca2dcfba459cc2d09';
+    r'1786983dade8f6103192455cc8a352708c0b7fcf';
 
 @ProviderFor(expenseCategories)
 final expenseCategoriesProvider = ExpenseCategoriesProvider._();
@@ -96,7 +96,7 @@ final class ExpenseCategoriesProvider
   }
 }
 
-String _$expenseCategoriesHash() => r'd26e275689de1e3313c3440aeeac83ef0230c2f1';
+String _$expenseCategoriesHash() => r'583993798b902544287677db1823cca5849399f7';
 
 @ProviderFor(expensesList)
 final expensesListProvider = ExpensesListFamily._();
@@ -153,7 +153,7 @@ final class ExpensesListProvider
   }
 }
 
-String _$expensesListHash() => r'77db40512757ae7fd0744ecd6ee5bc65467abd7f';
+String _$expensesListHash() => r'd5b337c78b0fdc2f91befaa6f0cd58ed62cb6cc2';
 
 final class ExpensesListFamily extends $Family
     with $FunctionalFamilyOverride<Stream<List<Expense>>, DateTime?> {

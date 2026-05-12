@@ -61,14 +61,14 @@ class ExpensesScreen extends ConsumerWidget {
                   elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: cs.outlineVariant.withOpacity(0.5)),
+                    side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
                   ),
                   child: ListTile(
                     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     leading: Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: cs.primaryContainer.withOpacity(0.4),
+                        color: cs.primaryContainer.withValues(alpha: 0.4),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(PhosphorIconsRegular.receipt, color: cs.primary, size: 24),
@@ -95,13 +95,31 @@ class ExpensesScreen extends ConsumerWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(PhosphorIconsRegular.clock, size: 12, color: cs.outline),
+                            Icon(PhosphorIconsRegular.clock, size: 12),
                             const SizedBox(width: 4),
                             Text(
                               DateFormat('MMM dd, yyyy • HH:mm').format(
                                 expense.expenseDate ?? expense.createdAt ?? DateTime.now(),
                               ),
-                              style: theme.textTheme.bodySmall?.copyWith(color: cs.outline),
+                              style: theme.textTheme.bodySmall
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 4),
+                        Row(
+                          children: [
+                            Icon(PhosphorIconsRegular.houseLine, size: 12),
+                            const SizedBox(width: 4),
+                            Text(
+                              expense.branchName ?? 'Branch',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(width: 8),
+                            Icon(PhosphorIconsRegular.user, size: 12),
+                            const SizedBox(width: 4),
+                            Text(
+                              expense.staffName ?? 'Staff',
+                              style: theme.textTheme.bodySmall,
                             ),
                           ],
                         ),

@@ -26,6 +26,13 @@ class Expense {
   final DateTime? createdAt;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
+  
+  // Join fields (UI only)
+  final String? branchName;
+  @JsonKey(name: 'staff_name', includeToJson: false)
+  final String? staffName;
+  @JsonKey(name: 'category_name', includeToJson: false)
+  final String? categoryName;
 
   Expense({
     required this.id,
@@ -39,6 +46,9 @@ class Expense {
     this.expenseDate,
     this.createdAt,
     this.updatedAt,
+    this.branchName,
+    this.staffName,
+    this.categoryName,
   });
 
   factory Expense.fromMap(Map<String, dynamic> map) => _$ExpenseFromJson(map);

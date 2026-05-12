@@ -1,77 +1,132 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/shared/widgets/branch_filter_chips.dart';
 
-class _ReportsDaysNotifier extends Notifier<int> {
+class _ReportsBranchFilterNotifier extends Notifier<String?> {
   @override
-  int build() => 30;
-
-  void setDays(int days) => state = days;
+  String? build() => null;
+  @override
+  set state(String? val) => super.state = val;
 }
 
-final reportsDaysProvider = NotifierProvider<_ReportsDaysNotifier, int>(
-  _ReportsDaysNotifier.new,
+final reportsBranchFilterProvider =
+    NotifierProvider<_ReportsBranchFilterNotifier, String?>(
+      _ReportsBranchFilterNotifier.new,
+    );
+
+class _ReportsDateRangeNotifier extends Notifier<DateTimeRange> {
+  @override
+  DateTimeRange build() {
+    final now = DateTime.now();
+    return DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now);
+  }
+
+  void setRange(DateTimeRange range) => state = range;
+}
+
+final reportsDateRangeProvider = NotifierProvider<_ReportsDateRangeNotifier, DateTimeRange>(
+  _ReportsDateRangeNotifier.new,
 );
 
 final reportsSummaryProvider = StreamProvider.autoDispose<Map<String, dynamic>>(
   (ref) {
     final tenantId = ref.watch(tenantIdProvider);
-    final branchId = ref.watch(currentBranchIdProvider);
-    final days = ref.watch(reportsDaysProvider);
+    final globalBranchId = ref.watch(currentBranchIdProvider);
+    final localBranchId = ref.watch(reportsBranchFilterProvider);
+    final branchId = localBranchId ?? globalBranchId;
+    final range = ref.watch(reportsDateRangeProvider);
+    
     if (tenantId == null) return Stream.value(<String, dynamic>{});
     return ref
         .watch(repositoryProvider)
-        .watchReportSummary(tenantId: tenantId, branchId: branchId, days: days);
+        .watchReportSummary(
+          tenantId: tenantId, 
+          branchId: branchId, 
+          startDate: range.start,
+          endDate: range.end,
+        );
   },
 );
 
 final reportsDailySalesProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       final tenantId = ref.watch(tenantIdProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      final days = ref.watch(reportsDaysProvider);
+      final globalBranchId = ref.watch(currentBranchIdProvider);
+      final localBranchId = ref.watch(reportsBranchFilterProvider);
+      final branchId = localBranchId ?? globalBranchId;
+      final range = ref.watch(reportsDateRangeProvider);
       final repo = ref.watch(repositoryProvider);
+      
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return repo.watchDailySalesDataSmart(
         tenantId: tenantId,
         branchId: branchId,
-        days: days,
+        startDate: range.start,
+        endDate: range.end,
+      );
+    });
+
+final reportsWeeklyProfitProvider =
+    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
+      final tenantId = ref.watch(tenantIdProvider);
+      final globalBranchId = ref.watch(currentBranchIdProvider);
+      final localBranchId = ref.watch(reportsBranchFilterProvider);
+      final branchId = localBranchId ?? globalBranchId;
+      final range = ref.watch(reportsDateRangeProvider);
+      final repo = ref.watch(repositoryProvider);
+      
+      if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
+      return repo.watchWeeklyProfit(
+        tenantId: tenantId,
+        branchId: branchId,
+        startDate: range.start,
+        endDate: range.end,
       );
     });
 
 final reportsPaymentBreakdownProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       final tenantId = ref.watch(tenantIdProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      final days = ref.watch(reportsDaysProvider);
+      final globalBranchId = ref.watch(currentBranchIdProvider);
+      final localBranchId = ref.watch(reportsBranchFilterProvider);
+      final branchId = localBranchId ?? globalBranchId;
+      final range = ref.watch(reportsDateRangeProvider);
+      
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return ref
           .watch(repositoryProvider)
           .watchPaymentMethodBreakdownInRange(
             tenantId: tenantId,
             branchId: branchId,
-            days: days,
+            startDate: range.start,
+            endDate: range.end,
           );
     });
 
 final reportsTopProductsProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       final tenantId = ref.watch(tenantIdProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      final days = ref.watch(reportsDaysProvider);
+      final globalBranchId = ref.watch(currentBranchIdProvider);
+      final localBranchId = ref.watch(reportsBranchFilterProvider);
+      final branchId = localBranchId ?? globalBranchId;
+      final range = ref.watch(reportsDateRangeProvider);
+      
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return ref
           .watch(repositoryProvider)
           .watchTopProductsInRange(
             tenantId: tenantId,
             branchId: branchId,
-            days: days,
+            startDate: range.start,
+            endDate: range.end,
             limit: 8,
           );
     });
@@ -79,37 +134,41 @@ final reportsTopProductsProvider =
 final reportsInvoiceStatusProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
       final tenantId = ref.watch(tenantIdProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      final days = ref.watch(reportsDaysProvider);
+      final globalBranchId = ref.watch(currentBranchIdProvider);
+      final localBranchId = ref.watch(reportsBranchFilterProvider);
+      final branchId = localBranchId ?? globalBranchId;
+      final range = ref.watch(reportsDateRangeProvider);
+      
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return ref
           .watch(repositoryProvider)
           .watchInvoiceStatusBreakdown(
             tenantId: tenantId,
             branchId: branchId,
-            days: days,
+            startDate: range.start,
+            endDate: range.end,
           );
     });
 
 final reportsCommissionSummaryProvider =
     StreamProvider.autoDispose<List<SalespersonCommissionSummary>>((ref) {
       final tenantId = ref.watch(tenantIdProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      final days = ref.watch(reportsDaysProvider);
+      final globalBranchId = ref.watch(currentBranchIdProvider);
+      final localBranchId = ref.watch(reportsBranchFilterProvider);
+      final branchId = localBranchId ?? globalBranchId;
+      final range = ref.watch(reportsDateRangeProvider);
+      
       if (tenantId == null) {
         return Stream.value(<SalespersonCommissionSummary>[]);
       }
-
-      final startDate = DateTime.now().subtract(Duration(days: days - 1));
-      final endDate = DateTime.now();
 
       return ref
           .watch(repositoryProvider)
           .watchCommissionSummaryRaw(
             tenantId: tenantId,
             branchId: branchId,
-            startDate: startDate,
-            endDate: endDate,
+            startDate: range.start,
+            endDate: range.end,
           )
           .map(
             (rows) => rows
@@ -139,7 +198,7 @@ class ReportsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final days = ref.watch(reportsDaysProvider);
+    final range = ref.watch(reportsDateRangeProvider);
     final profile = ref.watch(currentUserProfileProvider).value;
 
     return Scaffold(
@@ -154,6 +213,35 @@ class ReportsScreen extends ConsumerWidget {
               ),
             ),
             title: const Text('Reports'),
+            actions: [
+              TextButton.icon(
+                icon: const PhosphorIcon(PhosphorIconsRegular.calendarBlank, size: 18),
+                label: Text(
+                  '${DateFormat('MMM d').format(range.start)} - ${DateFormat('MMM d').format(range.end)}',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+                onPressed: () async {
+                  final picked = await showDateRangePicker(
+                    context: context,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime.now(),
+                    initialDateRange: range,
+                    builder: (context, child) {
+                      return Theme(
+                        data: Theme.of(context).copyWith(
+                          colorScheme: colorScheme,
+                        ),
+                        child: child!,
+                      );
+                    },
+                  );
+                  if (picked != null) {
+                    ref.read(reportsDateRangeProvider.notifier).setRange(picked);
+                  }
+                },
+              ),
+              const SizedBox(width: 8),
+            ],
           ),
           SliverToBoxAdapter(
             child: Padding(
@@ -167,14 +255,15 @@ class ReportsScreen extends ConsumerWidget {
                         : 'Branch-aware performance and operations',
                     style: TextStyle(color: colorScheme.onSurfaceVariant),
                   ),
-                  const SizedBox(height: 10),
-                  _RangeSwitcher(
-                    days: days,
-                    onChanged: (newDays) =>
-                        ref.read(reportsDaysProvider.notifier).setDays(newDays),
+                  const SizedBox(height: 16),
+                  BranchFilterChips(
+                    selectedBranchId: ref.watch(reportsBranchFilterProvider),
+                    onSelected: (id) => ref.read(reportsBranchFilterProvider.notifier).state = id,
                   ),
                   const SizedBox(height: 16),
                   const _ReportSummaryGrid(),
+                  const SizedBox(height: 16),
+                  const _WeeklyProfitCard(),
                   const SizedBox(height: 16),
                   const _SalesTrendCard(),
                   const SizedBox(height: 16),
@@ -215,64 +304,6 @@ class ReportsScreen extends ConsumerWidget {
   }
 }
 
-class _RangeSwitcher extends StatelessWidget {
-  const _RangeSwitcher({required this.days, required this.onChanged});
-
-  final int days;
-  final ValueChanged<int> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    const options = [7, 30, 90];
-
-    return Container(
-      padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: options.map((option) {
-          final selected = option == days;
-          final label = option == 7
-              ? '7d'
-              : option == 30
-              ? '30d'
-              : '90d';
-          return Padding(
-            padding: const EdgeInsets.only(right: 6),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () => onChanged(option),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 180),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: selected ? colorScheme.primary : Colors.transparent,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    color: selected
-                        ? colorScheme.onPrimary
-                        : colorScheme.onSurface,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-}
 
 class _ReportSummaryGrid extends ConsumerWidget {
   const _ReportSummaryGrid();
@@ -283,12 +314,8 @@ class _ReportSummaryGrid extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return summaryAsync.when(
-      loading: () =>
-          const _ReportCard(title: 'Summary', child: SizedBox(height: 120)),
-      error: (e, _) => _ReportCard(
-        title: 'Summary',
-        child: Text('Failed to load summary: $e'),
-      ),
+      loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Center(child: Text('Failed to load summary: $e')),
       data: (summary) {
         final grossSales = _asDouble(summary['gross_sales']);
         final paid = _asDouble(summary['payments_collected']);
@@ -297,68 +324,76 @@ class _ReportSummaryGrid extends ConsumerWidget {
         final lowStock = _asInt(summary['low_stock_count']);
         final unreleased = _asInt(summary['unreleased_count']);
 
-        return _ReportCard(
-          title: 'Summary',
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 720;
-              final children = [
-                _KpiTile(
-                  label: 'Gross Sales',
-                  value: _currency(grossSales),
-                  color: colorScheme.primary,
+        return Column(
+          children: [
+            // Hero KPIs
+            Row(
+              children: [
+                Expanded(
+                  flex: 5,
+                  child: _KpiTile(
+                    label: 'Gross Sales',
+                    value: _currency(grossSales),
+                    color: colorScheme.primary,
+                    icon: PhosphorIconsRegular.chartLineUp,
+                    isHero: true,
+                  ),
                 ),
-                _KpiTile(
-                  label: 'Payments Collected',
-                  value: _currency(paid),
-                  color: colorScheme.tertiary,
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 4,
+                  child: _KpiTile(
+                    label: 'Payments',
+                    value: _currency(paid),
+                    color: colorScheme.tertiary,
+                    icon: PhosphorIconsRegular.wallet,
+                    isHero: true,
+                  ),
                 ),
-                _KpiTile(
-                  label: 'Avg Ticket',
-                  value: _currency(avg),
-                  color: colorScheme.secondary,
-                ),
-                _KpiTile(
-                  label: 'Pending Approvals',
-                  value: '$pending',
-                  color: colorScheme.error,
-                ),
-                _KpiTile(
-                  label: 'Unreleased Invoices',
-                  value: '$unreleased',
-                  color: const Color(0xFFF59E0B),
-                ),
-                _KpiTile(
-                  label: 'Low Stock SKUs',
-                  value: '$lowStock',
-                  color: const Color(0xFF10B981),
-                ),
-              ];
-
-              if (compact) {
-                return Column(
-                  children: children
-                      .map(
-                        (child) => Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: child,
-                        ),
-                      )
-                      .toList(),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Secondary KPIs
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final crossCount = constraints.maxWidth > 600 ? 4 : 2;
+                return GridView.count(
+                  crossAxisCount: crossCount,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: crossCount == 4 ? 1.5 : 1.8,
+                  children: [
+                    _KpiTile(
+                      label: 'Avg Ticket',
+                      value: _currency(avg),
+                      color: colorScheme.secondary,
+                      icon: PhosphorIconsRegular.receipt,
+                    ),
+                    _KpiTile(
+                      label: 'Pending',
+                      value: '$pending',
+                      color: colorScheme.error,
+                      icon: PhosphorIconsRegular.clockUser,
+                    ),
+                    _KpiTile(
+                      label: 'Unreleased',
+                      value: '$unreleased',
+                      color: const Color(0xFFF59E0B),
+                      icon: PhosphorIconsRegular.fileDashed,
+                    ),
+                    _KpiTile(
+                      label: 'Low Stock',
+                      value: '$lowStock',
+                      color: const Color(0xFF10B981),
+                      icon: PhosphorIconsRegular.warningCircle,
+                    ),
+                  ],
                 );
-              }
-
-              return GridView.count(
-                crossAxisCount: 3,
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisSpacing: 10,
-                mainAxisSpacing: 10,
-                childAspectRatio: 2.35,
-                children: children,
-              );
-            },
-          ),
+              },
+            ),
+          ],
         );
       },
     );
@@ -489,6 +524,146 @@ class _SalesTrendCard extends ConsumerWidget {
                     dotData: const FlDotData(show: false),
                   ),
                 ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _WeeklyProfitCard extends ConsumerWidget {
+  const _WeeklyProfitCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final profitAsync = ref.watch(reportsWeeklyProfitProvider);
+
+    return _ReportCard(
+      title: 'Weekly Profit',
+      subtitle: 'Based on historical item costs',
+      child: profitAsync.when(
+        loading: () => const SizedBox(height: 220),
+        error: (e, _) => Text('Failed to load profit: $e'),
+        data: (rows) {
+          if (rows.isEmpty) {
+            return const SizedBox(
+              height: 220,
+              child: Center(child: Text('No profit data yet')),
+            );
+          }
+
+          final spots = <BarChartGroupData>[];
+          final labels = <String>[];
+          
+          // Rows come in descending order (newest first). Let's reverse them to chart chronologically.
+          final reversedRows = rows.reversed.toList();
+
+          for (var i = 0; i < reversedRows.length; i++) {
+            final row = reversedRows[i];
+            final weekStr = (row['week'] as String?) ?? '';
+            final profit = _asDouble(row['profit']);
+            
+            final weekStartStr = row['week_start'] as String?;
+            if (weekStartStr != null) {
+                final dt = DateTime.tryParse(weekStartStr);
+                labels.add(dt == null ? weekStr : DateFormat('d MMM').format(dt));
+            } else {
+                labels.add(weekStr);
+            }
+            
+            spots.add(
+              BarChartGroupData(
+                x: i,
+                barRods: [
+                  BarChartRodData(
+                    toY: profit < 0 ? 0 : profit,
+                    color: Theme.of(context).colorScheme.tertiary,
+                    width: 16,
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final maxY = spots.fold<double>(0, (m, g) => g.barRods.first.toY > m ? g.barRods.first.toY : m);
+          final safeMaxY = maxY <= 0 ? 100.0 : maxY * 1.2;
+          final colorScheme = Theme.of(context).colorScheme;
+
+          return SizedBox(
+            height: 220,
+            child: BarChart(
+              BarChartData(
+                minY: 0,
+                maxY: safeMaxY,
+                gridData: FlGridData(
+                  show: true,
+                  drawVerticalLine: false,
+                  getDrawingHorizontalLine: (_) => FlLine(
+                    color: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                    strokeWidth: 1,
+                  ),
+                ),
+                borderData: FlBorderData(show: false),
+                titlesData: FlTitlesData(
+                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  bottomTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      interval: 1,
+                      getTitlesWidget: (value, meta) {
+                        final idx = value.toInt();
+                        if (idx < 0 || idx >= labels.length) {
+                          return const SizedBox();
+                        }
+                        // Only show every Nth label if there are too many weeks
+                        if (labels.length > 8 && idx % 2 != 0) return const SizedBox();
+                        return SideTitleWidget(
+                          meta: meta,
+                          child: Text(
+                            labels[idx],
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  leftTitles: AxisTitles(
+                    sideTitles: SideTitles(
+                      showTitles: true,
+                      reservedSize: 46,
+                      getTitlesWidget: (value, meta) => SideTitleWidget(
+                        meta: meta,
+                        child: Text(
+                          value >= 1000
+                              ? '${(value / 1000).toStringAsFixed(0)}K'
+                              : value.toStringAsFixed(0),
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                barTouchData: BarTouchData(
+                  touchTooltipData: BarTouchTooltipData(
+                    getTooltipColor: (_) => colorScheme.inverseSurface,
+                    getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                      return BarTooltipItem(
+                        _currency(rod.toY),
+                        TextStyle(color: colorScheme.onInverseSurface),
+                      );
+                    },
+                  ),
+                ),
               ),
             ),
           );
@@ -802,52 +977,64 @@ class _CommissionLeaderboardCard extends ConsumerWidget {
           }
 
           return Column(
-            children: rows.take(6).map((row) {
-              final total = row.totalEarned;
-              final paid = row.totalPaid;
-              final pending = row.totalPending;
-              final paidPct = total <= 0 ? 0.0 : paid / total;
+            children: [
+              ...rows.take(6).map((row) {
+                final total = row.totalEarned;
+                final paid = row.totalPaid;
+                final pending = row.totalPending;
+                final paidPct = total <= 0 ? 0.0 : paid / total;
 
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            row.salespersonName,
-                            style: const TextStyle(fontWeight: FontWeight.w600),
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              row.salespersonName,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
                           ),
+                          Text(_currency(total)),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Paid ${_currency(paid)} • Pending ${_currency(pending)}',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
-                        Text(_currency(total)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Paid ${_currency(paid)} • Pending ${_currency(pending)}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: paidPct,
-                        minHeight: 6,
-                        color: Theme.of(context).colorScheme.primary,
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.error.withValues(alpha: 0.15),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: paidPct,
+                          minHeight: 6,
+                          color: Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.error.withValues(alpha: 0.15),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => context.push('/settings/commissions'),
+                  icon:
+                      const PhosphorIcon(PhosphorIconsRegular.arrowRight, size: 16),
+                  label: const Text('View Detailed Commission Report'),
                 ),
-              );
-            }).toList(),
+              ),
+            ],
           );
         },
       ),
@@ -860,52 +1047,97 @@ class _KpiTile extends StatelessWidget {
     required this.label,
     required this.value,
     required this.color,
+    required this.icon,
+    this.isHero = false,
   });
 
   final String label;
   final String value;
   final Color color;
+  final IconData icon;
+  final bool isHero;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(isHero ? 20 : 16),
       decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
+        color: isDark ? colorScheme.surfaceContainerHigh : Colors.white,
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+          color: color.withValues(alpha: 0.15),
+          width: 1.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: color.withValues(alpha: 0.05),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            color.withValues(alpha: isHero ? 0.08 : 0.04),
+            color.withValues(alpha: 0.01),
+          ],
         ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 8,
-            height: 8,
-            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  value,
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+          Row(
+            children: [
+              Container(
+                padding: EdgeInsets.all(isHero ? 10 : 8),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: colorScheme.onSurfaceVariant,
-                    fontSize: 12,
-                  ),
+                child: PhosphorIcon(
+                  icon,
+                  color: color,
+                  size: isHero ? 24 : 18,
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: textTheme.labelSmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        value,
+                        style: (isHero ? textTheme.headlineSmall : textTheme.titleMedium)?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: colorScheme.onSurface,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),

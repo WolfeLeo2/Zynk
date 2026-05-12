@@ -55,6 +55,15 @@ class StaffMember {
 
   factory StaffMember.fromJson(Map<String, dynamic> json) =>
       _$StaffMemberFromJson(json);
-
   Map<String, dynamic> toJson() => _$StaffMemberToJson(this);
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StaffMember &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }
