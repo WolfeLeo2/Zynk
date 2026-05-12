@@ -39,4 +39,6 @@ streams:
       - "SELECT daily_kpi_snapshots.* FROM daily_kpi_snapshots,user_data_param AS bucket WHERE daily_kpi_snapshots.tenant_id = bucket.tenant_id"
       - "SELECT daily_payment_method_snapshots.* FROM daily_payment_method_snapshots,user_data_param AS bucket WHERE daily_payment_method_snapshots.tenant_id = bucket.tenant_id"
       - "SELECT daily_product_sales_snapshots.* FROM daily_product_sales_snapshots,user_data_param AS bucket WHERE daily_product_sales_snapshots.tenant_id = bucket.tenant_id"
+      - "SELECT expense_categories.* FROM expense_categories,user_data_param AS bucket WHERE expense_categories.tenant_id = bucket.tenant_id"
+      - "SELECT expenses.* FROM expenses,user_data_param AS bucket WHERE expenses.tenant_id = bucket.tenant_id"
 
