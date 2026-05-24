@@ -156,6 +156,13 @@ class SaleDetailScreen extends ConsumerWidget {
                         value: 'edit',
                         child: Text('Edit Invoice'),
                       ),
+                    if (sale.status == InvoiceStatus.approved &&
+                        canApprove &&
+                        canEdit)
+                      const PopupMenuItem(
+                        value: 'edit_approved',
+                        child: Text('Edit Approved Invoice'),
+                      ),
                     if (canCreateInvoices && sale.saleType != 'pos_sale')
                       const PopupMenuItem(
                         value: 'clone_invoice',
@@ -166,10 +173,20 @@ class SaleDetailScreen extends ConsumerWidget {
                         value: 'approve',
                         child: Text('Approve'),
                       ),
+                    if (sale.status == InvoiceStatus.pendingApproval && canApprove)
+                      const PopupMenuItem(
+                        value: 'final_approve',
+                        child: Text('Final Approve (Fast-Track)'),
+                      ),
                     if (sale.status == InvoiceStatus.pendingApproval && canSubmitApproval)
                       const PopupMenuItem(
                         value: 'reject',
                         child: Text('Reject'),
+                      ),
+                    if (sale.status == InvoiceStatus.approved && canApprove)
+                      const PopupMenuItem(
+                        value: 'unapprove',
+                        child: Text('Unapprove Invoice'),
                       ),
                     if (sale.canBeVoided && canVoid)
                       const PopupMenuItem(
@@ -554,6 +571,40 @@ class SaleDetailScreen extends ConsumerWidget {
             context.push('/sales/${sale.id}/edit');
           }
           return;
+        case 'edit_approved':
+          // Unapprove first (reverses stock + payments), then navigate to edit
+          final confirmedEdit = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Edit Approved Invoice?'),
+              content: const Text(
+                'This will revert the invoice to Pending Approval, reverse any stock releases and recorded payments. You will need to re-approve after editing.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Unapprove & Edit'),
+                ),
+              ],
+            ),
+          );
+          if (confirmedEdit == true) {
+            await service.unapproveSale(sale.id, tenantId: sale.tenantId);
+            ref.invalidate(saleDetailProvider(sale.id));
+            ref.invalidate(saleApprovalsProvider(sale.id));
+            ref.invalidate(salePaymentsProvider(sale.id));
+            if (context.mounted) {
+              context.push(
+                '/sales/${sale.id}/edit',
+                extra: {'wasApproved': true},
+              );
+            }
+          }
+          return;
         case 'clone_invoice':
           try {
             // Ensure all data is loaded before proceeding
@@ -615,6 +666,74 @@ class SaleDetailScreen extends ConsumerWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Invoice approved')),
             );
+          }
+          break;
+
+        case 'final_approve':
+          final confirmedFinal = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Final Approve?'),
+              content: const Text(
+                'This will immediately approve the invoice, bypassing the normal dual-approval requirement. This action is recorded in the audit trail.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  child: const Text('Final Approve'),
+                ),
+              ],
+            ),
+          );
+          if (confirmedFinal == true) {
+            await service.finalApproveSale(sale.id, tenantId: sale.tenantId);
+            ref.invalidate(saleDetailProvider(sale.id));
+            ref.invalidate(saleApprovalsProvider(sale.id));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invoice fast-track approved ✓')),
+              );
+            }
+          }
+          break;
+
+        case 'unapprove':
+          final confirmedUnapprove = await showDialog<bool>(
+            context: context,
+            builder: (dialogContext) => AlertDialog(
+              title: const Text('Unapprove Invoice?'),
+              content: const Text(
+                'This will revert the invoice to Pending Approval. Any fulfilled stock will be reversed and recorded payments will be deleted.',
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, false),
+                  child: const Text('Cancel'),
+                ),
+                FilledButton(
+                  onPressed: () => Navigator.pop(dialogContext, true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  child: const Text('Unapprove'),
+                ),
+              ],
+            ),
+          );
+          if (confirmedUnapprove == true) {
+            await service.unapproveSale(sale.id, tenantId: sale.tenantId);
+            ref.invalidate(saleDetailProvider(sale.id));
+            ref.invalidate(saleApprovalsProvider(sale.id));
+            ref.invalidate(salePaymentsProvider(sale.id));
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Invoice reverted to Pending Approval')),
+              );
+            }
           }
           break;
 
@@ -908,6 +1027,7 @@ class _ItemsList extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final itemsAsync = ref.watch(saleItemsProvider(saleId));
+    final products = ref.watch(allProductsProvider).value ?? [];
 
     return itemsAsync.when(
       data: (items) {
@@ -923,6 +1043,19 @@ class _ItemsList extends ConsumerWidget {
             children: items.asMap().entries.map((e) {
               final i = e.key;
               final item = e.value;
+              
+              // Resolve product & item group to check sqm details
+              final product = products.where((p) => p.id == item.productId).firstOrNull;
+              final itemGroup = (product != null && product.itemGroupId != null)
+                  ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
+                  : null;
+              
+              final isSqmBased = product != null &&
+                  (product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm');
+              final coverage = (product?.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
+              final sqmPrice = isSqmBased ? (item.unitPrice / coverage) : item.unitPrice;
+              final totalSqm = isSqmBased ? (item.quantity * coverage) : 0.0;
+
               return Column(
                 children: [
                   if (i > 0)
@@ -938,15 +1071,16 @@ class _ItemsList extends ConsumerWidget {
                     child: Row(
                       children: [
                         Container(
-                          width: 30,
                           height: 30,
+                          constraints: const BoxConstraints(minWidth: 30),
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
                           decoration: BoxDecoration(
                             color: cs.surfaceContainerHighest,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            '${item.quantity}',
+                            isSqmBased ? totalSqm.toStringAsFixed(2) : '${item.quantity}',
                             style: theme.textTheme.labelMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -964,12 +1098,30 @@ class _ItemsList extends ConsumerWidget {
                                   fontWeight: FontWeight.w500,
                                 ),
                               ),
-                              Text(
-                                '@ Ksh ${item.unitPrice.toStringAsFixed(0)}',
-                                style: theme.textTheme.bodySmall?.copyWith(
-                                  color: cs.onSurfaceVariant,
+                              if (isSqmBased) ...[
+                                Text(
+                                  '@ Ksh ${sqmPrice.toStringAsFixed(0)}/sqm (Ksh ${item.unitPrice.toStringAsFixed(0)}/box)',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
                                 ),
-                              ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '${item.quantity} box${item.quantity != 1 ? 'es' : ''} (${totalSqm.toStringAsFixed(2)} sqm total)',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: cs.primary.withValues(alpha: 0.8),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ] else ...[
+                                Text(
+                                  '@ Ksh ${item.unitPrice.toStringAsFixed(0)} each',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
                             ],
                           ),
                         ),
@@ -1704,7 +1856,7 @@ class _CreateCreditNoteSheetState
                                                   returnQty - 1,
                                         )
                                       : null,
-                                  icon: const Icon(Icons.remove),
+                                  icon: const PhosphorIcon(PhosphorIconsRegular.minus),
                                 ),
                                 SizedBox(
                                   width: 28,
@@ -1730,7 +1882,7 @@ class _CreateCreditNoteSheetState
                                                   returnQty + 1,
                                         )
                                       : null,
-                                  icon: const Icon(Icons.add),
+                                  icon: const PhosphorIcon(PhosphorIconsRegular.plus),
                                 ),
                               ],
                             ),
@@ -1914,10 +2066,10 @@ class _DetailsSection extends ConsumerWidget {
     );
   }
 
-  Widget _buildRow(ThemeData theme, IconData icon, String label, String value) {
+  Widget _buildRow(ThemeData theme, PhosphorIconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
+        PhosphorIcon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -2046,7 +2198,7 @@ class _ApprovalTimeline extends ConsumerWidget {
           : 'time unavailable';
 
       return Chip(
-        avatar: Icon(PhosphorIconsRegular.checkCircle, size: 16, color: cs.onPrimaryContainer),
+        avatar: PhosphorIcon(PhosphorIconsRegular.checkCircle, size: 16, color: cs.onPrimaryContainer),
         label: Text('$approverName · $ts'),
         backgroundColor: cs.primaryContainer,
         side: BorderSide.none,
@@ -2055,7 +2207,7 @@ class _ApprovalTimeline extends ConsumerWidget {
 
     final pendingDisplay = pendingName != null ? '$pendingName' : 'Pending';
     return Chip(
-      avatar: const Icon(PhosphorIconsRegular.clock, size: 16),
+      avatar: const PhosphorIcon(PhosphorIconsRegular.clock, size: 16),
       label: Text('$pendingDisplay · Pending'),
       side: BorderSide(color: cs.outline.withValues(alpha: 0.8)),
     );
@@ -2081,7 +2233,7 @@ Color _colorForStatus(InvoiceStatus status) {
   }
 }
 
-IconData _iconForStatus(InvoiceStatus status) {
+PhosphorIconData _iconForStatus(InvoiceStatus status) {
   switch (status) {
     case InvoiceStatus.pendingApproval:
       return PhosphorIconsDuotone.clock;
@@ -2100,7 +2252,7 @@ IconData _iconForStatus(InvoiceStatus status) {
   }
 }
 
-IconData _paymentIcon(PaymentMethod method) {
+PhosphorIconData _paymentIcon(PaymentMethod method) {
   switch (method) {
     case PaymentMethod.cash:
       return PhosphorIconsRegular.money;

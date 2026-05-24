@@ -316,7 +316,7 @@ class _StaffQuickActions extends StatelessWidget {
 
 class _StaffActionButton extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
   final VoidCallback onTap;
 

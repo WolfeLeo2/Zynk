@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -412,6 +413,34 @@ final measurementSystemProvider =
     NotifierProvider<MeasurementSystemNotifier, MeasurementSystem>(
       MeasurementSystemNotifier.new,
     );
+
+// ============================================
+// Theme Mode Preference
+// ============================================
+
+class ThemeModeNotifier extends Notifier<ThemeMode> {
+  static const _prefsKey = 'theme_mode';
+
+  @override
+  ThemeMode build() {
+    final prefs = ref.read(sharedPreferencesProvider);
+    final saved = prefs.getString(_prefsKey);
+    return ThemeMode.values.firstWhere(
+      (m) => m.name == saved,
+      orElse: () => ThemeMode.system,
+    );
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    final prefs = ref.read(sharedPreferencesProvider);
+    await prefs.setString(_prefsKey, mode.name);
+    state = mode;
+  }
+}
+
+final themeModeProvider = NotifierProvider<ThemeModeNotifier, ThemeMode>(
+  ThemeModeNotifier.new,
+);
 
 final itemsGroupsStreamProvider = StreamProvider<List<ItemGroup>>((ref) {
   final repo = ref.watch(repositoryProvider);

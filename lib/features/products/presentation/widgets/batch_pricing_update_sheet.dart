@@ -62,12 +62,12 @@ class _BatchPricingUpdateSheetState
                 ButtonSegment(
                   value: true,
                   label: Text('Adopt Group Price'),
-                  icon: Icon(PhosphorIconsRegular.treeStructure),
+                  icon: PhosphorIcon(PhosphorIconsRegular.treeStructure),
                 ),
                 ButtonSegment(
                   value: false,
                   label: Text('Set Manual Price'),
-                  icon: Icon(PhosphorIconsRegular.pencilSimple),
+                  icon: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
                 ),
               ],
               selected: {_useInheritance},
@@ -87,7 +87,7 @@ class _BatchPricingUpdateSheetState
                 ),
                 child: Row(
                   children: [
-                    Icon(
+                    PhosphorIcon(
                       PhosphorIconsDuotone.info,
                       color: cs.onSecondaryContainer,
                     ),
@@ -130,7 +130,7 @@ class _BatchPricingUpdateSheetState
         ),
         child: Row(
           children: [
-            Icon(
+            PhosphorIcon(
               PhosphorIconsRegular.info,
               size: 16,
               color: cs.primary,
@@ -171,7 +171,7 @@ class _BatchPricingUpdateSheetState
               ),
               if (isDifferent) ...[
                 const SizedBox(width: 8),
-                const Icon(
+                const PhosphorIcon(
                   PhosphorIconsRegular.arrowRight,
                   size: 12,
                 ),

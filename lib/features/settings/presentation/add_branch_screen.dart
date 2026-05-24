@@ -134,7 +134,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
               textCapitalization: TextCapitalization.words,
               decoration: InputDecoration(
                 hintText: 'e.g., Downtown Store',
-                prefixIcon: const Icon(PhosphorIconsRegular.storefront),
+                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.storefront),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: colorScheme.outlineVariant),
@@ -169,7 +169,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
               maxLines: 2,
               decoration: InputDecoration(
                 hintText: 'e.g., 123 Main St, City Center',
-                prefixIcon: const Icon(PhosphorIconsRegular.mapPin),
+                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.mapPin),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: colorScheme.outlineVariant),
@@ -195,7 +195,7 @@ class _AddBranchScreenState extends ConsumerState<AddBranchScreen> {
             IntlPhoneField(
               decoration: InputDecoration(
                 hintText: 'e.g. 700 123 456',
-                prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
                   borderSide: BorderSide(color: colorScheme.outlineVariant),

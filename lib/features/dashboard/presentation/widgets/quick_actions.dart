@@ -68,7 +68,7 @@ class QuickActionsRow extends StatelessWidget {
 }
 
 class _MobileQuickAction extends StatelessWidget {
-  final IconData icon;
+  final PhosphorIconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
@@ -185,7 +185,7 @@ class QuickActionsDesktop extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
 
   const _ActionButton({
@@ -240,7 +240,7 @@ class _ActionButton extends StatelessWidget {
 
 class _ActionData {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
 
   _ActionData(this.label, this.icon, this.onTap);

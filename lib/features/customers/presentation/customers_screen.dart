@@ -27,7 +27,7 @@ class CustomersScreen extends ConsumerWidget {
           if (canManage)
             IconButton(
               onPressed: () => _showAddEditCustomerSheet(context, ref, null),
-              icon: const Icon(PhosphorIconsBold.plus),
+              icon: const PhosphorIcon(PhosphorIconsBold.plus),
             ),
         ],
       ),
@@ -38,7 +38,7 @@ class CustomersScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  PhosphorIcon(
                     PhosphorIconsDuotone.users,
                     size: 64,
                     color: cs.onSurface.withValues(alpha: 0.3),
@@ -61,7 +61,7 @@ class CustomersScreen extends ConsumerWidget {
                   if (canManage)
                     FilledButton.icon(
                       onPressed: () => _showAddEditCustomerSheet(context, ref, null),
-                      icon: const Icon(PhosphorIconsRegular.plus),
+                      icon: const PhosphorIcon(PhosphorIconsRegular.plus),
                       label: const Text('Add Customer'),
                     ),
                 ],
@@ -90,7 +90,7 @@ class CustomersScreen extends ConsumerWidget {
       floatingActionButton: canManage && customersAsync.hasValue && customersAsync.value!.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: () => _showAddEditCustomerSheet(context, ref, null),
-              icon: const Icon(PhosphorIconsBold.plus),
+              icon: const PhosphorIcon(PhosphorIconsBold.plus),
               label: const Text('Add Customer'),
             )
           : null,
@@ -227,7 +227,7 @@ class _CustomerCard extends StatelessWidget {
                   const PopupMenuItem(
                     value: 'edit',
                     child: ListTile(
-                      leading: Icon(PhosphorIconsRegular.pencilSimple),
+                      leading: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
                       title: Text('Edit'),
                       contentPadding: EdgeInsets.zero,
                     ),
@@ -235,7 +235,7 @@ class _CustomerCard extends StatelessWidget {
                   const PopupMenuItem(
                     value: 'delete',
                     child: ListTile(
-                      leading: Icon(
+                      leading: PhosphorIcon(
                         PhosphorIconsRegular.trash,
                         color: Colors.red,
                       ),

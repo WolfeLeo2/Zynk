@@ -78,6 +78,13 @@ class AdjustmentsScreen extends ConsumerWidget {
           },
         ),
         title: const Text('Stock Adjustments'),
+        actions: [
+          IconButton(
+            icon: const PhosphorIcon(PhosphorIconsRegular.chartBar),
+            tooltip: 'Stock Report',
+            onPressed: () => context.push('/settings/stock-report'),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(56),
           child: _StatusFilterBar(
@@ -265,21 +272,21 @@ class _BundleTile extends StatelessWidget {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Icon(PhosphorIconsRegular.user, size: 14, color: colorScheme.onSurfaceVariant),
+                    PhosphorIcon(PhosphorIconsRegular.user, size: 14, color: colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),
                     Text(
                       first.adjusterName ?? 'System',
                       style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                     const SizedBox(width: 16),
-                    Icon(PhosphorIconsRegular.calendar, size: 14, color: colorScheme.onSurfaceVariant),
+                    PhosphorIcon(PhosphorIconsRegular.calendar, size: 14, color: colorScheme.onSurfaceVariant),
                     const SizedBox(width: 4),
                     Text(
                       dateFmt.format(first.createdAt ?? DateTime.now()),
                       style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
                     ),
                     const Spacer(),
-                    const Icon(PhosphorIconsRegular.caretRight, size: 16),
+                    const PhosphorIcon(PhosphorIconsRegular.caretRight, size: 16),
                   ],
                 ),
               ],
@@ -354,7 +361,7 @@ class _ErrorState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const Icon(PhosphorIconsRegular.warningCircle, size: 48, color: Colors.red),
+          const PhosphorIcon(PhosphorIconsRegular.warningCircle, size: 48, color: Colors.red),
           const SizedBox(height: 16),
           Text(message),
         ],
@@ -373,7 +380,7 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(PhosphorIconsRegular.clipboardText, size: 64, color: Colors.grey[400]),
+          PhosphorIcon(PhosphorIconsRegular.clipboardText, size: 64, color: Colors.grey[400]),
           const SizedBox(height: 16),
           Text(
             filter == null

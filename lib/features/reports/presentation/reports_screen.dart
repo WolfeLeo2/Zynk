@@ -1054,7 +1054,7 @@ class _KpiTile extends StatelessWidget {
   final String label;
   final String value;
   final Color color;
-  final IconData icon;
+  final PhosphorIconData icon;
   final bool isHero;
 
   @override

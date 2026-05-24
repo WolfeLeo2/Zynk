@@ -51,7 +51,7 @@ class _NoBranchSelected extends StatelessWidget {
                   color: theme.colorScheme.primaryContainer,
                   shape: BoxShape.circle,
                 ),
-                child: Icon(
+                child: PhosphorIcon(
                   PhosphorIconsDuotone.storefront,
                   size: 40,
                   color: theme.colorScheme.onPrimaryContainer,

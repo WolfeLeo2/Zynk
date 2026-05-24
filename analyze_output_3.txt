@@ -1,0 +1,26 @@
+Analyzing Zynk...                                               
+
+   info • The import of 'package:flutter/widgets.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'. Try removing the import directive • lib/core/providers/app_providers.dart:2:8 • unnecessary_import
+   info • Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' • lib/core/services/commission_service.dart:82:7 • use_null_aware_elements
+   info • Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' • lib/core/services/commission_service.dart:83:7 • use_null_aware_elements
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement • lib/features/products/presentation/add_item_group_screen.dart:244:11 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement • lib/features/products/presentation/add_item_group_screen.dart:312:11 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement • lib/features/products/presentation/add_product_screen.dart:964:11 • deprecated_member_use
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/features/products/presentation/group_details_screen.dart:196:40 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/features/products/presentation/group_details_screen.dart:197:47 • curly_braces_in_flow_control_structures
+   info • Unnecessary use of string interpolation. Try replacing the string literal with the variable name • lib/features/products/presentation/group_details_screen.dart:229:29 • unnecessary_string_interpolations
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/products/presentation/inventory_adjustment_screen.dart:1290:26 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/products/presentation/inventory_adjustment_screen.dart:1345:26 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/products/presentation/widgets/batch_stock_update_sheet.dart:117:26 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/reports/presentation/commissions_report_screen.dart:650:24 • unnecessary_underscores
+   info • Unnecessary use of string interpolation. Try replacing the string literal with the variable name • lib/features/sales/presentation/sale_detail_screen.dart:2207:50 • unnecessary_string_interpolations
+warning • Argument 'codePoint' must be a constant. Try replacing the argument with a constant • packages/phosphor_flutter/lib/src/phosphor_icon_data.dart:12:9 • non_const_argument_for_const_parameter
+warning • Argument 'fontFamily' must be a constant. Try replacing the argument with a constant • packages/phosphor_flutter/lib/src/phosphor_icon_data.dart:13:9 • non_const_argument_for_const_parameter
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:109:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:138:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:191:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:240:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/presentation/providers/product_providers_test.dart:48:61 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/presentation/providers/product_providers_test.dart:60:66 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/presentation/providers/product_providers_test.dart:75:75 • unnecessary_underscores
+

@@ -349,7 +349,7 @@ class MetricCardWithSparkline extends StatefulWidget {
   final String title;
   final String value;
   final double? rawValue;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
   final List<double> sparklineData;
   final bool isLargeCard;

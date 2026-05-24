@@ -335,7 +335,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                 TextField(
                   decoration: InputDecoration(
                     hintText: 'Search items to add...',
-                    prefixIcon: const Icon(PhosphorIconsDuotone.magnifyingGlass),
+                    prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.magnifyingGlass),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
                     isDense: true,
                   ),
@@ -374,7 +374,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                                     return Text('KES ${resolvedPrice.toStringAsFixed(0)}', style: theme.textTheme.bodySmall);
                                   },
                                 ),
-                                trailing: const Icon(PhosphorIconsBold.plus, size: 18),
+                                trailing: const PhosphorIcon(PhosphorIconsBold.plus, size: 18),
                                 onTap: () {
                                   _addComponent(p);
                                   setState(() => _searchQuery = null);
@@ -441,7 +441,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
           Row(
             children: [
               IconButton(
-                icon: const Icon(PhosphorIconsBold.minus, size: 16),
+                icon: const PhosphorIcon(PhosphorIconsBold.minus, size: 16),
                 onPressed: () {
                   if (entry.quantity > 1) {
                     setState(() => entry.quantity--);
@@ -452,7 +452,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
               ),
               Text('${entry.quantity}', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
               IconButton(
-                icon: const Icon(PhosphorIconsBold.plus, size: 16),
+                icon: const PhosphorIcon(PhosphorIconsBold.plus, size: 16),
                 onPressed: () => setState(() => entry.quantity++),
               ),
             ],
@@ -471,7 +471,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
 
 class _SectionCard extends StatelessWidget {
   final String title;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Widget? trailing;
   final List<Widget> children;
 

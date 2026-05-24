@@ -420,8 +420,9 @@ class PowerSyncRepository {
           id, tenant_id, branch_id, item_group_id, category_id, uom_id, name, sku, barcode,
           description, image_url, base_price, cost_price, tax_category, is_service,
           commission_type, commission_value, parent_id,
+          pricing_unit, coverage_per_box,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         [
           product.id,
           product.tenantId,
@@ -441,6 +442,8 @@ class PowerSyncRepository {
           product.commissionType,
           product.commissionValue,
           product.parentId,
+          product.pricingUnit,
+          product.coveragePerBox,
           DateTime.now().toIso8601String(),
           DateTime.now().toIso8601String(),
         ],
@@ -481,7 +484,8 @@ class PowerSyncRepository {
         '''UPDATE products SET
           branch_id = ?, item_group_id = ?, category_id = ?, uom_id = ?, name = ?, sku = ?, barcode = ?,
           description = ?, image_url = ?, base_price = ?, cost_price = ?, tax_category = ?,
-          is_service = ?, commission_type = ?, commission_value = ?, parent_id = ?, updated_at = ?
+          is_service = ?, commission_type = ?, commission_value = ?, parent_id = ?,
+          pricing_unit = ?, coverage_per_box = ?, updated_at = ?
         WHERE id = ?''',
         [
           product.branchId,
@@ -500,6 +504,8 @@ class PowerSyncRepository {
           product.commissionType,
           product.commissionValue,
           product.parentId,
+          product.pricingUnit,
+          product.coveragePerBox,
           DateTime.now().toIso8601String(),
           product.id,
         ],
@@ -698,6 +704,55 @@ class PowerSyncRepository {
         .watch(sql, parameters: params)
         .map(
           (rows) => rows.map((row) => StockAdjustment.fromMap(row)).toList(),
+        );
+  }
+
+  Stream<List<ProductTransaction>> watchProductTransactionHistory(
+    String productId, {
+    String? branchId,
+  }) {
+    var sql = '''
+      SELECT 
+        sa.id, sa.created_at as created_at, 'adjustment' as type, sa.quantity, 
+        sa.id as reference_id, 
+        COALESCE(r.label, sa.adjustment_type) || CASE WHEN sa.notes IS NOT NULL THEN ' - ' || sa.notes ELSE '' END as reference_number,
+        p.display_name as actor_name
+      FROM stock_adjustments sa
+      LEFT JOIN profiles p ON p.user_id = sa.created_by
+      LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
+      WHERE sa.product_id = ?
+    ''';
+    
+    var sql2 = '''
+      SELECT 
+        si.id, s.created_at, 'sale' as type, -si.quantity as quantity, 
+        s.id as reference_id, 
+        s.invoice_number as reference_number,
+        p.display_name as actor_name
+      FROM sale_items si
+      JOIN sales s ON s.id = si.sale_id
+      LEFT JOIN profiles p ON p.user_id = s.created_by
+      WHERE si.product_id = ? AND s.status NOT IN ('voided', 'rejected') AND s.fulfillment_status = 'fulfilled'
+    ''';
+
+    final params = <dynamic>[productId];
+    final params2 = <dynamic>[productId];
+
+    if (branchId != null && branchId != 'all') {
+      sql += ' AND sa.branch_id = ?';
+      params.add(branchId);
+      
+      sql2 += ' AND s.branch_id = ?';
+      params2.add(branchId);
+    }
+
+    final finalSql = '$sql UNION ALL $sql2 ORDER BY 2 DESC';
+    final finalParams = [...params, ...params2];
+
+    return _db
+        .watch(finalSql, parameters: finalParams)
+        .map(
+          (rows) => rows.map((row) => ProductTransaction.fromMap(row)).toList(),
         );
   }
 
@@ -997,8 +1052,9 @@ class PowerSyncRepository {
         id, tenant_id, branch_id, name, description, 
         default_commission_type, default_commission_value,
         default_selling_price, default_buying_price, attributes,
+        default_pricing_unit, default_coverage_per_box,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
       [
         group.id,
         group.tenantId,
@@ -1010,6 +1066,8 @@ class PowerSyncRepository {
         group.defaultSellingPrice,
         group.defaultBuyingPrice,
         group.attributes,
+        group.defaultPricingUnit,
+        group.defaultCoveragePerBox,
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],
@@ -1022,6 +1080,7 @@ class PowerSyncRepository {
         name = ?, description = ?, 
         default_commission_type = ?, default_commission_value = ?, 
         default_selling_price = ?, default_buying_price = ?, attributes = ?,
+        default_pricing_unit = ?, default_coverage_per_box = ?,
         updated_at = ? 
       WHERE id = ?''',
       [
@@ -1032,6 +1091,8 @@ class PowerSyncRepository {
         group.defaultSellingPrice,
         group.defaultBuyingPrice,
         group.attributes,
+        group.defaultPricingUnit,
+        group.defaultCoveragePerBox,
         DateTime.now().toIso8601String(),
         group.id,
       ],
@@ -1069,6 +1130,7 @@ class PowerSyncRepository {
             name = ?, description = ?, 
             default_commission_type = ?, default_commission_value = ?, 
             default_selling_price = ?, default_buying_price = ?, attributes = ?,
+            default_pricing_unit = ?, default_coverage_per_box = ?,
             updated_at = ? 
           WHERE id = ?''',
           [
@@ -1079,6 +1141,8 @@ class PowerSyncRepository {
             updatedGroup.defaultSellingPrice,
             updatedGroup.defaultBuyingPrice,
             updatedGroup.attributes,
+            updatedGroup.defaultPricingUnit,
+            updatedGroup.defaultCoveragePerBox,
             now,
             updatedGroup.id,
           ],
@@ -1240,8 +1304,9 @@ class PowerSyncRepository {
         '''INSERT INTO products (
           id, tenant_id, branch_id, item_group_id, category_id, uom_id, name, sku, barcode, 
           description, image_url, base_price, cost_price, tax_category, is_service, 
+          pricing_unit, coverage_per_box,
           created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)''',
         [
           product.id,
           product.tenantId,
@@ -1258,6 +1323,8 @@ class PowerSyncRepository {
           product.costPrice,
           product.taxCategory,
           product.isService ? 1 : 0,
+          product.pricingUnit,
+          product.coveragePerBox,
           DateTime.now().toIso8601String(),
           DateTime.now().toIso8601String(),
         ],
@@ -2510,6 +2577,64 @@ class PowerSyncRepository {
           .where((adj) => adj.status.name == normalizedStatus)
           .toList();
     });
+  }
+
+  /// All-time stock report for a specific branch.
+  /// - received  = approved additions + initial adjustments
+  /// - sold      = qty on approved sale line items for this branch
+  /// - available = current stock.quantity for this branch
+  Stream<List<Map<String, dynamic>>> watchStockReport({
+    required String tenantId,
+    required String branchId,
+  }) {
+    const sql = '''
+      WITH received AS (
+        SELECT product_id, SUM(quantity) AS total_received
+        FROM stock_adjustments
+        WHERE tenant_id = ?
+          AND branch_id = ?
+          AND adjustment_type IN ('addition', 'initial')
+          AND status = 'approved'
+        GROUP BY product_id
+      ),
+      sold AS (
+        SELECT si.product_id, SUM(si.quantity) AS total_sold
+        FROM sale_items si
+        JOIN sales sl ON sl.id = si.sale_id
+        WHERE sl.tenant_id = ?
+          AND sl.branch_id = ?
+          AND sl.status = 'approved'
+        GROUP BY si.product_id
+      ),
+      available AS (
+        SELECT product_id, SUM(quantity) AS total_available
+        FROM stock
+        WHERE tenant_id = ?
+          AND branch_id = ?
+        GROUP BY product_id
+      )
+      SELECT
+        p.id   AS product_id,
+        p.name AS product_name,
+        p.sku,
+        COALESCE(r.total_received,   0) AS received,
+        COALESCE(so.total_sold,      0) AS sold,
+        COALESCE(av.total_available, 0) AS available
+      FROM products p
+      LEFT JOIN received  r  ON r.product_id  = p.id
+      LEFT JOIN sold      so ON so.product_id = p.id
+      LEFT JOIN available av ON av.product_id = p.id
+      WHERE p.tenant_id = ?
+        AND (p.is_service IS NULL OR p.is_service = 0)
+      ORDER BY p.name ASC
+    ''';
+
+    return _db.watch(sql, parameters: [
+      tenantId, branchId, // received CTE
+      tenantId, branchId, // sold CTE
+      tenantId, branchId, // available CTE
+      tenantId,           // products WHERE
+    ]).map((rows) => rows.toList());
   }
 
   Stream<List<StockAdjustment>> watchStockAdjustmentsByBundle(String bundleId) {

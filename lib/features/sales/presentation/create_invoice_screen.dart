@@ -69,10 +69,20 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   double _computeSubtotal() {
     double subtotal = 0;
     for (final item in _items) {
-      final price =
-          double.tryParse(item.priceCtr.text) ?? item.originalItem.effectivePrice;
-      final qty = int.tryParse(item.qtyCtr.text) ?? item.originalItem.quantity;
-      subtotal += price * qty;
+      final price = double.tryParse(item.priceCtr.text) ??
+          (item.originalItem.isSqmBased
+              ? item.originalItem.pricePerSqm
+              : item.originalItem.effectivePrice);
+      final enteredQty = double.tryParse(item.qtyCtr.text) ??
+          (item.originalItem.isSqmBased
+              ? item.originalItem.totalSqm
+              : item.originalItem.quantity.toDouble());
+      if (item.originalItem.isSqmBased) {
+        final qty = (enteredQty / item.originalItem.coveragePerBox).ceil();
+        subtotal += (price * item.originalItem.coveragePerBox) * qty;
+      } else {
+        subtotal += price * enteredQty.toInt();
+      }
     }
     return subtotal;
   }
@@ -105,11 +115,19 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       // Apply edits onto cartItems before submitting
       final editedItems = <PosCartItem>[];
       for (final item in _items) {
-        final qty = int.tryParse(item.qtyCtr.text) ?? item.originalItem.quantity;
+        final enteredQty = double.tryParse(item.qtyCtr.text) ??
+            (item.originalItem.isSqmBased
+                ? item.originalItem.totalSqm
+                : item.originalItem.quantity.toDouble());
+        final qty = item.originalItem.isSqmBased
+            ? (enteredQty / item.originalItem.coveragePerBox).ceil()
+            : enteredQty.toInt();
         if (qty <= 0) continue;
 
-        final price =
-            double.tryParse(item.priceCtr.text) ?? item.originalItem.effectivePrice;
+        final price = double.tryParse(item.priceCtr.text) ??
+            (item.originalItem.isSqmBased
+                ? item.originalItem.pricePerSqm
+                : item.originalItem.effectivePrice);
         final name = item.nameCtr.text.trim().isEmpty
             ? item.originalItem.effectiveName
             : item.nameCtr.text.trim();
@@ -145,8 +163,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             product: item.originalItem.product,
             quantity: qty,
             overrideName: name != item.originalItem.product.name ? name : null,
-            overridePrice:
-                price != item.originalItem.product.basePrice ? price : null,
+            overridePrice: item.originalItem.isSqmBased
+                ? (price != item.originalItem.product.basePrice ? price : null)
+                : (price != item.originalItem.product.basePrice ? price : null),
           ),
         );
       }
@@ -263,7 +282,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: value,
-                    icon: const Icon(PhosphorIconsRegular.caretDown),
+                    icon: const PhosphorIcon(PhosphorIconsRegular.caretDown),
                     items: options
                         .map(
                           (b) => DropdownMenuItem<String>(
@@ -304,7 +323,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     return DropdownButtonFormField<String>(
                       initialValue: _salespersonId,
                       decoration: InputDecoration(
-                        prefixIcon: const Icon(PhosphorIconsRegular.user),
+                        prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
                         ),
@@ -353,7 +372,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     controller: _customerNameCtrl,
                     decoration: InputDecoration(
                       labelText: 'Customer Name',
-                      prefixIcon: const Icon(PhosphorIconsRegular.user),
+                      prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -368,7 +387,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                     controller: _customerPhoneCtrl,
                     decoration: InputDecoration(
                       labelText: 'Phone (optional)',
-                      prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                      prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(10),
                       ),
@@ -555,9 +574,16 @@ class _EditableInvoiceItem {
   _EditableInvoiceItem(this.originalItem) {
     nameCtr = TextEditingController(text: originalItem.effectiveName);
     priceCtr = TextEditingController(
-      text: originalItem.effectivePrice.toStringAsFixed(0),
+      text: (originalItem.isSqmBased
+              ? originalItem.pricePerSqm
+              : originalItem.effectivePrice)
+          .toStringAsFixed(0),
     );
-    qtyCtr = TextEditingController(text: originalItem.quantity.toString());
+    qtyCtr = TextEditingController(
+      text: originalItem.isSqmBased
+          ? originalItem.totalSqm.toStringAsFixed(2)
+          : originalItem.quantity.toString(),
+    );
   }
 
   void dispose() {
@@ -634,7 +660,7 @@ class _EditableItemRow extends StatelessWidget {
               const SizedBox(width: 8),
               IconButton(
                 onPressed: onRemove,
-                icon: Icon(
+                icon: PhosphorIcon(
                   PhosphorIconsRegular.trash,
                   color: cs.error,
                   size: 20,
@@ -653,16 +679,23 @@ class _EditableItemRow extends StatelessWidget {
                   controller: item.qtyCtr,
                   onChanged: (_) => onChanged(),
                   decoration: InputDecoration(
-                    labelText: 'Qty',
+                    labelText: item.originalItem.isSqmBased ? 'sqm' : 'Qty',
                     isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  keyboardType: TextInputType.number,
-                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  keyboardType: item.originalItem.isSqmBased
+                      ? const TextInputType.numberWithOptions(decimal: true)
+                      : TextInputType.number,
+                  inputFormatters: [
+                    if (item.originalItem.isSqmBased)
+                      FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))
+                    else
+                      FilteringTextInputFormatter.digitsOnly
+                  ],
                   validator: (v) {
-                    final qty = int.tryParse(v ?? '');
+                    final qty = double.tryParse(v ?? '');
                     if (qty == null || qty <= 0) return 'Invalid';
                     return null;
                   },
@@ -676,7 +709,7 @@ class _EditableItemRow extends StatelessWidget {
                   controller: item.priceCtr,
                   onChanged: (_) => onChanged(),
                   decoration: InputDecoration(
-                    labelText: 'Unit Price (Ksh)',
+                    labelText: item.originalItem.isSqmBased ? 'Price/sqm (Ksh)' : 'Unit Price (Ksh)',
                     isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -708,7 +741,9 @@ class _EditableItemRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    'Ksh ${((double.tryParse(item.priceCtr.text) ?? 0) * (int.tryParse(item.qtyCtr.text) ?? 0)).toStringAsFixed(0)}',
+                    item.originalItem.isSqmBased
+                        ? 'Ksh ${(((double.tryParse(item.priceCtr.text) ?? item.originalItem.pricePerSqm) * item.originalItem.coveragePerBox) * ((double.tryParse(item.qtyCtr.text) ?? item.originalItem.totalSqm) / item.originalItem.coveragePerBox).ceil()).toStringAsFixed(0)}'
+                        : 'Ksh ${((double.tryParse(item.priceCtr.text) ?? 0) * (int.tryParse(item.qtyCtr.text) ?? 0)).toStringAsFixed(0)}',
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -717,6 +752,36 @@ class _EditableItemRow extends StatelessWidget {
               ),
             ],
           ),
+          if (item.originalItem.isSqmBased) ...[
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Price/box: Ksh ${((double.tryParse(item.priceCtr.text) ?? item.originalItem.pricePerSqm) * item.originalItem.coveragePerBox).toStringAsFixed(0)}',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                    fontSize: 11,
+                  ),
+                ),
+                Builder(
+                  builder: (context) {
+                    final enteredQty = double.tryParse(item.qtyCtr.text) ?? item.originalItem.totalSqm;
+                    final boxes = (enteredQty / item.originalItem.coveragePerBox).ceil();
+                    final actualSqm = boxes * item.originalItem.coveragePerBox;
+                    return Text(
+                      'Total boxes: $boxes (${actualSqm.toStringAsFixed(2)} sqm)',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.primary.withValues(alpha: 0.8),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ],
         ],
       ),
     );

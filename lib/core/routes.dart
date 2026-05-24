@@ -35,6 +35,7 @@ import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
 import 'package:zynk/features/products/presentation/adjustments_screen.dart';
 import 'package:zynk/features/reports/presentation/reports_screen.dart';
 import 'package:zynk/features/reports/presentation/commissions_report_screen.dart';
+import 'package:zynk/features/reports/presentation/stock_report_screen.dart';
 import 'package:zynk/features/customers/presentation/customers_screen.dart';
 import 'package:zynk/features/products/presentation/adjustment_detail_screen.dart';
 import 'package:zynk/features/expenses/presentation/screens/expenses_screen.dart';
@@ -97,7 +98,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
 
         // Enforce Reports access
-        if (loc.startsWith('/settings/reports') &&
+        if ((loc.startsWith('/settings/reports') ||
+                loc.startsWith('/settings/stock-report')) &&
             !profile.hasPermission(Permission.viewReports)) {
           return profile.hasPermission(Permission.viewDashboard) ? '/' : '/pos';
         }
@@ -276,7 +278,11 @@ final routerProvider = Provider<GoRouter>((ref) {
                         path: 'edit',
                         builder: (context, state) {
                           final saleId = state.pathParameters['id']!;
-                          return EditInvoiceScreen(saleId: saleId);
+                          final extra = state.extra as Map<String, dynamic>? ?? {};
+                          return EditInvoiceScreen(
+                            saleId: saleId,
+                            wasApproved: extra['wasApproved'] == true,
+                          );
                         },
                       ),
                     ],
@@ -331,6 +337,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'reports',
                     builder: (context, state) => const ReportsScreen(),
+                  ),
+                  GoRoute(
+                    path: 'stock-report',
+                    builder: (context, state) => const StockReportScreen(),
                   ),
                   GoRoute(
                     path: 'commissions',

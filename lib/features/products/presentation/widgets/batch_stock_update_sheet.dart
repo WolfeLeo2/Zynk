@@ -97,7 +97,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                       labelText: 'Target Branch',
                       border: OutlineInputBorder(),
                       isDense: true,
-                      prefixIcon: Icon(PhosphorIconsRegular.storefront, size: 20),
+                      prefixIcon: PhosphorIcon(PhosphorIconsRegular.storefront, size: 20),
                     ),
                     initialValue: _selectedBranch,
                     items: selectableBranches
@@ -266,7 +266,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
               ),
               if (isSelected && amount != 0) ...[
                 const SizedBox(width: 8),
-                Icon(PhosphorIconsRegular.arrowRight, size: 12, color: color),
+                PhosphorIcon(PhosphorIconsRegular.arrowRight, size: 12, color: color),
                 const SizedBox(width: 8),
                 Text(
                   '$newStock',

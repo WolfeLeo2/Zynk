@@ -111,11 +111,13 @@ class PosProductCard extends ConsumerWidget {
                                     .watch(itemGroupProvider(product.itemGroupId!))
                                     .value
                                 : null;
-                            final resolvedPrice = ref
-                                .watch(productPricingServiceProvider)
-                                .resolveSellingPrice(product, group);
+                            final pricingService = ref.watch(productPricingServiceProvider);
+                            final resolvedPrice = pricingService.resolveSellingPrice(product, group);
+                            final isSqm = pricingService.resolvePricingUnit(product, group) == 'sqm';
                             return Text(
-                              'Ksh ${resolvedPrice.toStringAsFixed(0)}',
+                              isSqm
+                                  ? 'Ksh ${resolvedPrice.toStringAsFixed(0)}/sqm'
+                                  : 'Ksh ${resolvedPrice.toStringAsFixed(0)}',
                               style: textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.w800,
                                 color: colorScheme.onSurface,

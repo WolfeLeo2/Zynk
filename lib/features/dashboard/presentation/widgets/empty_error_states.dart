@@ -11,7 +11,7 @@ class EmptyState extends StatelessWidget {
   final ColorScheme colorScheme;
   final String title;
   final String message;
-  final IconData icon;
+  final PhosphorIconData icon;
 
   const EmptyState({
     super.key,

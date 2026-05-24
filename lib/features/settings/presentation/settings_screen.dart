@@ -3,14 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:card_settings_ui/card_settings_ui.dart';
+import 'package:settings_ui/settings_ui.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/core/models/user_role.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -226,7 +225,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               : colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(
+                        child: PhosphorIcon(
                           branch.id == 'all'
                               ? PhosphorIconsDuotone.chartPieSlice
                               : PhosphorIconsDuotone.storefront,
@@ -237,7 +236,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                       title: Text(branch.name),
                       trailing: isSelected
-                          ? Icon(
+                          ? PhosphorIcon(
                               PhosphorIconsBold.check,
                               color: colorScheme.primary,
                             )
@@ -271,6 +270,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             : selectedBranchId != null
                 ? 'Loading…'
                 : 'Not assigned');
+    final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -286,16 +286,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: profileAsync.when(
         data: (profile) {
           final displayName = profile?.displayName ?? user?.email ?? '';
-          final measurementSystem = ref.watch(measurementSystemProvider);
           final isOwner = ref.watch(isOwnerProvider);
           if (_nameController.text.isEmpty && profile != null) {
             _nameController.text = profile.displayName ?? '';
           }
 
-          return SettingsList(
-            maxWidth: 960,
-            contentPadding: const EdgeInsets.symmetric(vertical: 8),
-            sections: [
+          return Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 960),
+              child: SettingsList(
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                lightTheme: SettingsThemeData(
+                  settingsListBackground: Theme.of(context).colorScheme.surface,
+                  settingsSectionBackground: Theme.of(context).colorScheme.surfaceContainerLow,
+                  dividerColor: Theme.of(context).colorScheme.outlineVariant,
+                  tileDescriptionTextColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  leadingIconsColor: Theme.of(context).colorScheme.primary,
+                ),
+                darkTheme: SettingsThemeData(
+                  settingsListBackground: Theme.of(context).colorScheme.surface,
+                  settingsSectionBackground: Theme.of(context).colorScheme.surfaceContainerLow,
+                  dividerColor: Theme.of(context).colorScheme.outlineVariant,
+                  tileDescriptionTextColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  leadingIconsColor: Theme.of(context).colorScheme.primary,
+                ),
+                sections: [
               CustomSettingsSection(
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -310,7 +325,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               height: 100,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: AppTokens.bgSurfaceHighlightDark,
+                                color: cs.surfaceContainerHighest,
+                                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.15))
                               ),
                               child: ClipOval(
                                 child: profile?.profilePictureUrl != null
@@ -318,8 +334,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                         imageUrl: profile!.profilePictureUrl!,
                                         fit: BoxFit.cover,
                                         errorWidget: (context, url, error) =>
-                                            const Icon(
-                                              Icons.error,
+                                            const PhosphorIcon(
+                                              PhosphorIconsBold.sealWarning,
                                               color: Colors.red,
                                             ),
                                       )
@@ -340,7 +356,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                 onPressed: _isLoading
                                     ? null
                                     : _updateProfilePicture,
-                                icon: const Icon(
+                                icon: const PhosphorIcon(
                                   PhosphorIconsBold.camera,
                                   size: 18,
                                 ),
@@ -359,7 +375,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Display Name',
                                 border: OutlineInputBorder(),
-                                prefixIcon: Icon(PhosphorIconsDuotone.user),
+                                prefixIcon: PhosphorIcon(PhosphorIconsDuotone.user),
                               ),
                               validator: (v) =>
                                   v?.isEmpty == true ? 'Required' : null,
@@ -371,7 +387,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                               decoration: const InputDecoration(
                                 labelText: 'Email',
                                 border: OutlineInputBorder(),
-                                prefixIcon: Icon(PhosphorIconsDuotone.envelope),
+                                prefixIcon: PhosphorIcon(PhosphorIconsDuotone.envelope),
                               ),
                             ),
                             const SizedBox(height: 16),
@@ -400,10 +416,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   (profile?.hasPermission(Permission.manageCustomers) == true))
                 SettingsSection(
                   title: Text('Business', style: Theme.of(context).textTheme.titleMedium),
-                  tiles: <SettingsTile>[
+                  tiles: [
                     if (isOwner)
                       SettingsTile.navigation(
-                        leading: const Icon(PhosphorIconsDuotone.image),
+                        leading: const PhosphorIcon(PhosphorIconsDuotone.image),
                         title: Text('Business Logo', style: Theme.of(context).textTheme.titleMedium),
                         description: Text('Update your shop\'s logo', style: Theme.of(context).textTheme.bodySmall),
                         trailing: _isLoading
@@ -417,28 +433,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     if (profile?.hasPermission(Permission.manageBranches) == true)
                       SettingsTile.navigation(
-                        leading: const Icon(PhosphorIconsDuotone.storefront),
+                        leading: const PhosphorIcon(PhosphorIconsDuotone.storefront),
                         title: Text('Branches', style: Theme.of(context).textTheme.titleMedium),
                         description: Text('Manage your business locations', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/branches'),
                       ),
                     if (profile?.hasPermission(Permission.manageStaff) == true)
                       SettingsTile.navigation(
-                        leading: const Icon(PhosphorIconsDuotone.userList),
+                        leading: const PhosphorIcon(PhosphorIconsDuotone.userList),
                         title: Text('Salespersons', style: Theme.of(context).textTheme.titleMedium),
                         description: Text('Manage actual employees', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/staff-members'),
                       ),
                     if (profile?.hasPermission(Permission.manageStaff) == true)
                       SettingsTile.navigation(
-                        leading: const Icon(PhosphorIconsDuotone.users),
+                        leading: const PhosphorIcon(PhosphorIconsDuotone.users),
                         title: Text('User Accounts', style: Theme.of(context).textTheme.titleMedium),
                         description: Text('Manage branch logins and permissions', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/staff'),
                       ),
                     if (profile?.hasPermission(Permission.manageCustomers) == true)
                       SettingsTile.navigation(
-                        leading: const Icon(PhosphorIconsDuotone.usersFour),
+                        leading: const PhosphorIcon(PhosphorIconsDuotone.usersFour),
                         title: Text('Customers', style: Theme.of(context).textTheme.titleMedium),
                         description: Text('Manage your customer directory', style: Theme.of(context).textTheme.bodySmall),
                         onPressed: (_) => context.push('/settings/customers'),
@@ -448,50 +464,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
               SettingsSection(
                 title: Text('App Settings', style: Theme.of(context).textTheme.titleMedium),
-                tiles: <SettingsTile>[
-                  SettingsTile<MeasurementSystem>.radioTile(
-                    leading: const Icon(PhosphorIconsDuotone.ruler),
-                    title: Text('Metric (cm, kg)', style: Theme.of(context).textTheme.titleMedium),
-                    radioValue: MeasurementSystem.metric,
-                    groupValue: measurementSystem,
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(measurementSystemProvider.notifier)
-                            .setSystem(value);
-                      }
-                    },
-                  ),
-                  SettingsTile<MeasurementSystem>.radioTile(
-                    leading: const Icon(PhosphorIconsDuotone.ruler),
-                    title: Text('Imperial (in, lb)', style: Theme.of(context).textTheme.titleMedium),
-                    radioValue: MeasurementSystem.imperial,
-                    groupValue: measurementSystem,
-                    onChanged: (value) {
-                      if (value != null) {
-                        ref
-                            .read(measurementSystemProvider.notifier)
-                            .setSystem(value);
-                      }
-                    },
-                  ),
+                tiles: [
+                  /*
                   SettingsTile.navigation(
-                    leading: const Icon(PhosphorIconsDuotone.palette),
+                    leading: const PhosphorIcon(PhosphorIconsDuotone.ruler),
+                    title: Text('Measurement System', style: Theme.of(context).textTheme.titleMedium),
+                    description: Text(
+                      measurementSystem == MeasurementSystem.metric ? 'Metric (cm, kg)' : 'Imperial (in, lb)',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    onPressed: (context) {
+                      // Logic for switching measurement system can be added here
+                    },
+                  ),
+                  */
+                  SettingsTile(
+                    leading: const PhosphorIcon(PhosphorIconsDuotone.palette),
                     title: Text('Theme', style: Theme.of(context).textTheme.titleMedium),
-                    description: Text('System Default', style: Theme.of(context).textTheme.bodySmall),
-                    onPressed: (_) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Theme settings coming soon'),
+                    trailing: DropdownButton<ThemeMode>(
+                      value: ref.watch(themeModeProvider),
+                      underline: const SizedBox(),
+                      borderRadius: BorderRadius.circular(12),
+                      dropdownColor: Theme.of(context).colorScheme.surfaceContainerHigh,
+                      onChanged: (ThemeMode? mode) {
+                        if (mode != null) {
+                          ref.read(themeModeProvider.notifier).setThemeMode(mode);
+                        }
+                      },
+                      items: [
+                        DropdownMenuItem(
+                          value: ThemeMode.system,
+                          child: Text('System', style: Theme.of(context).textTheme.bodyMedium),
                         ),
-                      );
-                    },
+                        DropdownMenuItem(
+                          value: ThemeMode.light,
+                          child: Text('Light', style: Theme.of(context).textTheme.bodyMedium),
+                        ),
+                        DropdownMenuItem(
+                          value: ThemeMode.dark,
+                          child: Text('Dark', style: Theme.of(context).textTheme.bodyMedium),
+                        ),
+                      ],
+                    ),
                   ),
-                  // Branch tile — always visible for all users.
-                  // Single-branch / locked users see it as read-only (tap is a no-op).
-                  // Multi-branch users get the full branch selector.
                   SettingsTile.navigation(
-                    leading: const Icon(PhosphorIconsDuotone.storefront),
+                    leading: const PhosphorIcon(PhosphorIconsDuotone.storefront),
                     title: Text(
                       canSwitch ? 'Default Branch' : 'Assigned Branch',
                       style: Theme.of(context).textTheme.titleMedium,
@@ -500,7 +517,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       branchName,
                       style: Theme.of(context).textTheme.bodySmall,
                     ),
-                    // No-op for single-branch users — silent, no visual change.
                     onPressed: canSwitch
                         ? (_) => _showDefaultBranchSelector(context)
                         : (_) {},
@@ -509,13 +525,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
 
               SettingsSection(
-                tiles: <SettingsTile>[
+                tiles: [
                   SettingsTile.navigation(
-                    leading: Icon(
+                    leading: PhosphorIcon(
                       PhosphorIconsDuotone.signOut,
                       color: Theme.of(context).colorScheme.error,
                     ),
-                    title: Text('Sign Out', style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Theme.of(context).colorScheme.error)),
+                    title: Text(
+                      'Sign Out',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                    ),
                     onPressed: (_) async {
                       final confirm = await showDialog<bool>(
                         context: context,
@@ -545,7 +566,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ),
             ],
-          );
+          ),
+        ),
+      );
         },
         loading: () => const _SettingsLoadingView(),
         error: (e, st) => Center(child: Text('Error: $e')),

@@ -133,7 +133,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.user),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
                 ),
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Name is required' : null,
@@ -147,7 +147,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                 ),
               ),
               const SizedBox(height: 16),
@@ -159,7 +159,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.envelope),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.envelope),
                 ),
               ),
               const SizedBox(height: 16),
@@ -174,7 +174,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        prefixIcon: const Icon(PhosphorIconsRegular.star),
+                        prefixIcon: const PhosphorIcon(PhosphorIconsRegular.star),
                       ),
                     ),
                   ),
@@ -188,7 +188,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                         ),
-                        prefixIcon: const Icon(PhosphorIconsRegular.money),
+                        prefixIcon: const PhosphorIcon(PhosphorIconsRegular.money),
                       ),
                     ),
                   ),

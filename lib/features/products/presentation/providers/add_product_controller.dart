@@ -28,6 +28,8 @@ class AddProductController extends _$AddProductController {
     required String? categoryId,
     required String? itemGroupId,
     required String? uomId, // Added
+    String? pricingUnit,
+    double? coveragePerBox,
 
     double? price,
     double? costPrice, // Added
@@ -50,14 +52,6 @@ class AddProductController extends _$AddProductController {
       final repository = ref.read(repositoryProvider);
       final profile = ref.read(currentUserProfileProvider).value;
       final tenantId = profile?.tenantId ?? 'tenant_1';
-      final normalizedBranchIds = targetBranchIds
-          .where((id) => id.isNotEmpty && id != 'all')
-          .toSet()
-          .toList();
-      if (normalizedBranchIds.isEmpty) {
-        throw Exception('Please select at least one target branch.');
-      }
-      final createdBy = profile?.userId ?? 'system';
 
       String? imageUrl = existingImageUrl;
       if (imageFile != null) {
@@ -100,6 +94,8 @@ class AddProductController extends _$AddProductController {
           length: length,
           width: width,
           height: height,
+          pricingUnit: pricingUnit,
+          coveragePerBox: coveragePerBox,
           taxCategory: 'standard',
           isService: false,
           commissionType: commissionType,
@@ -108,10 +104,7 @@ class AddProductController extends _$AddProductController {
           createdAt: DateTime.now(), // Will be ignored by DB
           updatedAt: DateTime.now(),
         );
-        await repository.updateProduct(
-          updatedProduct,
-          targetBranchIds: normalizedBranchIds,
-        );
+        await repository.updateProduct(updatedProduct);
       } else {
         final newProductId = const Uuid().v4();
         final newProduct = Product(
@@ -132,6 +125,8 @@ class AddProductController extends _$AddProductController {
           length: length,
           width: width,
           height: height,
+          pricingUnit: pricingUnit,
+          coveragePerBox: coveragePerBox,
           taxCategory: 'standard', // Default
           isService: false, // Default
           commissionType: commissionType,
@@ -140,32 +135,15 @@ class AddProductController extends _$AddProductController {
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
         );
-
         if (components != null && components.isNotEmpty) {
           await repository.createCompositeProduct(newProduct, components);
         } else {
-          await repository.createProduct(
-            newProduct,
-            targetBranchIds: normalizedBranchIds,
-          );
+          // Products are global — no targetBranchIds needed.
+          await repository.createProduct(newProduct);
         }
 
-        if (initialStock != null && initialStock > 0) {
-          // Initial stock stays branch-scoped even for shared catalog products.
-          final bundleId = const Uuid().v4();
-          for (final branchId in normalizedBranchIds) {
-            await repository.adjustStock(
-              tenantId: tenantId,
-              branchId: branchId,
-              productId: newProductId,
-              adjustmentType: 'initial',
-              quantityChange: initialStock,
-              createdBy: createdBy,
-              notes: 'Initial stock on creation',
-              bundleId: bundleId,
-            );
-          }
-        }
+        // Initial stock is not set at creation time for global products.
+        // Use the Inventory Adjustments screen to add stock per branch.
       }
 
       state = const AsyncData(null);

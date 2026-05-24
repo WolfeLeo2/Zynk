@@ -101,7 +101,7 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                     ),
                     IconButton.filledTonal(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(PhosphorIconsRegular.x),
+                      icon: const PhosphorIcon(PhosphorIconsRegular.x),
                     ),
                   ],
                 ),
@@ -169,7 +169,7 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                                           100,
                                         ),
                                       ),
-                                      leading: const Icon(
+                                      leading: const PhosphorIcon(
                                         PhosphorIconsRegular.magnifyingGlass,
                                         size: 18,
                                       ),
@@ -254,7 +254,7 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                                         color: cs.surfaceContainer,
                                         borderRadius: BorderRadius.circular(8),
                                       ),
-                                      child: const Icon(
+                                      child: const PhosphorIcon(
                                         PhosphorIconsRegular.package,
                                         size: 20,
                                       ),

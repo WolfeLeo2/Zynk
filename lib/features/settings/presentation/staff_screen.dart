@@ -160,7 +160,7 @@ class _StaffCard extends ConsumerWidget {
                     placeholder: (context, url) =>
                         const Center(child: CircularProgressIndicator()),
                     errorWidget: (context, url, error) =>
-                        const Icon(PhosphorIconsRegular.user, color: Colors.grey),
+                        const PhosphorIcon(PhosphorIconsRegular.user, color: Colors.grey),
                   )
                 : Text(
                     (member.displayName?.isNotEmpty ?? false)
@@ -215,7 +215,7 @@ class _StaffCard extends ConsumerWidget {
           ),
         ),
         trailing: PopupMenuButton<String>(
-          icon: Icon(PhosphorIconsRegular.dotsThreeVertical, color: colorScheme.onSurfaceVariant),
+          icon: PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical, color: colorScheme.onSurfaceVariant),
           onSelected: (value) async {
             if (value == 'edit') {
               context.push('/settings/add-staff', extra: member);
@@ -270,7 +270,7 @@ class _StaffCard extends ConsumerWidget {
             const PopupMenuItem(
               value: 'edit',
               child: ListTile(
-                leading: Icon(PhosphorIconsRegular.pencilSimple),
+                leading: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
                 title: Text('Edit'),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -278,7 +278,7 @@ class _StaffCard extends ConsumerWidget {
             PopupMenuItem(
               value: isBlocked ? 'unblock' : 'block',
               child: ListTile(
-                leading: Icon(isBlocked ? PhosphorIconsRegular.checkCircle : PhosphorIconsRegular.prohibit),
+                leading: PhosphorIcon(isBlocked ? PhosphorIconsRegular.checkCircle : PhosphorIconsRegular.prohibit),
                 title: Text(isBlocked ? 'Unblock' : 'Block'),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -287,7 +287,7 @@ class _StaffCard extends ConsumerWidget {
             const PopupMenuItem(
               value: 'delete',
               child: ListTile(
-                leading: Icon(PhosphorIconsRegular.trash, color: Colors.red),
+                leading: PhosphorIcon(PhosphorIconsRegular.trash, color: Colors.red),
                 title: Text('Delete', style: TextStyle(color: Colors.red)),
                 contentPadding: EdgeInsets.zero,
               ),

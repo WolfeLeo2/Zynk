@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class ScannerScreen extends StatefulWidget {
   const ScannerScreen({super.key});
@@ -23,13 +24,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
               builder: (context, state, child) {
                 switch (state.torchState) {
                   case TorchState.off:
-                    return const Icon(Icons.flash_off, color: Colors.grey);
+                    return const PhosphorIcon(PhosphorIconsRegular.lightningSlash, color: Colors.grey);
                   case TorchState.on:
-                    return const Icon(Icons.flash_on, color: Colors.yellow);
+                    return const PhosphorIcon(PhosphorIconsRegular.lightning, color: Colors.yellow);
                   case TorchState.auto: // Handle auto case
-                    return const Icon(Icons.flash_auto, color: Colors.white);
+                    return const PhosphorIcon(PhosphorIconsRegular.lightning, color: Colors.white);
                   case TorchState.unavailable:
-                    return const Icon(Icons.no_flash, color: Colors.grey);
+                    return const PhosphorIcon(PhosphorIconsRegular.lightningSlash, color: Colors.grey);
                 }
               },
             ),
@@ -41,13 +42,13 @@ class _ScannerScreenState extends State<ScannerScreen> {
               builder: (context, state, child) {
                 switch (state.cameraDirection) {
                   case CameraFacing.front:
-                    return const Icon(Icons.camera_front);
+                    return const PhosphorIcon(PhosphorIconsRegular.camera);
                   case CameraFacing.back:
-                    return const Icon(Icons.camera_rear);
+                    return const PhosphorIcon(PhosphorIconsRegular.cameraRotate);
                   case CameraFacing.external:
-                    return const Icon(Icons.camera);
+                    return const PhosphorIcon(PhosphorIconsRegular.camera);
                   default:
-                    return const Icon(Icons.camera);
+                    return const PhosphorIcon(PhosphorIconsRegular.camera);
                 }
               },
             ),

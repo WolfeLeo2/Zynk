@@ -49,4 +49,50 @@ class ProductPricingService {
     
     return (type: type, value: value);
   }
+
+  /// Resolves the pricing unit for a product.
+  /// Strategy: Product.pricingUnit > ItemGroup.defaultPricingUnit > 'piece'
+  String resolvePricingUnit(Product product, ItemGroup? itemGroup) {
+    return product.pricingUnit ?? itemGroup?.defaultPricingUnit ?? 'piece';
+  }
+
+  /// Resolves the coverage per box (square meters per box).
+  /// Strategy: Product.coveragePerBox > ItemGroup.defaultCoveragePerBox > 1.0
+  double resolveCoveragePerBox(Product product, ItemGroup? itemGroup) {
+    final cov = product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox;
+    if (cov != null && cov > 0) {
+      return cov;
+    }
+    return 1.0;
+  }
+
+  /// Resolves the selling price per box.
+  /// If the pricing unit is 'sqm', the box price is calculated as (price_per_sqm * coverage_per_box).
+  /// Otherwise, it's just the resolved selling price.
+  double resolvePricePerBox(Product product, ItemGroup? itemGroup) {
+    final baseSellingPrice = resolveSellingPrice(product, itemGroup);
+    final unit = resolvePricingUnit(product, itemGroup);
+    if (unit == 'sqm') {
+      final coverage = resolveCoveragePerBox(product, itemGroup);
+      return baseSellingPrice * coverage;
+    }
+    return baseSellingPrice;
+  }
+
+  /// Resolves the selling price per square meter (if sqm-based).
+  /// Otherwise, returns the resolved selling price.
+  double resolvePricePerSqm(Product product, ItemGroup? itemGroup) {
+    return resolveSellingPrice(product, itemGroup);
+  }
+
+  /// Resolves the cost price per box.
+  double resolveCostPricePerBox(Product product, ItemGroup? itemGroup) {
+    final costPrice = resolveBuyingPrice(product, itemGroup);
+    final unit = resolvePricingUnit(product, itemGroup);
+    if (unit == 'sqm') {
+      final coverage = resolveCoveragePerBox(product, itemGroup);
+      return costPrice * coverage;
+    }
+    return costPrice;
+  }
 }

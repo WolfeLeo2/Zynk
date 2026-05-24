@@ -551,10 +551,10 @@ class _CommissionDetailSheet extends ConsumerWidget {
                     final c = commissions[i];
                     final isPaid = c.status == 'paid';
                     return ListTile(
-                      leading: Icon(
+                      leading: PhosphorIcon(
                         isPaid
-                            ? Icons.check_circle_rounded
-                            : Icons.radio_button_unchecked_rounded,
+                            ? PhosphorIconsRegular.checkCircle
+                            : PhosphorIconsRegular.circle,
                         color: isPaid ? colorScheme.primary : colorScheme.error,
                       ),
                       title: Text(
@@ -683,8 +683,8 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.bar_chart_rounded,
+          PhosphorIcon(
+            PhosphorIconsRegular.chartBar,
             size: 72,
             color: colorScheme.outlineVariant,
           ),
@@ -721,8 +721,8 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              Icons.error_outline_rounded,
+            PhosphorIcon(
+              PhosphorIconsRegular.warningCircle,
               size: 48,
               color: Theme.of(context).colorScheme.error,
             ),
@@ -880,7 +880,7 @@ class _MonthPickerSheet extends ConsumerWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               IconButton(
-                icon: const Icon(Icons.chevron_left),
+                icon: const PhosphorIcon(PhosphorIconsRegular.caretLeft),
                 onPressed: () {
                    ref.read(_selectedMonthProvider.notifier).setMonth(
                      DateTime(selectedMonth.year - 1, selectedMonth.month),
@@ -892,7 +892,7 @@ class _MonthPickerSheet extends ConsumerWidget {
                 style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               IconButton(
-                icon: const Icon(Icons.chevron_right),
+                icon: const PhosphorIcon(PhosphorIconsRegular.caretRight),
                 onPressed: selectedMonth.year >= DateTime.now().year
                   ? null
                   : () {

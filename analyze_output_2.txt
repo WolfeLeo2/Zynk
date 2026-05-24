@@ -1,0 +1,60 @@
+Analyzing Zynk...                                               
+
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • android/lib/main.dart:118:22 • creation_with_non_type
+   info • The import of 'package:flutter/widgets.dart' is unnecessary because all of the used elements are also provided by the import of 'package:flutter/material.dart'. Try removing the import directive • lib/core/providers/app_providers.dart:2:8 • unnecessary_import
+   info • Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' • lib/core/services/commission_service.dart:82:7 • use_null_aware_elements
+   info • Use the null-aware marker '?' rather than a null check via an 'if'. Try using '?' • lib/core/services/commission_service.dart:83:7 • use_null_aware_elements
+  error • Undefined class 'PhosphorIconData'. Try changing the name to the name of an existing class, or creating a class with the name 'PhosphorIconData' • lib/features/dashboard/models/dashboard_models.dart:70:9 • undefined_class
+  error • Undefined class 'PhosphorIconData'. Try changing the name to the name of an existing class, or creating a class with the name 'PhosphorIconData' • lib/features/dashboard/models/dashboard_models.dart:92:9 • undefined_class
+  error • Undefined class 'PhosphorIconData'. Try changing the name to the name of an existing class, or creating a class with the name 'PhosphorIconData' • lib/features/dashboard/models/dashboard_models.dart:111:1 • undefined_class
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:113:20 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:114:20 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:115:18 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:116:10 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:152:15 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:170:15 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:188:15 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:206:15 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:228:15 • undefined_identifier
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/dashboard/models/dashboard_models.dart:250:15 • undefined_identifier
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement • lib/features/products/presentation/add_item_group_screen.dart:244:11 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement • lib/features/products/presentation/add_item_group_screen.dart:312:11 • deprecated_member_use
+   info • 'value' is deprecated and shouldn't be used. Use initialValue instead. This will set the initial value for the form field. This feature was deprecated after v3.33.0-1.0.pre. Try replacing the use of the deprecated member with the replacement • lib/features/products/presentation/add_product_screen.dart:964:11 • deprecated_member_use
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/features/products/presentation/group_details_screen.dart:196:40 • curly_braces_in_flow_control_structures
+   info • Statements in an if should be enclosed in a block. Try wrapping the statement in a block • lib/features/products/presentation/group_details_screen.dart:197:47 • curly_braces_in_flow_control_structures
+   info • Unnecessary use of string interpolation. Try replacing the string literal with the variable name • lib/features/products/presentation/group_details_screen.dart:229:29 • unnecessary_string_interpolations
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/products/presentation/inventory_adjustment_screen.dart:1290:26 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/products/presentation/inventory_adjustment_screen.dart:1345:26 • unnecessary_underscores
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:26:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:26:47 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:28:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:28:47 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:30:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:30:47 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:32:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:32:47 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:44:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:44:47 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:46:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:46:47 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:48:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:48:47 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/scanner_screen.dart:50:34 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/scanner_screen.dart:50:47 • undefined_identifier
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/products/presentation/widgets/batch_stock_update_sheet.dart:117:26 • unnecessary_underscores
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/widgets/mismatch_resolution_sheet.dart:64:25 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/widgets/mismatch_resolution_sheet.dart:64:38 • undefined_identifier
+  error • The name 'PhosphorIcon' isn't a class. Try correcting the name to match an existing class • lib/features/products/presentation/widgets/mismatch_resolution_sheet.dart:126:37 • creation_with_non_type
+  error • Undefined name 'PhosphorIconsRegular'. Try correcting the name to one that is defined, or defining the name • lib/features/products/presentation/widgets/mismatch_resolution_sheet.dart:126:50 • undefined_identifier
+   info • Unnecessary use of multiple underscores. Try using '_' • lib/features/reports/presentation/commissions_report_screen.dart:650:24 • unnecessary_underscores
+   info • Unnecessary use of string interpolation. Try replacing the string literal with the variable name • lib/features/sales/presentation/sale_detail_screen.dart:2207:50 • unnecessary_string_interpolations
+warning • Argument 'codePoint' must be a constant. Try replacing the argument with a constant • packages/phosphor_flutter/lib/src/phosphor_icon_data.dart:12:9 • non_const_argument_for_const_parameter
+warning • Argument 'fontFamily' must be a constant. Try replacing the argument with a constant • packages/phosphor_flutter/lib/src/phosphor_icon_data.dart:13:9 • non_const_argument_for_const_parameter
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:109:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:138:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:191:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/data/csv_import_service_test.dart:240:68 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/presentation/providers/product_providers_test.dart:48:61 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/presentation/providers/product_providers_test.dart:60:66 • unnecessary_underscores
+   info • Unnecessary use of multiple underscores. Try using '_' • test/features/products/presentation/providers/product_providers_test.dart:75:75 • unnecessary_underscores
+

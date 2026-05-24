@@ -304,7 +304,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
                     hintText: 'e.g., Main Register or Branch Cashier',
-                    prefixIcon: const Icon(PhosphorIconsRegular.user),
+                    prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -325,7 +325,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       hintText: 'e.g., staff@example.com',
-                      prefixIcon: const Icon(PhosphorIconsRegular.envelope),
+                      prefixIcon: const PhosphorIcon(PhosphorIconsRegular.envelope),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -348,7 +348,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     obscureText: true,
                     decoration: InputDecoration(
                       hintText: 'At least 6 characters',
-                      prefixIcon: const Icon(PhosphorIconsRegular.lockKey),
+                      prefixIcon: const PhosphorIcon(PhosphorIconsRegular.lockKey),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -374,7 +374,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                   keyboardType: TextInputType.phone,
                   decoration: InputDecoration(
                     hintText: 'e.g., +254 700 123 456 (Optional)',
-                    prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                    prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
@@ -393,7 +393,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                   textCapitalization: TextCapitalization.words,
                   decoration: InputDecoration(
                     hintText: 'e.g., Branch Location or Station Spot',
-                    prefixIcon: const Icon(PhosphorIconsRegular.mapPin),
+                    prefixIcon: const PhosphorIcon(PhosphorIconsRegular.mapPin),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),

@@ -109,7 +109,7 @@ class PosTicket extends ConsumerWidget {
                                 ),
                               ),
                               isExpanded: true,
-                              icon: Icon(
+                              icon: PhosphorIcon(
                                 PhosphorIconsRegular.caretDown,
                                 size: 16,
                                 color: cs.onSurfaceVariant,
@@ -147,7 +147,7 @@ class PosTicket extends ConsumerWidget {
                     ),
                     child: Row(
                       children: [
-                        Icon(
+                        PhosphorIcon(
                           PhosphorIconsRegular.storefront,
                           color: branch != null ? cs.primary : cs.error,
                           size: 18,
@@ -186,7 +186,7 @@ class PosTicket extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(
+                      PhosphorIcon(
                         PhosphorIconsRegular.addressBook,
                         color: cs.secondary,
                         size: 20,
@@ -227,7 +227,7 @@ class PosTicket extends ConsumerWidget {
                                 ),
                               ),
                       ),
-                      Icon(
+                      PhosphorIcon(
                         selectedCustomer != null
                             ? PhosphorIconsRegular.x
                             : PhosphorIconsRegular.caretRight,
@@ -476,6 +476,29 @@ class _TicketItemRow extends ConsumerWidget {
                   ),
                   Consumer(
                     builder: (context, ref, child) {
+                      if (item.isSqmBased) {
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Ksh ${item.pricePerSqm.toStringAsFixed(0)}/sqm (Ksh ${item.effectivePrice.toStringAsFixed(0)}/box)',
+                              style: tt.bodySmall?.copyWith(
+                                color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                                fontSize: 11,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${item.totalSqm.toStringAsFixed(2)} sqm (${item.quantity} box${item.quantity != 1 ? 'es' : ''})',
+                              style: tt.bodySmall?.copyWith(
+                                color: cs.primary.withValues(alpha: 0.8),
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        );
+                      }
                       final group = item.product.itemGroupId != null
                           ? ref.watch(itemGroupProvider(item.product.itemGroupId!)).value
                           : null;
@@ -512,7 +535,7 @@ class _TicketItemRow extends ConsumerWidget {
                     borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      child: Icon(PhosphorIconsBold.minus, size: 16, color: cs.primary),
+                      child: PhosphorIcon(PhosphorIconsBold.minus, size: 16, color: cs.primary),
                     ),
                   ),
                   Container(
@@ -544,7 +567,7 @@ class _TicketItemRow extends ConsumerWidget {
                     borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      child: Icon(PhosphorIconsBold.plus, size: 16, color: cs.primary),
+                      child: PhosphorIcon(PhosphorIconsBold.plus, size: 16, color: cs.primary),
                     ),
                   ),
                 ],

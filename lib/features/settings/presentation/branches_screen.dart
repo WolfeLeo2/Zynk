@@ -253,7 +253,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   labelText: 'Branch Name',
-                  prefixIcon: const Icon(PhosphorIconsRegular.storefront),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.storefront),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -267,7 +267,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: 'Address',
-                  prefixIcon: const Icon(PhosphorIconsRegular.mapPin),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.mapPin),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -282,7 +282,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                     : phone,
                 decoration: InputDecoration(
                   labelText: 'Phone',
-                  prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),

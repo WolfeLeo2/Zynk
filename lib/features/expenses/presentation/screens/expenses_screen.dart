@@ -24,7 +24,7 @@ class ExpensesScreen extends ConsumerWidget {
             onPressed: () {
               // TODO: Implement Month Picker
             },
-            icon: const Icon(PhosphorIconsRegular.calendar),
+            icon: const PhosphorIcon(PhosphorIconsRegular.calendar),
           ),
         ],
       ),
@@ -35,7 +35,7 @@ class ExpensesScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(PhosphorIconsRegular.receipt, size: 64, color: cs.outline),
+                  PhosphorIcon(PhosphorIconsRegular.receipt, size: 64, color: cs.outline),
                   const SizedBox(height: 16),
                   Text(
                     'No expenses logged yet',
@@ -71,7 +71,7 @@ class ExpensesScreen extends ConsumerWidget {
                         color: cs.primaryContainer.withValues(alpha: 0.4),
                         shape: BoxShape.circle,
                       ),
-                      child: Icon(PhosphorIconsRegular.receipt, color: cs.primary, size: 24),
+                      child: PhosphorIcon(PhosphorIconsRegular.receipt, color: cs.primary, size: 24),
                     ),
                     title: Text(
                       category?.name ?? 'Uncategorized',
@@ -95,7 +95,7 @@ class ExpensesScreen extends ConsumerWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(PhosphorIconsRegular.clock, size: 12),
+                            PhosphorIcon(PhosphorIconsRegular.clock, size: 12),
                             const SizedBox(width: 4),
                             Text(
                               DateFormat('MMM dd, yyyy • HH:mm').format(
@@ -108,14 +108,14 @@ class ExpensesScreen extends ConsumerWidget {
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            Icon(PhosphorIconsRegular.houseLine, size: 12),
+                            PhosphorIcon(PhosphorIconsRegular.houseLine, size: 12),
                             const SizedBox(width: 4),
                             Text(
                               expense.branchName ?? 'Branch',
                               style: theme.textTheme.bodySmall,
                             ),
                             const SizedBox(width: 8),
-                            Icon(PhosphorIconsRegular.user, size: 12),
+                            PhosphorIcon(PhosphorIconsRegular.user, size: 12),
                             const SizedBox(width: 4),
                             Text(
                               expense.staffName ?? 'Staff',
@@ -144,7 +144,7 @@ class ExpensesScreen extends ConsumerWidget {
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _showLogExpense(context),
         label: const Text('Log Expense'),
-        icon: const Icon(PhosphorIconsRegular.plus),
+        icon: const PhosphorIcon(PhosphorIconsRegular.plus),
       ),
     );
   }

@@ -36,7 +36,7 @@ class CompositeItemsScreen extends ConsumerWidget {
             padding: const EdgeInsets.only(right: 16),
             child: FilledButton.icon(
               onPressed: () => context.push('/products/composite/add'),
-              icon: const Icon(PhosphorIconsBold.plus, size: 18),
+              icon: const PhosphorIcon(PhosphorIconsBold.plus, size: 18),
               label: const Text('Add Composite'),
             ),
           ),
@@ -63,7 +63,7 @@ class CompositeItemsScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(PhosphorIconsDuotone.warning, size: 48, color: theme.colorScheme.error),
+              PhosphorIcon(PhosphorIconsDuotone.warning, size: 48, color: theme.colorScheme.error),
               const SizedBox(height: 16),
               Text('Failed to load composite items', style: theme.textTheme.titleMedium),
             ],
@@ -100,7 +100,7 @@ class CompositeItemsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () => context.push('/products/composite/add'),
-            icon: const Icon(PhosphorIconsBold.plus),
+            icon: const PhosphorIcon(PhosphorIconsBold.plus),
             label: const Text('Create Composite Item'),
           ),
         ],
@@ -185,9 +185,9 @@ class _CompositeItemCard extends ConsumerWidget {
                           imageUrl: product.imageUrl!,
                           fit: BoxFit.cover,
                           placeholder: (context, url) => const SizedBox.shrink(),
-                          errorWidget: (context, url, err) => Icon(PhosphorIconsDuotone.imageBroken, color: cs.onSurfaceVariant),
+                          errorWidget: (context, url, err) => PhosphorIcon(PhosphorIconsDuotone.imageBroken, color: cs.onSurfaceVariant),
                         )
-                      : Icon(PhosphorIconsDuotone.stack, size: 28, color: cs.outlineVariant),
+                      : PhosphorIcon(PhosphorIconsDuotone.stack, size: 28, color: cs.outlineVariant),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -244,7 +244,7 @@ class _CompositeItemCard extends ConsumerWidget {
 
 class _TypeBadge extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
   final Color textColor;
 

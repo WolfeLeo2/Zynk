@@ -55,7 +55,7 @@ class ItemGroupsScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
+              PhosphorIcon(
                 PhosphorIconsDuotone.warning,
                 size: 48,
                 color: theme.colorScheme.error,
@@ -78,7 +78,7 @@ class ItemGroupsScreen extends ConsumerWidget {
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.push("/products/groups/add"),
-        icon: const Icon(PhosphorIconsBold.plus),
+        icon: const PhosphorIcon(PhosphorIconsBold.plus),
         label: const Text("Add Group"),
       ),
     );
@@ -115,7 +115,7 @@ class ItemGroupsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () => context.push('/products/groups/add'),
-            icon: const Icon(PhosphorIconsBold.plus),
+            icon: const PhosphorIcon(PhosphorIconsBold.plus),
             label: const Text('Create Item Group'),
           ),
         ],
@@ -303,11 +303,11 @@ class _ItemGroupCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildStat(ThemeData theme, IconData icon, String label) {
+  Widget _buildStat(ThemeData theme, PhosphorIconData icon, String label) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(
+        PhosphorIcon(
           icon,
           size: 14,
           color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),

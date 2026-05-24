@@ -10,6 +10,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/providers/add_product_controller.dart';
 import 'package:zynk/features/products/presentation/scanner_screen.dart';
+import 'package:zynk/features/products/presentation/widgets/edit_item_group_sheet.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
@@ -33,10 +34,8 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   final _priceController = TextEditingController();
   final _skuController = TextEditingController();
   final _barcodeController = TextEditingController();
-  final _stockController = TextEditingController();
-  final _costPriceController = TextEditingController(); // Added
-  final _lowStockController =
-      TextEditingController(); // Added missing controller
+  final _costPriceController = TextEditingController();
+  final _lowStockController = TextEditingController();
 
   File? _selectedImage;
   final ImagePicker _picker = ImagePicker();
@@ -44,22 +43,17 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   String? _selectedCategoryId;
   String? _selectedItemGroupId;
   String? _selectedUomId;
-  String? _selectedTargetBranchId;
-
   bool _autoGenerateSku = true;
-  bool _trackStock = true;
   String? _existingImageUrl;
 
   // Inheritance / Overrides
   bool _overrideSellingPrice = false;
   bool _overrideBuyingPrice = false;
+  bool _overridePricingUnit = false;
+  bool _overrideCoverage = false;
 
-  // Item Group BottomSheet state
-  String _newGroupCommissionType = 'none';
-  final _newGroupDescController = TextEditingController();
-  final _newGroupCommissionValueController = TextEditingController();
-  final _newGroupSellingPriceController = TextEditingController();
-  final _newGroupBuyingPriceController = TextEditingController();
+  String _pricingUnit = 'piece';
+  final _coverageController = TextEditingController();
 
   // Logistics / Dimensions
   final _weightController = TextEditingController();
@@ -70,11 +64,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   @override
   void initState() {
     super.initState();
-    final currentBranchId = ref.read(currentBranchIdProvider);
-    if (currentBranchId != null && currentBranchId != 'all') {
-      _selectedTargetBranchId = currentBranchId;
-    }
-
     if (widget.existingProduct != null) {
       final p = widget.existingProduct!;
       _nameController.text = p.name;
@@ -88,12 +77,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       _selectedCategoryId = p.categoryId;
       _selectedItemGroupId = p.itemGroupId;
       _selectedUomId = p.uomId;
-      _selectedTargetBranchId = p.branchId;
       _existingImageUrl = p.imageUrl;
 
       // Initialize override flags
       _overrideSellingPrice = p.basePrice != null;
       _overrideBuyingPrice = p.costPrice != null;
+      _overridePricingUnit = p.pricingUnit != null;
+      _overrideCoverage = p.coveragePerBox != null;
+
+      _pricingUnit = p.pricingUnit ?? 'piece';
+      if (p.coveragePerBox != null) {
+        _coverageController.text = p.coveragePerBox.toString();
+      }
 
       // Logistics
       if (p.weight != null) _weightController.text = p.weight.toString();
@@ -109,17 +104,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     _priceController.dispose();
     _skuController.dispose();
     _barcodeController.dispose();
-    _stockController.dispose();
     _costPriceController.dispose();
     _lowStockController.dispose();
-    _newGroupDescController.dispose();
-    _newGroupCommissionValueController.dispose();
-    _newGroupSellingPriceController.dispose();
-    _newGroupBuyingPriceController.dispose();
     _weightController.dispose();
     _lengthController.dispose();
     _widthController.dispose();
     _heightController.dispose();
+    _coverageController.dispose();
 
     super.dispose();
   }
@@ -146,15 +137,22 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     }
   }
 
-  void _updateInheritedPrices() {
+  void _updateInheritedGroupSettings() {
     if (_selectedItemGroupId == null) return;
-    
+
     final groupsAsync = ref.read(allItemGroupsProvider);
     final group = groupsAsync.whenOrNull(
-      data: (groups) => groups.where((g) => g.id == _selectedItemGroupId).firstOrNull,
+      data: (groups) =>
+          groups.where((g) => g.id == _selectedItemGroupId).firstOrNull,
     );
 
     if (group != null) {
+      if (!_overridePricingUnit && group.defaultPricingUnit != null) {
+        _pricingUnit = group.defaultPricingUnit!;
+      }
+      if (!_overrideCoverage && group.defaultCoveragePerBox != null) {
+        _coverageController.text = group.defaultCoveragePerBox!.toString();
+      }
       if (!_overrideSellingPrice && group.defaultSellingPrice != null) {
         _priceController.text = group.defaultSellingPrice!.toString();
       }
@@ -166,8 +164,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
   Future<void> _saveProduct() async {
     if (_formKey.currentState!.validate()) {
-
-
       if (_selectedItemGroupId == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -182,32 +178,28 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         return;
       }
 
-      if (_selectedTargetBranchId == null || _selectedTargetBranchId == 'all') {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Please select a target branch',
-              style: TextStyle(color: Theme.of(context).colorScheme.onError),
-            ),
-            backgroundColor: Theme.of(context).colorScheme.error,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        return;
-      }
-
       final price = _overrideSellingPrice || _selectedItemGroupId == null
           ? double.tryParse(_priceController.text.trim())
           : null;
-      
+
       final costPrice = _overrideBuyingPrice || _selectedItemGroupId == null
           ? double.tryParse(_costPriceController.text.trim())
+          : null;
+
+      final coverage =
+          (_pricingUnit == 'sqm' &&
+              (_overrideCoverage || _selectedItemGroupId == null))
+          ? double.tryParse(_coverageController.text.trim())
           : null;
 
       // Validation: If no group, we MUST have a selling price
       if (_selectedItemGroupId == null && price == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please provide a price or select an Item Group to inherit prices.')),
+          const SnackBar(
+            content: Text(
+              'Please provide a price or select an Item Group to inherit prices.',
+            ),
+          ),
         );
         return;
       }
@@ -222,18 +214,20 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           .read(addProductControllerProvider.notifier)
           .saveProduct(
             id: widget.isCloneMode ? null : widget.existingProduct?.id,
-            targetBranchIds: [_selectedTargetBranchId!],
+            targetBranchIds: const [], // Products are global; branchId = null
             existingImageUrl: _existingImageUrl,
             name: _nameController.text,
             categoryId: _selectedCategoryId,
             itemGroupId: _selectedItemGroupId,
             uomId: _selectedUomId,
+            pricingUnit: _pricingUnit,
+            coveragePerBox: coverage,
             price: price,
             costPrice: costPrice,
             sku: skuToSave,
             barcode: _barcodeController.text,
             imageFile: _selectedImage,
-            initialStock: int.tryParse(_stockController.text),
+            initialStock: null, // Stock is managed via Inventory Adjustments
           );
 
       if (mounted) {
@@ -319,10 +313,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                     decoration: InputDecoration(
                       labelText: label,
                       border: const OutlineInputBorder(),
-                      prefixIcon: Icon(icon),
+                      prefixIcon: PhosphorIcon(icon),
                       suffixIcon: selectedItem != null
                           ? IconButton(
-                              icon: const Icon(Icons.clear),
+                              icon: const PhosphorIcon(PhosphorIconsRegular.x),
                               onPressed: () {
                                 fieldTextEditingController.clear();
                                 onSelected(null);
@@ -349,7 +343,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           ),
           child: IconButton(
             onPressed: onAddPressed,
-            icon: Icon(
+            icon: PhosphorIcon(
               PhosphorIconsBold.plus,
               color: theme.colorScheme.onPrimaryContainer,
             ),
@@ -384,14 +378,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               if (controller.text.isNotEmpty) {
                 final repo = ref.read(repositoryProvider);
                 final tenantId = ref.read(tenantIdProvider);
-                final branchId = _selectedTargetBranchId;
-
-                if (tenantId != null && branchId != null && branchId != 'all') {
+                if (tenantId != null) {
                   await repo.createCategory(
                     Category(
                       id: const Uuid().v4(),
                       tenantId: tenantId,
-                      branchId: branchId,
+                      branchId: null, // Categories are also global
                       name: controller.text,
                       createdAt: DateTime.now(),
                       updatedAt: DateTime.now(),
@@ -409,193 +401,10 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
   }
 
   Future<void> _showAddGroupBottomSheet() async {
-    final nameController = TextEditingController();
-    _newGroupDescController.clear();
-    _newGroupCommissionValueController.clear();
-    _newGroupSellingPriceController.clear();
-    _newGroupBuyingPriceController.clear();
-    setState(() => _newGroupCommissionType = 'none');
-
-    await showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Theme.of(context).colorScheme.surface,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-            top: 32,
-            left: 24,
-            right: 24,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'New Item Group',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: nameController,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  labelText: 'Group Name *',
-                  hintText: 'e.g. Beverages',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _newGroupDescController,
-                decoration: const InputDecoration(
-                  labelText: 'Description (Optional)',
-                  hintText: 'Short description of this group',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _newGroupSellingPriceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Default Selling Price',
-                        hintText: 'e.g. 500',
-                        border: OutlineInputBorder(),
-                        prefixText: 'KES ',
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _newGroupBuyingPriceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      decoration: const InputDecoration(
-                        labelText: 'Default Buying Price',
-                        hintText: 'e.g. 350',
-                        border: OutlineInputBorder(),
-                        prefixText: 'KES ',
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Text('Commission', style: Theme.of(context).textTheme.labelLarge),
-              const SizedBox(height: 4),
-              Text(
-                'Earned by staff when any item in this group is sold.',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: _newGroupCommissionType,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                      ),
-                      items: const [
-                        DropdownMenuItem(value: 'none', child: Text('None')),
-                        DropdownMenuItem(
-                          value: 'fixed',
-                          child: Text('Fixed Amount'),
-                        ),
-                        DropdownMenuItem(
-                          value: 'percentage',
-                          child: Text('Percentage'),
-                        ),
-                      ],
-                      onChanged: (val) {
-                        setModalState(
-                          () => _newGroupCommissionType = val ?? 'none',
-                        );
-                        setState(() => _newGroupCommissionType = val ?? 'none');
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _newGroupCommissionValueController,
-                      keyboardType: TextInputType.number,
-                      enabled: _newGroupCommissionType != 'none',
-                      decoration: InputDecoration(
-                        labelText: _newGroupCommissionType == 'percentage'
-                            ? 'Rate (%)'
-                            : 'Amount',
-                        hintText: _newGroupCommissionType == 'percentage'
-                            ? 'e.g. 5'
-                            : 'e.g. 100',
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton(
-                  onPressed: () async {
-                    if (nameController.text.isEmpty) return;
-                    final repo = ref.read(repositoryProvider);
-                    final tenantId = ref.read(tenantIdProvider);
-                    final branchId = _selectedTargetBranchId;
-
-                    if (tenantId != null &&
-                        branchId != null &&
-                        branchId != 'all') {
-                      final commissionValue = double.tryParse(
-                        _newGroupCommissionValueController.text,
-                      );
-                      final newGroup = ItemGroup(
-                        id: const Uuid().v4(),
-                        tenantId: tenantId,
-                        branchId: branchId,
-                        name: nameController.text,
-                        description: _newGroupDescController.text.isEmpty
-                            ? null
-                            : _newGroupDescController.text,
-                        defaultCommissionType: _newGroupCommissionType == 'none'
-                            ? null
-                            : _newGroupCommissionType,
-                        defaultCommissionValue:
-                            _newGroupCommissionType == 'none'
-                            ? null
-                            : commissionValue,
-                        defaultSellingPrice: double.tryParse(_newGroupSellingPriceController.text),
-                        defaultBuyingPrice: double.tryParse(_newGroupBuyingPriceController.text),
-                        createdAt: DateTime.now(),
-                        updatedAt: DateTime.now(),
-                      );
-                      await repo.createItemGroup(newGroup);
-                      if (context.mounted) {
-                        Navigator.pop(context);
-                        setState(() => _selectedItemGroupId = newGroup.id);
-                      }
-                    }
-                  },
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text('Create Group'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+    final newGroup = await EditItemGroupSheet.show(context);
+    if (newGroup != null && mounted) {
+      setState(() => _selectedItemGroupId = newGroup.id);
+    }
   }
 
   Future<void> _showAddUomBottomSheet() async {
@@ -753,31 +562,20 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         centerTitle: true,
         leading: IconButton(
           onPressed: () => context.pop(),
-          icon: const Icon(PhosphorIconsBold.x),
+          icon: const PhosphorIcon(PhosphorIconsBold.x),
         ),
-      ),
-      bottomNavigationBar: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          border: Border(top: BorderSide(color: colorScheme.outlineVariant)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, -5),
+        actions: [
+          TextButton.icon(
+            onPressed: _saveProduct,
+            icon: const PhosphorIcon(PhosphorIconsBold.check),
+            label: Text(isEditing ? 'Save' : 'Create'),
+            style: TextButton.styleFrom(
+              foregroundColor: colorScheme.primary,
+              textStyle: const TextStyle(fontWeight: FontWeight.bold),
             ),
-          ],
-        ),
-        child: FilledButton(
-          onPressed: _saveProduct,
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            backgroundColor: colorScheme.primary,
-            foregroundColor: colorScheme.onPrimary,
           ),
-          child: Text(isEditing ? 'Save Changes' : 'Save Product'),
-        ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SafeArea(
         child: Form(
@@ -793,13 +591,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   PhosphorIconsDuotone.info,
                 ),
                 const SizedBox(height: 16),
-                _buildBranchSelector(),
-                const SizedBox(height: 16),
                 _buildStep1(),
                 const SizedBox(height: 32),
                 _buildSectionHeader(
                   theme,
-                  'Inventory & Stock',
+                  'Identifiers',
                   PhosphorIconsDuotone.package,
                 ),
 
@@ -824,11 +620,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
   }
 
-  Widget _buildSectionHeader(ThemeData theme, String title, IconData icon) {
+  Widget _buildSectionHeader(ThemeData theme, String title, PhosphorIconData icon) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Icon(icon, color: theme.colorScheme.primary, size: 20),
+        PhosphorIcon(icon, color: theme.colorScheme.primary, size: 20),
         const SizedBox(width: 8),
         Text(
           title,
@@ -893,7 +689,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               width: 120,
               height: 120,
               decoration: BoxDecoration(
-                color: Colors.grey[100],
+                color: Theme.of(
+                  context,
+                ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(16),
                 image: _selectedImage != null
                     ? DecorationImage(
@@ -906,22 +704,23 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                               fit: BoxFit.cover,
                             )
                           : null),
-                border: Border.all(color: Colors.grey[300]!),
               ),
               child: (_selectedImage == null && _existingImageUrl == null)
                   ? Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
+                        PhosphorIcon(
                           PhosphorIconsDuotone.camera,
-                          color: Colors.grey[400],
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                           size: 32,
                         ),
                         const SizedBox(height: 8),
                         Text(
                           'Add Photo',
                           style: TextStyle(
-                            color: Colors.grey[500],
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                             fontSize: 12,
                           ),
                         ),
@@ -931,7 +730,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: 32),
 
         TextFormField(
           controller: _nameController,
@@ -939,7 +738,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             labelText: 'Product Name',
             hintText: 'e.g. Vintage Denim Jacket',
             border: OutlineInputBorder(),
-            prefixIcon: Icon(PhosphorIconsDuotone.tag),
+            prefixIcon: PhosphorIcon(PhosphorIconsDuotone.tag),
           ),
           validator: (value) =>
               value == null || value.isEmpty ? 'Please enter a name' : null,
@@ -989,7 +788,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               setState(() {
                 _selectedItemGroupId = g?.id;
               });
-              _updateInheritedPrices();
+              _updateInheritedGroupSettings();
             },
             onAddPressed: _showAddGroupBottomSheet,
           ),
@@ -1029,137 +828,75 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             ),
         const SizedBox(height: 16),
         // Dimensions & Weight
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: Text(
                 'Physical Dimensions',
                 style: Theme.of(
                   context,
                 ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _weightController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Weight',
-                        suffixText: weightUnit,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _lengthController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Length',
-                        suffixText: lengthUnit,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _weightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
               ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _widthController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Width',
-                        suffixText: lengthUnit,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: TextFormField(
-                      controller: _heightController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
-                      ),
-                      decoration: InputDecoration(
-                        labelText: 'Height',
-                        suffixText: lengthUnit,
-                        border: const OutlineInputBorder(),
-                      ),
-                    ),
-                  ),
-                ],
+              decoration: InputDecoration(
+                labelText: 'Weight',
+                suffixText: weightUnit,
+                border: const OutlineInputBorder(),
               ),
-            ],
-          ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _lengthController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Length',
+                suffixText: lengthUnit,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _widthController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Width',
+                suffixText: lengthUnit,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _heightController,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              decoration: InputDecoration(
+                labelText: 'Height',
+                suffixText: lengthUnit,
+                border: const OutlineInputBorder(),
+              ),
+            ),
+          ],
         ),
+        const SizedBox(height: 16),
+        const Divider(),
       ],
     );
   }
 
-  Widget _buildBranchSelector() {
-    final branchesAsync = ref.watch(branchesProvider);
-
-    return branchesAsync.when(
-      data: (branches) {
-        final options = branches.where((b) => b.id != 'all').toList();
-        if (options.isEmpty) {
-          return const SizedBox.shrink();
-        }
-
-        if (_selectedTargetBranchId == null ||
-            !options.any((b) => b.id == _selectedTargetBranchId)) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            setState(() => _selectedTargetBranchId = options.first.id);
-          });
-        }
-
-        final selected = options.any((b) => b.id == _selectedTargetBranchId)
-            ? _selectedTargetBranchId
-            : options.first.id;
-
-        return DropdownButtonFormField<String>(
-          initialValue: selected,
-          decoration: const InputDecoration(
-            labelText: 'Target Branch',
-            border: OutlineInputBorder(),
-            prefixIcon: Icon(PhosphorIconsDuotone.storefront),
-          ),
-          items: options
-              .map(
-                (b) =>
-                    DropdownMenuItem<String>(value: b.id, child: Text(b.name)),
-              )
-              .toList(),
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _selectedTargetBranchId = value);
-          },
-        );
-      },
-      loading: () => const LinearProgressIndicator(),
-      error: (_, _) => const SizedBox.shrink(),
-    );
-  }
+  // _buildBranchSelector removed — products are global (branchId = null).
 
   // Step 2: Pricing & Commission
   Widget _buildStep2() {
@@ -1181,7 +918,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               ),
               child: Row(
                 children: [
-                  Icon(PhosphorIconsDuotone.info, size: 20, color: cs.secondary),
+                  PhosphorIcon(
+                    PhosphorIconsDuotone.info,
+                    size: 20,
+                    color: cs.secondary,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -1196,8 +937,116 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             ),
           ),
 
+        // Pricing Unit Section
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Text(
+                'Pricing Unit',
+                style: theme.textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            if (_selectedItemGroupId != null)
+              _buildOverrideChip(
+                isOverridden: _overridePricingUnit,
+                onTap: () {
+                  setState(() => _overridePricingUnit = !_overridePricingUnit);
+                  if (!_overridePricingUnit) _updateInheritedGroupSettings();
+                },
+              ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<String>(
+          value: _pricingUnit,
+          decoration: InputDecoration(
+            labelText: _overridePricingUnit
+                ? 'Custom Pricing Unit'
+                : 'Inherited Pricing Unit',
+            border: const OutlineInputBorder(),
+            fillColor: (_selectedItemGroupId != null && !_overridePricingUnit)
+                ? cs.surfaceContainerHighest.withValues(alpha: 0.8)
+                : null,
+            filled: (_selectedItemGroupId != null && !_overridePricingUnit),
+            helperText: _selectedItemGroupId != null
+                ? (_overridePricingUnit
+                      ? 'Using custom pricing unit'
+                      : 'Using group default pricing unit')
+                : 'Per piece or per sqm',
+          ),
+          items: const [
+            DropdownMenuItem(value: 'piece', child: Text('Per Piece / Unit')),
+            DropdownMenuItem(value: 'sqm', child: Text('Per Sqm (Coverage)')),
+          ],
+          onChanged: (_selectedItemGroupId != null && !_overridePricingUnit)
+              ? null
+              : (val) {
+                  if (val != null) setState(() => _pricingUnit = val);
+                },
+        ),
+        const SizedBox(height: 24),
+
+        // Coverage Section (only if sqm)
+        if (_pricingUnit == 'sqm') ...[
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Expanded(
+                child: Text(
+                  'Coverage per Box',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              if (_selectedItemGroupId != null)
+                _buildOverrideChip(
+                  isOverridden: _overrideCoverage,
+                  onTap: () {
+                    setState(() => _overrideCoverage = !_overrideCoverage);
+                    if (!_overrideCoverage) _updateInheritedGroupSettings();
+                  },
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          TextFormField(
+            controller: _coverageController,
+            readOnly: _selectedItemGroupId != null && !_overrideCoverage,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            decoration: InputDecoration(
+              labelText: _overrideCoverage
+                  ? 'Custom Coverage (sqm)'
+                  : 'Inherited Coverage (sqm)',
+              hintText: 'e.g. 1.44',
+              border: const OutlineInputBorder(),
+              prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.ruler),
+              fillColor: (_selectedItemGroupId != null && !_overrideCoverage)
+                  ? cs.surfaceContainerHighest.withValues(alpha: 0.8)
+                  : null,
+              filled: (_selectedItemGroupId != null && !_overrideCoverage),
+              helperText: _selectedItemGroupId != null
+                  ? (_overrideCoverage
+                        ? 'Using custom coverage'
+                        : 'Using group default coverage')
+                  : 'Coverage area per box',
+            ),
+            validator: (val) {
+              if (_pricingUnit == 'sqm' && (val == null || val.isEmpty)) {
+                return 'Required for sqm pricing';
+              }
+              return null;
+            },
+          ),
+          const SizedBox(height: 24),
+        ],
+
         // Selling Price Section
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
               child: Text(
@@ -1208,26 +1057,14 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               ),
             ),
             if (_selectedItemGroupId != null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Override',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: _overrideSellingPrice ? cs.primary : cs.onSurfaceVariant,
-                    ),
-                  ),
-                  Transform.scale(
-                    scale: 0.8,
-                    child: Switch(
-                      value: _overrideSellingPrice,
-                      onChanged: (val) {
-                        setState(() => _overrideSellingPrice = val);
-                        if (!val) _updateInheritedPrices();
-                      },
-                    ),
-                  ),
-                ],
+              _buildOverrideChip(
+                isOverridden: _overrideSellingPrice,
+                onTap: () {
+                  setState(
+                    () => _overrideSellingPrice = !_overrideSellingPrice,
+                  );
+                  if (!_overrideSellingPrice) _updateInheritedGroupSettings();
+                },
               ),
           ],
         ),
@@ -1237,18 +1074,22 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           readOnly: _selectedItemGroupId != null && !_overrideSellingPrice,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: _overrideSellingPrice ? 'Custom Selling Price' : 'Inherited Selling Price',
+            labelText: _overrideSellingPrice
+                ? 'Custom Selling Price'
+                : 'Inherited Selling Price',
             prefixText: 'KES ',
             hintText: '0.00',
             border: const OutlineInputBorder(),
-            prefixIcon: const Icon(PhosphorIconsDuotone.currencyCircleDollar),
-            fillColor: (_selectedItemGroupId != null && !_overrideSellingPrice) 
-                ? cs.surfaceContainerHighest.withValues(alpha: 0.8) 
+            prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.currencyCircleDollar),
+            fillColor: (_selectedItemGroupId != null && !_overrideSellingPrice)
+                ? cs.surfaceContainerHighest.withValues(alpha: 0.8)
                 : null,
             filled: (_selectedItemGroupId != null && !_overrideSellingPrice),
-            helperText: _selectedItemGroupId != null 
-              ? (_overrideSellingPrice ? 'Using custom override price' : 'Using group default price')
-              : 'Enter standard selling price',
+            helperText: _selectedItemGroupId != null
+                ? (_overrideSellingPrice
+                      ? 'Using custom override price'
+                      : 'Using group default price')
+                : 'Enter standard selling price',
             helperStyle: TextStyle(
               color: _overrideSellingPrice ? cs.primary : cs.onSurfaceVariant,
               fontWeight: _overrideSellingPrice ? FontWeight.bold : null,
@@ -1260,6 +1101,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
 
         // Cost Price Section
         Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Expanded(
               child: Text(
@@ -1270,26 +1112,12 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               ),
             ),
             if (_selectedItemGroupId != null)
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Override',
-                    style: theme.textTheme.labelMedium?.copyWith(
-                      color: _overrideBuyingPrice ? cs.primary : cs.onSurfaceVariant,
-                    ),
-                  ),
-                  Transform.scale(
-                    scale: 0.8,
-                    child: Switch(
-                      value: _overrideBuyingPrice,
-                      onChanged: (val) {
-                        setState(() => _overrideBuyingPrice = val);
-                        if (!val) _updateInheritedPrices();
-                      },
-                    ),
-                  ),
-                ],
+              _buildOverrideChip(
+                isOverridden: _overrideBuyingPrice,
+                onTap: () {
+                  setState(() => _overrideBuyingPrice = !_overrideBuyingPrice);
+                  if (!_overrideBuyingPrice) _updateInheritedGroupSettings();
+                },
               ),
           ],
         ),
@@ -1299,18 +1127,22 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           readOnly: _selectedItemGroupId != null && !_overrideBuyingPrice,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           decoration: InputDecoration(
-            labelText: _overrideBuyingPrice ? 'Custom Cost Price' : 'Inherited Cost Price',
+            labelText: _overrideBuyingPrice
+                ? 'Custom Cost Price'
+                : 'Inherited Cost Price',
             prefixText: 'KES ',
             hintText: '0.00',
             border: const OutlineInputBorder(),
-            prefixIcon: const Icon(PhosphorIconsDuotone.money),
-            fillColor: (_selectedItemGroupId != null && !_overrideBuyingPrice) 
-                ? cs.surfaceContainerHighest.withValues(alpha: 0.8) 
+            prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.money),
+            fillColor: (_selectedItemGroupId != null && !_overrideBuyingPrice)
+                ? cs.surfaceContainerHighest.withValues(alpha: 0.8)
                 : null,
             filled: (_selectedItemGroupId != null && !_overrideBuyingPrice),
-            helperText: _selectedItemGroupId != null 
-              ? (_overrideBuyingPrice ? 'Using custom override cost' : 'Using group default cost')
-              : 'Enter standard purchase cost',
+            helperText: _selectedItemGroupId != null
+                ? (_overrideBuyingPrice
+                      ? 'Using custom override cost'
+                      : 'Using group default cost')
+                : 'Enter standard purchase cost',
             helperStyle: TextStyle(
               color: _overrideBuyingPrice ? cs.primary : cs.onSurfaceVariant,
               fontWeight: _overrideBuyingPrice ? FontWeight.bold : null,
@@ -1327,31 +1159,27 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       children: [
         const SizedBox(height: 16),
         // SKU Section
-        Container(
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-          ),
-          child: Column(
-            children: [
-              SwitchListTile(
-                title: const Text('Auto-generate SKU'),
-                subtitle: const Text('Create unique ID automatically'),
-                value: _autoGenerateSku,
-                onChanged: (val) => setState(() => _autoGenerateSku = val),
-                contentPadding: EdgeInsets.zero,
-              ),
-              if (!_autoGenerateSku)
-                TextFormField(
+        Column(
+          children: [
+            SwitchListTile(
+              title: const Text('Auto-generate SKU'),
+              subtitle: const Text('Create unique ID automatically'),
+              value: _autoGenerateSku,
+              onChanged: (val) => setState(() => _autoGenerateSku = val),
+              contentPadding: EdgeInsets.zero,
+            ),
+            if (!_autoGenerateSku)
+              Padding(
+                padding: const EdgeInsets.only(top: 8.0),
+                child: TextFormField(
                   controller: _skuController,
                   decoration: const InputDecoration(
                     labelText: 'Manual SKU',
                     border: OutlineInputBorder(),
                   ),
                 ),
-            ],
-          ),
+              ),
+          ],
         ),
         const SizedBox(height: 16),
 
@@ -1384,7 +1212,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             const SizedBox(width: 8),
             IconButton(
               onPressed: _scanBarcode,
-              icon: Icon(
+              icon: PhosphorIcon(
                 PhosphorIconsDuotone.barcode,
                 color: Theme.of(context).colorScheme.onSecondaryContainer,
               ),
@@ -1398,61 +1226,93 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         ),
         const SizedBox(height: 24),
 
-        // Stock - Only shown during creation
-        if (widget.existingProduct == null)
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.withValues(alpha: 0.3)),
-            ),
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: const Text('Track Stock'),
-                  subtitle: const Text('Manage inventory levels for this item'),
-                  value: _trackStock,
-                  onChanged: (val) => setState(() => _trackStock = val),
-                  contentPadding: EdgeInsets.zero,
-                ),
-                Padding(
-                  padding: const EdgeInsets.only(top: 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: _stockController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'Initial Stock *',
-                            border: OutlineInputBorder(),
-                          ),
-                          validator: (value) => value == null || value.isEmpty
-                              ? 'Please enter initial stock'
-                              : null,
-                        ),
-                      ),
-                      if (_trackStock) ...[
-                        const SizedBox(width: 16),
-                        Expanded(
-                          child: TextFormField(
-                            controller: _lowStockController,
-                            keyboardType: TextInputType.number,
-                            decoration: const InputDecoration(
-                              labelText: 'Low Stock Alert',
-                              border: OutlineInputBorder(),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ],
+        // Stock info banner — stock is managed via Inventory Adjustments
+        Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Theme.of(
+              context,
+            ).colorScheme.secondaryContainer.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: Theme.of(
+                context,
+              ).colorScheme.secondary.withValues(alpha: 0.25),
             ),
           ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              PhosphorIcon(
+                PhosphorIconsDuotone.info,
+                size: 18,
+                color: Theme.of(context).colorScheme.secondary,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Stock levels are managed per-branch via Inventory Adjustments.',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: Theme.of(context).colorScheme.onSecondaryContainer,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
         const SizedBox(height: 24),
       ],
+    );
+  }
+
+  Widget _buildOverrideChip({
+    required bool isOverridden,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: isOverridden
+              ? theme.colorScheme.primaryContainer
+              : theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.5,
+                ),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: isOverridden
+                ? theme.colorScheme.primary
+                : theme.colorScheme.outlineVariant,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PhosphorIcon(
+              isOverridden
+                  ? PhosphorIconsBold.check
+                  : PhosphorIconsDuotone.link,
+              size: 14,
+              color: isOverridden
+                  ? theme.colorScheme.primary
+                  : theme.colorScheme.onSurfaceVariant,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              isOverridden ? 'Overridden' : 'Inherited',
+              style: theme.textTheme.labelSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: isOverridden
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -323,7 +323,7 @@ class AppDrawer extends ConsumerWidget {
 }
 
 class _DrawerItem extends StatelessWidget {
-  final IconData icon;
+  final PhosphorIconData icon;
   final String label;
   final String path;
   final String currentPath;

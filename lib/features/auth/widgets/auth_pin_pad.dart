@@ -98,7 +98,7 @@ class AuthPinPad extends StatelessWidget {
 
   Widget _buildDialPadIcon(
     BuildContext context,
-    IconData icon,
+    PhosphorIconData icon,
     VoidCallback onTap,
   ) {
     return GestureDetector(

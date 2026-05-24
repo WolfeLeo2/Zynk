@@ -33,7 +33,7 @@ class StaffMembersScreen extends ConsumerWidget {
         actions: [
           IconButton(
             onPressed: () => _showAddEditStaffSheet(context, ref, null),
-            icon: const Icon(PhosphorIconsBold.plus),
+            icon: const PhosphorIcon(PhosphorIconsBold.plus),
           ),
         ],
       ),
@@ -44,7 +44,7 @@ class StaffMembersScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  PhosphorIcon(
                     PhosphorIconsDuotone.users,
                     size: 64,
                     color: cs.onSurface.withValues(alpha: 0.3),
@@ -67,7 +67,7 @@ class StaffMembersScreen extends ConsumerWidget {
                   FilledButton.icon(
                     onPressed: () =>
                         _showAddEditStaffSheet(context, ref, null),
-                    icon: const Icon(PhosphorIconsRegular.plus),
+                    icon: const PhosphorIcon(PhosphorIconsRegular.plus),
                     label: const Text('Add Staff Member'),
                   ),
                 ],
@@ -96,7 +96,7 @@ class StaffMembersScreen extends ConsumerWidget {
       floatingActionButton: staffAsync.hasValue && staffAsync.value!.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: () => _showAddEditStaffSheet(context, ref, null),
-              icon: const Icon(PhosphorIconsBold.plus),
+              icon: const PhosphorIcon(PhosphorIconsBold.plus),
               label: const Text('Add Member'),
             )
           : null,
@@ -284,7 +284,7 @@ class _StaffMemberCard extends ConsumerWidget {
           ],
         ),
         trailing: PopupMenuButton<String>(
-          icon: Icon(PhosphorIconsRegular.dotsThreeVertical, color: cs.onSurfaceVariant),
+          icon: PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical, color: cs.onSurfaceVariant),
           onSelected: (value) async {
             if (value == 'edit') onEdit();
             if (value == 'delete') onDelete();
@@ -308,7 +308,7 @@ class _StaffMemberCard extends ConsumerWidget {
             const PopupMenuItem(
               value: 'edit',
               child: ListTile(
-                leading: Icon(PhosphorIconsRegular.pencilSimple),
+                leading: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
                 title: Text('Edit'),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -316,7 +316,7 @@ class _StaffMemberCard extends ConsumerWidget {
             PopupMenuItem(
               value: isBlocked ? 'unblock' : 'block',
               child: ListTile(
-                leading: Icon(isBlocked ? PhosphorIconsRegular.checkCircle : PhosphorIconsRegular.prohibit),
+                leading: PhosphorIcon(isBlocked ? PhosphorIconsRegular.checkCircle : PhosphorIconsRegular.prohibit),
                 title: Text(isBlocked ? 'Unblock' : 'Block'),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -325,7 +325,7 @@ class _StaffMemberCard extends ConsumerWidget {
             const PopupMenuItem(
               value: 'delete',
               child: ListTile(
-                leading: Icon(
+                leading: PhosphorIcon(
                   PhosphorIconsRegular.trash,
                   color: Colors.red,
                 ),
@@ -516,10 +516,10 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                                       fit: BoxFit.cover,
                                       width: 96,
                                       height: 96,
-                                      errorWidget: (context, url, error) => const CircleAvatar(child: Icon(PhosphorIconsRegular.user)),
+                                      errorWidget: (context, url, error) => const CircleAvatar(child: PhosphorIcon(PhosphorIconsRegular.user)),
                                     ),
                                   )
-                                : Icon(
+                                : PhosphorIcon(
                                     PhosphorIconsDuotone.user,
                                     size: 40,
                                     color: cs.onPrimaryContainer,
@@ -535,7 +535,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                             color: cs.primary,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
+                          child: PhosphorIcon(
                             PhosphorIconsBold.camera,
                             size: 16,
                             color: cs.onPrimary,
@@ -556,7 +556,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.user),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
                 ),
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Name is required' : null,
@@ -572,7 +572,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                 ),
               ),
               const SizedBox(height: 16),
@@ -592,7 +592,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          prefixIcon: const Icon(PhosphorIconsRegular.storefront),
+                          prefixIcon: const PhosphorIcon(PhosphorIconsRegular.storefront),
                           helperText: 'Leave empty for shared staff',
                         ),
                         items: [
@@ -626,7 +626,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.envelope),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.envelope),
                 ),
               ),
               const SizedBox(height: 32),

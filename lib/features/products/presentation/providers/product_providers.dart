@@ -92,6 +92,13 @@ final stockHistoryProvider = StreamProvider.autoDispose
       return repository.watchProductStockHistory(productId, branchId: branchId);
     });
 
+final productTransactionHistoryProvider = StreamProvider.autoDispose
+    .family<List<ProductTransaction>, String>((ref, productId) {
+      final repository = ref.watch(repositoryProvider);
+      final branchId = ref.watch(currentBranchIdProvider);
+      return repository.watchProductTransactionHistory(productId, branchId: branchId);
+    });
+
 /// ─────────────────────────────────────────
 /// Adjustment Reasons
 /// ─────────────────────────────────────────

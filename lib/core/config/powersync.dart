@@ -112,6 +112,8 @@ final schema = Schema([
     Column.real('default_commission_value'),
     Column.real('default_selling_price'),
     Column.real('default_buying_price'),
+    Column.text('default_pricing_unit'),
+    Column.real('default_coverage_per_box'),
     Column.text('attributes'), // JSON string
     Column.text('created_at'),
     Column.text('updated_at'),
@@ -153,6 +155,8 @@ final schema = Schema([
     Column.integer('is_service'), // Boolean as Integer (0/1)
     Column.text('commission_type'),
     Column.real('commission_value'),
+    Column.text('pricing_unit'),
+    Column.real('coverage_per_box'),
     Column.text('uom_id'),
     Column.text('parent_id'),
     Column.text('created_at'),
@@ -481,6 +485,10 @@ class SupabaseConnector extends PowerSyncBackendConnector {
           // UPSERT (Insert or Update)
           final payload = <String, dynamic>{...data ?? {}, 'id': id};
 
+          if (payload.containsKey('branch_id') && payload['branch_id'] == 'all') {
+            payload['branch_id'] = null;
+          }
+
           if ((table == 'stock' || table == 'stock_adjustments') &&
               _hasInvalidBranchId(payload)) {
             _log.w(
@@ -512,6 +520,10 @@ class SupabaseConnector extends PowerSyncBackendConnector {
         } else if (op.op == UpdateType.patch) {
           // UPDATE
           final payload = <String, dynamic>{...data!};
+
+          if (payload.containsKey('branch_id') && payload['branch_id'] == 'all') {
+            payload['branch_id'] = null;
+          }
 
           if ((table == 'stock' || table == 'stock_adjustments') &&
               _hasInvalidBranchId(payload)) {
@@ -651,4 +663,20 @@ Future<void> _runLocalCompatMigrations() async {
   } catch (_) {
     // Ignore if column already exists.
   }
+
+  try {
+    await db.execute('ALTER TABLE item_groups ADD COLUMN default_pricing_unit TEXT DEFAULT "piece"');
+  } catch (_) {}
+
+  try {
+    await db.execute('ALTER TABLE item_groups ADD COLUMN default_coverage_per_box REAL DEFAULT 1.0');
+  } catch (_) {}
+
+  try {
+    await db.execute('ALTER TABLE products ADD COLUMN pricing_unit TEXT');
+  } catch (_) {}
+
+  try {
+    await db.execute('ALTER TABLE products ADD COLUMN coverage_per_box REAL');
+  } catch (_) {}
 }

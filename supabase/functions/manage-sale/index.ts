@@ -19,6 +19,8 @@ const ACTION_PERMISSIONS: Record<string, string> = {
     fulfill_sale: "record_payments",
     delete_payment: "approve_invoices",
     delete_sale: "approve_invoices",
+    unapprove_sale: "approve_invoices",
+    final_approve_sale: "approve_invoices",
 };
 
 const corsHeaders = {
@@ -707,6 +709,169 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Void failed: ${error.message}`);
                 }
                 return jsonResponse({ status: "voided", sale_id: saleId });
+            }
+
+            case "unapprove_sale": {
+                const { data: sale } = await supabase
+                    .from("sales")
+                    .select("id, tenant_id, branch_id, status, fulfillment_status, amount_paid, sale_items(product_id, quantity)")
+                    .eq("id", saleId)
+                    .single();
+
+                if (!sale) throw new Error("Sale not found.");
+
+                if (sale.status !== "approved") {
+                    throw new Error(`Only approved invoices can be unapproved. Current status: ${sale.status}`);
+                }
+
+                // 1. Reverse stock if fulfilled
+                const restockedItems: Array<{ product_id: string; quantity: number }> = [];
+
+                if (sale.fulfillment_status === "fulfilled") {
+                    for (const item of (sale as any).sale_items || []) {
+                        const quantity = Number(item.quantity || 0);
+                        if (quantity <= 0) continue;
+
+                        const { error: incrementError } = await supabase.rpc("increment_stock", {
+                            p_product_id: item.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: quantity,
+                        });
+
+                        if (incrementError) {
+                            // Roll back any stock we already incremented
+                            for (const reverted of restockedItems) {
+                                await supabase.rpc("decrement_stock", {
+                                    p_product_id: reverted.product_id,
+                                    p_branch_id: sale.branch_id,
+                                    p_quantity: reverted.quantity,
+                                });
+                            }
+                            throw new Error(`Stock rollback failed: ${incrementError.message}`);
+                        }
+
+                        restockedItems.push({ product_id: item.product_id, quantity });
+                    }
+                }
+
+                // 2. Delete all payments for this sale
+                const { error: deletePaymentsError } = await supabase
+                    .from("sale_payments")
+                    .delete()
+                    .eq("sale_id", saleId);
+
+                if (deletePaymentsError) {
+                    // Roll back stock restores
+                    for (const reverted of restockedItems) {
+                        await supabase.rpc("decrement_stock", {
+                            p_product_id: reverted.product_id,
+                            p_branch_id: sale.branch_id,
+                            p_quantity: reverted.quantity,
+                        });
+                    }
+                    throw new Error(`Payment deletion failed: ${deletePaymentsError.message}`);
+                }
+
+                // 3. Delete all approval records for this sale
+                const { error: deleteApprovalsError } = await supabase
+                    .from("sale_approvals")
+                    .delete()
+                    .eq("sale_id", saleId);
+
+                if (deleteApprovalsError) {
+                    throw new Error(`Approval records deletion failed: ${deleteApprovalsError.message}`);
+                }
+
+                // 4. Reset the sale status
+                const { error: updateError } = await supabase
+                    .from("sales")
+                    .update({
+                        status: "pending_approval",
+                        approval_count: 0,
+                        approved_by: null,
+                        amount_paid: 0,
+                        payment_status: "unpaid",
+                        fulfillment_status: "unfulfilled",
+                        completed_at: null,
+                        updated_at: now,
+                    })
+                    .eq("id", saleId);
+
+                if (updateError) {
+                    throw new Error(`Unapprove update failed: ${updateError.message}`);
+                }
+
+                return jsonResponse({ status: "pending_approval", sale_id: saleId });
+            }
+
+            case "final_approve_sale": {
+                const { data: sale } = await supabase
+                    .from("sales")
+                    .select("id, tenant_id, status, required_approvals, payment_status, fulfillment_status")
+                    .eq("id", saleId)
+                    .single();
+
+                if (!sale) throw new Error("Sale not found.");
+
+                if (sale.status !== "pending_approval") {
+                    throw new Error(`Only pending approval invoices can be fast-track approved. Current status: ${sale.status}`);
+                }
+
+                // Clear any existing partial approvals to start a clean audit trail
+                const { error: clearError } = await supabase
+                    .from("sale_approvals")
+                    .delete()
+                    .eq("sale_id", saleId);
+
+                if (clearError) {
+                    throw new Error(`Failed to clear existing approvals: ${clearError.message}`);
+                }
+
+                // Insert a single authoritative approval record
+                const { error: approvalInsertError } = await supabase
+                    .from("sale_approvals")
+                    .insert({
+                        id: crypto.randomUUID(),
+                        sale_id: saleId,
+                        tenant_id: tenantId,
+                        approver_user_id: userId,
+                        decision: "approved",
+                        notes: params.notes || "Final approval (fast-track)",
+                        created_at: now,
+                    });
+
+                if (approvalInsertError) {
+                    throw new Error(`Approval record insert failed: ${approvalInsertError.message}`);
+                }
+
+                const requiredApprovals = Math.max(1, Number(sale.required_approvals || 2));
+
+                const updateData: any = {
+                    status: "approved",
+                    approval_count: requiredApprovals,
+                    approved_by: userId,
+                    updated_at: now,
+                };
+
+                // If already paid + fulfilled, mark completed
+                if (sale.payment_status === "paid" && sale.fulfillment_status === "fulfilled") {
+                    updateData.completed_at = now;
+                }
+
+                const { error: updateError } = await supabase
+                    .from("sales")
+                    .update(updateData)
+                    .eq("id", saleId);
+
+                if (updateError) {
+                    throw new Error(`Final approve update failed: ${updateError.message}`);
+                }
+
+                return jsonResponse({
+                    status: "approved",
+                    sale_id: saleId,
+                    approval_count: requiredApprovals,
+                });
             }
 
             case "record_payment": {

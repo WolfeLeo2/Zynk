@@ -8,6 +8,10 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/features/products/presentation/widgets/batch_pricing_update_sheet.dart';
 import 'package:zynk/features/products/presentation/widgets/batch_stock_update_sheet.dart';
+import 'package:zynk/features/products/presentation/widgets/edit_item_group_sheet.dart';
+
+import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
+import 'package:zynk/features/products/presentation/widgets/mismatch_resolution_sheet.dart';
 
 class GroupDetailsScreen extends ConsumerStatefulWidget {
   final ItemGroup group;
@@ -19,598 +23,499 @@ class GroupDetailsScreen extends ConsumerStatefulWidget {
 
 class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
   final Set<String> _selectedProductIds = {};
-  late TextEditingController _nameController;
-  late TextEditingController _commissionValueController;
-  late TextEditingController _defaultSellingPriceController;
-  late TextEditingController _defaultBuyingPriceController;
-  late String _commissionType;
+  bool _selectionMode = false;
+  late ItemGroup _currentGroup;
 
   @override
   void initState() {
     super.initState();
-    _nameController = TextEditingController(text: widget.group.name);
-    _commissionValueController = TextEditingController(
-      text: widget.group.defaultCommissionValue?.toString() ?? '',
-    );
-    _defaultSellingPriceController = TextEditingController(
-      text: widget.group.defaultSellingPrice?.toString() ?? '',
-    );
-    _defaultBuyingPriceController = TextEditingController(
-      text: widget.group.defaultBuyingPrice?.toString() ?? '',
-    );
-    final existingType = (widget.group.defaultCommissionType ?? 'none')
-        .toLowerCase();
-    _commissionType = existingType == 'percent' ? 'percentage' : existingType;
-  }
-
-  @override
-  void dispose() {
-    _nameController.dispose();
-    _commissionValueController.dispose();
-    _defaultSellingPriceController.dispose();
-    _defaultBuyingPriceController.dispose();
-    super.dispose();
+    _currentGroup = widget.group;
   }
 
   void _toggleSelection(String productId) {
     setState(() {
       if (_selectedProductIds.contains(productId)) {
         _selectedProductIds.remove(productId);
+        if (_selectedProductIds.isEmpty) {
+          _selectionMode = false;
+        }
       } else {
         _selectedProductIds.add(productId);
       }
     });
   }
 
-  Future<void> _updateGroupSettings() async {
-    final rep = ref.read(repositoryProvider);
-    final val = double.tryParse(_commissionValueController.text);
-    final selling = double.tryParse(_defaultSellingPriceController.text);
-    final buying = double.tryParse(_defaultBuyingPriceController.text);
-
-    final updated = ItemGroup(
-      id: widget.group.id,
-      tenantId: widget.group.tenantId,
-      name: _nameController.text.isNotEmpty
-          ? _nameController.text
-          : widget.group.name,
-      description: widget.group.description,
-      defaultCommissionType: _commissionType,
-      defaultCommissionValue: val,
-      defaultSellingPrice: selling,
-      defaultBuyingPrice: buying,
-      createdAt: widget.group.createdAt,
-      updatedAt: DateTime.now(),
-    );
-
-    final priceChanged = selling != widget.group.defaultSellingPrice ||
-        buying != widget.group.defaultBuyingPrice;
-
-    if (priceChanged) {
-      final products = ref.read(allProductsProvider).value ?? [];
-      final groupProducts =
-          products.where((p) => p.itemGroupId == widget.group.id).toList();
-
-      if (groupProducts.isNotEmpty) {
-        final apply = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Apply to all items?'),
-            content: const Text(
-              'You changed the default prices. Would you like to apply these to all existing items in this group?',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('No'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('Yes, review changes'),
-              ),
-            ],
-          ),
-        );
-
-        if (apply == true && mounted) {
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            useSafeArea: true,
-            builder: (context) => BatchPricingUpdateSheet(
-              group: updated,
-              initialItems: groupProducts,
-              groupToUpdate: updated,
-              oldPrice: widget.group.defaultSellingPrice,
-            ),
-          );
-          return; // Save will be handled by the sheet atomically
-        }
-      }
-    }
-
-    // Normal save (if no price change or user said 'No' to review)
-    await rep.updateItemGroup(updated);
-
-    if (mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Group settings updated')));
-    }
-  }
-
-  Future<void> _showBatchOperations() async {
-    if (_selectedProductIds.isEmpty) return;
-
-    showModalBottomSheet(
-      context: context,
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListTile(
-                leading: const Icon(PhosphorIconsRegular.signOut),
-                title: const Text('Remove from Group'),
-                onTap: () async {
-                  Navigator.pop(context);
-                  final rep = ref.read(repositoryProvider);
-                  await rep.batchUpdateProductGroups(
-                    _selectedProductIds.toList(),
-                    null,
-                  );
-                  setState(() {
-                    _selectedProductIds.clear();
-                  });
-                },
-              ),
-              ListTile(
-                leading: const Icon(PhosphorIconsRegular.pencilSimple),
-                title: const Text('Batch Update Pricing'),
-                subtitle: const Text('Inherit from group or set manual override'),
-                onTap: () {
-                  Navigator.pop(context);
-                  final products = ref.read(allProductsProvider).value ?? [];
-                  final toProcess = products
-                      .where((p) => _selectedProductIds.contains(p.id))
-                      .toList();
-                  
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (context) => BatchPricingUpdateSheet(
-                      group: widget.group,
-                      initialItems: toProcess,
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(PhosphorIconsRegular.package),
-                title: const Text('Batch Update Stock'),
-                subtitle: const Text('Adjust quantities for selected items'),
-                onTap: () {
-                  Navigator.pop(context);
-                  final products = ref.read(allProductsProvider).value ?? [];
-                  final toProcess = products
-                      .where((p) => _selectedProductIds.contains(p.id))
-                      .toList();
-
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    useSafeArea: true,
-                    builder: (context) => BatchStockUpdateSheet(
-                      group: widget.group,
-                      initialItems: toProcess,
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(
-                  PhosphorIconsRegular.trash,
-                  color: Colors.red,
-                ),
-                title: const Text(
-                  'Delete item',
-                  style: TextStyle(color: Colors.red),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  // TODO: Optional: full deletion of products.
-                  // For now, let's keep it simple and just remove them from group.
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text(
-                        'Deletion requires explicit confirmation. Please remove from group first.',
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ],
-          ),
-        );
-      },
-    );
+  void _clearSelection() {
+    setState(() {
+      _selectedProductIds.clear();
+      _selectionMode = false;
+    });
   }
 
   Future<void> _showAssignProducts() async {
     final products = ref.read(allProductsProvider).value ?? [];
-    final groups = ref.read(allItemGroupsProvider).value ?? [];
-    final groupMap = {for (var g in groups) g.id: g.name};
-
-    // Only show products not already in this group
-    final availableProducts = products
-        .where((p) => p.itemGroupId != widget.group.id)
-        .toList();
+    final availableProducts = products.where((p) => p.itemGroupId != _currentGroup.id).toList();
 
     if (availableProducts.isEmpty) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No other items available')),
+          const SnackBar(content: Text('No other items available to assign')),
         );
       }
       return;
     }
 
-    // Local state for bottom sheet
-    final Set<String> toAssign = {};
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (context) {
-        return StatefulBuilder(
-          builder: (context, setModalState) {
-            return DraggableScrollableSheet(
-              expand: false,
-              initialChildSize: 0.8,
-              minChildSize: 0.5,
-              maxChildSize: 0.95,
-              builder: (_, scrollController) {
-                return Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Assign items',
-                            style: Theme.of(context).textTheme.titleLarge,
-                          ),
-                          TextButton(
-                            onPressed: () async {
-                              final navigator = Navigator.of(context);
-                              if (toAssign.isNotEmpty) {
-                                final rep = ref.read(repositoryProvider);
-                                await rep.batchUpdateProductGroups(
-                                  toAssign.toList(),
-                                  widget.group.id,
-                                );
-                              }
-                              if (mounted) {
-                                navigator.pop();
-                              }
-                            },
-                            child: const Text('Save'),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const Divider(),
-                    Expanded(
-                      child: ListView.builder(
-                        controller: scrollController,
-                        itemCount: availableProducts.length,
-                        itemBuilder: (context, index) {
-                          final p = availableProducts[index];
-                          final isSelected = toAssign.contains(p.id);
-                          final currentGroupName =
-                              groupMap[p.itemGroupId] ?? 'No Group';
-                          return CheckboxListTile(
-                            value: isSelected,
-                            title: Text(p.name),
-                            subtitle: Text(
-                              'SKU: ${p.sku ?? "None"} • $currentGroupName',
-                            ),
-                            onChanged: (val) {
-                              setModalState(() {
-                                if (val == true) {
-                                  toAssign.add(p.id);
-                                } else {
-                                  toAssign.remove(p.id);
-                                }
-                              });
-                            },
-                          );
-                        },
-                      ),
-                    ),
-                  ],
-                );
-              },
-            );
-          },
-        );
-      },
+    final selectedIds = await ProductSelectionSheet.show(
+      context,
+      availableProducts: availableProducts,
+      initiallySelectedIds: {},
     );
+
+    if (selectedIds != null && selectedIds.isNotEmpty && mounted) {
+      final selectedProducts = availableProducts.where((p) => selectedIds.contains(p.id)).toList();
+      final mismatchedProducts = selectedProducts.where((p) => 
+        p.pricingUnit != _currentGroup.defaultPricingUnit ||
+        p.coveragePerBox != _currentGroup.defaultCoveragePerBox ||
+        p.basePrice != _currentGroup.defaultSellingPrice ||
+        p.costPrice != _currentGroup.defaultBuyingPrice
+      ).toList();
+
+      Map<String, bool>? resolutionDecisions = {};
+
+      if (mismatchedProducts.isNotEmpty) {
+        resolutionDecisions = await MismatchResolutionSheet.show(
+          context,
+          targetGroup: _currentGroup,
+          mismatchedProducts: mismatchedProducts,
+        );
+        if (resolutionDecisions == null) {
+          // User canceled
+          return;
+        }
+      }
+
+      final repo = ref.read(repositoryProvider);
+
+      // Perform updates
+      for (final p in selectedProducts) {
+        final normalize = resolutionDecisions[p.id] ?? true; // if no mismatch, normalize logic is harmless
+
+        var updatedProduct = p.copyWith(itemGroupId: _currentGroup.id);
+        
+        if (normalize) {
+          updatedProduct = updatedProduct.copyWith(
+            pricingUnit: _currentGroup.defaultPricingUnit,
+            coveragePerBox: _currentGroup.defaultCoveragePerBox,
+            basePrice: _currentGroup.defaultSellingPrice,
+            costPrice: _currentGroup.defaultBuyingPrice,
+          );
+        }
+
+        await repo.updateProduct(updatedProduct);
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Items assigned successfully.')),
+        );
+      }
+    }
+  }
+
+  Future<void> _editGroupDetails() async {
+    final updated = await EditItemGroupSheet.show(context, existingGroup: _currentGroup);
+    if (updated != null && mounted) {
+      setState(() {
+        _currentGroup = updated;
+      });
+      // Optionally trigger batch price update prompt if prices changed
+      if (updated.defaultSellingPrice != widget.group.defaultSellingPrice ||
+          updated.defaultBuyingPrice != widget.group.defaultBuyingPrice) {
+        // Simple prompt for batch update
+        _promptBatchPriceUpdate(updated);
+      }
+    }
+  }
+
+  Future<void> _promptBatchPriceUpdate(ItemGroup updatedGroup) async {
+    final apply = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Apply to all items?'),
+        content: const Text('You changed the default prices. Would you like to apply these to all existing items in this group?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes')),
+        ],
+      ),
+    );
+
+    if (apply == true && mounted) {
+      final products = ref.read(allProductsProvider).value ?? [];
+      final groupProducts = products.where((p) => p.itemGroupId == updatedGroup.id).toList();
+      
+      showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        useSafeArea: true,
+        builder: (context) => BatchPricingUpdateSheet(
+          group: updatedGroup,
+          initialItems: groupProducts,
+          groupToUpdate: updatedGroup,
+          oldPrice: widget.group.defaultSellingPrice,
+        ),
+      );
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final productsAsync = ref.watch(allProductsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.group.name),
-        actions: [
-          if (_selectedProductIds.isNotEmpty)
-            IconButton(
-              icon: const Icon(PhosphorIconsRegular.cards),
-              onPressed: _showBatchOperations,
-            ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: _showAssignProducts,
-        icon: const Icon(PhosphorIconsRegular.plus),
-        label: const Text('Assign items'),
-      ),
-      body: CustomScrollView(
-        slivers: [
-          // Commission Settings
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Card(
-                elevation: 0,
-                color: theme.colorScheme.surfaceContainerHighest.withValues(
-                  alpha: 0.3,
+      body: NestedScrollView(
+        headerSliverBuilder: (context, innerBoxIsScrolled) => [
+          SliverAppBar(
+            title: _selectionMode 
+                ? Text('${_selectedProductIds.length} Selected') 
+                : Text(_currentGroup.name),
+            expandedHeight: 240,
+            pinned: true,
+            stretch: true,
+            leading: _selectionMode ? IconButton(
+              icon: const PhosphorIcon(PhosphorIconsRegular.x),
+              onPressed: _clearSelection,
+            ) : null,
+            backgroundColor: colorScheme.surface,
+            actions: [
+              if (!_selectionMode)
+                PopupMenuButton<String>(
+                  onSelected: (val) {
+                    if (val == 'edit') _editGroupDetails();
+                    else if (val == 'assign') _showAssignProducts();
+                  },
+                  itemBuilder: (context) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit Group Details')),
+                    PopupMenuItem(value: 'assign', child: Text('Assign Products')),
+                  ],
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  side: BorderSide(
-                    color: theme.colorScheme.outlineVariant.withValues(
-                      alpha: 0.5,
-                    ),
-                  ),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            PhosphorIconsDuotone.gear,
-                            color: theme.colorScheme.primary,
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Group Settings',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const Spacer(),
-                          TextButton(
-                            onPressed: _updateGroupSettings,
-                            child: const Text('Save Updates'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                        controller: _nameController,
-                        decoration: const InputDecoration(
-                          labelText: 'Group Name',
-                          border: OutlineInputBorder(),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Default Commission',
-                        style: theme.textTheme.labelLarge,
-                      ),
-                      const SizedBox(height: 8),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: DropdownButtonFormField<String>(
-                              initialValue: _commissionType,
-                              decoration: const InputDecoration(
-                                border: OutlineInputBorder(),
-                              ),
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'none',
-                                  child: Text('None'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'fixed',
-                                  child: Text('Fixed'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'percentage',
-                                  child: Text('Percentage'),
-                                ),
-                              ],
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setState(() => _commissionType = val);
-                                }
-                              },
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _commissionValueController,
-                              keyboardType: TextInputType.number,
-                              enabled: _commissionType != 'none',
-                              decoration: InputDecoration(
-                                labelText: 'Value',
-                                hintText: _commissionType == 'percentage'
-                                    ? 'e.g. 5'
-                                    : 'e.g. 100',
-                                border: const OutlineInputBorder(),
-                              ),
-                            ),
-                          )
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: _defaultSellingPriceController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Default Selling Price',
-                                hintText: 'e.g. 500',
-                                border: OutlineInputBorder(),
-                                prefixText: 'KES ',
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: TextFormField(
-                              controller: _defaultBuyingPriceController,
-                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                              decoration: const InputDecoration(
-                                labelText: 'Default Buying Price',
-                                hintText: 'e.g. 350',
-                                border: OutlineInputBorder(),
-                                prefixText: 'KES ',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
+            ],
+            flexibleSpace: FlexibleSpaceBar(
+              background: Container(
+                padding: const EdgeInsets.fromLTRB(20, 100, 20, 20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      colorScheme.primaryContainer.withAlpha(150),
+                      colorScheme.surface,
                     ],
                   ),
                 ),
-              ),
-            ),
-          ),
-
-          // Header for Items
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              child: Row(
-                children: [
-                  Text(
-                    'Items in Group',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                          Text(
+                            '${_currentGroup.name}',
+                            style: theme.textTheme.titleLarge?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${productsAsync.value?.where((p) => p.itemGroupId == _currentGroup.id).length ?? 0} Items'
+                            ),
+                            ],
+                        )
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: colorScheme.primary.withAlpha(30),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            (_currentGroup.defaultPricingUnit ?? 'piece').toUpperCase(),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: colorScheme.primary,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  if (_selectedProductIds.isNotEmpty) ...[
-                    const Spacer(),
-                    Text(
-                      '${_selectedProductIds.length} selected',
-                      style: TextStyle(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.w500,
+                    if (_currentGroup.description != null && _currentGroup.description!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _currentGroup.description!,
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
+                    ],
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        _StatItem(
+                          label: 'Selling',
+                          value: _currentGroup.defaultSellingPrice != null ? 'KES ${_currentGroup.defaultSellingPrice}' : '-',
+                        ),
+                        const SizedBox(width: 24),
+                        _StatItem(
+                          label: 'Buying',
+                          value: _currentGroup.defaultBuyingPrice != null ? 'KES ${_currentGroup.defaultBuyingPrice}' : '-',
+                        ),
+                        const SizedBox(width: 24),
+                        _StatItem(
+                          label: 'Commission',
+                          value: _currentGroup.defaultCommissionType == 'none' || _currentGroup.defaultCommissionType == null 
+                            ? 'None' 
+                            : '${_currentGroup.defaultCommissionValue}${_currentGroup.defaultCommissionType == 'percentage' ? '%' : ''}',
+                        ),
+                      ],
                     ),
                   ],
-                ],
+                ),
               ),
             ),
           ),
+        ],
+        body: productsAsync.when(
+          data: (products) {
+            final groupProducts = products.where((p) => p.itemGroupId == _currentGroup.id).toList();
 
-          // Product List
-          productsAsync.when(
-            data: (products) {
-              final groupProducts = products
-                  .where((p) => p.itemGroupId == widget.group.id)
-                  .toList();
+            if (groupProducts.isEmpty) {
+              return Center(
+                child: Text(
+                  'No items in this group.',
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              );
+            }
 
-              if (groupProducts.isEmpty) {
-                return SliverToBoxAdapter(
-                  child: Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(32.0),
-                      child: Text(
-                        'No items in this group.',
-                        style: theme.textTheme.bodyLarge?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ),
+            return ListView.builder(
+              padding: EdgeInsets.only(bottom: _selectionMode ? 100 : 24, top: 8),
+              itemCount: groupProducts.length,
+              itemBuilder: (context, index) {
+                final product = groupProducts[index];
+                final isSelected = _selectedProductIds.contains(product.id);
+
+                return ListTile(
+                  selected: isSelected,
+                  selectedTileColor: colorScheme.surfaceContainerHighest,
+                  leading: CircleAvatar(
+                    backgroundColor: colorScheme.surfaceContainerHighest,
+                    backgroundImage: product.imageUrl != null ? CachedNetworkImageProvider(product.imageUrl!) : null,
+                    child: product.imageUrl == null ? PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant) : null,
+                  ),
+                  trailing: _selectionMode
+                      ? Checkbox(
+                          value: isSelected,
+                          onChanged: (_) => _toggleSelection(product.id),
+                        )
+                      : null,
+                  title: Text(product.name),
+                  subtitle: Consumer(
+                    builder: (context, ref, child) {
+                      final resolvedPrice = ref.watch(productPricingServiceProvider).resolveSellingPrice(product, _currentGroup);
+                      return Text('KES ${resolvedPrice.toStringAsFixed(2)}');
+                    },
+                  ),
+                  onLongPress: () {
+                    if (!_selectionMode) {
+                      setState(() {
+                        _selectionMode = true;
+                        _selectedProductIds.add(product.id);
+                      });
+                    }
+                  },
+                  onTap: () {
+                    if (_selectionMode) {
+                      _toggleSelection(product.id);
+                    } else {
+                      // Navigate to product details if implemented, else nothing
+                    }
+                  },
+                );
+              },
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, s) => Center(child: Text('Error: $e')),
+        ),
+      ),
+      bottomSheet: _selectionMode && _selectedProductIds.isNotEmpty 
+          ? _BatchOperationsBar(
+              selectedCount: _selectedProductIds.length,
+              onUpdatePricing: () {
+                final products = ref.read(allProductsProvider).value ?? [];
+                final toProcess = products.where((p) => _selectedProductIds.contains(p.id)).toList();
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  useSafeArea: true,
+                  builder: (context) => BatchPricingUpdateSheet(
+                    group: _currentGroup,
+                    initialItems: toProcess,
                   ),
                 );
-              }
+              },
+              onUpdateStock: () {
+                final products = ref.read(allProductsProvider).value ?? [];
+                final toProcess = products.where((p) => _selectedProductIds.contains(p.id)).toList();
+                showModalBottomSheet(
+                  context: context,
+                  isScrollControlled: true,
+                  useSafeArea: true,
+                  builder: (context) => BatchStockUpdateSheet(
+                    group: _currentGroup,
+                    initialItems: toProcess,
+                  ),
+                );
+              },
+              onRemove: () async {
+                final rep = ref.read(repositoryProvider);
+                await rep.batchUpdateProductGroups(_selectedProductIds.toList(), null);
+                _clearSelection();
+              },
+            )
+          : null,
+    );
+  }
+}
 
-              return SliverList(
-                delegate: SliverChildBuilderDelegate((context, index) {
-                  final product = groupProducts[index];
-                  final isSelected = _selectedProductIds.contains(product.id);
+class _StatItem extends StatelessWidget {
+  final String label;
+  final String value;
+  const _StatItem({required this.label, required this.value});
 
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor:
-                          theme.colorScheme.surfaceContainerHighest,
-                      backgroundImage: product.imageUrl != null
-                          ? CachedNetworkImageProvider(product.imageUrl!)
-                          : null,
-                      child: product.imageUrl == null
-                          ? Icon(
-                              PhosphorIconsRegular.package,
-                              color: theme.colorScheme.onSurfaceVariant,
-                            )
-                          : null,
-                    ),
-                    title: Text(product.name),
-                    subtitle: Consumer(
-                      builder: (context, ref, child) {
-                        final resolvedPrice = ref
-                            .watch(productPricingServiceProvider)
-                            .resolveSellingPrice(product, widget.group);
-                        return Text(
-                          'KES ${resolvedPrice.toStringAsFixed(2)}',
-                        );
-                      },
-                    ),
-                    trailing: Checkbox(
-                      value: isSelected,
-                      onChanged: (_) => _toggleSelection(product.id),
-                    ),
-                    onTap: () => _toggleSelection(product.id),
-                  );
-                }, childCount: groupProducts.length),
-              );
-            },
-            loading: () => const SliverToBoxAdapter(
-              child: Padding(
-                padding: EdgeInsets.all(32.0),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-            ),
-            error: (e, s) => SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.all(32.0),
-                child: Center(child: Text('Error: $e')),
-              ),
-            ),
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
           ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
 
-          // Bottom padding for FAB
-          const SliverToBoxAdapter(child: SizedBox(height: 80)),
+class _BatchOperationsBar extends StatelessWidget {
+  final int selectedCount;
+  final VoidCallback onUpdatePricing;
+  final VoidCallback onUpdateStock;
+  final VoidCallback onRemove;
+
+  const _BatchOperationsBar({
+    required this.selectedCount,
+    required this.onUpdatePricing,
+    required this.onUpdateStock,
+    required this.onRemove,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16, right: 16, top: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHigh,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(20),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
         ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _ActionButton(
+            icon: PhosphorIconsRegular.pencilSimple,
+            label: 'Prices',
+            onTap: onUpdatePricing,
+          ),
+          _ActionButton(
+            icon: PhosphorIconsRegular.package,
+            label: 'Stock',
+            onTap: onUpdateStock,
+          ),
+          _ActionButton(
+            icon: PhosphorIconsRegular.signOut,
+            label: 'Remove',
+            onTap: onRemove,
+            isDestructive: true,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final PhosphorIconData icon;
+  final String label;
+  final VoidCallback onTap;
+  final bool isDestructive;
+
+  const _ActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+    this.isDestructive = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final color = isDestructive ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            PhosphorIcon(icon, color: color),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                color: color,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

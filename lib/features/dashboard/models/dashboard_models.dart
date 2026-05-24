@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENUMS
@@ -67,7 +68,7 @@ class MetricDetailData {
 class MetricRelation {
   final String label;
   final String value;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
   final double? change;
 
@@ -89,7 +90,7 @@ class ChartPoint {
 
 class ActionData {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
 
   ActionData(this.label, this.icon, this.onTap);
@@ -108,12 +109,12 @@ Color getStatusColor(String status) {
   };
 }
 
-IconData getStatusIcon(String status) {
+PhosphorIconData getStatusIcon(String status) {
   return switch (status) {
-    'Completed' => Icons.check_circle,
-    'Preparing' => Icons.kitchen,
-    'Pending' => Icons.schedule,
-    _ => Icons.help,
+    'Completed' => PhosphorIconsRegular.checkCircle,
+    'Preparing' => PhosphorIconsRegular.cookingPot,
+    'Pending' => PhosphorIconsRegular.clock,
+    _ => PhosphorIconsRegular.question,
   };
 }
 
@@ -149,7 +150,7 @@ MetricDetailData createRevenueDetailData(
       MetricRelation(
         label: 'Total Revenue',
         value: 'Ksh ${revenue.toStringAsFixed(0)}',
-        icon: Icons.payments,
+        icon: PhosphorIconsRegular.money,
         color: colorScheme.primary,
       ),
     ],
@@ -167,7 +168,7 @@ MetricDetailData createOrdersDetailData(int orders, ColorScheme colorScheme) {
       MetricRelation(
         label: 'Total Orders',
         value: '$orders',
-        icon: Icons.receipt_long,
+        icon: PhosphorIconsRegular.receipt,
         color: colorScheme.primary,
       ),
     ],
@@ -185,7 +186,7 @@ MetricDetailData createAOVDetailData(double aov, ColorScheme colorScheme) {
       MetricRelation(
         label: 'Avg Order Value',
         value: 'Ksh ${aov.toStringAsFixed(0)}',
-        icon: Icons.analytics,
+        icon: PhosphorIconsRegular.chartBar,
         color: colorScheme.primary,
       ),
     ],
@@ -203,7 +204,7 @@ MetricDetailData createLowStockDetailData(int count, ColorScheme colorScheme) {
       MetricRelation(
         label: 'Items to Reorder',
         value: '$count',
-        icon: Icons.warning_amber,
+        icon: PhosphorIconsRegular.warning,
         color: count > 0 ? Colors.red : Colors.green,
       ),
     ],
@@ -225,7 +226,7 @@ MetricDetailData createExpensesDetailData(
       MetricRelation(
         label: 'Total Expenses',
         value: 'Ksh ${expenses.toStringAsFixed(0)}',
-        icon: Icons.receipt,
+        icon: PhosphorIconsRegular.receipt,
         color: Colors.red,
       ),
     ],
@@ -247,7 +248,7 @@ MetricDetailData createNetProfitDetailData(
       MetricRelation(
         label: 'Net Profit',
         value: 'Ksh ${netProfit.toStringAsFixed(0)}',
-        icon: Icons.account_balance_wallet,
+        icon: PhosphorIconsRegular.wallet,
         color: netProfit >= 0 ? Colors.green : Colors.red,
       ),
     ],

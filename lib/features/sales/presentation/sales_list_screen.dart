@@ -478,7 +478,7 @@ class _FulfillmentStatusBadge extends StatelessWidget {
 
 class _MiniStateBadge extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
 
   const _MiniStateBadge({
@@ -525,7 +525,7 @@ Color _paymentColor(PaymentStatus status) {
   }
 }
 
-IconData _paymentIcon(PaymentStatus status) {
+PhosphorIconData _paymentIcon(PaymentStatus status) {
   switch (status) {
     case PaymentStatus.unpaid:
       return PhosphorIconsRegular.warningCircle;
@@ -545,7 +545,7 @@ Color _fulfillmentColor(FulfillmentStatus status) {
   }
 }
 
-IconData _fulfillmentIcon(FulfillmentStatus status) {
+PhosphorIconData _fulfillmentIcon(FulfillmentStatus status) {
   switch (status) {
     case FulfillmentStatus.unreleased:
       return PhosphorIconsRegular.package;
@@ -573,7 +573,7 @@ Color _statusColor(InvoiceStatus status) {
   }
 }
 
-IconData _statusIcon(InvoiceStatus status) {
+PhosphorIconData _statusIcon(InvoiceStatus status) {
   switch (status) {
     case InvoiceStatus.pendingApproval:
       return PhosphorIconsRegular.clock;

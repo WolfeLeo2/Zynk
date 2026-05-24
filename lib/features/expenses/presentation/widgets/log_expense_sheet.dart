@@ -78,7 +78,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
           children: [
             Row(
               children: [
-                Icon(PhosphorIconsRegular.receipt, color: cs.primary),
+                PhosphorIcon(PhosphorIconsRegular.receipt, color: cs.primary),
                 const SizedBox(width: 12),
                 Text(
                   'Log Expense',
@@ -89,7 +89,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                 const Spacer(),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(PhosphorIconsRegular.x),
+                  icon: const PhosphorIcon(PhosphorIconsRegular.x),
                 ),
               ],
             ),
@@ -245,7 +245,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
               height: 56,
               child: FilledButton.icon(
                 onPressed: _submit,
-                icon: const Icon(PhosphorIconsRegular.check),
+                icon: const PhosphorIcon(PhosphorIconsRegular.check),
                 label: const Text('Save Expense'),
                 style: FilledButton.styleFrom(
                   shape: RoundedRectangleBorder(

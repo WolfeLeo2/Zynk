@@ -242,14 +242,14 @@ class _PosScreenState extends ConsumerState<PosScreen>
                 tabs: [
                   const Tab(
                     text: 'Items',
-                    icon: Icon(PhosphorIconsDuotone.gridFour),
+                    icon: PhosphorIcon(PhosphorIconsDuotone.gridFour),
                   ),
                   Tab(
                     text: 'Ticket (${cartItems.length})',
                     icon: Badge(
                       isLabelVisible: cartItems.isNotEmpty,
                       label: Text('${cartItems.length}'),
-                      child: const Icon(PhosphorIconsDuotone.receipt),
+                      child: const PhosphorIcon(PhosphorIconsDuotone.receipt),
                     ),
                   ),
                 ],
@@ -344,7 +344,7 @@ class _ProductGrid extends ConsumerWidget {
                 decoration: const InputDecoration(
                   labelText: 'Selling Branch',
                   border: OutlineInputBorder(),
-                  prefixIcon: Icon(PhosphorIconsRegular.storefront),
+                  prefixIcon: PhosphorIcon(PhosphorIconsRegular.storefront),
                 ),
                 items: branchOptions
                     .map(
@@ -370,7 +370,7 @@ class _ProductGrid extends ConsumerWidget {
               onChanged: onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Search items...',
-                prefixIcon: const Icon(PhosphorIconsRegular.magnifyingGlass),
+                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.magnifyingGlass),
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest.withValues(
                   alpha: 0.3,
@@ -415,7 +415,7 @@ class _ProductGrid extends ConsumerWidget {
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: FilterChip(
-                        avatar: Icon(
+                        avatar: PhosphorIcon(
                           PhosphorIconsDuotone.folders,
                           size: 18,
                           color: selectedGroupId != null
@@ -608,7 +608,7 @@ class _ProductGrid extends ConsumerWidget {
                               : colorScheme.surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(8),
                         ),
-                        child: Icon(
+                        child: PhosphorIcon(
                           PhosphorIconsDuotone.folders,
                           color: isSelected
                               ? colorScheme.onPrimaryContainer
@@ -617,7 +617,7 @@ class _ProductGrid extends ConsumerWidget {
                       ),
                       title: Text(group.name),
                       trailing: isSelected
-                          ? Icon(
+                          ? PhosphorIcon(
                               PhosphorIconsBold.check,
                               color: colorScheme.primary,
                             )
@@ -741,7 +741,7 @@ class _CustomerSelectorSheetState
                       ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close),
+                      icon: const PhosphorIcon(PhosphorIconsRegular.x),
                     ),
                   ],
                 ),
@@ -756,7 +756,7 @@ class _CustomerSelectorSheetState
               onChanged: (v) => setState(() => _query = v),
               decoration: InputDecoration(
                 hintText: 'Search by name, phone, or email...',
-                prefixIcon: const Icon(PhosphorIconsRegular.magnifyingGlass),
+                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.magnifyingGlass),
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest.withValues(
                   alpha: 0.3,

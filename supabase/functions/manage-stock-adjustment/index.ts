@@ -148,6 +148,61 @@ Deno.serve(async (req: Request) => {
                 return jsonResponse({ status: "rejected" });
             }
 
+            case "unapprove_adjustment": {
+                if (!bundle_id && !adjustment_id) {
+                    throw new Error("Missing bundle_id or adjustment_id");
+                }
+
+                // Only unapprove adjustments that are currently 'approved'
+                const query = supabase.from("stock_adjustments").select("*").eq("status", "approved");
+                if (bundle_id) query.eq("bundle_id", bundle_id);
+                else query.eq("id", adjustment_id);
+
+                const { data: adjustments, error: fetchError } = await query;
+
+                if (fetchError || !adjustments || adjustments.length === 0) {
+                    throw new Error("No approved adjustments found to unapprove");
+                }
+
+                // Atomic stock reversals
+                for (const adj of adjustments) {
+                    const originalChange = Number(adj.quantity || 0);
+                    const reversalQuantity = Math.abs(originalChange);
+                    
+                    // Inverse operation: if original was addition (+), we decrement. If reduction (-), we increment.
+                    const rpcName = originalChange >= 0 ? "decrement_stock" : "increment_stock";
+
+                    if (reversalQuantity !== 0) {
+                        const { error: stockError } = await supabase.rpc(rpcName, {
+                            p_product_id: adj.product_id,
+                            p_branch_id: adj.branch_id,
+                            p_quantity: reversalQuantity,
+                        });
+
+                        if (stockError) {
+                            throw new Error(`Stock reversal failed for ${adj.product_id}: ${stockError.message}`);
+                        }
+                    }
+
+                    // Reset status to pending and clear approval metadata
+                    const { error: adjUpdateError } = await supabase
+                        .from("stock_adjustments")
+                        .update({
+                            status: "pending",
+                            approved_by: null,
+                            approved_at: null,
+                            previous_quantity: null
+                        })
+                        .eq("id", adj.id);
+                    
+                    if (adjUpdateError) {
+                        throw new Error(`Adjustment reset failed for ${adj.id}: ${adjUpdateError.message}`);
+                    }
+                }
+
+                return jsonResponse({ status: "unapproved", count: adjustments.length });
+            }
+
             case "delete_adjustment": {
                  if (!bundle_id && !adjustment_id) {
                     throw new Error("Missing bundle_id or adjustment_id");

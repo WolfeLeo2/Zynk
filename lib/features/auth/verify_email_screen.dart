@@ -195,7 +195,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen>
                 color: successColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: PhosphorIcon(
                 PhosphorIconsDuotone.envelopeOpen,
                 size: 40,
                 color: successColor,

@@ -319,7 +319,7 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
         TextField(
           decoration: InputDecoration(
             hintText: 'Search items to add...',
-            prefixIcon: const Icon(PhosphorIconsDuotone.magnifyingGlass),
+            prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.magnifyingGlass),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             filled: true,
             fillColor: cs.surfaceContainerLowest,
@@ -360,7 +360,7 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                             return Text('KES ${resolvedPrice.toStringAsFixed(0)}');
                           },
                         ),
-                        trailing: const Icon(PhosphorIconsBold.plus, size: 18),
+                        trailing: const PhosphorIcon(PhosphorIconsBold.plus, size: 18),
                         onTap: () {
                           _addComponent(p);
                           setState(() => _searchQuery = null);
@@ -469,7 +469,7 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
             Row(
               children: [
                 IconButton(
-                  icon: const Icon(PhosphorIconsBold.minus, size: 16),
+                  icon: const PhosphorIcon(PhosphorIconsBold.minus, size: 16),
                   onPressed: () {
                     if (entry!.quantity > 1) {
                       setState(() => entry.quantity--);
@@ -480,11 +480,11 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                 ),
                 Text('$quantity', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
                 IconButton(
-                  icon: const Icon(PhosphorIconsBold.plus, size: 16),
+                  icon: const PhosphorIcon(PhosphorIconsBold.plus, size: 16),
                   onPressed: () => setState(() => entry!.quantity++),
                 ),
                 IconButton(
-                  icon: Icon(PhosphorIconsDuotone.trash, color: cs.error, size: 20),
+                  icon: PhosphorIcon(PhosphorIconsDuotone.trash, color: cs.error, size: 20),
                   onPressed: () => setState(() => entry!.isDeleted = true),
                 ),
               ],

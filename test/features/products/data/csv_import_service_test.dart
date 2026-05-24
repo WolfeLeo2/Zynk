@@ -31,14 +31,25 @@ void main() {
         basePrice: 1,
       ),
     );
+    registerFallbackValue(
+      ItemGroup(
+        id: 'fallback-group',
+        tenantId: 'fallback-tenant',
+        name: 'Fallback Group',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      ),
+    );
   });
 
   setUp(() {
     mockRepo = MockPowerSyncRepository();
 
     when(() => mockRepo.watchCategories()).thenAnswer((_) => Stream.value([]));
+    when(() => mockRepo.watchItemGroups()).thenAnswer((_) => Stream.value([]));
     when(() => mockRepo.createCategory(any())).thenAnswer((_) async {});
-    when(() => mockRepo.createProduct(any())).thenAnswer((_) async {});
+    when(() => mockRepo.createItemGroup(any())).thenAnswer((_) async {});
+    when(() => mockRepo.createProduct(any(), targetBranchIds: any(named: 'targetBranchIds'))).thenAnswer((_) async {});
     when(
       () => mockRepo.adjustStock(
         tenantId: any(named: 'tenantId'),
@@ -95,7 +106,10 @@ void main() {
       final container = buildContainer(branchId: null);
       addTearDown(container.dispose);
 
+      final sub = container.listen(currentUserProfileProvider, (_, __) {});
       await container.read(currentUserProfileProvider.future);
+      sub.close();
+
       final service = container.read(csvImportServiceProvider);
 
       await expectLater(
@@ -121,7 +135,10 @@ void main() {
       final container = buildContainer(branchId: 'branch-a');
       addTearDown(container.dispose);
 
+      final sub = container.listen(currentUserProfileProvider, (_, __) {});
       await container.read(currentUserProfileProvider.future);
+      sub.close();
+
       final service = container.read(csvImportServiceProvider);
 
       await service.importProducts(parsedProducts());
@@ -171,7 +188,10 @@ void main() {
       final container = buildContainer(branchId: 'all');
       addTearDown(container.dispose);
 
+      final sub = container.listen(currentUserProfileProvider, (_, __) {});
       await container.read(currentUserProfileProvider.future);
+      sub.close();
+
       final service = container.read(csvImportServiceProvider);
 
       await service.importProducts(parsedProducts());
@@ -217,7 +237,10 @@ void main() {
       final container = buildContainer(branchId: 'all');
       addTearDown(container.dispose);
 
+      final sub = container.listen(currentUserProfileProvider, (_, __) {});
       await container.read(currentUserProfileProvider.future);
+      sub.close();
+
       final service = container.read(csvImportServiceProvider);
 
       await expectLater(

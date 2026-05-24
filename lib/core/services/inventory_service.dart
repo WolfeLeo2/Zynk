@@ -68,4 +68,16 @@ class InventoryService {
       'adjustment_id': adjustmentId,
     });
   }
+  Future<void> unapproveAdjustment({
+    required String tenantId,
+    String? bundleId,
+    String? adjustmentId,
+  }) async {
+    await _invoke('manage-stock-adjustment', {
+      'action': 'unapprove_adjustment',
+      'tenant_id': tenantId,
+      'bundle_id': bundleId,
+      'adjustment_id': adjustmentId,
+    });
+  }
 }

@@ -185,7 +185,7 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                     children: [
                       Row(
                         children: [
-                          Icon(
+                          PhosphorIcon(
                             PhosphorIconsDuotone.info,
                             color: colorScheme.primary,
                           ),
@@ -223,7 +223,7 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                       children: [
                         FilledButton.icon(
                           onPressed: _pickFile,
-                          icon: const Icon(PhosphorIconsBold.fileCsv),
+                          icon: const PhosphorIcon(PhosphorIconsBold.fileCsv),
                           label: const Text('Select CSV File'),
                           style: FilledButton.styleFrom(
                             padding: const EdgeInsets.symmetric(
@@ -269,7 +269,7 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                     ),
                     TextButton.icon(
                       onPressed: _pickFile,
-                      icon: const Icon(PhosphorIconsRegular.pencilSimple),
+                      icon: const PhosphorIcon(PhosphorIconsRegular.pencilSimple),
                       label: const Text('Change File'),
                     ),
                   ],
@@ -306,7 +306,7 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                           subtitle: Text(
                             'Price: \$${p['selling_price']} | Stock: ${p['initial_stock']}',
                           ),
-                          trailing: const Icon(
+                          trailing: const PhosphorIcon(
                             PhosphorIconsRegular.checkCircle,
                             color: Colors.green,
                           ),

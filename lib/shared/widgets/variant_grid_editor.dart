@@ -90,7 +90,7 @@ class VariantGridEditor extends StatelessWidget {
               ),
               TextButton.icon(
                 onPressed: onCopyToAll,
-                icon: const Icon(PhosphorIconsBold.copy, size: 16),
+                icon: const PhosphorIcon(PhosphorIconsBold.copy, size: 16),
                 label: const Text('Copy to all'),
                 style: TextButton.styleFrom(
                   visualDensity: VisualDensity.compact,
@@ -156,7 +156,7 @@ class VariantGridEditor extends StatelessWidget {
                 image: _getImageProvider(variant),
               ),
               child: _getImageProvider(variant) == null
-                  ? Icon(PhosphorIconsRegular.image, size: 20, color: cs.onSurfaceVariant)
+                  ? PhosphorIcon(PhosphorIconsRegular.image, size: 20, color: cs.onSurfaceVariant)
                   : null,
             ),
           ),

@@ -314,6 +314,31 @@ class SalesService {
     });
   }
 
+  /// Reverts an approved invoice back to pending_approval.
+  /// Reverses stock (if fulfilled) and deletes all recorded payments.
+  /// Available to anyone with the approve_invoices permission.
+  Future<Map<String, dynamic>> unapproveSale(
+    String saleId, {
+    required String tenantId,
+  }) async {
+    return _manageSale('unapprove_sale', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
+    });
+  }
+
+  /// Fast-track approves a pending invoice, bypassing the dual-approval requirement.
+  /// Available to anyone with the approve_invoices permission.
+  Future<Map<String, dynamic>> finalApproveSale(
+    String saleId, {
+    required String tenantId,
+  }) async {
+    return _manageSale('final_approve_sale', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
+    });
+  }
+
   Future<Map<String, dynamic>> voidSale(
     String saleId, {
     required String tenantId,

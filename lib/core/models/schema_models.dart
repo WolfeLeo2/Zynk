@@ -255,6 +255,8 @@ class ItemGroup {
   final double? defaultCommissionValue;
   final double? defaultSellingPrice;
   final double? defaultBuyingPrice;
+  final String? defaultPricingUnit;
+  final double? defaultCoveragePerBox;
   final String? attributes;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
@@ -271,6 +273,8 @@ class ItemGroup {
     this.defaultCommissionValue,
     this.defaultSellingPrice,
     this.defaultBuyingPrice,
+    this.defaultPricingUnit,
+    this.defaultCoveragePerBox,
     this.attributes,
     this.createdAt,
     this.updatedAt,
@@ -306,6 +310,8 @@ class Product {
   final String? uomId;
   final String? commissionType;
   final double? commissionValue;
+  final String? pricingUnit;
+  final double? coveragePerBox;
   final String? parentId;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? createdAt;
@@ -334,6 +340,8 @@ class Product {
     String? uomId,
     String? commissionType,
     double? commissionValue,
+    String? pricingUnit,
+    double? coveragePerBox,
     String? parentId,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -360,6 +368,8 @@ class Product {
       uomId: uomId ?? this.uomId,
       commissionType: commissionType ?? this.commissionType,
       commissionValue: commissionValue ?? this.commissionValue,
+      pricingUnit: pricingUnit ?? this.pricingUnit,
+      coveragePerBox: coveragePerBox ?? this.coveragePerBox,
       parentId: parentId ?? this.parentId,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -388,6 +398,8 @@ class Product {
     this.uomId,
     this.commissionType,
     this.commissionValue,
+    this.pricingUnit,
+    this.coveragePerBox,
     this.parentId,
     this.createdAt,
     this.updatedAt,
@@ -649,3 +661,44 @@ class SalespersonCommissionSummary {
 
   double get totalEarned => totalPending + totalPaid;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PRODUCT TRANSACTION (Unified view for Stock Adjustments & Sales)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class ProductTransaction {
+  final String id;
+  final DateTime? createdAt;
+  final String type; // 'adjustment' or 'sale'
+  final int quantityChange;
+  final String? referenceId;
+  final String? referenceNumber;
+  final String? actorName;
+
+  ProductTransaction({
+    required this.id,
+    this.createdAt,
+    required this.type,
+    required this.quantityChange,
+    this.referenceId,
+    this.referenceNumber,
+    this.actorName,
+  });
+
+  factory ProductTransaction.fromMap(Map<String, dynamic> map) {
+    return ProductTransaction(
+      id: map['id']?.toString() ?? '',
+      createdAt: map['created_at'] != null
+          ? DateTime.tryParse(map['created_at'].toString())?.toLocal()
+          : null,
+      type: map['type']?.toString() ?? 'adjustment',
+      quantityChange: map['quantity'] is num 
+          ? (map['quantity'] as num).toInt() 
+          : int.tryParse(map['quantity']?.toString() ?? '0') ?? 0,
+      referenceId: map['reference_id']?.toString(),
+      referenceNumber: map['reference_number']?.toString(),
+      actorName: map['actor_name']?.toString(),
+    );
+  }
+}
+

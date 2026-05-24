@@ -123,7 +123,7 @@ class AdjustmentDetailScreen extends ConsumerWidget {
                   ),
                 ),
                 actions: [
-                  if (first.status == StockAdjustmentStatus.pending && canApprove)
+                  if ((first.status == StockAdjustmentStatus.pending || first.status == StockAdjustmentStatus.approved) && canApprove)
                     _AdjustmentPopupMenu(bundleId: bundleId, items: items),
                 ],
               ),
@@ -501,8 +501,12 @@ class _AdjustmentPopupMenu extends ConsumerWidget {
     return PopupMenuButton<String>(
       onSelected: (val) => _handleAction(context, ref, val),
       itemBuilder: (context) => [
-        const PopupMenuItem(value: 'approve', child: Text('Approve')),
-        const PopupMenuItem(value: 'reject', child: Text('Reject')),
+        if (items.first.status == StockAdjustmentStatus.pending) ...[
+          const PopupMenuItem(value: 'approve', child: Text('Approve')),
+          const PopupMenuItem(value: 'reject', child: Text('Reject')),
+        ] else if (items.first.status == StockAdjustmentStatus.approved) ...[
+          const PopupMenuItem(value: 'unapprove', child: Text('Unapprove')),
+        ],
         const PopupMenuDivider(),
         const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Colors.red))),
       ],
@@ -520,6 +524,9 @@ class _AdjustmentPopupMenu extends ConsumerWidget {
           tenantId: profile.tenantId,
           bundleId: bundleId,
         ), 'Adjustment approved.');
+        break;
+      case 'unapprove':
+        _handleUnapprove(context, ref, profile.tenantId);
         break;
       case 'reject':
         _handleReject(context, ref, profile.tenantId);
@@ -575,6 +582,28 @@ class _AdjustmentPopupMenu extends ConsumerWidget {
         bundleId: bundleId,
         reason: controller.text.isNotEmpty ? controller.text : 'Rejected by manager',
       ), 'Adjustment rejected.');
+    }
+  }
+
+  Future<void> _handleUnapprove(BuildContext context, WidgetRef ref, String tenantId) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Unapprove Adjustment'),
+        content: const Text('This will reverse the stock changes and return this adjustment to a pending state. Proceed?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Unapprove')),
+        ],
+      ),
+    );
+
+    if (proceed == true) {
+      if (!context.mounted) return;
+      await _runAction(context, ref, () => ref.read(inventoryServiceProvider).unapproveAdjustment(
+        tenantId: tenantId,
+        bundleId: bundleId,
+      ), 'Adjustment unapproved.');
     }
   }
 }

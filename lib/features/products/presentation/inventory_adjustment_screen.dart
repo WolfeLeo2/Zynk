@@ -229,7 +229,7 @@ class _InventoryAdjustmentScreenState
               onPressed: () {
                 ref.read(batchStockProvider.notifier).clear();
               },
-              icon: const Icon(PhosphorIconsRegular.trash),
+              icon: const PhosphorIcon(PhosphorIconsRegular.trash),
               label: const Text('Clear All'),
               style: TextButton.styleFrom(foregroundColor: colorScheme.error),
             ),
@@ -246,7 +246,7 @@ class _InventoryAdjustmentScreenState
                       child: SearchBar(
                         controller: _searchController,
                         hintText: 'Search items by name or SKU...',
-                        leading: const Icon(
+                        leading: const PhosphorIcon(
                           PhosphorIconsRegular.magnifyingGlass,
                         ),
                         onChanged: (val) => setState(() => _searchQuery = val),
@@ -309,7 +309,7 @@ class _InventoryAdjustmentScreenState
                                         : null,
                                   ),
                                   child: product.imageUrl == null
-                                      ? Icon(
+                                      ? PhosphorIcon(
                                           PhosphorIconsRegular.package,
                                           color: colorScheme.onPrimaryContainer,
                                         )
@@ -324,7 +324,7 @@ class _InventoryAdjustmentScreenState
                                   ),
                                 ),
                                 trailing: isAdded
-                                    ? Icon(
+                                    ? PhosphorIcon(
                                         PhosphorIconsRegular.checkCircle,
                                         color: colorScheme.primary,
                                       )
@@ -334,7 +334,7 @@ class _InventoryAdjustmentScreenState
                                               .read(batchStockProvider.notifier)
                                               .addItem(product);
                                         },
-                                        icon: const Icon(
+                                        icon: const PhosphorIcon(
                                           PhosphorIconsRegular.plus,
                                         ),
                                         style: IconButton.styleFrom(
@@ -489,7 +489,7 @@ class _InventoryAdjustmentScreenState
                                                                 }
                                                               });
                                                             },
-                                                  avatar: const Icon(
+                                                  avatar: const PhosphorIcon(
                                                     PhosphorIconsRegular
                                                         .storefront,
                                                     size: 14,
@@ -518,7 +518,7 @@ class _InventoryAdjustmentScreenState
                                           initialValue: _selectedAdjuster,
                                           decoration: InputDecoration(
                                             labelText: 'Adjuster *',
-                                            prefixIcon: const Icon(
+                                            prefixIcon: const PhosphorIcon(
                                               PhosphorIconsRegular.user,
                                             ),
                                             border: OutlineInputBorder(
@@ -582,7 +582,7 @@ class _InventoryAdjustmentScreenState
                                                 initialValue: _reasonId,
                                                 decoration: InputDecoration(
                                                   labelText: 'Reason *',
-                                                  prefixIcon: const Icon(
+                                                  prefixIcon: const PhosphorIcon(
                                                     PhosphorIconsRegular
                                                         .question,
                                                   ),
@@ -624,7 +624,7 @@ class _InventoryAdjustmentScreenState
                                               reasons,
                                               tenantId,
                                             ),
-                                            icon: const Icon(
+                                            icon: const PhosphorIcon(
                                               PhosphorIconsRegular.pencilSimple,
                                             ),
                                           ),
@@ -645,7 +645,7 @@ class _InventoryAdjustmentScreenState
                                   labelText: 'Reference Number (Optional)',
                                   hintText:
                                       'e.g., PO-2023-001 or Delivery Note',
-                                  prefixIcon: const Icon(
+                                  prefixIcon: const PhosphorIcon(
                                     PhosphorIconsRegular.receipt,
                                   ),
                                   border: OutlineInputBorder(
@@ -665,7 +665,7 @@ class _InventoryAdjustmentScreenState
                                 child: Column(
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Icon(
+                                    PhosphorIcon(
                                       PhosphorIconsRegular.magnifyingGlassPlus,
                                       size: 64,
                                       color: colorScheme.onSurfaceVariant
@@ -725,7 +725,7 @@ class _InventoryAdjustmentScreenState
                                     color: Colors.white,
                                   ),
                                 )
-                              : const Icon(PhosphorIconsRegular.checkCircle),
+                              : const PhosphorIcon(PhosphorIconsRegular.checkCircle),
                           label: Text(
                             _isLoading
                                 ? 'Processing...'
@@ -792,7 +792,7 @@ class _InventoryAdjustmentScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            PhosphorIcon(
               PhosphorIconsRegular.storefront,
               size: 64,
               color: colorScheme.onErrorContainer,
@@ -827,7 +827,7 @@ class _InventoryAdjustmentScreenState
                   vertical: 16,
                 ),
               ),
-              icon: const Icon(PhosphorIconsRegular.arrowLeft),
+              icon: const PhosphorIcon(PhosphorIconsRegular.arrowLeft),
               label: const Text('Go Back'),
             ),
           ],
@@ -922,7 +922,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                       : null,
                 ),
                 child: product.imageUrl == null
-                    ? Icon(
+                    ? PhosphorIcon(
                         PhosphorIconsRegular.package,
                         color: colorScheme.onPrimaryContainer,
                       )
@@ -955,7 +955,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                 onPressed: () {
                   ref.read(batchStockProvider.notifier).removeItem(product.id);
                 },
-                icon: const Icon(PhosphorIconsRegular.x),
+                icon: const PhosphorIcon(PhosphorIconsRegular.x),
                 color: colorScheme.error,
               ),
             ],
@@ -986,7 +986,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                         fontSize: 13,
                       ),
                     ),
-                    Icon(
+                    PhosphorIcon(
                       PhosphorIconsRegular.arrowRight,
                       size: 14,
                       color: colorScheme.onSurfaceVariant,
@@ -1019,7 +1019,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                             widget.item.quantityChange - 1,
                           );
                     },
-                    icon: const Icon(PhosphorIconsRegular.minus, size: 16),
+                    icon: const PhosphorIcon(PhosphorIconsRegular.minus, size: 16),
                     constraints: const BoxConstraints(
                       minWidth: 36,
                       minHeight: 36,
@@ -1070,7 +1070,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                             widget.item.quantityChange + 1,
                           );
                     },
-                    icon: const Icon(PhosphorIconsRegular.plus, size: 16),
+                    icon: const PhosphorIcon(PhosphorIconsRegular.plus, size: 16),
                     constraints: const BoxConstraints(
                       minWidth: 36,
                       minHeight: 36,
@@ -1250,10 +1250,10 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                         itemBuilder: (_, i) {
                           final r = reasons[i];
                           return ListTile(
-                            leading: const Icon(PhosphorIconsRegular.tagSimple),
+                            leading: const PhosphorIcon(PhosphorIconsRegular.tagSimple),
                             title: Text(r.label),
                             trailing: IconButton(
-                              icon: Icon(
+                              icon: PhosphorIcon(
                                 PhosphorIconsRegular.trash,
                                 color: colorScheme.error,
                               ),

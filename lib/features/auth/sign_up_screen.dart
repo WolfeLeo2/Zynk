@@ -320,7 +320,7 @@ class _StepOne extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
+          // PhosphorIcon
           Container(
             width: 56,
             height: 56,
@@ -377,7 +377,7 @@ class _StepOne extends StatelessWidget {
                       ),
                     ),
                     child: logoFile == null
-                        ? Icon(
+                        ? PhosphorIcon(
                             PhosphorIconsRegular.camera,
                             size: 32,
                             color: theme.colorScheme.onSurfaceVariant,
@@ -397,7 +397,7 @@ class _StepOne extends StatelessWidget {
                           width: 2,
                         ),
                       ),
-                      child: Icon(
+                      child: PhosphorIcon(
                         PhosphorIconsRegular.pencilSimple,
                         size: 14,
                         color: theme.colorScheme.onPrimary,
@@ -504,7 +504,7 @@ class _StepTwo extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
+          // PhosphorIcon
           Container(
             width: 56,
             height: 56,

@@ -45,7 +45,9 @@ void main() {
       final container = buildContainer('branch-a');
       addTearDown(container.dispose);
 
+      final sub = container.listen(allProductsProvider, (_, __) {});
       await container.read(allProductsProvider.future);
+      sub.close();
 
       verify(() => mockRepo.watchProducts(branchId: 'branch-a')).called(1);
     },
@@ -55,7 +57,9 @@ void main() {
     final container = buildContainer('branch-b');
     addTearDown(container.dispose);
 
+    final sub = container.listen(stockProvider('product-1'), (_, __) {});
     await container.read(stockProvider('product-1').future);
+    sub.close();
 
     verify(
       () => mockRepo.watchProductStock('product-1', branchId: 'branch-b'),
@@ -68,7 +72,9 @@ void main() {
       final container = buildContainer('all');
       addTearDown(container.dispose);
 
+      final sub = container.listen(stockHistoryProvider('product-2'), (_, __) {});
       await container.read(stockHistoryProvider('product-2').future);
+      sub.close();
 
       verify(
         () => mockRepo.watchProductStockHistory('product-2', branchId: 'all'),

@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
+import 'package:m3e_card_list/m3e_card_list.dart';
 import 'skeleton_widgets.dart';
 import 'empty_error_states.dart';
 
@@ -59,16 +60,18 @@ class RecentOrdersList extends ConsumerWidget {
                   icon: PhosphorIconsDuotone.receipt,
                 );
               }
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
+              return M3ECardList(
                 itemCount: sales.take(5).length,
+                gap: 2,
+                padding: EdgeInsets.zero,
+                onTap: (index) => context.push('/sales/${sales[index].id}'),
                 itemBuilder: (context, index) {
-                  final sale = sales[index];
-                  return _SaleListItem(
-                    sale: sale,
-                    colorScheme: colorScheme,
-                    index: index,
+                  return RepaintBoundary(
+                    child: _SaleListItem(
+                      sale: sales[index],
+                      colorScheme: colorScheme,
+                      index: index,
+                    ),
                   );
                 },
               );
@@ -148,15 +151,17 @@ class RecentOrdersTable extends ConsumerWidget {
                   icon: PhosphorIconsDuotone.receipt,
                 );
               }
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: sales.length,
+              return M3ECardList(
+                itemCount: sales.take(5).length,
+                padding: EdgeInsets.zero,
+                onTap: (index) => context.push('/sales/${sales[index].id}'),
                 itemBuilder: (context, index) {
-                  return _SaleTableRow(
-                    sale: sales[index],
-                    index: index,
-                    colorScheme: colorScheme,
+                  return RepaintBoundary(
+                    child: _SaleTableRow(
+                      sale: sales[index],
+                      index: index,
+                      colorScheme: colorScheme,
+                    ),
                   );
                 },
               );
@@ -236,68 +241,53 @@ class _SaleListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final statusColor = _getStatusColor(sale.status);
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: InkWell(
-        onTap: () => context.push('/sales/${sale.id}'),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.transparent,
-            border: Border(
-              bottom: BorderSide(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-              ),
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: PhosphorIcon(
+              _getStatusIcon(sale.status),
+              size: 20,
+              color: statusColor,
             ),
           ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  sale.invoiceNumber ?? sale.id.substring(0, 8),
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-                child: PhosphorIcon(
-                  _getStatusIcon(sale.status),
-                  size: 20,
-                  color: statusColor,
-                ),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      sale.invoiceNumber ?? sale.id.substring(0, 8),
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Text(
-                      '${sale.saleType.toUpperCase()} • ${formatTimeAgo(sale.createdAt ?? DateTime.now())}',
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(
-                    'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                Text(
+                  '${sale.saleType.toUpperCase()} • ${formatTimeAgo(sale.createdAt ?? DateTime.now())}',
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: 12,
                   ),
-                  const SizedBox(height: 4),
-                  _StatusBadge(status: sale.status),
-                ],
+                ),
+              ],
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(height: 4),
+              _StatusBadge(status: sale.status),
             ],
           ),
-        ),
+        ],
       ),
     );
   }
@@ -320,64 +310,52 @@ class _SaleTableRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return InkWell(
-      onTap: () => context.push('/sales/${sale.id}'),
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-        decoration: BoxDecoration(
-          color: Colors.transparent,
-          border: Border(
-            bottom: BorderSide(
-              color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Row(
+        children: [
+          Expanded(
+            flex: 2,
+            child: Text(
+              sale.invoiceNumber ?? sale.id.substring(0, 8),
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.primary,
+              ),
             ),
           ),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              flex: 2,
+          Expanded(
+            flex: 2,
+            child: Row(
+              children: [
+                PhosphorIcon(
+                  sale.saleType == 'sale'
+                      ? PhosphorIconsDuotone.shoppingBag
+                      : PhosphorIconsDuotone.fileText,
+                  size: 16,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  sale.saleType[0].toUpperCase() + sale.saleType.substring(1),
+                  style: const TextStyle(fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          Expanded(flex: 2, child: _StatusBadge(status: sale.status)),
+          Expanded(
+            flex: 2,
+            child: Align(
+              alignment: Alignment.centerRight,
               child: Text(
-                sale.invoiceNumber ?? sale.id.substring(0, 8),
-                style: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: colorScheme.primary,
-                ),
+                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),
-            Expanded(
-              flex: 2,
-              child: Row(
-                children: [
-                  PhosphorIcon(
-                    sale.saleType == 'sale'
-                        ? PhosphorIconsDuotone.shoppingBag
-                        : PhosphorIconsDuotone.fileText,
-                    size: 16,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    sale.saleType[0].toUpperCase() + sale.saleType.substring(1),
-                    style: const TextStyle(fontWeight: FontWeight.w500),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            Expanded(flex: 2, child: _StatusBadge(status: sale.status)),
-            Expanded(
-              flex: 2,
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Text(
-                  'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
-                  style: const TextStyle(fontWeight: FontWeight.bold),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -431,7 +409,7 @@ Color _getStatusColor(InvoiceStatus status) {
   };
 }
 
-IconData _getStatusIcon(InvoiceStatus status) {
+PhosphorIconData _getStatusIcon(InvoiceStatus status) {
   return switch (status) {
     InvoiceStatus.completed => PhosphorIconsDuotone.checkCircle,
     InvoiceStatus.paid => PhosphorIconsDuotone.checkCircle,

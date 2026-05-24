@@ -86,7 +86,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     value: 'item',
                     child: Row(
                       children: [
-                        Icon(PhosphorIconsBold.plus, size: 20),
+                        PhosphorIcon(PhosphorIconsBold.plus, size: 20),
                         SizedBox(width: 12),
                         Text('Add item'),
                       ],
@@ -96,7 +96,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     value: 'adjust',
                     child: Row(
                       children: [
-                        Icon(PhosphorIconsDuotone.package, size: 20),
+                        PhosphorIcon(PhosphorIconsDuotone.package, size: 20),
                         SizedBox(width: 12),
                         Text('Batch Adjust Stock'),
                       ],
@@ -106,7 +106,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                     value: 'csv',
                     child: Row(
                       children: [
-                        Icon(PhosphorIconsDuotone.fileCsv, size: 20),
+                        PhosphorIcon(PhosphorIconsDuotone.fileCsv, size: 20),
                         SizedBox(width: 12),
                         Text('Import CSV'),
                       ],
@@ -122,7 +122,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(
+                      PhosphorIcon(
                         PhosphorIconsBold.plus,
                         size: 18,
                         color: theme.colorScheme.onSecondary,
@@ -151,7 +151,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Search item by name...',
-                prefixIcon: const Icon(PhosphorIconsDuotone.magnifyingGlass),
+                prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.magnifyingGlass),
                 filled: true,
                 fillColor: theme.colorScheme.surface,
                 border: OutlineInputBorder(
@@ -275,7 +275,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               color: theme.colorScheme.surfaceContainerHighest,
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: PhosphorIcon(
               PhosphorIconsDuotone.package,
               size: 64,
               color: theme.colorScheme.onSurfaceVariant,
@@ -297,7 +297,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: () => context.push('/products/add'),
-              icon: const Icon(PhosphorIconsBold.plus),
+              icon: const PhosphorIcon(PhosphorIconsBold.plus),
               label: const Text('Add Your First Item'),
             ),
           ],
@@ -392,7 +392,7 @@ class _ProductGridCard extends ConsumerWidget {
                                 errorWidget: (context, url, error) => Container(
                                   color: cs.surfaceContainerHighest,
                                   child: Center(
-                                    child: Icon(
+                                    child: PhosphorIcon(
                                       PhosphorIconsDuotone.imageBroken,
                                       color: cs.onSurfaceVariant,
                                     ),
@@ -402,7 +402,7 @@ class _ProductGridCard extends ConsumerWidget {
                             : Container(
                                 color: cs.surfaceContainerHighest,
                                 child: Center(
-                                  child: Icon(
+                                  child: PhosphorIcon(
                                     PhosphorIconsDuotone.package,
                                     size: 40,
                                     color: cs.outlineVariant,
@@ -434,7 +434,7 @@ class _ProductGridCard extends ConsumerWidget {
                                   child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
+                                      PhosphorIcon(
                                         isLowStock
                                             ? PhosphorIconsFill.warningCircle
                                             : PhosphorIconsFill.circle,
