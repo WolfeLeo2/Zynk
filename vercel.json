@@ -1,5 +1,5 @@
 {
-  "buildCommand": "if cd flutter; then git checkout stable && git pull && cd ..; else git clone -b stable https://github.com/flutter/flutter.git; fi && flutter/bin/flutter doctor && flutter/bin/flutter clean && flutter/bin/flutter config --enable-web && flutter/bin/flutter build web --release --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=POWERSYNC_URL=$POWERSYNC_URL",
-  "outputDirectory": "build/web",
-  "installCommand": "echo 'Flutter install handled in build command'"
+  "installCommand": "if cd flutter; then git checkout stable && git pull && cd ..; else git clone -b stable https://github.com/flutter/flutter.git; fi && flutter/bin/flutter doctor && flutter/bin/flutter clean && flutter/bin/flutter config --enable-web",
+  "buildCommand": "flutter/bin/flutter build web --release --dart-define=SUPABASE_URL=$SUPABASE_URL --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY --dart-define=POWERSYNC_URL=$POWERSYNC_URL",
+  "outputDirectory": "build/web"
 }
