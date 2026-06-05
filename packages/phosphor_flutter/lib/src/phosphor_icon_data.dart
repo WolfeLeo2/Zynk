@@ -3,27 +3,18 @@ library phosphor_flutter;
 import 'package:flutter/widgets.dart';
 
 class PhosphorIconData {
-  final int codePoint;
-  final String style;
+  final IconData iconData;
 
-  const PhosphorIconData(this.codePoint, this.style);
-
-  IconData get iconData => const IconData(
-        codePoint,
-        fontFamily: 'Phosphor$style',
-        fontPackage: 'phosphor_flutter',
-        matchTextDirection: true,
-      );
+  const PhosphorIconData(this.iconData);
 }
 
 class PhosphorFlatIconData extends PhosphorIconData {
-  const PhosphorFlatIconData(int codePoint, String style)
-      : super(codePoint, style);
+  const PhosphorFlatIconData(IconData iconData) : super(iconData);
 }
 
 class PhosphorDuotoneIconData extends PhosphorIconData {
   final PhosphorIconData secondary;
 
-  const PhosphorDuotoneIconData(int codePoint, this.secondary)
-      : super(codePoint, 'Duotone');
+  const PhosphorDuotoneIconData(IconData iconData, this.secondary)
+      : super(iconData);
 }

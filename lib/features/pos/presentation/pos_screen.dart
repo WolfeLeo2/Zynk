@@ -741,7 +741,7 @@ class _CustomerSelectorSheetState
                       ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const PhosphorIcon(PhosphorIconsRegular.x),
+                      icon: const Icon(Icons.close),
                     ),
                   ],
                 ),
