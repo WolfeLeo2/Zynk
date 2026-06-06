@@ -7,6 +7,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/shared/widgets/shimmer_skeletons.dart';
+import 'package:zynk/core/services/auth_service.dart';
 
 class StaffScreen extends ConsumerWidget {
   const StaffScreen({super.key});
@@ -219,6 +220,11 @@ class _StaffCard extends ConsumerWidget {
           onSelected: (value) async {
             if (value == 'edit') {
               context.push('/settings/add-staff', extra: member);
+            } else if (value == 'reset_password') {
+              showDialog(
+                context: context,
+                builder: (ctx) => _ResetPasswordDialog(member: member),
+              );
             } else if (value == 'block' || value == 'unblock') {
               final newStatus = value == 'block' ? ProfileStatus.blocked : ProfileStatus.active;
               try {
@@ -285,6 +291,14 @@ class _StaffCard extends ConsumerWidget {
             ),
             const PopupMenuDivider(),
             const PopupMenuItem(
+              value: 'reset_password',
+              child: ListTile(
+                leading: PhosphorIcon(PhosphorIconsRegular.lockKey),
+                title: Text('Reset Password'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
               value: 'delete',
               child: ListTile(
                 leading: PhosphorIcon(PhosphorIconsRegular.trash, color: Colors.red),
@@ -295,6 +309,118 @@ class _StaffCard extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ResetPasswordDialog extends ConsumerStatefulWidget {
+  final Profile member;
+
+  const _ResetPasswordDialog({required this.member});
+
+  @override
+  ConsumerState<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+}
+
+class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
+  final _formKey = GlobalKey<FormState>();
+  final _passwordController = TextEditingController();
+  bool _isLoading = false;
+  bool _obscureText = true;
+
+  @override
+  void dispose() {
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isLoading = true);
+
+    try {
+      await ref.read(authServiceProvider).resetStaffPassword(
+            userId: widget.member.userId,
+            newPassword: _passwordController.text,
+          );
+
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Password reset successfully for ${widget.member.displayName}'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Reset Password'),
+      content: Form(
+        key: _formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text('Set a new password for ${widget.member.displayName ?? 'this account'}.'),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _passwordController,
+              obscureText: _obscureText,
+              decoration: InputDecoration(
+                labelText: 'New Password',
+                border: const OutlineInputBorder(),
+                prefixIcon: const PhosphorIcon(PhosphorIconsRegular.lockKey),
+                suffixIcon: IconButton(
+                  icon: PhosphorIcon(
+                    _obscureText ? PhosphorIconsRegular.eyeClosed : PhosphorIconsRegular.eye,
+                  ),
+                  onPressed: () => setState(() => _obscureText = !_obscureText),
+                ),
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Please enter a password';
+                if (v.length < 6) return 'Password must be at least 6 characters';
+                return null;
+              },
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isLoading ? null : _submit,
+          child: _isLoading
+              ? const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                )
+              : const Text('Reset Password'),
+        ),
+      ],
     );
   }
 }
