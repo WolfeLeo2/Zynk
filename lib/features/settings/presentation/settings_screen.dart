@@ -463,6 +463,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
 
               SettingsSection(
+                title: Text('Security', style: Theme.of(context).textTheme.titleMedium),
+                tiles: [
+                  SettingsTile.navigation(
+                    leading: const PhosphorIcon(PhosphorIconsDuotone.password),
+                    title: Text('Change Password', style: Theme.of(context).textTheme.titleMedium),
+                    description: Text('Update your login password', style: Theme.of(context).textTheme.bodySmall),
+                    onPressed: (_) => context.push('/settings/change-password'),
+                  ),
+                ],
+              ),
+
+              SettingsSection(
                 title: Text('App Settings', style: Theme.of(context).textTheme.titleMedium),
                 tiles: [
                   /*

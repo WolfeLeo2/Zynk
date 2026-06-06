@@ -150,7 +150,7 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () {},
+                      onPressed: () => context.push('/forgot-password'),
                       style: TextButton.styleFrom(
                         foregroundColor: theme.colorScheme.primary,
                         padding: const EdgeInsets.symmetric(
