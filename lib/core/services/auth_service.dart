@@ -104,6 +104,34 @@ class AuthService {
     );
   }
 
+  /// Send a 6-digit OTP to the given email for password reset.
+  Future<void> sendPasswordResetOtp({required String email}) async {
+    await _supabase.auth.signInWithOtp(
+      email: email,
+      shouldCreateUser: false,
+    );
+  }
+
+  /// Verify the OTP. On success Supabase establishes a temporary session.
+  Future<void> verifyPasswordResetOtp({
+    required String email,
+    required String otp,
+  }) async {
+    await _supabase.auth.verifyOTP(
+      email: email,
+      token: otp,
+      type: OtpType.email, // Correct: OTP was sent via signInWithOtp (magic-link), not resetPasswordForEmail.
+    );
+  }
+
+  /// Update the current user's password (works for both reset and change flows).
+  /// Caller must ensure a valid session exists (i.e. [verifyPasswordResetOtp] completed successfully).
+  Future<void> updatePassword({required String newPassword}) async {
+    await _supabase.auth.updateUser(
+      UserAttributes(password: newPassword),
+    );
+  }
+
   // Helper: Ensure a local profile exists for the current user
   Future<void> _ensureLocalProfile() async {
     final user = _supabase.auth.currentUser;
