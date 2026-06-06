@@ -5,6 +5,10 @@ import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/features/auth/sign_in_screen.dart';
 import 'package:zynk/features/auth/sign_up_screen.dart';
 import 'package:zynk/features/auth/verify_email_screen.dart';
+import 'package:zynk/features/auth/forgot_password_screen.dart';
+import 'package:zynk/features/auth/verify_otp_screen.dart';
+import 'package:zynk/features/auth/reset_password_screen.dart';
+import 'package:zynk/features/settings/presentation/change_password_screen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:zynk/core/providers/profile_provider.dart';
@@ -55,7 +59,12 @@ final routerProvider = Provider<GoRouter>((ref) {
 
       final loc = state.matchedLocation;
       final isOnAuthRoute =
-          loc == '/login' || loc == '/signup' || loc == '/verify-email';
+          loc == '/login' ||
+          loc == '/signup' ||
+          loc == '/verify-email' ||
+          loc == '/forgot-password' ||
+          loc == '/forgot-password/verify' ||
+          loc == '/forgot-password/reset';
 
       // Not logged in → must be on an auth screen
       if (!isLoggedIn) {
@@ -135,6 +144,21 @@ final routerProvider = Provider<GoRouter>((ref) {
           final email = state.extra as String?;
           return VerifyEmailScreen(email: email);
         },
+      ),
+      GoRoute(
+        path: '/forgot-password',
+        builder: (context, state) => const ForgotPasswordScreen(),
+      ),
+      GoRoute(
+        path: '/forgot-password/verify',
+        builder: (context, state) {
+          final email = state.extra as String? ?? '';
+          return VerifyOtpScreen(email: email);
+        },
+      ),
+      GoRoute(
+        path: '/forgot-password/reset',
+        builder: (context, state) => const ResetPasswordScreen(),
       ),
 
       // App Shell
@@ -349,6 +373,10 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'customers',
                     builder: (context, state) => const CustomersScreen(),
+                  ),
+                  GoRoute(
+                    path: 'change-password',
+                    builder: (context, state) => const ChangePasswordScreen(),
                   ),
                 ],
               ),
