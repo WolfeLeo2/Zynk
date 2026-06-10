@@ -1,7 +1,7 @@
 name: zynk
 description: "A smart inventory and stock tracker and overall business solution for SMEs"
 publish_to: 'none'
-version: 1.0.0+3
+version: 1.1.0+4
 
 environment:
   sdk: ^3.10.7
