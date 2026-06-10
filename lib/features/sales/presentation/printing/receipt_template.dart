@@ -49,7 +49,7 @@ class ReceiptTemplate {
               // ── Business Header ──
               if (logoImage != null) ...[
                 pw.Image(logoImage, height: 40, fit: pw.BoxFit.contain),
-                pw.SizedBox(height: 4),
+                pw.SizedBox(height: 6),
               ],
               pw.Text(
                 tenant.name.toUpperCase(),
@@ -60,7 +60,7 @@ class ReceiptTemplate {
                 textAlign: pw.TextAlign.center,
               ),
               if ((branch?.address ?? tenant.address) != null) ...[
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 4),
                 pw.Text(
                   (branch?.address ?? tenant.address)!,
                   style: const pw.TextStyle(fontSize: 8),
@@ -68,7 +68,7 @@ class ReceiptTemplate {
                 ),
               ],
               if ((branch?.phone ?? tenant.phone) != null) ...[
-                pw.SizedBox(height: 1),
+                pw.SizedBox(height: 3),
                 pw.Text(
                   'Tel: ${(branch?.phone ?? tenant.phone)!}',
                   style: const pw.TextStyle(fontSize: 8),
@@ -76,11 +76,11 @@ class ReceiptTemplate {
                 ),
               ],
 
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 8),
               _dashedDivider(),
 
               // ── Receipt Info ──
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 8),
               pw.Row(
                 mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
                 children: [
@@ -98,7 +98,7 @@ class ReceiptTemplate {
                 ],
               ),
               if (sale.salespersonId != null) ...[
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 4),
                 pw.Row(
                   children: [
                     pw.Text(
@@ -109,7 +109,7 @@ class ReceiptTemplate {
                 ),
               ],
               if (customerName != null && customerName.isNotEmpty) ...[
-                pw.SizedBox(height: 2),
+                pw.SizedBox(height: 4),
                 pw.Row(
                   children: [
                     pw.Text(
@@ -120,11 +120,11 @@ class ReceiptTemplate {
                 ),
               ],
 
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 8),
               _dashedDivider(),
 
               // ── Column Headers ──
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 6),
               pw.Row(
                 children: [
                   pw.Expanded(
@@ -172,14 +172,14 @@ class ReceiptTemplate {
                   ),
                 ],
               ),
-              pw.SizedBox(height: 2),
+              pw.SizedBox(height: 6),
               _thinDivider(),
 
               // ── Items ──
-              pw.SizedBox(height: 2),
+              pw.SizedBox(height: 4),
               ...items.map(
                 (item) => pw.Padding(
-                  padding: const pw.EdgeInsets.symmetric(vertical: 1),
+                  padding: const pw.EdgeInsets.symmetric(vertical: 3),
                   child: pw.Row(
                     children: [
                       pw.Expanded(
@@ -218,25 +218,25 @@ class ReceiptTemplate {
                 ),
               ),
 
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 8),
               _dashedDivider(),
 
               // ── Totals ──
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 6),
               _totalRow('Subtotal', currencyFormat.format(sale.subtotal)),
               if (sale.discountAmount > 0)
                 _totalRow(
                   'Discount',
                   '-${currencyFormat.format(sale.discountAmount)}',
                 ),
-              pw.SizedBox(height: 3),
+              pw.SizedBox(height: 6),
               _totalRow(
                 'TOTAL',
                 'Ksh ${currencyFormat.format(sale.grandTotal)}',
                 bold: true,
                 fontSize: 11,
               ),
-              pw.SizedBox(height: 2),
+              pw.SizedBox(height: 4),
               _totalRow(
                 'Paid (${sale.paymentMethod?.toUpperCase() ?? "CASH"})',
                 'Ksh ${currencyFormat.format(sale.amountPaid)}',
@@ -252,11 +252,11 @@ class ReceiptTemplate {
                   'Ksh ${currencyFormat.format(sale.grandTotal - sale.amountPaid)}',
                 ),
 
-              pw.SizedBox(height: 6),
+              pw.SizedBox(height: 10),
               _dashedDivider(),
 
               // ── Footer ──
-              pw.SizedBox(height: 6),
+              pw.SizedBox(height: 10),
               pw.Text(
                 'Thank you for your purchase!',
                 style: pw.TextStyle(
@@ -265,13 +265,13 @@ class ReceiptTemplate {
                 ),
                 textAlign: pw.TextAlign.center,
               ),
-              pw.SizedBox(height: 2),
+              pw.SizedBox(height: 6),
               pw.Text(
                 'Goods once sold are not returnable',
                 style: const pw.TextStyle(fontSize: 7),
                 textAlign: pw.TextAlign.center,
               ),
-              pw.SizedBox(height: 8),
+              pw.SizedBox(height: 12),
               pw.BarcodeWidget(
                 barcode: pw.Barcode.code128(),
                 data: sale.invoiceNumber ?? sale.id,
@@ -279,7 +279,7 @@ class ReceiptTemplate {
                 height: 30,
                 drawText: false,
               ),
-              pw.SizedBox(height: 4),
+              pw.SizedBox(height: 8),
               pw.Text(
                 sale.invoiceNumber ?? '',
                 style: const pw.TextStyle(fontSize: 7),
@@ -319,7 +319,7 @@ class ReceiptTemplate {
     double fontSize = 9,
   }) {
     return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 1),
+      padding: const pw.EdgeInsets.symmetric(vertical: 3),
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [

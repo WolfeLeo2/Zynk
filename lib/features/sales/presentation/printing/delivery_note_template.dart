@@ -4,16 +4,15 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
 
-/// Generates a professional A4 invoice PDF.
+/// Generates a professional A4 Delivery Note PDF.
 ///
-/// Inspired by modern invoice templates:
+/// Designed as a packing slip:
 /// - Clean header with business info
-/// - "INVOICE" heading with number and dates
-/// - Bill-to section
-/// - Detailed item table with alternating row shading
-/// - Totals summary
-/// - Payment info and terms
-class InvoiceTemplate {
+/// - "DELIVERY NOTE" heading with number and dates
+/// - Ship-to section
+/// - Detailed item table (Quantities only, no pricing)
+/// - Signature lines for Delivered By and Received By
+class DeliveryNoteTemplate {
   // Brand color for the header accent
   static const PdfColor accentColor = PdfColor.fromInt(0xFF6C63FF);
   static const PdfColor headerBg = PdfColor.fromInt(0xFF1A1A2E);
@@ -23,7 +22,6 @@ class InvoiceTemplate {
   static pw.Document generate({
     required Sale sale,
     required List<SaleItem> items,
-    required List<Payment> payments,
     required Tenant tenant,
     Branch? branch,
     String? customerName,
@@ -34,7 +32,6 @@ class InvoiceTemplate {
   }) {
     final pdf = pw.Document();
     final dateFormat = DateFormat('dd MMM yyyy');
-    final currencyFormat = NumberFormat('#,##0.00', 'en_US');
 
     pdf.addPage(
       pw.MultiPage(
@@ -52,8 +49,8 @@ class InvoiceTemplate {
         build: (context) => [
           pw.SizedBox(height: 20),
 
-          // ── Bill To / Ship To ──
-          _buildBillTo(
+          // ── Deliver To ──
+          _buildDeliverTo(
             customerName: customerName,
             customerAddress: customerAddress,
             customerPhone: customerPhone,
@@ -65,20 +62,9 @@ class InvoiceTemplate {
           pw.SizedBox(height: 24),
 
           // ── Items Table ──
-          _buildItemsTable(items, currencyFormat),
+          _buildItemsTable(items),
 
-          pw.SizedBox(height: 16),
-
-          // ── Totals ──
-          _buildTotals(sale, currencyFormat),
-
-          pw.SizedBox(height: 24),
-
-          // ── Payments Section ──
-          if (payments.isNotEmpty) ...[
-            _buildPaymentsSection(payments, currencyFormat, dateFormat),
-            pw.SizedBox(height: 24),
-          ],
+          pw.SizedBox(height: 32),
 
           // ── Notes ──
           if (sale.notes != null && sale.notes!.isNotEmpty) ...[
@@ -110,7 +96,11 @@ class InvoiceTemplate {
                 ],
               ),
             ),
+            pw.SizedBox(height: 32),
           ],
+
+          // ── Signatures ──
+          _buildSignatures(),
         ],
       ),
     );
@@ -174,7 +164,7 @@ class InvoiceTemplate {
             ],
           ),
 
-          // Invoice details
+          // Document details
           pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
@@ -188,7 +178,7 @@ class InvoiceTemplate {
                   borderRadius: pw.BorderRadius.circular(4),
                 ),
                 child: pw.Text(
-                  sale.saleType == 'pos_sale' ? 'RECEIPT' : 'INVOICE',
+                  'DELIVERY NOTE',
                   style: pw.TextStyle(
                     fontSize: 12,
                     fontWeight: pw.FontWeight.bold,
@@ -213,14 +203,6 @@ class InvoiceTemplate {
                   color: PdfColors.grey400,
                 ),
               ),
-              if (sale.dueDate != null)
-                pw.Text(
-                  'Due: ${dateFormat.format(sale.dueDate!)}',
-                  style: const pw.TextStyle(
-                    fontSize: 9,
-                    color: PdfColors.grey400,
-                  ),
-                ),
             ],
           ),
         ],
@@ -228,7 +210,7 @@ class InvoiceTemplate {
     );
   }
 
-  static pw.Widget _buildBillTo({
+  static pw.Widget _buildDeliverTo({
     String? customerName,
     String? customerAddress,
     String? customerPhone,
@@ -244,7 +226,7 @@ class InvoiceTemplate {
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
               pw.Text(
-                'BILL TO',
+                'DELIVER TO',
                 style: pw.TextStyle(
                   fontSize: 9,
                   fontWeight: pw.FontWeight.bold,
@@ -293,10 +275,6 @@ class InvoiceTemplate {
                   'Salesperson',
                   (salespersonName ?? sale.salespersonId!).trim(),
                 ),
-              _infoRow(
-                'Payment',
-                sale.paymentMethod?.toUpperCase() ?? 'PENDING',
-              ),
             ],
           ),
         ),
@@ -323,10 +301,7 @@ class InvoiceTemplate {
     );
   }
 
-  static pw.Widget _buildItemsTable(
-    List<SaleItem> items,
-    NumberFormat currencyFormat,
-  ) {
+  static pw.Widget _buildItemsTable(List<SaleItem> items) {
     return pw.TableHelper.fromTextArray(
       border: pw.TableBorder.all(color: borderColor, width: 0.5),
       headerDecoration: const pw.BoxDecoration(color: headerBg),
@@ -342,12 +317,10 @@ class InvoiceTemplate {
       columnWidths: {
         0: const pw.FixedColumnWidth(30),
         1: const pw.FlexColumnWidth(4),
-        2: const pw.FixedColumnWidth(40),
-        3: const pw.FixedColumnWidth(80),
-        4: const pw.FixedColumnWidth(85),
+        2: const pw.FixedColumnWidth(60),
       },
       oddRowDecoration: const pw.BoxDecoration(color: lightGrey),
-      headers: ['#', 'Item', 'Qty', 'Unit Price', 'Total'],
+      headers: ['#', 'Item Description', 'Quantity'],
       data: items.asMap().entries.map((entry) {
         final i = entry.key;
         final item = entry.value;
@@ -355,133 +328,74 @@ class InvoiceTemplate {
           '${i + 1}',
           item.productName ?? 'Item',
           '${item.quantity}',
-          'Ksh ${currencyFormat.format(item.unitPrice)}',
-          'Ksh ${currencyFormat.format(item.total)}',
         ];
       }).toList(),
     );
   }
 
-  static pw.Widget _buildTotals(Sale sale, NumberFormat currencyFormat) {
+  static pw.Widget _buildSignatures() {
     return pw.Row(
+      mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
-        pw.Spacer(flex: 3),
+        // Delivered By
         pw.Expanded(
-          flex: 2,
-          child: pw.Container(
-            padding: const pw.EdgeInsets.all(12),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: borderColor, width: 0.5),
-              borderRadius: pw.BorderRadius.circular(4),
-            ),
-            child: pw.Column(
-              children: [
-                _summaryRow(
-                  'Subtotal',
-                  'Ksh ${currencyFormat.format(sale.subtotal)}',
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Delivered By:',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.grey800,
                 ),
-                if (sale.discountAmount > 0)
-                  _summaryRow(
-                    'Discount',
-                    '-Ksh ${currencyFormat.format(sale.discountAmount)}',
-                  ),
-                pw.Divider(color: borderColor, height: 8),
-                _summaryRow(
-                  'Grand Total',
-                  'Ksh ${currencyFormat.format(sale.grandTotal)}',
-                  bold: true,
-                  fontSize: 12,
+              ),
+              pw.SizedBox(height: 30),
+              pw.Container(
+                height: 1,
+                color: PdfColors.grey400,
+                margin: const pw.EdgeInsets.only(right: 40),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'Name / Signature / Date',
+                style: const pw.TextStyle(
+                  fontSize: 8,
+                  color: PdfColors.grey500,
                 ),
-                pw.SizedBox(height: 4),
-                _summaryRow(
-                  'Amount Paid',
-                  'Ksh ${currencyFormat.format(sale.amountPaid)}',
-                  valueColor: PdfColors.green800,
-                ),
-                if (sale.remainingBalance > 0)
-                  _summaryRow(
-                    'Balance Due',
-                    'Ksh ${currencyFormat.format(sale.remainingBalance)}',
-                    bold: true,
-                    valueColor: PdfColors.red800,
-                  ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
-      ],
-    );
-  }
-
-  static pw.Widget _summaryRow(
-    String label,
-    String value, {
-    bool bold = false,
-    double fontSize = 9,
-    PdfColor? valueColor,
-  }) {
-    return pw.Padding(
-      padding: const pw.EdgeInsets.symmetric(vertical: 2),
-      child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-        children: [
-          pw.Text(
-            label,
-            style: pw.TextStyle(
-              fontSize: fontSize,
-              fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-              color: PdfColors.grey700,
-            ),
+        // Received By
+        pw.Expanded(
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                'Received By (Customer):',
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                  color: PdfColors.grey800,
+                ),
+              ),
+              pw.SizedBox(height: 30),
+              pw.Container(
+                height: 1,
+                color: PdfColors.grey400,
+                margin: const pw.EdgeInsets.only(right: 40),
+              ),
+              pw.SizedBox(height: 4),
+              pw.Text(
+                'Name / Signature / Date',
+                style: const pw.TextStyle(
+                  fontSize: 8,
+                  color: PdfColors.grey500,
+                ),
+              ),
+            ],
           ),
-          pw.Text(
-            value,
-            style: pw.TextStyle(
-              fontSize: fontSize,
-              fontWeight: bold ? pw.FontWeight.bold : pw.FontWeight.normal,
-              color: valueColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _buildPaymentsSection(
-    List<Payment> payments,
-    NumberFormat currencyFormat,
-    DateFormat dateFormat,
-  ) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
-      children: [
-        pw.Text(
-          'PAYMENT HISTORY',
-          style: pw.TextStyle(
-            fontSize: 9,
-            fontWeight: pw.FontWeight.bold,
-            color: accentColor,
-            letterSpacing: 1,
-          ),
-        ),
-        pw.SizedBox(height: 8),
-        pw.TableHelper.fromTextArray(
-          border: pw.TableBorder.all(color: borderColor, width: 0.5),
-          headerDecoration: const pw.BoxDecoration(color: lightGrey),
-          headerStyle: pw.TextStyle(
-            fontSize: 8,
-            fontWeight: pw.FontWeight.bold,
-          ),
-          cellStyle: const pw.TextStyle(fontSize: 8),
-          cellHeight: 24,
-          headers: ['Date', 'Method', 'Reference', 'Amount'],
-          data: payments.map((p) {
-            return [
-              dateFormat.format((p.createdAt ?? DateTime.now()).toLocal()),
-              p.paymentMethod,
-              p.referenceNumber ?? '—',
-              'Ksh ${currencyFormat.format(p.amount)}',
-            ];
-          }).toList(),
         ),
       ],
     );

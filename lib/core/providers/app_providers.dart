@@ -202,7 +202,7 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
 
   BranchSelectionState _getInitialState() {
     try {
-      final user = Supabase.instance.client.auth.currentUser;
+      final user = ref.watch(authStateProvider).value;
       final profile = ref.read(currentProfileProvider);
       final isOwner = ref.read(isOwnerProvider);
 

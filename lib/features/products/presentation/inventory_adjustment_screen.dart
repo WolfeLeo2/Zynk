@@ -689,7 +689,10 @@ class _InventoryAdjustmentScreenState
                                     const SizedBox(height: 16),
                                 itemBuilder: (context, index) {
                                   final item = batchItems[index];
-                                  return _BatchItemCard(item: item);
+                                  return _BatchItemCard(
+                                    item: item,
+                                    selectedBranchIds: _selectedBranchIds,
+                                  );
                                 },
                               ),
                       ),
@@ -839,8 +842,12 @@ class _InventoryAdjustmentScreenState
 
 class _BatchItemCard extends ConsumerStatefulWidget {
   final BatchItemState item;
+  final Set<String> selectedBranchIds;
 
-  const _BatchItemCard({required this.item});
+  const _BatchItemCard({
+    required this.item,
+    required this.selectedBranchIds,
+  });
 
   @override
   ConsumerState<_BatchItemCard> createState() => _BatchItemCardState();
@@ -891,8 +898,13 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final product = widget.item.product;
-    final stockAsync = ref.watch(stockProvider(product.id));
-    final currentStock = stockAsync.value?.quantity ?? 0;
+    final branchStocksAsync = ref.watch(branchStocksProvider(product.id));
+    
+    final currentStock = branchStocksAsync.value
+            ?.where((s) => widget.selectedBranchIds.contains(s.branchId))
+            .fold<int>(0, (sum, s) => sum + s.quantity) ??
+        0;
+
     final newStock = currentStock + widget.item.quantityChange;
 
     return Container(

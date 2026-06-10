@@ -1427,6 +1427,8 @@ class PowerSyncRepository {
     String? tenantId,
     String? branchId,
     InvoiceStatus? status,
+    DateTime? startDate,
+    DateTime? endDate,
     int limit = 50,
   }) {
     var sql = 'SELECT * FROM sales WHERE 1=1';
@@ -1443,6 +1445,14 @@ class PowerSyncRepository {
     if (status != null) {
       sql += ' AND status = ?';
       params.add(status.value);
+    }
+    if (startDate != null) {
+      sql += ' AND created_at >= ?';
+      params.add(startDate.toIso8601String());
+    }
+    if (endDate != null) {
+      sql += ' AND created_at <= ?';
+      params.add(endDate.toIso8601String());
     }
     sql += ' ORDER BY created_at DESC LIMIT ?';
     params.add(limit);

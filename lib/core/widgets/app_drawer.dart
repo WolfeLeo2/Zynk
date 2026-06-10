@@ -6,6 +6,8 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/core/services/auth_service.dart';
+import 'package:zynk/core/providers/app_providers.dart';
 
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
@@ -15,8 +17,19 @@ class AppDrawer extends ConsumerWidget {
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final profileAsync = ref.watch(currentUserProfileProvider);
-    final displayName = profileAsync.value?.displayName ?? 'Business Owner';
+    final user = ref.watch(authStateProvider).value;
+    final tenant = ref.watch(currentTenantProvider).value;
+    
+    final displayName = profileAsync.value?.displayName ?? 
+        user?.userMetadata?['display_name'] as String? ?? 
+        'Business Owner';
     final photoUrl = profileAsync.value?.profilePictureUrl;
+    
+    // Attempt to dynamically break the tenant name into two lines if it contains a space
+    String shopName = tenant?.name ?? user?.userMetadata?['shop_name'] as String? ?? 'Passionate Homes';
+    if (shopName.contains(' ') && !shopName.contains('\n')) {
+      shopName = shopName.replaceFirst(' ', '\n');
+    }
 
     final currentPath = GoRouterState.of(context).uri.path;
 
@@ -47,8 +60,7 @@ class AppDrawer extends ConsumerWidget {
                 ),
                 const SizedBox(width: 12),
                 Text(
-                  //chanegd from Zynk to PH for client needs
-                  'Passionate\nHomes',
+                  shopName,
                   overflow: TextOverflow.ellipsis,
                   style: theme.textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.bold,

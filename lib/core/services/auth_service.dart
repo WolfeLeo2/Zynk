@@ -1,6 +1,7 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:zynk/data/local/repository.dart';
+import 'package:zynk/core/config/powersync.dart';
 
 import '../../core/providers/app_providers.dart';
 
@@ -38,7 +39,7 @@ class AuthService {
     String? businessPhone,
     String? logoUrl,
   }) async {
-    return await _supabase.auth.signUp(
+    final response = await _supabase.auth.signUp(
       email: email,
       password: password,
       data: {
@@ -50,11 +51,16 @@ class AuthService {
         'logo_url': logoUrl,
       },
     );
+    // Reconnect PowerSync after successful auth since sign out disconnects it
+    db.connect(connector: SupabaseConnector(_supabase));
+    return response;
   }
 
   // 2. Sign In (Staff or Owner)
   Future<void> signIn({required String email, required String password}) async {
     await _supabase.auth.signInWithPassword(email: email, password: password);
+    // Reconnect PowerSync after successful auth since sign out disconnects it
+    db.connect(connector: SupabaseConnector(_supabase));
     await _ensureLocalProfile();
   }
 

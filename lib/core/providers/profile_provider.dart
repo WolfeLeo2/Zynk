@@ -6,6 +6,7 @@ import 'package:zynk/core/models/schema_models.dart';
 
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/services/app_logger.dart';
+import 'package:zynk/core/services/auth_service.dart';
 
 // Provider to get the current user's profile from local DB
 // synchronized with the current authenticated user.
@@ -14,7 +15,7 @@ final currentUserProfileProvider = StreamProvider<Profile?>((ref) {
   // shouldn't wipe the local profile data off the screen.
   // Instead, we just read the current user ID and watch the local database.
 
-  final user = Supabase.instance.client.auth.currentUser;
+  final user = ref.watch(authStateProvider).value;
 
   if (user == null) {
     return Stream.value(null);

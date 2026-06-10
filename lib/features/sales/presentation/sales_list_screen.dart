@@ -10,6 +10,7 @@ import 'package:shimmer/shimmer.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/shared/widgets/branch_filter_chips.dart';
+import 'package:zynk/shared/widgets/date_range_filter.dart';
 
 class SalesListScreen extends ConsumerStatefulWidget {
   const SalesListScreen({super.key});
@@ -20,14 +21,36 @@ class SalesListScreen extends ConsumerStatefulWidget {
 
 class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   Object? _filter; // null = All, InvoiceStatus = exact, 'outstanding' = special
-  String?
-  _branchFilter; // null = current branch selection, specific branchId = filter
+  String? _branchFilter; // null = current branch selection, specific branchId = filter
+  
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 200) {
+      ref.read(salesListLimitProvider.notifier).increment(50);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final salesAsync = ref.watch(salesListProvider);
+    final salesAsync = ref.watch(filteredSalesListProvider(
+      (branchId: _branchFilter, status: _filter),
+    ));
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -45,10 +68,21 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
         ),
         title: const Text('Sales & Invoices'),
         actions: [
+          Center(
+            child: DateRangeFilter(
+              selectedRange: ref.watch(salesListDateRangeProvider),
+              onChanged: (range) {
+                ref.read(salesListLimitProvider.notifier).reset();
+                ref.read(salesListDateRangeProvider.notifier).setRange(range);
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
           IconButton(
             icon: const PhosphorIcon(PhosphorIconsRegular.magnifyingGlass),
             onPressed: () {}, // TODO: search
           ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -58,14 +92,22 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           const Divider(height: 1),
           // Sales list
           Expanded(
-            child: salesAsync.when(
-              data: (sales) {
-                // Apply branch filter client-side
-                var branchFiltered = _branchFilter == null
-                    ? sales
-                    : sales.where((s) => s.branchId == _branchFilter).toList();
+            child: Builder(
+              builder: (context) {
+                if (salesAsync.isLoading && !salesAsync.hasValue) {
+                  return _SalesListSkeleton();
+                }
+                if (salesAsync.hasError && !salesAsync.hasValue) {
+                  return Center(child: Text('Error: ${salesAsync.error}'));
+                }
+                
+                final sales = salesAsync.value ?? [];
 
-                final filtered = _filter == null
+                // Branch filtering is handled server-side now by the provider
+                final branchFiltered = sales;
+
+                final filtered = _filter == null || _filter is InvoiceStatus
+                    // InvoiceStatus is handled server-side, everything else handled here
                     ? branchFiltered
                     : _filter == 'outstanding'
                     ? branchFiltered
@@ -76,8 +118,6 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                                 !s.isOperationallyCompleted,
                           )
                           .toList()
-                    : _filter is InvoiceStatus
-                    ? branchFiltered.where((s) => s.status == _filter).toList()
                     : _filter is PaymentStatus
                     ? branchFiltered
                           .where((s) => s.paymentStatus == _filter)
@@ -93,14 +133,23 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                 }
 
                 return ListView.separated(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: filtered.length,
+                  itemCount: filtered.length + (salesAsync.isLoading ? 1 : 0),
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _SaleCard(sale: filtered[i]),
+                  itemBuilder: (_, i) {
+                    if (i == filtered.length) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+                    return _SaleCard(sale: filtered[i]);
+                  },
                 );
               },
-              loading: () => _SalesListSkeleton(),
-              error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
         ],

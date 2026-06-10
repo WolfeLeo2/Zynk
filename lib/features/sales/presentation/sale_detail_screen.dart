@@ -19,6 +19,7 @@ import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_image_export.dart';
 import 'package:zynk/features/sales/presentation/printing/invoice_template.dart';
 import 'package:zynk/features/sales/presentation/printing/receipt_template.dart';
+import 'package:zynk/features/sales/presentation/printing/delivery_note_template.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
 
@@ -120,18 +121,19 @@ class SaleDetailScreen extends ConsumerWidget {
                 ),
                 tooltip: 'Print',
                 onSelected: (value) {
-                  if (value == 'print_receipt') {
-                    _handlePrint(context, ref, sale, asReceipt: true);
-                    return;
-                  }
-                  _handlePrint(context, ref, sale, asReceipt: false);
+                  _handlePrint(context, ref, sale, documentType: value);
                 },
                 itemBuilder: (_) => [
-                  if (sale.saleType != 'pos_sale')
+                  if (sale.saleType != 'pos_sale') ...[
                     const PopupMenuItem(
                       value: 'print_invoice',
                       child: Text('Print Invoice'),
                     ),
+                    const PopupMenuItem(
+                      value: 'print_delivery_note',
+                      child: Text('Print Delivery Note'),
+                    ),
+                  ],
                   const PopupMenuItem(
                     value: 'print_receipt',
                     child: Text('Print Receipt'),
@@ -407,13 +409,13 @@ class SaleDetailScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Sale sale, {
-    required bool asReceipt,
+    required String documentType,
   }) async {
     final payload = await _preparePrintablePayload(
       context,
       ref,
       sale,
-      asReceipt: asReceipt,
+      documentType: documentType,
     );
     if (payload == null) {
       return;
@@ -434,7 +436,7 @@ class SaleDetailScreen extends ConsumerWidget {
       context,
       ref,
       sale,
-      asReceipt: sale.saleType == 'pos_sale',
+      documentType: sale.saleType == 'pos_sale' ? 'print_receipt' : 'print_invoice',
     );
     if (payload == null) {
       return;
@@ -464,7 +466,7 @@ class SaleDetailScreen extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
     Sale sale, {
-    required bool asReceipt,
+    required String documentType,
   }) async {
     final itemsAsync = ref.read(saleItemsProvider(sale.id));
     final paymentsAsync = ref.read(salePaymentsProvider(sale.id));
@@ -486,11 +488,15 @@ class SaleDetailScreen extends ConsumerWidget {
     }
 
     String? customerName;
+    String? customerAddress;
+    String? customerPhone;
     if (sale.customerId != null && customersAsync.hasValue) {
       try {
-        customerName = customersAsync.value!
-            .firstWhere((c) => c.id == sale.customerId)
-            .name;
+        final customer = customersAsync.value!
+            .firstWhere((c) => c.id == sale.customerId);
+        customerName = customer.name;
+        customerAddress = null;
+        customerPhone = customer.phone;
       } catch (_) {}
     }
 
@@ -525,9 +531,20 @@ class SaleDetailScreen extends ConsumerWidget {
       }
     }
 
-    final useReceipt = asReceipt || sale.saleType == 'pos_sale';
     final pw.Document document;
-    if (useReceipt) {
+    if (documentType == 'print_delivery_note') {
+      document = DeliveryNoteTemplate.generate(
+        sale: sale,
+        items: items,
+        tenant: tenant,
+        branch: branch,
+        customerName: customerName,
+        customerAddress: customerAddress,
+        customerPhone: customerPhone,
+        salespersonName: salespersonName,
+        logoImage: logoImage,
+      );
+    } else if (documentType == 'print_receipt' || sale.saleType == 'pos_sale') {
       document = ReceiptTemplate.generate(
         sale: sale,
         items: items,
@@ -545,14 +562,22 @@ class SaleDetailScreen extends ConsumerWidget {
         tenant: tenant,
         branch: branch,
         customerName: customerName,
+        customerAddress: customerAddress,
+        customerPhone: customerPhone,
         salespersonName: salespersonName,
         logoImage: logoImage,
       );
     }
 
+    final fileName = documentType == 'print_delivery_note'
+        ? 'delivery_note_${sale.invoiceNumber ?? 'draft'}'
+        : documentType == 'print_receipt' || sale.saleType == 'pos_sale'
+            ? 'receipt_${sale.invoiceNumber ?? 'draft'}'
+            : 'invoice_${sale.invoiceNumber ?? 'draft'}';
+
     return _PrintablePayload(
       document: document,
-      fileName: sale.invoiceNumber ?? (useReceipt ? 'receipt' : 'invoice'),
+      fileName: fileName,
     );
   }
 

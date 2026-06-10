@@ -67,19 +67,19 @@ class TopSellingProductsList extends ConsumerWidget {
                     : m,
               );
 
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: products.length > 6 ? 6 : products.length,
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return _TopProductItem(
-                    product: product,
-                    index: index,
-                    maxSold: maxSold,
-                    colorScheme: colorScheme,
-                  );
-                },
+              return Column(
+                children: List.generate(
+                  products.length > 6 ? 6 : products.length,
+                  (index) {
+                    final product = products[index];
+                    return _TopProductItem(
+                      product: product,
+                      index: index,
+                      maxSold: maxSold,
+                      colorScheme: colorScheme,
+                    );
+                  },
+                ),
               );
             },
             loading: () => Column(
