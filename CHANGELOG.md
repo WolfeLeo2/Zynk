@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.2](https://github.com/WolfeLeo2/Zynk/compare/v1.1.1...v1.1.2) (2026-06-12)
+
+
+### Bug Fixes
+
+* correct key.properties path, heredoc indentation, and add pub get step ([5a1dcfe](https://github.com/WolfeLeo2/Zynk/commit/5a1dcfead7d7da27827b38eea9f84709f8a241dc))
+
 ## [1.1.1](https://github.com/WolfeLeo2/Zynk/compare/v1.1.0...v1.1.1) (2026-06-12)
 
 
