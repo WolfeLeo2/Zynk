@@ -63,10 +63,14 @@ jobs:
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           POWERSYNC_URL: ${{ secrets.POWERSYNC_URL }}
         run: |
-          flutter build apk --release \
-            --dart-define=SUPABASE_URL=$SUPABASE_URL \
-            --dart-define=SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY \
-            --dart-define=POWERSYNC_URL=$POWERSYNC_URL
+          cat <<EOF > dart_defines.json
+          {
+            "SUPABASE_URL": "$SUPABASE_URL",
+            "SUPABASE_ANON_KEY": "$SUPABASE_ANON_KEY",
+            "POWERSYNC_URL": "$POWERSYNC_URL"
+          }
+          EOF
+          flutter build apk --release --dart-define-from-file=dart_defines.json
 
       - name: Upload to Release
         uses: softprops/action-gh-release@v2
