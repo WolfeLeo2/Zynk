@@ -66,7 +66,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
             return const SizedBox.shrink();
           },
         ),
-        title: const Text('Sales & Invoices'),
+        title: const Text('Invoices'),
         actions: [
           Center(
             child: DateRangeFilter(

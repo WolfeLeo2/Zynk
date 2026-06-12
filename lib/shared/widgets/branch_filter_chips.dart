@@ -28,7 +28,7 @@ class BranchFilterChips extends ConsumerWidget {
       data: (branches) {
         if (branches.length <= 1) return const SizedBox.shrink();
         return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 8, 0, 0),
           child: Row(
             children: [
               PhosphorIcon(
@@ -36,7 +36,7 @@ class BranchFilterChips extends ConsumerWidget {
                 size: 16,
                 color: cs.onSurfaceVariant,
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               Expanded(
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
