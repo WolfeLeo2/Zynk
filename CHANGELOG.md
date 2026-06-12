@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.3](https://github.com/WolfeLeo2/Zynk/compare/v1.1.2...v1.1.3) (2026-06-12)
+
+
+### Bug Fixes
+
+* sales list branch filter and scroll improvements ([e73c763](https://github.com/WolfeLeo2/Zynk/commit/e73c7638b0b93df5ff76c1378e767cb77cecf558))
+
 ## [1.1.2](https://github.com/WolfeLeo2/Zynk/compare/v1.1.1...v1.1.2) (2026-06-12)
 
 
