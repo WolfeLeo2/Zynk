@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.1](https://github.com/WolfeLeo2/Zynk/compare/v1.1.0...v1.1.1) (2026-06-12)
+
+
+### Bug Fixes
+
+* revert to dart_defines.json for robust env var injection in CI ([736c40e](https://github.com/WolfeLeo2/Zynk/commit/736c40eb63b0d45737e23f4b646bc922e564dbe6))
+
 ## [1.1.0](https://github.com/WolfeLeo2/Zynk/compare/v1.0.0...v1.1.0) (2026-06-10)
 
 
