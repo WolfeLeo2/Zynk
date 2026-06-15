@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.5](https://github.com/WolfeLeo2/Zynk/compare/v1.1.4...v1.1.5) (2026-06-15)
+
+
+### Bug Fixes
+
+* clean fix secrets leak and bump setup-jave to v4 ([01e8009](https://github.com/WolfeLeo2/Zynk/commit/01e80097c3d920e7be7693ebd6e165aa7a896238))
+
 ## [1.1.4](https://github.com/WolfeLeo2/Zynk/compare/v1.1.3...v1.1.4) (2026-06-15)
 
 
