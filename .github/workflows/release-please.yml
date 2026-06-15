@@ -31,7 +31,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Setup Java
-        uses: actions/setup-java@v3
+        uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
@@ -49,6 +49,8 @@ jobs:
           KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         run: |
+          echo "::add-mask::$KEY_PASSWORD"
+          echo "::add-mask::$STORE_PASSWORD"
           echo $KEYSTORE_BASE64 | base64 --decode > android/app/upload-keystore.jks
           {
             echo "storePassword=$STORE_PASSWORD"
@@ -57,7 +59,6 @@ jobs:
             echo "storeFile=upload-keystore.jks"
           } > android/key.properties
           echo "=== key.properties written ==="
-          cat android/key.properties
 
       - name: Get Flutter dependencies
         run: flutter pub get
@@ -70,7 +71,6 @@ jobs:
         run: |
           printf '{\n  "SUPABASE_URL": "%s",\n  "SUPABASE_ANON_KEY": "%s",\n  "POWERSYNC_URL": "%s"\n}\n' \
             "$SUPABASE_URL" "$SUPABASE_ANON_KEY" "$POWERSYNC_URL" > dart_defines.json
-          cat dart_defines.json
           flutter build apk --release --dart-define-from-file=dart_defines.json
 
       - name: Upload to Release
