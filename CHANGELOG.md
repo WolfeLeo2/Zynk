@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.4](https://github.com/WolfeLeo2/Zynk/compare/v1.1.3...v1.1.4) (2026-06-15)
+
+
+### Bug Fixes
+
+* use getProperty for key.properties and add strict validation ([1185d42](https://github.com/WolfeLeo2/Zynk/commit/1185d42232dcf63b12f497da7e9441e76185bb45))
+
 ## [1.1.3](https://github.com/WolfeLeo2/Zynk/compare/v1.1.2...v1.1.3) (2026-06-12)
 
 
