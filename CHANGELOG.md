@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/WolfeLeo2/Zynk/compare/v1.1.5...v1.2.0) (2026-06-24)
+
+
+### Features
+
+* critical fixes from the review doc (all marked as resolved). Responsive changes (shared util to render either bottomsheet or alert dialogue depending on screen size) ([06bba25](https://github.com/WolfeLeo2/Zynk/commit/06bba25c503fe93c24de8245dd4cade0838fefb7))
+* critical fixes from the review doc (all marked as resolved). Responsive changes (shared util to render either bottomsheet or alert dialogue depending on screen size) ([3ede1cd](https://github.com/WolfeLeo2/Zynk/commit/3ede1cda18b7aae89cd4b07ba48318ca8262497d))
+
 ## [1.1.5](https://github.com/WolfeLeo2/Zynk/compare/v1.1.4...v1.1.5) (2026-06-15)
 
 
