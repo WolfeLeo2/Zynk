@@ -47,3 +47,10 @@ app.*.map.json
 /android/app/release
 android/upload-keystore.jks
 android/keystore_base64.txt
+
+# Scratch / one-off analysis artifacts
+analyze*.txt
+build_log.txt
+fix_styles.py
+migrate_icons.py
+test_products.csv
