@@ -64,6 +64,41 @@ class AuthService {
     await _ensureLocalProfile();
   }
 
+  // 2b. PIN login (Model B) — sign in as the real staffer whose PIN this is,
+  // then switch PowerSync to their session WITHOUT clearing local data.
+  // Requires connectivity (online-first). `pin-login` verifies the PIN
+  // server-side and mints a session we complete with verifyOTP.
+  Future<void> loginWithPin({
+    required String tenantId,
+    required String pin,
+  }) async {
+    final res = await _supabase.functions.invoke(
+      'pin-login',
+      body: {'tenant_id': tenantId, 'pin': pin},
+    );
+    if (res.status != 200) {
+      final data = res.data;
+      final msg = data is Map ? (data['error'] ?? 'Invalid PIN') : 'Invalid PIN';
+      throw Exception(msg.toString());
+    }
+    final tokenHash = (res.data as Map)['token_hash'] as String;
+    await _supabase.auth.verifyOTP(type: OtpType.magiclink, tokenHash: tokenHash);
+    await switchUser();
+    await _ensureLocalProfile();
+  }
+
+  /// Reconnect PowerSync to the current Supabase session WITHOUT clearing the
+  /// local DB. Used when switching between staff of the **same tenant**: the
+  /// buckets are identical, so a fresh connector just swaps the token and sync
+  /// resumes — no re-download. (Contrast `signOut`, which clears for a true
+  /// logout / tenant change.)
+  Future<void> switchUser() async {
+    await db.disconnect();
+    // A fresh connector has no cached credentials, so connect() re-runs
+    // fetchCredentials() and picks up the new user's token immediately.
+    db.connect(connector: SupabaseConnector(_supabase));
+  }
+
   // 3. Sign Out
   Future<void> signOut() async {
     // Clear local db first to avoid flashing data from previous user
