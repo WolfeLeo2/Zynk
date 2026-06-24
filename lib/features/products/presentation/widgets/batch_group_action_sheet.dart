@@ -10,7 +10,8 @@ class BatchGroupActionSheet extends ConsumerStatefulWidget {
   final String title;
   final String actionLabel;
   final Widget? infoBox;
-  final Widget Function(BuildContext context, StateSetter setState) configBuilder;
+  final Widget Function(BuildContext context, StateSetter setState)
+  configBuilder;
   final Widget Function(BuildContext context, Product product, bool isSelected)
   itemTrailingBuilder;
   final Future<void> Function(Set<String> selectedIds) onConfirm;
@@ -123,17 +124,16 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                       );
                     }
 
-                    final filtered =
-                        items.where((p) {
-                          if (_searchQuery.isEmpty) return true;
-                          return p.name.toLowerCase().contains(
+                    final filtered = items.where((p) {
+                      if (_searchQuery.isEmpty) return true;
+                      return p.name.toLowerCase().contains(
+                            _searchQuery.toLowerCase(),
+                          ) ||
+                          (p.sku?.toLowerCase().contains(
                                 _searchQuery.toLowerCase(),
-                              ) ||
-                              (p.sku?.toLowerCase().contains(
-                                    _searchQuery.toLowerCase(),
-                                  ) ??
-                                  false);
-                        }).toList();
+                              ) ??
+                              false);
+                    }).toList();
 
                     return Column(
                       children: [
@@ -160,10 +160,11 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                                     child: SearchBar(
                                       controller: _searchController,
                                       hintText: 'Search items...',
-                                      onChanged:
-                                          (val) =>
-                                              setState(() => _searchQuery = val),
-                                      elevation: const WidgetStatePropertyAll(0),
+                                      onChanged: (val) =>
+                                          setState(() => _searchQuery = val),
+                                      elevation: const WidgetStatePropertyAll(
+                                        0,
+                                      ),
                                       backgroundColor: WidgetStatePropertyAll(
                                         cs.surfaceContainerHighest.withAlpha(
                                           100,
@@ -217,12 +218,15 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                               M3ECardList(
                                 color: cs.surface,
                                 elevation: 0.5,
-                                padding: const EdgeInsets.symmetric(vertical: 8),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
                                 itemCount: filtered.length,
                                 itemBuilder: (context, index) {
                                   final item = filtered[index];
-                                  final isSelected =
-                                      _selectedIds.contains(item.id);
+                                  final isSelected = _selectedIds.contains(
+                                    item.id,
+                                  );
 
                                   return CheckboxListTile(
                                     value: isSelected,
@@ -269,8 +273,8 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                       ],
                     );
                   },
-                  loading:
-                      () => const Center(child: CircularProgressIndicator()),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
                   error: (e, _) => Center(child: Text('Error: $e')),
                 ),
               ),
@@ -292,44 +296,42 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                   width: double.infinity,
                   height: 56,
                   child: FilledButton(
-                    onPressed:
-                        (_selectedIds.isEmpty || _isLoading)
-                            ? null
-                            : () async {
-                                setState(() => _isLoading = true);
-                                try {
-                                  await widget.onConfirm(_selectedIds);
-                                  if (context.mounted) {
-                                    Navigator.pop(context);
-                                  }
-                                } finally {
-                                  if (mounted) {
-                                    setState(() => _isLoading = false);
-                                  }
-                                }
-                              },
+                    onPressed: (_selectedIds.isEmpty || _isLoading)
+                        ? null
+                        : () async {
+                            setState(() => _isLoading = true);
+                            try {
+                              await widget.onConfirm(_selectedIds);
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                              }
+                            } finally {
+                              if (mounted) {
+                                setState(() => _isLoading = false);
+                              }
+                            }
+                          },
                     style: FilledButton.styleFrom(
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
                     ),
-                    child:
-                        _isLoading
-                            ? const SizedBox(
-                                width: 24,
-                                height: 24,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : Text(
-                                '${widget.actionLabel} (${_selectedIds.length} Items)',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
+                    child: _isLoading
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Text(
+                            '${widget.actionLabel} (${_selectedIds.length} Items)',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
                   ),
                 ),
               ),

@@ -18,10 +18,12 @@ class PowerSyncRepository {
   };
 
   PowerSyncRepository(this._db);
-  
+
   // Deterministic UUID Namespaces for relationship tables
-  static const String _productBranchNamespace = 'e7b8c8d8-e8f8-4a8a-b8c8-d8e8f8a8b8c8';
-  static const String _profileBranchNamespace = 'f8a8b8c8-d8e8-4a8a-b8c8-d8e8f8a8b8c8';
+  static const String _productBranchNamespace =
+      'e7b8c8d8-e8f8-4a8a-b8c8-d8e8f8a8b8c8';
+  static const String _profileBranchNamespace =
+      'f8a8b8c8-d8e8-4a8a-b8c8-d8e8f8a8b8c8';
 
   PowerSyncDatabase get db => _db;
 
@@ -102,7 +104,9 @@ class PowerSyncRepository {
     );
 
     if (response.status != 200) {
-      throw Exception(response.data?['error'] ?? 'Failed to update user auth status');
+      throw Exception(
+        response.data?['error'] ?? 'Failed to update user auth status',
+      );
     }
 
     // 2. Update local DB status (PowerSync will sync this)
@@ -113,10 +117,15 @@ class PowerSyncRepository {
   }
 
   Stream<List<String>> watchProfileBranchIds(String profileId) {
-    return _db.watch(
-      'SELECT branch_id FROM profile_branches WHERE profile_id = ?',
-      parameters: [profileId],
-    ).map((results) => results.map((row) => row['branch_id'] as String).toList());
+    return _db
+        .watch(
+          'SELECT branch_id FROM profile_branches WHERE profile_id = ?',
+          parameters: [profileId],
+        )
+        .map(
+          (results) =>
+              results.map((row) => row['branch_id'] as String).toList(),
+        );
   }
 
   Future<void> deleteProfile(String userId) async {
@@ -172,10 +181,9 @@ class PowerSyncRepository {
       );
 
       // 2. Clear old branch assignments then re-insert
-      await tx.execute(
-        'DELETE FROM profile_branches WHERE profile_id = ?',
-        [profileId],
-      );
+      await tx.execute('DELETE FROM profile_branches WHERE profile_id = ?', [
+        profileId,
+      ]);
 
       for (final branchId in branchIds) {
         final deterministicId = const Uuid().v5(
@@ -224,7 +232,8 @@ class PowerSyncRepository {
 
     if (response.status != 200) {
       throw Exception(
-          response.data?['error'] ?? 'Failed to update staff auth metadata');
+        response.data?['error'] ?? 'Failed to update staff auth metadata',
+      );
     }
   }
 
@@ -258,11 +267,15 @@ class PowerSyncRepository {
 
     sql += " ORDER BY name ASC";
 
-    return _db.watch(sql, parameters: params).map(
-      (results) => results
-          .map((row) => StaffMember.fromJson(Map<String, dynamic>.from(row)))
-          .toList(),
-    );
+    return _db
+        .watch(sql, parameters: params)
+        .map(
+          (results) => results
+              .map(
+                (row) => StaffMember.fromJson(Map<String, dynamic>.from(row)),
+              )
+              .toList(),
+        );
   }
 
   Future<void> createStaffMember(StaffMember member) async {
@@ -290,16 +303,16 @@ class PowerSyncRepository {
       '''UPDATE staff_members
         SET name = ?, phone = ?, email = ?, profile_picture_url = ?, status = ?, branch_id = ?, updated_at = ?
         WHERE id = ?''',
-        [
-          member.name,
-          member.phone,
-          member.email,
-          member.profilePictureUrl,
-          member.status.name,
-          member.branchId,
-          DateTime.now().toIso8601String(),
-          member.id,
-        ],
+      [
+        member.name,
+        member.phone,
+        member.email,
+        member.profilePictureUrl,
+        member.status.name,
+        member.branchId,
+        DateTime.now().toIso8601String(),
+        member.id,
+      ],
     );
   }
 
@@ -313,10 +326,12 @@ class PowerSyncRepository {
 
   // --- Products ---
   Stream<List<Product>> watchProductsByGroup(String groupId) {
-    return _db.watch(
-      'SELECT * FROM products WHERE item_group_id = ? ORDER BY name ASC',
-      parameters: [groupId],
-    ).map((results) => results.map((m) => Product.fromMap(m)).toList());
+    return _db
+        .watch(
+          'SELECT * FROM products WHERE item_group_id = ? ORDER BY name ASC',
+          parameters: [groupId],
+        )
+        .map((results) => results.map((m) => Product.fromMap(m)).toList());
   }
 
   Future<List<Product>> getProductsByGroup(String groupId) async {
@@ -517,8 +532,9 @@ class PowerSyncRepository {
           'SELECT branch_id FROM product_branches WHERE product_id = ?',
           [product.id],
         );
-        final currentBranchIds =
-            currentRows.map((row) => row['branch_id'] as String).toSet();
+        final currentBranchIds = currentRows
+            .map((row) => row['branch_id'] as String)
+            .toSet();
         final targetBranchIds = normalizedBranchIds.toSet();
 
         // 1. Remove branches that are no longer targeted
@@ -655,6 +671,16 @@ class PowerSyncRepository {
     return rows.isNotEmpty ? (rows.first['quantity'] as num?)?.toInt() ?? 0 : 0;
   }
 
+  /// Like [getProductStockValue] but returns null when no stock row exists,
+  /// so callers can distinguish "0 in stock" from "not stock-tracked".
+  Future<int?> getProductStockOrNull(String productId, String branchId) async {
+    final row = await _db.getOptional(
+      'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
+      [productId, branchId],
+    );
+    return row == null ? null : (row['quantity'] as num?)?.toInt() ?? 0;
+  }
+
   Stream<List<Map<String, dynamic>>> watchLowStockProducts({
     required String tenantId,
     String? branchId,
@@ -666,7 +692,8 @@ class PowerSyncRepository {
       params.add(branchId);
     }
 
-    return _db.watch('''
+    return _db
+        .watch('''
       SELECT p.id, p.name, p.image_url, st.quantity, st.reorder_level 
       FROM products p
       JOIN stock st ON p.id = st.product_id
@@ -675,7 +702,8 @@ class PowerSyncRepository {
         AND st.quantity >= 0
       ORDER BY st.quantity ASC
       LIMIT 20
-    ''', parameters: params).map((results) => results.toList());
+    ''', parameters: params)
+        .map((results) => results.toList());
   }
 
   Stream<List<StockAdjustment>> watchProductStockHistory(
@@ -722,7 +750,7 @@ class PowerSyncRepository {
       LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
       WHERE sa.product_id = ?
     ''';
-    
+
     var sql2 = '''
       SELECT 
         si.id, s.created_at, 'sale' as type, -si.quantity as quantity, 
@@ -741,7 +769,7 @@ class PowerSyncRepository {
     if (branchId != null && branchId != 'all') {
       sql += ' AND sa.branch_id = ?';
       params.add(branchId);
-      
+
       sql2 += ' AND s.branch_id = ?';
       params2.add(branchId);
     }
@@ -760,7 +788,8 @@ class PowerSyncRepository {
     required String tenantId,
     required String branchId,
     required String productId,
-    required String adjustmentType, // 'addition', 'reduction', 'initial', 'damage'
+    required String
+    adjustmentType, // 'addition', 'reduction', 'initial', 'damage'
     required int quantityChange,
     required String createdBy,
     String? referenceNumber,
@@ -847,7 +876,7 @@ class PowerSyncRepository {
     await _db.writeTransaction((tx) async {
       final now = DateTime.now().toUtc().toIso8601String();
       final bundleId = const Uuid().v4();
-      
+
       for (final item in items) {
         if (item.quantityChange == 0) continue;
 
@@ -1041,9 +1070,9 @@ class PowerSyncRepository {
   }
 
   Stream<ItemGroup?> watchItemGroup(String id) {
-    return _db.watch('SELECT * FROM item_groups WHERE id = ?', parameters: [
-      id,
-    ]).map((rows) => rows.isNotEmpty ? ItemGroup.fromMap(rows.first) : null);
+    return _db
+        .watch('SELECT * FROM item_groups WHERE id = ?', parameters: [id])
+        .map((rows) => rows.isNotEmpty ? ItemGroup.fromMap(rows.first) : null);
   }
 
   Future<void> createItemGroup(ItemGroup group) async {
@@ -1429,6 +1458,7 @@ class PowerSyncRepository {
     InvoiceStatus? status,
     DateTime? startDate,
     DateTime? endDate,
+    String? searchQuery,
     int limit = 50,
   }) {
     var sql = 'SELECT * FROM sales WHERE 1=1';
@@ -1453,6 +1483,11 @@ class PowerSyncRepository {
     if (endDate != null) {
       sql += ' AND created_at <= ?';
       params.add(endDate.toIso8601String());
+    }
+    if (searchQuery != null && searchQuery.isNotEmpty) {
+      sql += ' AND (invoice_number LIKE ? OR customer_id IN (SELECT id FROM customers WHERE name LIKE ?))';
+      params.add('%$searchQuery%');
+      params.add('%$searchQuery%');
     }
     sql += ' ORDER BY created_at DESC LIMIT ?';
     params.add(limit);
@@ -1887,8 +1922,10 @@ class PowerSyncRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
-    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+    final startTs =
+        '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs =
+        '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     if (branchId != null && branchId != 'all') {
       return _db
@@ -2038,8 +2075,10 @@ class PowerSyncRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
-    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+    final startTs =
+        '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs =
+        '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     if (branchId != null && branchId != 'all') {
       return _db
@@ -2089,8 +2128,10 @@ class PowerSyncRepository {
     required DateTime endDate,
     int limit = 8,
   }) {
-    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
-    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+    final startTs =
+        '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs =
+        '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     final params = <dynamic>[tenantId, startTs, endTs];
     var branchFilter = '';
@@ -2131,8 +2172,10 @@ class PowerSyncRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
-    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+    final startTs =
+        '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs =
+        '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     if (branchId != null && branchId != 'all') {
       return _db
@@ -2194,9 +2237,9 @@ class PowerSyncRepository {
 
     sql += " ORDER BY created_at ASC";
 
-    return _db.watch(sql, parameters: params).map(
-      (results) => results.map((row) => Profile.fromMap(row)).toList(),
-    );
+    return _db
+        .watch(sql, parameters: params)
+        .map((results) => results.map((row) => Profile.fromMap(row)).toList());
   }
 
   /// Watch daily sales aggregated data for charts (last [days] days)
@@ -2239,8 +2282,10 @@ class PowerSyncRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    final startTsString = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
-    final endTsString = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+    final startTsString =
+        '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTsString =
+        '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
     final startDay = startDate.toUtc().toIso8601String().substring(0, 10);
     final endDay = endDate.toUtc().toIso8601String().substring(0, 10);
 
@@ -2329,7 +2374,14 @@ class PowerSyncRepository {
           WHERE NOT EXISTS (SELECT 1 FROM snapshot_data s WHERE s.day = r.day)
           ORDER BY day ASC
           ''',
-          parameters: [tenantId, startDay, endDay, tenantId, startTsString, endTsString],
+          parameters: [
+            tenantId,
+            startDay,
+            endDay,
+            tenantId,
+            startTsString,
+            endTsString,
+          ],
         )
         .map((rows) => rows.toList());
   }
@@ -2341,8 +2393,10 @@ class PowerSyncRepository {
     required DateTime startDate,
     required DateTime endDate,
   }) {
-    final startTs = '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
-    final endTs = '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
+    final startTs =
+        '${startDate.toUtc().toIso8601String().substring(0, 10)}T00:00:00';
+    final endTs =
+        '${endDate.toUtc().toIso8601String().substring(0, 10)}T23:59:59';
 
     String sql = '''
       WITH invoice_profit AS (
@@ -2359,14 +2413,14 @@ class PowerSyncRepository {
           AND s.created_at <= ?
           AND s.status NOT IN ('draft', 'voided', 'rejected', 'pending_approval')
     ''';
-    
+
     final params = <dynamic>[tenantId, startTs, endTs];
-    
+
     if (branchId != null && branchId != 'all') {
       sql += ' AND s.branch_id = ?';
       params.add(branchId);
     }
-    
+
     sql += '''
         GROUP BY s.id, s.created_at, s.discount_amount
       )
@@ -2639,12 +2693,17 @@ class PowerSyncRepository {
       ORDER BY p.name ASC
     ''';
 
-    return _db.watch(sql, parameters: [
-      tenantId, branchId, // received CTE
-      tenantId, branchId, // sold CTE
-      tenantId, branchId, // available CTE
-      tenantId,           // products WHERE
-    ]).map((rows) => rows.toList());
+    return _db
+        .watch(
+          sql,
+          parameters: [
+            tenantId, branchId, // received CTE
+            tenantId, branchId, // sold CTE
+            tenantId, branchId, // available CTE
+            tenantId, // products WHERE
+          ],
+        )
+        .map((rows) => rows.toList());
   }
 
   Stream<List<StockAdjustment>> watchStockAdjustmentsByBundle(String bundleId) {
@@ -2681,8 +2740,7 @@ class PowerSyncRepository {
       final now = DateTime.now().toUtc().toIso8601String();
 
       // 1. Find pending adjustments to approve
-      final String whereClause =
-          bundleId != null ? 'bundle_id = ?' : 'id = ?';
+      final String whereClause = bundleId != null ? 'bundle_id = ?' : 'id = ?';
       final dynamic filterVal = bundleId ?? adjustmentId;
 
       final rows = await tx.getAll(
@@ -2738,8 +2796,7 @@ class PowerSyncRepository {
   }) async {
     await _db.writeTransaction((tx) async {
       final now = DateTime.now().toUtc().toIso8601String();
-      final String whereClause =
-          bundleId != null ? 'bundle_id = ?' : 'id = ?';
+      final String whereClause = bundleId != null ? 'bundle_id = ?' : 'id = ?';
       final dynamic filterVal = bundleId ?? adjustmentId;
 
       await tx.execute(
@@ -2867,15 +2924,17 @@ class PowerSyncRepository {
   }
 
   /// Mark a commission as paid.
-  /// 
+  ///
   /// [WARNING] This table is server-authoritative. Direct writes from the client
   /// are blocked by PowerSync. Use [CommissionService] instead.
   Future<void> markCommissionPaid(String commissionId) async {
-    throw UnimplementedError('Direct writes to commissions table are blocked. Use CommissionService.');
+    throw UnimplementedError(
+      'Direct writes to commissions table are blocked. Use CommissionService.',
+    );
   }
 
   /// Mark ALL pending commissions for a salesperson as paid.
-  /// 
+  ///
   /// [WARNING] This table is server-authoritative. Direct writes from the client
   /// are blocked by PowerSync. Use [CommissionService] instead.
   Future<void> markAllCommissionsPaid({
@@ -2883,7 +2942,9 @@ class PowerSyncRepository {
     required String salespersonId,
     String? branchId,
   }) async {
-    throw UnimplementedError('Direct writes to commissions table are blocked. Use CommissionService.');
+    throw UnimplementedError(
+      'Direct writes to commissions table are blocked. Use CommissionService.',
+    );
   }
 
   Future<void> updateStockAdjustmentQuantity({

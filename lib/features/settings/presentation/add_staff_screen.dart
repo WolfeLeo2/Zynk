@@ -154,9 +154,9 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
 
       if (mounted) {
         context.pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Staff member updated!')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Staff member updated!')));
       }
     } catch (e) {
       if (mounted) _showError('Error updating staff: $e');
@@ -325,7 +325,9 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     keyboardType: TextInputType.emailAddress,
                     decoration: InputDecoration(
                       hintText: 'e.g., staff@example.com',
-                      prefixIcon: const PhosphorIcon(PhosphorIconsRegular.envelope),
+                      prefixIcon: const PhosphorIcon(
+                        PhosphorIconsRegular.envelope,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),
@@ -348,7 +350,9 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                     obscureText: true,
                     decoration: InputDecoration(
                       hintText: 'At least 6 characters',
-                      prefixIcon: const PhosphorIcon(PhosphorIconsRegular.lockKey),
+                      prefixIcon: const PhosphorIcon(
+                        PhosphorIconsRegular.lockKey,
+                      ),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(16),
                       ),

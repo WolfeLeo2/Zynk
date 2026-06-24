@@ -287,7 +287,6 @@ class InvoiceTemplate {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
-
               if (sale.salespersonId != null)
                 _infoRow(
                   'Salesperson',

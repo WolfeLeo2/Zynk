@@ -113,6 +113,7 @@ class SkeletonListItem extends StatelessWidget {
     );
   }
 }
+
 class SkeletonText extends StatelessWidget {
   final double width;
   final double height;

@@ -19,7 +19,7 @@ class AddItemGroupScreen extends ConsumerStatefulWidget {
 
 class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
   final _formKey = GlobalKey<FormState>();
-  
+
   final _nameController = TextEditingController();
   final _descController = TextEditingController();
   final _commissionValueController = TextEditingController();
@@ -29,9 +29,9 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
 
   String _commissionType = 'none';
   String _pricingUnit = 'piece';
-  
+
   Set<String> _assignedProductIds = {};
-  
+
   bool _isSaving = false;
 
   @override
@@ -47,7 +47,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
 
   Future<void> _selectProducts() async {
     final products = ref.read(allProductsProvider).value ?? [];
-    
+
     final selectedIds = await ProductSelectionSheet.show(
       context,
       availableProducts: products,
@@ -67,14 +67,14 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
     final profile = ref.read(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? '';
     final branchId = ref.read(currentBranchIdProvider) ?? '';
-    
+
     if (tenantId.isEmpty || branchId.isEmpty) return;
 
     setState(() => _isSaving = true);
 
     try {
       final repo = ref.read(repositoryProvider);
-      
+
       final commissionValue = double.tryParse(_commissionValueController.text);
       final sellingPrice = double.tryParse(_sellingPriceController.text);
       final buyingPrice = double.tryParse(_buyingPriceController.text);
@@ -86,9 +86,15 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
         tenantId: tenantId,
         branchId: branchId,
         name: _nameController.text.trim(),
-        description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
-        defaultCommissionType: _commissionType == 'none' ? null : _commissionType,
-        defaultCommissionValue: _commissionType == 'none' ? null : commissionValue,
+        description: _descController.text.trim().isEmpty
+            ? null
+            : _descController.text.trim(),
+        defaultCommissionType: _commissionType == 'none'
+            ? null
+            : _commissionType,
+        defaultCommissionValue: _commissionType == 'none'
+            ? null
+            : commissionValue,
         defaultSellingPrice: sellingPrice,
         defaultBuyingPrice: buyingPrice,
         defaultPricingUnit: _pricingUnit,
@@ -98,15 +104,20 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
       // Handle product assignment mismatches before saving group
       Map<String, bool>? resolutionDecisions = {};
       final products = ref.read(allProductsProvider).value ?? [];
-      final assignedProducts = products.where((p) => _assignedProductIds.contains(p.id)).toList();
+      final assignedProducts = products
+          .where((p) => _assignedProductIds.contains(p.id))
+          .toList();
 
       if (assignedProducts.isNotEmpty) {
-        final mismatchedProducts = assignedProducts.where((p) => 
-          p.pricingUnit != group.defaultPricingUnit ||
-          p.coveragePerBox != group.defaultCoveragePerBox ||
-          p.basePrice != group.defaultSellingPrice ||
-          p.costPrice != group.defaultBuyingPrice
-        ).toList();
+        final mismatchedProducts = assignedProducts
+            .where(
+              (p) =>
+                  p.pricingUnit != group.defaultPricingUnit ||
+                  p.coveragePerBox != group.defaultCoveragePerBox ||
+                  p.basePrice != group.defaultSellingPrice ||
+                  p.costPrice != group.defaultBuyingPrice,
+            )
+            .toList();
 
         if (mismatchedProducts.isNotEmpty) {
           resolutionDecisions = await MismatchResolutionSheet.show(
@@ -114,7 +125,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
             targetGroup: group,
             mismatchedProducts: mismatchedProducts,
           );
-          
+
           if (resolutionDecisions == null) {
             // User canceled the assignment process
             setState(() => _isSaving = false);
@@ -130,7 +141,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
       for (final p in assignedProducts) {
         final normalize = resolutionDecisions[p.id] ?? true;
         var updatedProduct = p.copyWith(itemGroupId: groupId);
-        
+
         if (normalize) {
           updatedProduct = updatedProduct.copyWith(
             pricingUnit: group.defaultPricingUnit,
@@ -151,7 +162,10 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {
@@ -195,11 +209,23 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildDetailsSection(theme, cs),
-              Divider(height: 48, thickness: 1, color: cs.outlineVariant.withAlpha(50)),
+              Divider(
+                height: 48,
+                thickness: 1,
+                color: cs.outlineVariant.withAlpha(50),
+              ),
               _buildPricingSection(theme, cs),
-              Divider(height: 48, thickness: 1, color: cs.outlineVariant.withAlpha(50)),
+              Divider(
+                height: 48,
+                thickness: 1,
+                color: cs.outlineVariant.withAlpha(50),
+              ),
               _buildCommissionSection(theme, cs),
-              Divider(height: 48, thickness: 1, color: cs.outlineVariant.withAlpha(50)),
+              Divider(
+                height: 48,
+                thickness: 1,
+                color: cs.outlineVariant.withAlpha(50),
+              ),
               _buildAssignmentSection(theme, cs),
               const SizedBox(height: 60),
             ],
@@ -305,7 +331,9 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
       children: [
         Text(
           'Earned by staff when any item in this group is sold.',
-          style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+          style: theme.textTheme.bodyMedium?.copyWith(
+            color: cs.onSurfaceVariant,
+          ),
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
@@ -317,7 +345,10 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
           items: const [
             DropdownMenuItem(value: 'none', child: Text('None')),
             DropdownMenuItem(value: 'fixed', child: Text('Fixed Amount (KES)')),
-            DropdownMenuItem(value: 'percentage', child: Text('Percentage (%)')),
+            DropdownMenuItem(
+              value: 'percentage',
+              child: Text('Percentage (%)'),
+            ),
           ],
           onChanged: (val) {
             if (val != null) setState(() => _commissionType = val);
@@ -329,7 +360,9 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
             controller: _commissionValueController,
             keyboardType: TextInputType.number,
             decoration: InputDecoration(
-              labelText: _commissionType == 'percentage' ? 'Commission Rate (%)' : 'Commission Amount (KES)',
+              labelText: _commissionType == 'percentage'
+                  ? 'Commission Rate (%)'
+                  : 'Commission Amount (KES)',
               hintText: _commissionType == 'percentage' ? 'e.g. 5' : 'e.g. 100',
               border: const OutlineInputBorder(),
             ),
@@ -349,7 +382,9 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
           children: [
             Text(
               '${_assignedProductIds.length} Products Assigned',
-              style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.bold),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
             ),
             TextButton.icon(
               onPressed: _selectProducts,
@@ -362,7 +397,9 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
           const SizedBox(height: 8),
           Text(
             'Assigned products will inherit the group defaults unless preserved during conflict resolution.',
-            style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
           ),
         ],
       ],
@@ -393,7 +430,12 @@ class _SectionCard extends StatelessWidget {
           children: [
             PhosphorIcon(icon, size: 22, color: cs.primary),
             const SizedBox(width: 8),
-            Text(title, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+            Text(
+              title,
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         const SizedBox(height: 24),

@@ -28,7 +28,11 @@ class CartNotifier extends Notifier<CartState> {
   @override
   CartState build() => const CartState();
 
-  void addItem(Product product, {ItemGroup? itemGroup, int availableStock = 999}) {
+  void addItem(
+    Product product, {
+    ItemGroup? itemGroup,
+    int availableStock = 999,
+  }) {
     final items = List<PosCartItem>.from(state.items);
     final idx = items.indexWhere((i) => i.product.id == product.id);
 

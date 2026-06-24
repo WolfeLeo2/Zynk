@@ -12,6 +12,7 @@ import 'package:zynk/features/settings/presentation/change_password_screen.dart'
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/dashboard/presentation/dashboard_layout.dart';
 import 'package:zynk/features/pos/presentation/pos_screen.dart';
 import 'package:zynk/features/products/presentation/add_product_screen.dart';
@@ -82,7 +83,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         // (Dashboard access is now handled internally by DashboardLayout conditionally rendering StaffDashboard)
 
         // Enforce POS access
-        if (loc.startsWith('/pos') && !profile.hasPermission(Permission.posAccess)) {
+        if (loc.startsWith('/pos') &&
+            !profile.hasPermission(Permission.posAccess)) {
           return '/';
         }
 
@@ -90,7 +92,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         if (loc.startsWith('/products') || loc.startsWith('/adjustments')) {
           if (!profile.hasPermission(Permission.manageProducts) &&
               !profile.hasPermission(Permission.manageStock)) {
-            return profile.hasPermission(Permission.viewDashboard) ? '/' : '/pos';
+            return profile.hasPermission(Permission.viewDashboard)
+                ? '/'
+                : '/pos';
           }
         }
 
@@ -302,7 +306,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                         path: 'edit',
                         builder: (context, state) {
                           final saleId = state.pathParameters['id']!;
-                          final extra = state.extra as Map<String, dynamic>? ?? {};
+                          final extra =
+                              state.extra as Map<String, dynamic>? ?? {};
                           return EditInvoiceScreen(
                             saleId: saleId,
                             wasApproved: extra['wasApproved'] == true,
@@ -368,7 +373,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                   ),
                   GoRoute(
                     path: 'commissions',
-                    builder: (context, state) => const CommissionsReportScreen(),
+                    builder: (context, state) =>
+                        const CommissionsReportScreen(),
                   ),
                   GoRoute(
                     path: 'customers',
@@ -388,10 +394,13 @@ final routerProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Triggers router re-evaluation on auth state changes only.
+/// Triggers router re-evaluation on auth state changes AND when the user's
+/// profile (role/permissions) resolves or changes — so permission-gated
+/// redirects are re-run once the profile loads, not only at login/logout.
 class AuthListenable extends ChangeNotifier {
   final Ref ref;
   late bool _wasLoggedIn;
+  String? _lastProfileKey;
 
   AuthListenable(this.ref) {
     _wasLoggedIn = ref.read(authStateProvider).value != null;
@@ -399,6 +408,14 @@ class AuthListenable extends ChangeNotifier {
       final isLoggedIn = next.value != null;
       if (isLoggedIn != _wasLoggedIn) {
         _wasLoggedIn = isLoggedIn;
+        notifyListeners();
+      }
+    });
+    ref.listen<Profile?>(currentProfileProvider, (_, next) {
+      // Re-run redirects only when the authz-relevant identity actually changes.
+      final key = '${next?.userId}:${next?.role}:${next?.permissions}';
+      if (key != _lastProfileKey) {
+        _lastProfileKey = key;
         notifyListeners();
       }
     });

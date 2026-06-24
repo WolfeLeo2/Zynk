@@ -880,136 +880,38 @@ Deno.serve(async (req: Request) => {
                     payment_method,
                     reference_number,
                     notes: paymentNotes,
+                    payment_id,
+                    allow_overpayment,
                 } = params;
 
                 if (!amount || !payment_method) {
                     throw new Error("Missing amount or payment_method");
                 }
 
-                const { data: sale } = await supabase
-                    .from("sales")
-                    .select("*")
-                    .eq("id", saleId)
-                    .single();
-
-                if (!sale) throw new Error("Sale not found. Ensure the invoice has synced before recording payment.");
-
-                if (sale.payment_status === "paid" || sale.status === "voided" || sale.status === "rejected") {
-                    throw new Error(`Cannot record payment on ${sale.status} sale or an already paid sale`);
-                }
-
-                const paymentId = crypto.randomUUID();
-
-                const { error: payError } = await supabase
-                    .from("sale_payments")
-                    .insert({
-                        id: paymentId,
-                        sale_id: saleId,
-                        tenant_id: sale.tenant_id,
-                        branch_id: sale.branch_id,
-                        amount,
-                        payment_method,
-                        reference_number: reference_number || null,
-                        notes: paymentNotes || null,
-                        created_at: now,
-                        updated_at: now,
-                    });
-
-                if (payError) throw new Error(`Payment failed: ${payError.message}`);
-                
-                const newAmountPaid = (sale.amount_paid || 0) + amount;
-                const grandTotal = sale.grand_total || 0;
-
-                let newPaymentStatus = "partially_paid";
-                if (newAmountPaid >= grandTotal) {
-                    newPaymentStatus = "paid";
-                }
-
-                let fulfillmentStatus = sale.fulfillment_status;
-                let releasedNow = false;
-                const decrementedItems: Array<{ product_id: string; quantity: number }> = [];
-
-                if (sale.fulfillment_status !== "fulfilled") {
-                    const { data: saleItems, error: saleItemsError } = await supabase
-                        .from("sale_items")
-                        .select("product_id, quantity")
-                        .eq("sale_id", saleId);
-
-                    if (saleItemsError) {
-                        await supabase.from("sale_payments").delete().eq("id", paymentId);
-                        throw new Error(`Sale items lookup failed: ${saleItemsError.message}`);
+                // Atomic + race-safe + idempotent. The RPC locks the sale row,
+                // increments amount_paid server-side, releases stock (if needed),
+                // and updates status — all in one transaction. A client-supplied
+                // payment_id makes retries idempotent (no double payment / double
+                // stock release). See migration 20260624000000.
+                const { data: result, error: rpcError } = await supabase.rpc(
+                    "record_sale_payment_v2",
+                    {
+                        p_payment_id: payment_id || crypto.randomUUID(),
+                        p_sale_id: saleId,
+                        p_tenant_id: tenantId,
+                        p_amount: amount,
+                        p_payment_method: payment_method,
+                        p_reference_number: reference_number || null,
+                        p_notes: paymentNotes || null,
+                        // Only an explicit `false` enforces the guard; absent/true
+                        // preserves the lenient default for any other caller.
+                        p_allow_overpayment: allow_overpayment !== false,
                     }
+                );
 
-                    for (const item of saleItems || []) {
-                        const quantity = Number(item.quantity || 0);
-                        if (quantity <= 0) continue;
+                if (rpcError) throw new Error(rpcError.message);
 
-                        const { error: decrementError } = await supabase.rpc("decrement_stock", {
-                            p_product_id: item.product_id,
-                            p_branch_id: sale.branch_id,
-                            p_quantity: quantity,
-                        });
-
-                        if (decrementError) {
-                            for (const reverted of decrementedItems) {
-                                await supabase.rpc("increment_stock", {
-                                    p_product_id: reverted.product_id,
-                                    p_branch_id: sale.branch_id,
-                                    p_quantity: reverted.quantity,
-                                });
-                            }
-                            await supabase.from("sale_payments").delete().eq("id", paymentId);
-                            throw new Error(`Stock release failed: ${decrementError.message}`);
-                        }
-
-                        decrementedItems.push({
-                            product_id: item.product_id,
-                            quantity,
-                        });
-                    }
-
-                    fulfillmentStatus = "fulfilled";
-                    releasedNow = true;
-                }
-
-                const updateData: any = {
-                    amount_paid: newAmountPaid,
-                    payment_status: newPaymentStatus,
-                    fulfillment_status: fulfillmentStatus,
-                    updated_at: now,
-                    payment_method: payment_method,
-                };
-
-                if (newPaymentStatus === "paid" && fulfillmentStatus === "fulfilled") {
-                    updateData.completed_at = now;
-                }
-
-                const { error: updateError } = await supabase
-                    .from("sales")
-                    .update(updateData)
-                    .eq("id", saleId);
-
-                if (updateError) {
-                    if (releasedNow) {
-                        for (const reverted of decrementedItems) {
-                            await supabase.rpc("increment_stock", {
-                                p_product_id: reverted.product_id,
-                                p_branch_id: sale.branch_id,
-                                p_quantity: reverted.quantity,
-                            });
-                        }
-                    }
-                    await supabase.from("sale_payments").delete().eq("id", paymentId);
-                    throw new Error(`Status update failed: ${updateError.message}`);
-                }
-
-                return jsonResponse({
-                    status: sale.status,
-                    payment_status: newPaymentStatus,
-                    amount_paid: newAmountPaid,
-                    fulfillment_status: fulfillmentStatus,
-                    sale_id: saleId,
-                });
+                return jsonResponse(result);
             }
 
             case "delete_payment": {

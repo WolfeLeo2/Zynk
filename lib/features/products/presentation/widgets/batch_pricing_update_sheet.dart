@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'batch_group_action_sheet.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 class BatchPricingUpdateSheet extends ConsumerStatefulWidget {
   final ItemGroup group;
@@ -33,7 +34,8 @@ class _BatchPricingUpdateSheetState
   void initState() {
     super.initState();
     if (widget.group.defaultSellingPrice != null) {
-      _manualPriceController.text = widget.group.defaultSellingPrice!.toString();
+      _manualPriceController.text = widget.group.defaultSellingPrice!
+          .toString();
     }
   }
 
@@ -94,7 +96,7 @@ class _BatchPricingUpdateSheetState
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'Items will use the group price (KES ${inheritedPrice.toStringAsFixed(2)}) and react to future group updates.',
+                        'Items will use the group price (${CurrencyHelper.format(inheritedPrice)}) and react to future group updates.',
                         style: theme.textTheme.bodyMedium?.copyWith(
                           color: cs.onSecondaryContainer,
                         ),
@@ -151,11 +153,9 @@ class _BatchPricingUpdateSheetState
       itemTrailingBuilder: (context, item, isSelected) {
         final currentPrice =
             item.basePrice ?? widget.group.defaultSellingPrice ?? 0.0;
-        final targetPrice =
-            _useInheritance
-                ? inheritedPrice
-                : (double.tryParse(_manualPriceController.text) ??
-                    currentPrice);
+        final targetPrice = _useInheritance
+            ? inheritedPrice
+            : (double.tryParse(_manualPriceController.text) ?? currentPrice);
         final isDifferent = isSelected && currentPrice != targetPrice;
 
         return Padding(
@@ -163,7 +163,7 @@ class _BatchPricingUpdateSheetState
           child: Row(
             children: [
               Text(
-                'KES ${currentPrice.toStringAsFixed(0)}',
+                CurrencyHelper.format(currentPrice),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: isDifferent ? cs.onSurfaceVariant : cs.primary,
                   decoration: isDifferent ? TextDecoration.lineThrough : null,
@@ -171,13 +171,10 @@ class _BatchPricingUpdateSheetState
               ),
               if (isDifferent) ...[
                 const SizedBox(width: 8),
-                const PhosphorIcon(
-                  PhosphorIconsRegular.arrowRight,
-                  size: 12,
-                ),
+                const PhosphorIcon(PhosphorIconsRegular.arrowRight, size: 12),
                 const SizedBox(width: 8),
                 Text(
-                  'KES ${targetPrice.toStringAsFixed(0)}',
+                  CurrencyHelper.format(targetPrice),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: cs.primary,
                     fontWeight: FontWeight.bold,

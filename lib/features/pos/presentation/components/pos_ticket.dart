@@ -7,12 +7,14 @@ import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
+import 'package:zynk/features/pos/presentation/components/customer_lookup_field.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/core/services/product_pricing_service.dart';
-import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
+import 'package:zynk/shared/widgets/qty_stepper.dart';
 
 class PosTicket extends ConsumerWidget {
   final List<PosCartItem> items;
@@ -23,7 +25,10 @@ class PosTicket extends ConsumerWidget {
   // Customer & Staff info
   final Customer? selectedCustomer;
   final String? salespersonId;
-  final VoidCallback? onSelectCustomer;
+  final ValueChanged<Customer>? onSelectCustomer;
+  final VoidCallback? onClearCustomer;
+  final Future<void> Function(String name, String phone, String email)?
+  onCreateCustomer;
   final ValueChanged<String?>? onSalespersonIdChanged;
 
   const PosTicket({
@@ -35,6 +40,8 @@ class PosTicket extends ConsumerWidget {
     this.selectedCustomer,
     this.salespersonId,
     this.onSelectCustomer,
+    this.onClearCustomer,
+    this.onCreateCustomer,
     this.onSalespersonIdChanged,
   });
 
@@ -55,12 +62,22 @@ class PosTicket extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
           child: Row(
             children: [
-              Expanded(
-                child: Text(
-                  'Current Ticket',
-                  style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
+              Text(
+                'Cart',
+                style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
+              const SizedBox(width: 8),
+              if (itemCount > 0)
+                Badge(
+                  label: Text(
+                    '$itemCount items',
+                    style: tt.labelSmall?.copyWith(color: cs.onPrimary),
+                  ),
+                  backgroundColor: cs.primary,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  largeSize: 22,
+                ),
+              const Spacer(),
               if (items.isNotEmpty)
                 TextButton.icon(
                   onPressed: onClearTicket,
@@ -80,168 +97,6 @@ class PosTicket extends ConsumerWidget {
             ],
           ),
         ),
-
-        // ─── STAFF + CUSTOMER SECTION ───
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: Column(
-            children: [
-              // Staff name and Branch row
-              Row(
-                children: [
-                  Expanded(
-                    child: staffAsync.when(
-                      data: (staffList) {
-                        return Container(
-                          decoration: BoxDecoration(
-                            color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: cs.outline),
-                          ),
-                          padding: const EdgeInsets.symmetric(horizontal: 12),
-                          child: DropdownButtonHideUnderline(
-                            child: DropdownButton<String>(
-                              value: salespersonId,
-                              hint: Text(
-                                'Select Salesperson',
-                                style: tt.bodyMedium?.copyWith(
-                                  color: cs.onSurfaceVariant.withValues(alpha: 0.5),
-                                ),
-                              ),
-                              isExpanded: true,
-                              icon: PhosphorIcon(
-                                PhosphorIconsRegular.caretDown,
-                                size: 16,
-                                color: cs.onSurfaceVariant,
-                              ),
-                              items: [
-                                const DropdownMenuItem<String>(
-                                  value: null,
-                                  child: Text('Select Salesperson'),
-                                ),
-                                ...staffList.map(
-                                  (s) => DropdownMenuItem<String>(
-                                    value: s.id,
-                                    child: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
-                                  ),
-                                ),
-                              ],
-                              onChanged: onSalespersonIdChanged,
-                            ),
-                          ),
-                        );
-                      },
-                      loading: () => const SizedBox.shrink(),
-                      error: (err, stack) => const Text('Error loading options'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Row(
-                      children: [
-                        PhosphorIcon(
-                          PhosphorIconsRegular.storefront,
-                          color: branch != null ? cs.primary : cs.error,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        ref.watch(branchSelectionProvider).isLoading
-                            ? const SkeletonText(width: 80, height: 16)
-                            : Text(
-                                branch?.name ?? 'No branch',
-                                style: tt.bodyMedium?.copyWith(
-                                  fontWeight: FontWeight.w500,
-                                  color:
-                                      branch != null ? cs.onSurface : cs.error,
-                                ),
-                              ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Customer selector
-              InkWell(
-                onTap: onSelectCustomer,
-                borderRadius: BorderRadius.circular(10),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: cs.outline),
-                  ),
-                  child: Row(
-                    children: [
-                      PhosphorIcon(
-                        PhosphorIconsRegular.addressBook,
-                        color: cs.secondary,
-                        size: 20,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: selectedCustomer != null
-                            ? Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    selectedCustomer!.name,
-                                    style: tt.bodyMedium?.copyWith(
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                  if (selectedCustomer!.phone != null ||
-                                      selectedCustomer!.email != null)
-                                    Text(
-                                      [
-                                        selectedCustomer!.phone,
-                                        selectedCustomer!.email,
-                                      ].whereType<String>().join(' • '),
-                                      style: tt.bodySmall?.copyWith(
-                                        color: cs.onSurfaceVariant,
-                                      ),
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                ],
-                              )
-                            : Text(
-                                'Select customer',
-                                style: tt.bodyMedium?.copyWith(
-                                  color: cs.onSurfaceVariant.withValues(
-                                    alpha: 0.6,
-                                  ),
-                                ),
-                              ),
-                      ),
-                      PhosphorIcon(
-                        selectedCustomer != null
-                            ? PhosphorIconsRegular.x
-                            : PhosphorIconsRegular.caretRight,
-                        size: 16,
-                        color: cs.onSurfaceVariant,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 12),
 
         Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.15)),
 
@@ -312,7 +167,7 @@ class PosTicket extends ConsumerWidget {
                 ),
         ),
 
-        // ─── TOTALS + CHARGE + INVOICE ───
+        // ─── FOOTER (STAFF, CUSTOMER, TOTALS, INVOICE) ───
         Container(
           decoration: BoxDecoration(
             color: cs.surfaceContainerLow,
@@ -323,30 +178,91 @@ class PosTicket extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           child: Column(
             children: [
+              // SalesPerson
+              staffAsync.when(
+                data: (staffList) {
+                  return DropdownButtonFormField<String>(
+                    initialValue: salespersonId,
+                    decoration: const InputDecoration(
+                      labelText: 'Salesperson',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(12)),
+                      ),
+                      contentPadding: EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                    ),
+                    items: staffList.map((s) {
+                      return DropdownMenuItem<String>(
+                        value: s.id,
+                        child: Text(s.name),
+                      );
+                    }).toList(),
+                    onChanged: onSalespersonIdChanged,
+                  );
+                },
+                loading: () =>
+                    const SkeletonText(width: double.infinity, height: 56),
+                error: (err, stack) => const Text('Error loading staff'),
+              ),
+              const SizedBox(height: 12),
+
+              // Customer Selection
+              if (onSelectCustomer != null &&
+                  onClearCustomer != null &&
+                  onCreateCustomer != null)
+                CustomerLookupField(
+                  selectedCustomer: selectedCustomer,
+                  onSelected: onSelectCustomer!,
+                  onClear: onClearCustomer!,
+                  onCreateNew: onCreateCustomer!,
+                ),
+
+              const SizedBox(height: 20),
+
               // Subtotal row
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '$itemCount item${itemCount != 1 ? 's' : ''}',
+                    'Subtotal',
                     style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
                   ),
                   Text(
-                    'Ksh ${total.toStringAsFixed(0)}',
+                    CurrencyHelper.format(total),
+                    style: tt.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                      color: cs.primary,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+
+              // Grand Total row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Grand Total',
+                    style: tt.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                  Text(
+                    CurrencyHelper.format(total),
                     style: GoogleFonts.googleSansFlex(
-                      textStyle: tt.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        fontVariations: [
-                          FontVariation.weight(900),
-                          FontVariation.opticalSize(12),
-                        ],
+                      textStyle: tt.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
                         color: cs.primary,
                       ),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 14),
+              const SizedBox(height: 20),
               Consumer(
                 builder: (context, ref, child) {
                   final canCreateInvoice = ref.watch(
@@ -369,8 +285,9 @@ class PosTicket extends ConsumerWidget {
                                     content: const Text(
                                       'Please select a salesperson before creating an invoice.',
                                     ),
-                                    backgroundColor:
-                                        Theme.of(context).colorScheme.error,
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.error,
                                     behavior: SnackBarBehavior.floating,
                                   ),
                                 );
@@ -378,12 +295,12 @@ class PosTicket extends ConsumerWidget {
                               }
                               GoRouter.of(context).push(
                                 '/sales/create-invoice',
-                                  extra: {
-                                    'cartItems': items,
-                                    'customer': selectedCustomer,
-                                    'salespersonId': salespersonId,
-                                    'branchId': branch?.id,
-                                  },
+                                extra: {
+                                  'cartItems': items,
+                                  'customer': selectedCustomer,
+                                  'salespersonId': salespersonId,
+                                  'branchId': branch?.id,
+                                },
                               );
                             },
                       style: FilledButton.styleFrom(
@@ -435,7 +352,14 @@ class _TicketItemRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final posBranchId = ref.watch(posBranchProvider);
     // Watch the stock provider so that the value is actively cached for the synchronously tapped + button
-    final stockState = ref.watch(stockByBranchProvider((productId: item.product.id, branchId: posBranchId))).value;
+    final stockState = ref
+        .watch(
+          stockByBranchProvider((
+            productId: item.product.id,
+            branchId: posBranchId,
+          )),
+        )
+        .value;
 
     return Dismissible(
       key: ValueKey(item.product.id),
@@ -455,61 +379,54 @@ class _TicketItemRow extends ConsumerWidget {
         ),
       ),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: cs.surface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.15)),
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            // Product name + unit price
+            // Product name + details (Left side)
             Expanded(
+              flex: 2,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     item.product.name,
-                    style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                    style: tt.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: cs.onSurface,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
+                  const SizedBox(height: 2),
                   Consumer(
                     builder: (context, ref, child) {
                       if (item.isSqmBased) {
-                        return Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Ksh ${item.pricePerSqm.toStringAsFixed(0)}/sqm (Ksh ${item.effectivePrice.toStringAsFixed(0)}/box)',
-                              style: tt.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                                fontSize: 11,
-                              ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${item.totalSqm.toStringAsFixed(2)} sqm (${item.quantity} box${item.quantity != 1 ? 'es' : ''})',
-                              style: tt.bodySmall?.copyWith(
-                                color: cs.primary.withValues(alpha: 0.8),
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
+                        return Text(
+                          '${item.totalSqm.toStringAsFixed(2)} sqm (${item.quantity} box${item.quantity != 1 ? 'es' : ''})',
+                          style: tt.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.8),
+                            fontSize: 12,
+                          ),
                         );
                       }
                       final group = item.product.itemGroupId != null
-                          ? ref.watch(itemGroupProvider(item.product.itemGroupId!)).value
+                          ? ref
+                                .watch(
+                                  itemGroupProvider(item.product.itemGroupId!),
+                                )
+                                .value
                           : null;
-                      final resolvedPrice = ref
-                          .watch(productPricingServiceProvider)
-                          .resolveSellingPrice(item.product, group);
                       return Text(
-                        'Ksh ${resolvedPrice.toStringAsFixed(0)} each',
+                        group?.name ?? 'Unit',
                         style: tt.bodySmall?.copyWith(
                           color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                          fontSize: 11,
+                          fontSize: 12,
                         ),
                       );
                     },
@@ -517,71 +434,49 @@ class _TicketItemRow extends ConsumerWidget {
                 ],
               ),
             ),
-            
-            // Quantity controls
-            Container(
-              decoration: BoxDecoration(
-                color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.2)),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  InkWell(
-                    onTap: () {
-                      ref.read(cartProvider.notifier).setQuantity(item.product.id, item.quantity - 1);
-                    },
-                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      child: PhosphorIcon(PhosphorIconsBold.minus, size: 16, color: cs.primary),
-                    ),
-                  ),
-                  Container(
-                    constraints: const BoxConstraints(minWidth: 32),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${item.quantity}',
-                      style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
-                    ),
-                  ),
-                  InkWell(
-                    onTap: () {
-                      if (!item.product.isService) {
-                        final availableStock = stockState?.quantity ?? 0;
-                        if (item.quantity + 1 > availableStock) {
-                          ScaffoldMessenger.of(context).clearSnackBars();
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Cannot add ${item.product.name}. Only $availableStock in stock.'),
-                              backgroundColor: cs.error,
-                              behavior: SnackBarBehavior.floating,
+
+            // Quantity controls (Middle)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: QtyStepper(
+                value: item.quantity,
+                onChanged: (newVal) {
+                  if (newVal == 0) {
+                    onRemove();
+                  } else {
+                    if (!item.product.isService && newVal > item.quantity) {
+                      final availableStock = stockState?.quantity ?? 0;
+                      if (newVal > availableStock) {
+                        ScaffoldMessenger.of(context).clearSnackBars();
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              'Cannot add ${item.product.name}. Only $availableStock in stock.',
                             ),
-                          );
-                          return;
-                        }
+                            backgroundColor: cs.error,
+                            behavior: SnackBarBehavior.floating,
+                          ),
+                        );
+                        return;
                       }
-                      ref.read(cartProvider.notifier).setQuantity(item.product.id, item.quantity + 1);
-                    },
-                    borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                      child: PhosphorIcon(PhosphorIconsBold.plus, size: 16, color: cs.primary),
-                    ),
-                  ),
-                ],
+                    }
+                    ref
+                        .read(cartProvider.notifier)
+                        .setQuantity(item.product.id, newVal);
+                  }
+                },
               ),
             ),
-            
-            const SizedBox(width: 12),
-            
-            // Line total
-            SizedBox(
-              width: 70,
+
+            // Line total (Right)
+            Expanded(
+              flex: 1,
               child: Text(
-                'Ksh ${item.total.toStringAsFixed(0)}',
-                style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.w700),
+                CurrencyHelper.format(item.total),
+                style: tt.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: cs.primary,
+                ),
                 textAlign: TextAlign.right,
               ),
             ),

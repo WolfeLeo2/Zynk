@@ -26,7 +26,7 @@ class Expense {
   final DateTime? createdAt;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? updatedAt;
-  
+
   // Join fields (UI only)
   final String? branchName;
   @JsonKey(name: 'staff_name', includeToJson: false)

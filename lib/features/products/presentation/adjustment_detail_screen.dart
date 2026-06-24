@@ -14,10 +14,11 @@ import 'package:m3e_card_list/m3e_card_list.dart';
 // Providers
 // ─────────────────────────────────────────────────────────────────────────────
 
-final adjustmentDetailProvider = StreamProvider.autoDispose.family<List<StockAdjustment>, String>((ref, bundleId) {
-  final repo = ref.watch(repositoryProvider);
-  return repo.watchStockAdjustmentsByBundle(bundleId);
-});
+final adjustmentDetailProvider = StreamProvider.autoDispose
+    .family<List<StockAdjustment>, String>((ref, bundleId) {
+      final repo = ref.watch(repositoryProvider);
+      return repo.watchStockAdjustmentsByBundle(bundleId);
+    });
 
 class ActionLoadingNotifier extends Notifier<bool> {
   @override
@@ -25,7 +26,10 @@ class ActionLoadingNotifier extends Notifier<bool> {
   void set(bool val) => state = val;
 }
 
-final _actionLoadingProvider = NotifierProvider.autoDispose<ActionLoadingNotifier, bool>(ActionLoadingNotifier.new);
+final _actionLoadingProvider =
+    NotifierProvider.autoDispose<ActionLoadingNotifier, bool>(
+      ActionLoadingNotifier.new,
+    );
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -67,7 +71,8 @@ class AdjustmentDetailScreen extends ConsumerWidget {
         final stockAsync = ref.watch(adjustmentStockLevelsProvider(stockKey));
 
         final profile = ref.watch(currentUserProfileProvider).value;
-        final canApprove = profile?.role.isOwner == true ||
+        final canApprove =
+            profile?.role.isOwner == true ||
             profile?.permissions.contains(Permission.approveStock) == true;
 
         return Scaffold(
@@ -99,7 +104,9 @@ class AdjustmentDetailScreen extends ConsumerWidget {
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
                             Text(
-                              DateFormat('dd MMM yyyy').format(first.createdAt ?? DateTime.now()),
+                              DateFormat(
+                                'dd MMM yyyy',
+                              ).format(first.createdAt ?? DateTime.now()),
                               style: textTheme.titleMedium?.copyWith(
                                 color: colorScheme.onSurfaceVariant,
                               ),
@@ -123,7 +130,9 @@ class AdjustmentDetailScreen extends ConsumerWidget {
                   ),
                 ),
                 actions: [
-                  if ((first.status == StockAdjustmentStatus.pending || first.status == StockAdjustmentStatus.approved) && canApprove)
+                  if ((first.status == StockAdjustmentStatus.pending ||
+                          first.status == StockAdjustmentStatus.approved) &&
+                      canApprove)
                     _AdjustmentPopupMenu(bundleId: bundleId, items: items),
                 ],
               ),
@@ -136,8 +145,12 @@ class AdjustmentDetailScreen extends ConsumerWidget {
                 _ItemsSection(
                   items: items,
                   stockLevels: stockAsync.value,
-                  isLoadingStock: stockAsync.isLoading && stockAsync.value == null,
-                  canEdit: canApprove && first.status == StockAdjustmentStatus.pending,
+                  isLoadingStock:
+                      stockAsync.isLoading && stockAsync.value == null,
+                  // Any user may edit a pending adjustment's quantities (a local,
+                  // tenant-scoped write). Approve/unapprove/reject/delete stay
+                  // gated by `canApprove` via the popup menu above.
+                  canEdit: first.status == StockAdjustmentStatus.pending,
                 ),
                 if (first.notes != null && first.notes!.isNotEmpty) ...[
                   const SizedBox(height: 32),
@@ -192,18 +205,32 @@ class _MetadataSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final branches = ref.watch(branchesProvider).value ?? [];
-    final branchName = branches.firstWhere((b) => b.id == adjustment.branchId, orElse: () => Branch(id: adjustment.branchId, tenantId: '', name: adjustment.branchId)).name;
+    final branchName = branches
+        .firstWhere(
+          (b) => b.id == adjustment.branchId,
+          orElse: () => Branch(
+            id: adjustment.branchId,
+            tenantId: '',
+            name: adjustment.branchId,
+          ),
+        )
+        .name;
 
     return Column(
       children: [
         _MetaItem(
           label: 'Reference',
-          value: (adjustment.referenceNumber != null && adjustment.referenceNumber!.isNotEmpty)
+          value:
+              (adjustment.referenceNumber != null &&
+                  adjustment.referenceNumber!.isNotEmpty)
               ? adjustment.referenceNumber!
               : 'ADJ-${adjustment.bundleId?.substring(0, 5).toUpperCase() ?? adjustment.id.substring(0, 5).toUpperCase()}',
         ),
         _MetaItem(label: 'Account', value: adjustment.adjusterName ?? 'System'),
-        _MetaItem(label: 'Adjusted By', value: adjustment.staffName ?? adjustment.adjusterName ?? 'System'),
+        _MetaItem(
+          label: 'Adjusted By',
+          value: adjustment.staffName ?? adjustment.adjusterName ?? 'System',
+        ),
         _MetaItem(label: 'Adjustment Type', value: 'Quantity'),
         _MetaItem(label: 'Branch', value: branchName),
       ],
@@ -279,21 +306,21 @@ class _ItemsSection extends StatelessWidget {
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
-            
+
             if (isLoadingStock || stockLevels == null) {
-               return _AdjustmentItemRow(
-                 item: item,
-                 previousStock: 0,
-                 newStock: 0,
-                 canEdit: false,
-                 isLoading: true,
-               );
+              return _AdjustmentItemRow(
+                item: item,
+                previousStock: 0,
+                newStock: 0,
+                canEdit: false,
+                isLoading: true,
+              );
             }
 
             final currentStock = stockLevels![item.productId] ?? 0;
-            
+
             final isApproved = item.status == StockAdjustmentStatus.approved;
-            
+
             final int previousStock;
             final int newStock;
 
@@ -301,8 +328,12 @@ class _ItemsSection extends StatelessWidget {
               previousStock = item.previousQuantity!;
               newStock = item.previousQuantity! + item.quantity;
             } else {
-              previousStock = isApproved ? (currentStock - item.quantity) : currentStock;
-              newStock = isApproved ? currentStock : (previousStock + item.quantity);
+              previousStock = isApproved
+                  ? (currentStock - item.quantity)
+                  : currentStock;
+              newStock = isApproved
+                  ? currentStock
+                  : (previousStock + item.quantity);
             }
 
             return _AdjustmentItemRow(
@@ -383,7 +414,9 @@ class _AdjustmentItemRow extends StatelessWidget {
               if (isLoading)
                 Shimmer.fromColors(
                   baseColor: colorScheme.surfaceContainerHighest.withAlpha(100),
-                  highlightColor: colorScheme.surfaceContainerHighest.withAlpha(200),
+                  highlightColor: colorScheme.surfaceContainerHighest.withAlpha(
+                    200,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
@@ -456,8 +489,10 @@ class _EditQuantityButton extends ConsumerWidget {
   }
 
   Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
-    final controller = TextEditingController(text: adjustment.quantity.toString());
-    
+    final controller = TextEditingController(
+      text: adjustment.quantity.toString(),
+    );
+
     final newQty = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
@@ -472,9 +507,13 @@ class _EditQuantityButton extends ConsumerWidget {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, int.tryParse(controller.text)),
+            onPressed: () =>
+                Navigator.pop(context, int.tryParse(controller.text)),
             child: const Text('Save'),
           ),
         ],
@@ -482,10 +521,12 @@ class _EditQuantityButton extends ConsumerWidget {
     );
 
     if (newQty != null) {
-      await ref.read(repositoryProvider).updateStockAdjustmentQuantity(
-        adjustmentId: adjustment.id,
-        newQuantity: newQty,
-      );
+      await ref
+          .read(repositoryProvider)
+          .updateStockAdjustmentQuantity(
+            adjustmentId: adjustment.id,
+            newQuantity: newQty,
+          );
     }
   }
 }
@@ -508,22 +549,36 @@ class _AdjustmentPopupMenu extends ConsumerWidget {
           const PopupMenuItem(value: 'unapprove', child: Text('Unapprove')),
         ],
         const PopupMenuDivider(),
-        const PopupMenuItem(value: 'delete', child: Text('Delete', style: TextStyle(color: Colors.red))),
+        const PopupMenuItem(
+          value: 'delete',
+          child: Text('Delete', style: TextStyle(color: Colors.red)),
+        ),
       ],
       icon: const PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical),
     );
   }
 
-  Future<void> _handleAction(BuildContext context, WidgetRef ref, String action) async {
+  Future<void> _handleAction(
+    BuildContext context,
+    WidgetRef ref,
+    String action,
+  ) async {
     final profile = ref.read(currentUserProfileProvider).value;
     if (profile == null) return;
 
     switch (action) {
       case 'approve':
-        await _runAction(context, ref, () => ref.read(inventoryServiceProvider).approveAdjustment(
-          tenantId: profile.tenantId,
-          bundleId: bundleId,
-        ), 'Adjustment approved.');
+        await _runAction(
+          context,
+          ref,
+          () => ref
+              .read(inventoryServiceProvider)
+              .approveAdjustment(
+                tenantId: profile.tenantId,
+                bundleId: bundleId,
+              ),
+          'Adjustment approved.',
+        );
         break;
       case 'unapprove':
         _handleUnapprove(context, ref, profile.tenantId);
@@ -532,32 +587,49 @@ class _AdjustmentPopupMenu extends ConsumerWidget {
         _handleReject(context, ref, profile.tenantId);
         break;
       case 'delete':
-        await _runAction(context, ref, () => ref.read(inventoryServiceProvider).deleteAdjustment(
-          tenantId: profile.tenantId,
-          bundleId: bundleId,
-        ), 'Adjustment deleted.');
+        await _runAction(
+          context,
+          ref,
+          () => ref
+              .read(inventoryServiceProvider)
+              .deleteAdjustment(tenantId: profile.tenantId, bundleId: bundleId),
+          'Adjustment deleted.',
+        );
         break;
     }
   }
 
-  Future<void> _runAction(BuildContext context, WidgetRef ref, Future<void> Function() fn, String successMsg) async {
+  Future<void> _runAction(
+    BuildContext context,
+    WidgetRef ref,
+    Future<void> Function() fn,
+    String successMsg,
+  ) async {
     try {
       ref.read(_actionLoadingProvider.notifier).set(true);
       await fn();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMsg)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(successMsg)));
         Navigator.of(context).pop();
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+        );
       }
     } finally {
       ref.read(_actionLoadingProvider.notifier).set(false);
     }
   }
 
-  Future<void> _handleReject(BuildContext context, WidgetRef ref, String tenantId) async {
+  Future<void> _handleReject(
+    BuildContext context,
+    WidgetRef ref,
+    String tenantId,
+  ) async {
     final controller = TextEditingController();
     final proceed = await showDialog<bool>(
       context: context,
@@ -569,41 +641,72 @@ class _AdjustmentPopupMenu extends ConsumerWidget {
           autofocus: true,
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Reject', style: TextStyle(color: Colors.red))),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reject', style: TextStyle(color: Colors.red)),
+          ),
         ],
       ),
     );
 
     if (proceed == true) {
       if (!context.mounted) return;
-      await _runAction(context, ref, () => ref.read(inventoryServiceProvider).rejectAdjustment(
-        tenantId: tenantId,
-        bundleId: bundleId,
-        reason: controller.text.isNotEmpty ? controller.text : 'Rejected by manager',
-      ), 'Adjustment rejected.');
+      await _runAction(
+        context,
+        ref,
+        () => ref
+            .read(inventoryServiceProvider)
+            .rejectAdjustment(
+              tenantId: tenantId,
+              bundleId: bundleId,
+              reason: controller.text.isNotEmpty
+                  ? controller.text
+                  : 'Rejected by manager',
+            ),
+        'Adjustment rejected.',
+      );
     }
   }
 
-  Future<void> _handleUnapprove(BuildContext context, WidgetRef ref, String tenantId) async {
+  Future<void> _handleUnapprove(
+    BuildContext context,
+    WidgetRef ref,
+    String tenantId,
+  ) async {
     final proceed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Unapprove Adjustment'),
-        content: const Text('This will reverse the stock changes and return this adjustment to a pending state. Proceed?'),
+        content: const Text(
+          'This will reverse the stock changes and return this adjustment to a pending state. Proceed?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Unapprove')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Unapprove'),
+          ),
         ],
       ),
     );
 
     if (proceed == true) {
       if (!context.mounted) return;
-      await _runAction(context, ref, () => ref.read(inventoryServiceProvider).unapproveAdjustment(
-        tenantId: tenantId,
-        bundleId: bundleId,
-      ), 'Adjustment unapproved.');
+      await _runAction(
+        context,
+        ref,
+        () => ref
+            .read(inventoryServiceProvider)
+            .unapproveAdjustment(tenantId: tenantId, bundleId: bundleId),
+        'Adjustment unapproved.',
+      );
     }
   }
 }
@@ -631,7 +734,9 @@ class _NotesSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: colorScheme.outlineVariant.withAlpha(100)),
+            border: Border.all(
+              color: colorScheme.outlineVariant.withAlpha(100),
+            ),
           ),
           child: Text(notes, style: textTheme.bodyMedium),
         ),
@@ -653,9 +758,21 @@ class _LoadingView extends StatelessWidget {
           highlightColor: Colors.grey[100]!,
           child: Column(
             children: [
-              Container(height: 180, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24))),
+              Container(
+                height: 180,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+              ),
               const SizedBox(height: 24),
-              Container(height: 200, decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16))),
+              Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                ),
+              ),
             ],
           ),
         ),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class ProductSelectionSheet extends StatefulWidget {
   final List<Product> availableProducts;
@@ -16,7 +18,7 @@ class ProductSelectionSheet extends StatefulWidget {
     required List<Product> availableProducts,
     required Set<String> initiallySelectedIds,
   }) {
-    return showModalBottomSheet<Set<String>>(
+    return showResponsiveModal<Set<String>>(
       context: context,
       isScrollControlled: true,
       builder: (context) => ProductSelectionSheet(
@@ -54,7 +56,10 @@ class _ProductSelectionSheetState extends State<ProductSelectionSheet> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Assign Items', style: Theme.of(context).textTheme.titleLarge),
+                  Text(
+                    'Assign Items',
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
                   TextButton(
                     onPressed: () => Navigator.pop(context, _selectedIds),
                     child: const Text('Confirm'),

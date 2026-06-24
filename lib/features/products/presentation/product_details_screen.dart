@@ -8,6 +8,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 class ProductDetailsScreen extends ConsumerWidget {
   final Product product;
@@ -49,7 +50,9 @@ class ProductDetailsScreen extends ConsumerWidget {
                 title: Text(
                   product.name,
                   style: TextStyle(
-                    color: innerBoxIsScrolled ? colorScheme.onSurface : Colors.white,
+                    color: innerBoxIsScrolled
+                        ? colorScheme.onSurface
+                        : Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
@@ -65,10 +68,7 @@ class ProductDetailsScreen extends ConsumerWidget {
                       Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [
-                              colorScheme.primary,
-                              colorScheme.tertiary,
-                            ],
+                            colors: [colorScheme.primary, colorScheme.tertiary],
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                           ),
@@ -156,7 +156,10 @@ class ProductDetailsScreen extends ConsumerWidget {
 
               // Category and Group Information
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -170,8 +173,10 @@ class ProductDetailsScreen extends ConsumerWidget {
                     const SizedBox(height: 24),
                     Consumer(
                       builder: (context, ref, child) {
-                        final categories = ref.watch(allCategoriesProvider).value ?? [];
-                        final categoryName = categories
+                        final categories =
+                            ref.watch(allCategoriesProvider).value ?? [];
+                        final categoryName =
+                            categories
                                 .where((c) => c.id == product.categoryId)
                                 .map((c) => c.name)
                                 .firstOrNull ??
@@ -199,8 +204,10 @@ class ProductDetailsScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
                     Consumer(
                       builder: (context, ref, child) {
-                        final groups = ref.watch(allItemGroupsProvider).value ?? [];
-                        final groupName = groups
+                        final groups =
+                            ref.watch(allItemGroupsProvider).value ?? [];
+                        final groupName =
+                            groups
                                 .where((g) => g.id == product.itemGroupId)
                                 .map((g) => g.name)
                                 .firstOrNull ??
@@ -232,7 +239,10 @@ class ProductDetailsScreen extends ConsumerWidget {
 
               // Pricing & Margins
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -255,11 +265,19 @@ class ProductDetailsScreen extends ConsumerWidget {
                     Consumer(
                       builder: (context, ref, child) {
                         final group = product.itemGroupId != null
-                            ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
+                            ? ref
+                                  .watch(
+                                    itemGroupProvider(product.itemGroupId!),
+                                  )
+                                  .value
                             : null;
-                        final pricingService = ref.watch(productPricingServiceProvider);
-                        final resolvedSelling = pricingService.resolveSellingPrice(product, group);
-                        final resolvedBuying = pricingService.resolveBuyingPrice(product, group);
+                        final pricingService = ref.watch(
+                          productPricingServiceProvider,
+                        );
+                        final resolvedSelling = pricingService
+                            .resolveSellingPrice(product, group);
+                        final resolvedBuying = pricingService
+                            .resolveBuyingPrice(product, group);
 
                         return Row(
                           children: [
@@ -268,7 +286,7 @@ class ProductDetailsScreen extends ConsumerWidget {
                                 theme,
                                 'Cost Price',
                                 resolvedBuying > 0
-                                    ? 'KES ${resolvedBuying.toStringAsFixed(2)}'
+                                    ? CurrencyHelper.format(resolvedBuying)
                                     : 'Not Set',
                               ),
                             ),
@@ -277,9 +295,11 @@ class ProductDetailsScreen extends ConsumerWidget {
                                 theme,
                                 'Selling Price',
                                 resolvedSelling > 0
-                                    ? 'KES ${resolvedSelling.toStringAsFixed(2)}'
+                                    ? CurrencyHelper.format(resolvedSelling)
                                     : 'Not Set',
-                                valueColor: Theme.of(context).colorScheme.secondary,
+                                valueColor: Theme.of(
+                                  context,
+                                ).colorScheme.secondary,
                               ),
                             ),
                           ],
@@ -299,7 +319,10 @@ class ProductDetailsScreen extends ConsumerWidget {
 
               // Inventory Status
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -338,15 +361,25 @@ class ProductDetailsScreen extends ConsumerWidget {
                                   'N/A',
                                 );
                               }
-                              final stockAsync = ref.watch(stockProvider(product.id));
+                              final stockAsync = ref.watch(
+                                stockProvider(product.id),
+                              );
                               return stockAsync.when(
                                 data: (stock) => _buildInfoItem(
                                   theme,
                                   'Current Stock',
                                   stock?.quantity.toString() ?? '0',
                                 ),
-                                loading: () => _buildInfoItem(theme, 'Current Stock', '...'),
-                                error: (_, _) => _buildInfoItem(theme, 'Current Stock', 'Err'),
+                                loading: () => _buildInfoItem(
+                                  theme,
+                                  'Current Stock',
+                                  '...',
+                                ),
+                                error: (_, _) => _buildInfoItem(
+                                  theme,
+                                  'Current Stock',
+                                  'Err',
+                                ),
                               );
                             },
                           ),
@@ -356,26 +389,36 @@ class ProductDetailsScreen extends ConsumerWidget {
                   ],
                 ),
               ),
-              
+
               if (!product.isService) ...[
                 const Divider(height: 1),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 24,
+                  ),
                   child: Consumer(
                     builder: (context, ref, _) {
-                      final branchesAsync = ref.watch(allTenantBranchesProvider);
-                      final branchStocksAsync = ref.watch(branchStocksProvider(product.id));
+                      final branchesAsync = ref.watch(
+                        allTenantBranchesProvider,
+                      );
+                      final branchStocksAsync = ref.watch(
+                        branchStocksProvider(product.id),
+                      );
 
                       return branchesAsync.when(
                         data: (branches) {
-                          final realBranches = branches.where((b) => b.id != 'all').toList();
+                          final realBranches = branches
+                              .where((b) => b.id != 'all')
+                              .toList();
 
                           return branchStocksAsync.when(
                             data: (stocks) {
                               final qtyByBranch = <String, int>{};
                               for (final stock in stocks) {
                                 final prev = qtyByBranch[stock.branchId] ?? 0;
-                                qtyByBranch[stock.branchId] = prev + stock.quantity;
+                                qtyByBranch[stock.branchId] =
+                                    prev + stock.quantity;
                               }
 
                               return Column(
@@ -390,9 +433,10 @@ class ProductDetailsScreen extends ConsumerWidget {
                                       const SizedBox(width: 8),
                                       Text(
                                         'Branch Stock Matrix',
-                                        style: theme.textTheme.titleMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                        ),
+                                        style: theme.textTheme.titleMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                       ),
                                     ],
                                   ),
@@ -406,34 +450,54 @@ class ProductDetailsScreen extends ConsumerWidget {
                                     SingleChildScrollView(
                                       scrollDirection: Axis.horizontal,
                                       child: DataTable(
-                                        headingTextStyle: theme.textTheme.labelMedium?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: colorScheme.onSurfaceVariant,
-                                        ),
+                                        headingTextStyle: theme
+                                            .textTheme
+                                            .labelMedium
+                                            ?.copyWith(
+                                              fontWeight: FontWeight.bold,
+                                              color:
+                                                  colorScheme.onSurfaceVariant,
+                                            ),
                                         columns: const [
                                           DataColumn(label: Text('Branch')),
                                           DataColumn(label: Text('Quantity')),
                                         ],
-                                        rows: realBranches.map(
-                                          (branch) => DataRow(
-                                            cells: [
-                                              DataCell(Text(branch.name, style: const TextStyle(fontWeight: FontWeight.w500))),
-                                              DataCell(
-                                                Text(
-                                                  (qtyByBranch[branch.id] ?? 0).toString(),
-                                                  style: const TextStyle(fontWeight: FontWeight.bold),
-                                                ),
+                                        rows: realBranches
+                                            .map(
+                                              (branch) => DataRow(
+                                                cells: [
+                                                  DataCell(
+                                                    Text(
+                                                      branch.name,
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w500,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  DataCell(
+                                                    Text(
+                                                      (qtyByBranch[branch.id] ??
+                                                              0)
+                                                          .toString(),
+                                                      style: const TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.bold,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ],
                                               ),
-                                            ],
-                                          ),
-                                        ).toList(),
+                                            )
+                                            .toList(),
                                       ),
                                     ),
                                 ],
                               );
                             },
                             loading: () => const LinearProgressIndicator(),
-                            error: (_, _) => const Text('Failed to load branch stock.'),
+                            error: (_, _) =>
+                                const Text('Failed to load branch stock.'),
                           );
                         },
                         loading: () => const LinearProgressIndicator(),
@@ -442,11 +506,16 @@ class ProductDetailsScreen extends ConsumerWidget {
                     },
                   ),
                 ),
-                
+
                 // Transaction History (Flat list)
                 const Divider(height: 1),
                 Padding(
-                  padding: const EdgeInsets.only(left: 24, right: 24, top: 24, bottom: 8),
+                  padding: const EdgeInsets.only(
+                    left: 24,
+                    right: 24,
+                    top: 24,
+                    bottom: 8,
+                  ),
                   child: Text(
                     'Transaction History',
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -456,7 +525,9 @@ class ProductDetailsScreen extends ConsumerWidget {
                 ),
                 Consumer(
                   builder: (context, ref, child) {
-                    final historyAsync = ref.watch(productTransactionHistoryProvider(product.id));
+                    final historyAsync = ref.watch(
+                      productTransactionHistoryProvider(product.id),
+                    );
                     return historyAsync.when(
                       data: (history) {
                         if (history.isEmpty) {
@@ -476,19 +547,26 @@ class ProductDetailsScreen extends ConsumerWidget {
                           padding: EdgeInsets.zero,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
-                          itemCount: history.length > 5 ? 5 : history.length, // Show latest 5
+                          itemCount: history.length > 5
+                              ? 5
+                              : history.length, // Show latest 5
                           separatorBuilder: (_, _) => const Divider(height: 1),
                           itemBuilder: (context, index) {
                             final tx = history[index];
                             final isPositive = tx.quantityChange > 0;
                             final isSale = tx.type == 'sale';
-                            
-                            final title = tx.referenceNumber ?? (isSale ? 'Sale' : 'Adjustment');
+
+                            final title =
+                                tx.referenceNumber ??
+                                (isSale ? 'Sale' : 'Adjustment');
                             final actor = tx.actorName ?? 'Unknown';
                             final timeStr = tx.createdAt != null
-                                ? tx.createdAt!.toLocal().toString().substring(0, 16)
+                                ? tx.createdAt!.toLocal().toString().substring(
+                                    0,
+                                    16,
+                                  )
                                 : '—';
-                            
+
                             Widget icon;
                             if (isSale) {
                               icon = PhosphorIcon(
@@ -498,20 +576,25 @@ class ProductDetailsScreen extends ConsumerWidget {
                               );
                             } else {
                               icon = PhosphorIcon(
-                                isPositive ? PhosphorIconsRegular.trendUp : PhosphorIconsRegular.trendDown,
+                                isPositive
+                                    ? PhosphorIconsRegular.trendUp
+                                    : PhosphorIconsRegular.trendDown,
                                 color: isPositive ? Colors.green : Colors.red,
                                 size: 18,
                               );
                             }
 
                             final tile = ListTile(
-                              contentPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 8,
+                              ),
                               leading: CircleAvatar(
-                                backgroundColor: isSale 
-                                    ? colorScheme.primaryContainer 
-                                    : (isPositive 
-                                        ? Colors.green.withValues(alpha: 0.1)
-                                        : Colors.red.withValues(alpha: 0.1)),
+                                backgroundColor: isSale
+                                    ? colorScheme.primaryContainer
+                                    : (isPositive
+                                          ? Colors.green.withValues(alpha: 0.1)
+                                          : Colors.red.withValues(alpha: 0.1)),
                                 child: icon,
                               ),
                               title: Text(
@@ -535,12 +618,18 @@ class ProductDetailsScreen extends ConsumerWidget {
                                   fontSize: 16,
                                 ),
                               ),
-                              onTap: isSale && tx.referenceId != null 
-                                  ? () => context.push('/sales/${tx.referenceId}') 
+                              onTap: isSale && tx.referenceId != null
+                                  ? () =>
+                                        context.push('/sales/${tx.referenceId}')
                                   : null,
                             );
 
-                            return isSale ? Material(color: Colors.transparent, child: tile) : tile;
+                            return isSale
+                                ? Material(
+                                    color: Colors.transparent,
+                                    child: tile,
+                                  )
+                                : tile;
                           },
                         );
                       },

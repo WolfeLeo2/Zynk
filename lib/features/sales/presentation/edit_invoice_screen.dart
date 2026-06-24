@@ -3,13 +3,18 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
+import 'package:zynk/core/services/sales_service.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
+import 'package:zynk/shared/widgets/stock_availability_label.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 class EditInvoiceScreen extends ConsumerStatefulWidget {
   final String saleId;
@@ -68,16 +73,19 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     _customerPhoneCtrl.text = customer?.phone ?? '';
     _notesCtrl.text = sale.notes ?? '';
     _dueDate = sale.dueDate;
-    
+
     _items = [];
     for (final item in items) {
       final product = products.where((p) => p.id == item.productId).firstOrNull;
       final itemGroup = (product != null && product.itemGroupId != null)
           ? ref.read(itemGroupProvider(product.itemGroupId!)).value
           : null;
-      final isSqmBased = product != null &&
-          (product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm');
-      final coverage = (product?.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
+      final isSqmBased =
+          product != null &&
+          (product.pricingUnit == 'sqm' ||
+              itemGroup?.defaultPricingUnit == 'sqm');
+      final coverage =
+          (product?.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
 
       _items.add(
         _EditableSaleItem(
@@ -95,22 +103,59 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     }
   }
 
-  double _computeSubtotal() {
-    double total = 0;
-    for (final item in _items) {
-      final enteredPrice = double.tryParse(item.priceCtr.text) ??
-          (item.isSqmBased ? (item.initialPrice / item.coveragePerBox) : item.initialPrice);
-      final enteredQty = double.tryParse(item.qtyCtr.text) ??
-          (item.isSqmBased ? (item.initialQty * item.coveragePerBox) : item.initialQty.toDouble());
-          
-      if (item.isSqmBased) {
-        final boxes = (enteredQty / item.coveragePerBox).ceil();
-        total += (enteredPrice * item.coveragePerBox) * boxes;
-      } else {
-        total += enteredPrice * enteredQty.toInt();
-      }
+  double _computeSubtotal() =>
+      _items.fold(0, (sum, item) => sum + item.resolvedLine().total);
+
+  /// Build a fresh editable line item from a catalogue product (qty defaults to 1).
+  _EditableSaleItem _editableFromProduct(Product product) {
+    final itemGroup = product.itemGroupId != null
+        ? ref.read(itemGroupProvider(product.itemGroupId!)).value
+        : null;
+    final isSqmBased =
+        product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm';
+    final coverage =
+        (product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
+    return _EditableSaleItem(
+      id: const Uuid().v4(),
+      productId: product.id,
+      costPrice: product.costPrice ?? 0,
+      taxAmount: 0,
+      initialName: product.name,
+      initialQty: 1,
+      initialPrice: product.basePrice ?? 0,
+      isSqmBased: isSqmBased,
+      coveragePerBox: coverage,
+    );
+  }
+
+  /// Opens the product picker and appends the chosen products (those not already
+  /// on the invoice) as new line items. New items are inserted server-side by
+  /// `update_draft` (which replaces the sale's items wholesale).
+  Future<void> _addItems(List<Product> products) async {
+    final existingIds = _items.map((i) => i.productId).toSet();
+    final available = products
+        .where((p) => !existingIds.contains(p.id))
+        .toList();
+    if (available.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('All products are already on this invoice.'),
+        ),
+      );
+      return;
     }
-    return total;
+    final selected = await ProductSelectionSheet.show(
+      context,
+      availableProducts: available,
+      initiallySelectedIds: const {},
+    );
+    if (selected == null || selected.isEmpty || !mounted) return;
+    setState(() {
+      for (final id in selected) {
+        final product = products.where((p) => p.id == id).firstOrNull;
+        if (product != null) _items.add(_editableFromProduct(product));
+      }
+    });
   }
 
   Future<void> _save() async {
@@ -142,30 +187,22 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       // Build updated SaleItem list
       final updatedItems = <SaleItem>[];
       for (final item in _items) {
-        final enteredQty = double.tryParse(item.qtyCtr.text) ?? 
-            (item.isSqmBased ? (item.initialQty * item.coveragePerBox) : item.initialQty.toDouble());
-        final qty = item.isSqmBased
-            ? (enteredQty / item.coveragePerBox).ceil()
-            : enteredQty.toInt();
+        final line = item.resolvedLine();
+        final qty = line.quantity;
         if (qty <= 0) continue;
 
-        final enteredPrice = double.tryParse(item.priceCtr.text) ?? 
-            (item.isSqmBased ? (item.initialPrice / item.coveragePerBox) : item.initialPrice);
-        final price = item.isSqmBased
-            ? enteredPrice * item.coveragePerBox
-            : enteredPrice;
+        final price = line.unitPrice;
 
         final name = item.nameCtr.text.trim().isEmpty
             ? item.initialName
             : item.nameCtr.text.trim();
 
         // Stock validation — skip when no stock row exists (e.g. services)
-        final stockRow = await repo.db.getOptional(
-          'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
-          [item.productId, branchId],
+        final available = await repo.getProductStockOrNull(
+          item.productId,
+          branchId,
         );
-        if (stockRow != null) {
-          final available = (stockRow['quantity'] as num?)?.toInt() ?? 0;
+        if (available != null) {
           if (qty > available) {
             if (mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
@@ -194,7 +231,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
             costPrice: item.costPrice,
             taxAmount: item.taxAmount,
             discount: 0,
-            total: price * qty,
+            total: line.total,
             productName: name,
           ),
         );
@@ -276,8 +313,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
           error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
           data: (saleItems) {
             return productsAsync.when(
-              loading: () =>
-                  const Scaffold(body: Center(child: CircularProgressIndicator())),
+              loading: () => const Scaffold(
+                body: Center(child: CircularProgressIndicator()),
+              ),
               error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
               data: (products) {
                 final customers = customersAsync.value ?? [];
@@ -293,359 +331,385 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                 _initialize(sale, saleItems, customer, products);
 
                 return Scaffold(
-              appBar: AppBar(
-                leading: IconButton(
-                  icon: const PhosphorIcon(PhosphorIconsRegular.x),
-                  onPressed: () => context.pop(),
-                ),
-                title: Text('Edit ${sale.invoiceNumber ?? 'Invoice'}'),
-                centerTitle: true,
-                actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 16),
-                    child: Center(
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: cs.primaryContainer.withValues(alpha: 0.2),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          ref
-                                  .watch(branchesProvider)
-                                  .value
-                                  ?.where((b) => b.id == sale.branchId)
-                                  .firstOrNull
-                                  ?.name ??
-                              '',
-                          style: theme.textTheme.labelMedium?.copyWith(
-                            color: cs.primary,
-                            fontWeight: FontWeight.bold,
+                  appBar: AppBar(
+                    leading: IconButton(
+                      icon: const PhosphorIcon(PhosphorIconsRegular.x),
+                      onPressed: () => context.pop(),
+                    ),
+                    title: Text('Edit ${sale.invoiceNumber ?? 'Invoice'}'),
+                    centerTitle: true,
+                    actions: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 16),
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: cs.primaryContainer.withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              ref
+                                      .watch(branchesProvider)
+                                      .value
+                                      ?.where((b) => b.id == sale.branchId)
+                                      .firstOrNull
+                                      ?.name ??
+                                  '',
+                              style: theme.textTheme.labelMedium?.copyWith(
+                                color: cs.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
-                ],
-              ),
-              body: Form(
-                key: _formKey,
-                onChanged: () => setState(() {}),
-                child: ListView(
-                  padding: const EdgeInsets.all(24),
-                  children: [
-                    // ── Previously Approved Banner ──
-                    if (widget.wasApproved)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 20),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 12,
-                        ),
-                        decoration: BoxDecoration(
-                          color: theme.colorScheme.tertiaryContainer,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: theme.colorScheme.tertiary.withValues(alpha: 0.4),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            PhosphorIcon(
-                              PhosphorIconsDuotone.info,
-                              color: theme.colorScheme.onTertiaryContainer,
-                              size: 20,
+                  body: Form(
+                    key: _formKey,
+                    onChanged: () => setState(() {}),
+                    child: ListView(
+                      padding: const EdgeInsets.all(24),
+                      children: [
+                        // ── Previously Approved Banner ──
+                        if (widget.wasApproved)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 20),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
                             ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                'This invoice was previously approved. Saving will resubmit it for re-approval.',
-                                style: theme.textTheme.bodySmall?.copyWith(
+                            decoration: BoxDecoration(
+                              color: theme.colorScheme.tertiaryContainer,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: theme.colorScheme.tertiary.withValues(
+                                  alpha: 0.4,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                PhosphorIcon(
+                                  PhosphorIconsDuotone.info,
                                   color: theme.colorScheme.onTertiaryContainer,
-                                  fontWeight: FontWeight.w500,
+                                  size: 20,
                                 ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    // ── Customer ──
-                    Text(
-                      'Billed To',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cs.surfaceContainerHighest.withValues(
-                          alpha: 0.2,
-                        ),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: cs.outline.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Column(
-                        children: [
-                          TextFormField(
-                            controller: _customerNameCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Customer Name',
-                              prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              isDense: true,
-                            ),
-                            textCapitalization: TextCapitalization.words,
-                            validator: (v) => (v == null || v.trim().isEmpty)
-                                ? 'Required'
-                                : null,
-                          ),
-                          const SizedBox(height: 12),
-                          TextFormField(
-                            controller: _customerPhoneCtrl,
-                            decoration: InputDecoration(
-                              labelText: 'Phone',
-                              prefixIcon: const PhosphorIcon(
-                                PhosphorIconsRegular.phone,
-                              ),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              isDense: true,
-                            ),
-                            keyboardType: TextInputType.phone,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // ── Due Date ──
-                    Text(
-                      'Due Date (Optional)',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    InkWell(
-                      onTap: () async {
-                        final picked = await showDatePicker(
-                          context: context,
-                          initialDate:
-                              _dueDate ??
-                              DateTime.now().add(const Duration(days: 30)),
-                          firstDate: DateTime.now().subtract(
-                            const Duration(days: 365),
-                          ),
-                          lastDate: DateTime.now().add(
-                            const Duration(days: 365),
-                          ),
-                        );
-                        if (picked != null) setState(() => _dueDate = picked);
-                      },
-                      borderRadius: BorderRadius.circular(12),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 14,
-                        ),
-                        decoration: BoxDecoration(
-                          color: cs.surface,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: cs.outline.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: Row(
-                          children: [
-                            PhosphorIcon(
-                              PhosphorIconsRegular.calendar,
-                              color: cs.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 12),
-                            Text(
-                              _dueDate != null
-                                  ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
-                                  : 'Select due date',
-                              style: theme.textTheme.bodyLarge?.copyWith(
-                                color: _dueDate != null
-                                    ? cs.onSurface
-                                    : cs.onSurfaceVariant,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // ── Salesperson ──
-                    Text(
-                      'Salesperson (Required)',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final staffAsync = ref.watch(humanStaffByBranchProvider(sale.branchId));
-                        return staffAsync.when(
-                          data: (staffList) {
-                            if (staffList.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return DropdownButtonFormField<String>(
-                              initialValue: _salespersonId,
-                              decoration: InputDecoration(
-                                prefixIcon: const PhosphorIcon(
-                                  PhosphorIconsRegular.user,
-                                ),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                isDense: true,
-                                filled: true,
-                                fillColor: cs.surfaceContainerHighest
-                                    .withValues(alpha: 0.2),
-                              ),
-                              hint: const Text('Select Salesperson (Required)'),
-                              items: [
-                                const DropdownMenuItem<String>(
-                                  value: null,
-                                  child: Text('None'),
-                                ),
-                                ...staffList.map(
-                                  (s) => DropdownMenuItem<String>(
-                                    value: s.id,
-                                    child: Text(s.name),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    'This invoice was previously approved. Saving will resubmit it for re-approval.',
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color:
+                                          theme.colorScheme.onTertiaryContainer,
+                                      fontWeight: FontWeight.w500,
+                                    ),
                                   ),
                                 ),
                               ],
-                              onChanged: (v) =>
-                                  setState(() => _salespersonId = v),
+                            ),
+                          ),
+                        // ── Customer ──
+                        Text(
+                          'Billed To',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest.withValues(
+                              alpha: 0.2,
+                            ),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: cs.outline.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              TextFormField(
+                                controller: _customerNameCtrl,
+                                decoration: InputDecoration(
+                                  labelText: 'Customer Name',
+                                  prefixIcon: const PhosphorIcon(
+                                    PhosphorIconsRegular.user,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  isDense: true,
+                                ),
+                                textCapitalization: TextCapitalization.words,
+                                validator: (v) =>
+                                    (v == null || v.trim().isEmpty)
+                                    ? 'Required'
+                                    : null,
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _customerPhoneCtrl,
+                                decoration: InputDecoration(
+                                  labelText: 'Phone',
+                                  prefixIcon: const PhosphorIcon(
+                                    PhosphorIconsRegular.phone,
+                                  ),
+                                  border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  isDense: true,
+                                ),
+                                keyboardType: TextInputType.phone,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── Due Date ──
+                        Text(
+                          'Due Date (Optional)',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        InkWell(
+                          onTap: () async {
+                            final picked = await showDatePicker(
+                              context: context,
+                              initialDate:
+                                  _dueDate ??
+                                  DateTime.now().add(const Duration(days: 30)),
+                              firstDate: DateTime.now().subtract(
+                                const Duration(days: 365),
+                              ),
+                              lastDate: DateTime.now().add(
+                                const Duration(days: 365),
+                              ),
+                            );
+                            if (picked != null)
+                              setState(() => _dueDate = picked);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 14,
+                            ),
+                            decoration: BoxDecoration(
+                              color: cs.surface,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: cs.outline.withValues(alpha: 0.3),
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                PhosphorIcon(
+                                  PhosphorIconsRegular.calendar,
+                                  color: cs.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 12),
+                                Text(
+                                  _dueDate != null
+                                      ? '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'
+                                      : 'Select due date',
+                                  style: theme.textTheme.bodyLarge?.copyWith(
+                                    color: _dueDate != null
+                                        ? cs.onSurface
+                                        : cs.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // ── Salesperson ──
+                        Text(
+                          'Salesperson (Required)',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Consumer(
+                          builder: (context, ref, child) {
+                            final staffAsync = ref.watch(
+                              humanStaffByBranchProvider(sale.branchId),
+                            );
+                            return staffAsync.when(
+                              data: (staffList) {
+                                if (staffList.isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
+                                return DropdownButtonFormField<String>(
+                                  initialValue: _salespersonId,
+                                  decoration: InputDecoration(
+                                    prefixIcon: const PhosphorIcon(
+                                      PhosphorIconsRegular.user,
+                                    ),
+                                    border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    isDense: true,
+                                    filled: true,
+                                    fillColor: cs.surfaceContainerHighest
+                                        .withValues(alpha: 0.2),
+                                  ),
+                                  hint: const Text(
+                                    'Select Salesperson (Required)',
+                                  ),
+                                  items: [
+                                    const DropdownMenuItem<String>(
+                                      value: null,
+                                      child: Text('None'),
+                                    ),
+                                    ...staffList.map(
+                                      (s) => DropdownMenuItem<String>(
+                                        value: s.id,
+                                        child: Text(s.name),
+                                      ),
+                                    ),
+                                  ],
+                                  onChanged: (v) =>
+                                      setState(() => _salespersonId = v),
+                                );
+                              },
+                              loading: () => const LinearProgressIndicator(),
+                              error: (_, _) => const SizedBox.shrink(),
                             );
                           },
-                          loading: () => const LinearProgressIndicator(),
-                          error: (_, _) => const SizedBox.shrink(),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-
-                    // ── Items ──
-                    Text(
-                      'Items',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    ..._items.map(
-                      (item) => _buildItemRow(
-                        item,
-                        cs,
-                        theme,
-                        onRemove: () {
-                          setState(() {
-                            item.dispose();
-                            _items.remove(item);
-                          });
-                        },
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-
-                    // ── Total ──
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer.withValues(alpha: 0.15),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text(
-                            'Estimated Total',
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            'Ksh ${_computeSubtotal().toStringAsFixed(0)}',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: cs.primary,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // ── Notes ──
-                    Text(
-                      'Notes (Optional)',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _notesCtrl,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        hintText: 'e.g., Net 30 payment terms',
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
                         ),
-                        filled: true,
-                        fillColor: cs.surface,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
+                        const SizedBox(height: 24),
 
-                    FilledButton.icon(
-                      onPressed: _isLoading ? null : _save,
-                      icon: _isLoading
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                        // ── Items ──
+                        Text(
+                          'Items',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+
+                        ..._items.map(
+                          (item) => _buildItemRow(
+                            item,
+                            cs,
+                            theme,
+                            branchId: sale.branchId,
+                            onRemove: () {
+                              setState(() {
+                                item.dispose();
+                                _items.remove(item);
+                              });
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        OutlinedButton.icon(
+                          onPressed: () => _addItems(products),
+                          icon: const PhosphorIcon(
+                            PhosphorIconsBold.plus,
+                            size: 18,
+                          ),
+                          label: const Text('Add Item'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(48),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+
+                        // ── Total ──
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: cs.primaryContainer.withValues(alpha: 0.15),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Estimated Total',
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
-                            )
-                          : const PhosphorIcon(PhosphorIconsBold.floppyDisk),
-                      label: Text(
-                        _isLoading ? 'Saving...' : 'Save Changes',
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
+                              Text(
+                                CurrencyHelper.format(_computeSubtotal()),
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: cs.primary,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                        const SizedBox(height: 24),
+
+                        // ── Notes ──
+                        Text(
+                          'Notes (Optional)',
+                          style: theme.textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _notesCtrl,
+                          maxLines: 3,
+                          decoration: InputDecoration(
+                            hintText: 'e.g., Net 30 payment terms',
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            filled: true,
+                            fillColor: cs.surface,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+
+                        FilledButton.icon(
+                          onPressed: _isLoading ? null : _save,
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
+                                  ),
+                                )
+                              : const PhosphorIcon(
+                                  PhosphorIconsBold.floppyDisk,
+                                ),
+                          label: Text(
+                            _isLoading ? 'Saving...' : 'Save Changes',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 48),
+                      ],
                     ),
-                    const SizedBox(height: 48),
-                  ],
-                ),
-              ),
+                  ),
                 );
               },
             );
@@ -659,6 +723,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     _EditableSaleItem item,
     ColorScheme cs,
     ThemeData theme, {
+    required String branchId,
     required VoidCallback onRemove,
   }) {
     return Container(
@@ -672,6 +737,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          StockAvailabilityLabel(productId: item.productId, branchId: branchId),
           Row(
             children: [
               Expanded(
@@ -724,7 +790,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     if (item.isSqmBased)
                       FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))
                     else
-                      FilteringTextInputFormatter.digitsOnly
+                      FilteringTextInputFormatter.digitsOnly,
                   ],
                   validator: (v) {
                     final qty = double.tryParse(v ?? '');
@@ -740,7 +806,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                   controller: item.priceCtr,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    labelText: item.isSqmBased ? 'Price/sqm (Ksh)' : 'Unit Price (Ksh)',
+                    labelText: item.isSqmBased
+                        ? 'Price/sqm (Ksh)'
+                        : 'Unit Price (Ksh)',
                     isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
@@ -771,9 +839,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    item.isSqmBased
-                        ? 'Ksh ${((double.tryParse(item.priceCtr.text) ?? (item.initialPrice / item.coveragePerBox)) * item.coveragePerBox * ((double.tryParse(item.qtyCtr.text) ?? (item.initialQty * item.coveragePerBox)) / item.coveragePerBox).ceil()).toStringAsFixed(0)}'
-                        : 'Ksh ${((double.tryParse(item.priceCtr.text) ?? 0) * (int.tryParse(item.qtyCtr.text) ?? 0)).toStringAsFixed(0)}',
+                    CurrencyHelper.format(item.resolvedLine().total),
                     style: theme.textTheme.bodyMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                     ),
@@ -784,32 +850,31 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
           ),
           if (item.isSqmBased) ...[
             const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Price/box: Ksh ${((double.tryParse(item.priceCtr.text) ?? (item.initialPrice / item.coveragePerBox)) * item.coveragePerBox).toStringAsFixed(0)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                    fontSize: 11,
-                  ),
-                ),
-                Builder(
-                  builder: (context) {
-                    final enteredQty = double.tryParse(item.qtyCtr.text) ?? (item.initialQty * item.coveragePerBox);
-                    final boxes = (enteredQty / item.coveragePerBox).ceil();
-                    final actualSqm = boxes * item.coveragePerBox;
-                    return Text(
-                      'Total boxes: $boxes (${actualSqm.toStringAsFixed(2)} sqm)',
+            Builder(
+              builder: (context) {
+                final line = item.resolvedLine();
+                final actualSqm = line.quantity * item.coveragePerBox;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Price/box: ${CurrencyHelper.format(line.unitPrice)}',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                        fontSize: 11,
+                      ),
+                    ),
+                    Text(
+                      'Total boxes: ${line.quantity} (${actualSqm.toStringAsFixed(2)} sqm)',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: cs.primary.withValues(alpha: 0.8),
                         fontSize: 11,
                         fontWeight: FontWeight.w500,
                       ),
-                    );
-                  },
-                ),
-              ],
+                    ),
+                  ],
+                );
+              },
             ),
           ],
         ],
@@ -829,7 +894,8 @@ class _EditableSaleItem {
   final double taxAmount;
   final String initialName;
   final int initialQty; // number of boxes from DB
-  final double initialPrice; // unit price (per box if sqm-based, per piece if piece-based)
+  final double
+  initialPrice; // unit price (per box if sqm-based, per piece if piece-based)
   final bool isSqmBased;
   final double coveragePerBox;
 
@@ -849,17 +915,37 @@ class _EditableSaleItem {
     required this.coveragePerBox,
   }) {
     nameCtr = TextEditingController(text: initialName);
-    
+
     // For sqm-based items, display quantity as initialQty (boxes) * coveragePerBox (total sqm)
-    final displayQty = isSqmBased ? (initialQty * coveragePerBox) : initialQty.toDouble();
+    final displayQty = isSqmBased
+        ? (initialQty * coveragePerBox)
+        : initialQty.toDouble();
     qtyCtr = TextEditingController(
       text: isSqmBased ? displayQty.toStringAsFixed(2) : initialQty.toString(),
     );
-    
+
     // For sqm-based items, display price as unitPrice / coveragePerBox (price per sqm)
-    final displayPrice = isSqmBased ? (initialPrice / coveragePerBox) : initialPrice;
+    final displayPrice = isSqmBased
+        ? (initialPrice / coveragePerBox)
+        : initialPrice;
     priceCtr = TextEditingController(text: displayPrice.toStringAsFixed(0));
   }
+
+  double get _enteredPrice =>
+      double.tryParse(priceCtr.text) ??
+      (isSqmBased ? initialPrice / coveragePerBox : initialPrice);
+
+  double get _enteredQty =>
+      double.tryParse(qtyCtr.text) ??
+      (isSqmBased ? initialQty * coveragePerBox : initialQty.toDouble());
+
+  /// Resolved pricing — single source for subtotal, the row total and saving.
+  InvoiceLine resolvedLine() => SalesService.resolveLine(
+        isSqmBased: isSqmBased,
+        coveragePerBox: coveragePerBox,
+        enteredPrice: _enteredPrice,
+        enteredQty: _enteredQty,
+      );
 
   void dispose() {
     nameCtr.dispose();

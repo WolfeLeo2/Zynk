@@ -8,7 +8,8 @@ class ChangePasswordScreen extends ConsumerStatefulWidget {
   const ChangePasswordScreen({super.key});
 
   @override
-  ConsumerState<ChangePasswordScreen> createState() => _ChangePasswordScreenState();
+  ConsumerState<ChangePasswordScreen> createState() =>
+      _ChangePasswordScreenState();
 }
 
 class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
@@ -29,21 +30,33 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     FocusScope.of(context).unfocus();
-    
+
     // Cache messenger to avoid BuildContext across async gap violations
     final messenger = ScaffoldMessenger.of(context);
     final router = GoRouter.of(context);
-    
+
     setState(() => _isLoading = true);
     try {
-      await ref.read(authServiceProvider).updatePassword(newPassword: _newPasswordController.text);
+      await ref
+          .read(authServiceProvider)
+          .updatePassword(newPassword: _newPasswordController.text);
       if (mounted) {
-        messenger.showSnackBar(const SnackBar(content: Text('Password changed successfully!'), behavior: SnackBarBehavior.floating));
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Password changed successfully!'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
         router.pop();
       }
     } catch (e) {
       if (mounted) {
-        messenger.showSnackBar(SnackBar(content: Text('Failed to change password: $e'), behavior: SnackBarBehavior.floating));
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to change password: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -54,7 +67,10 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(leading: BackButton(onPressed: () => context.pop()), title: const Text('Change Password')),
+      appBar: AppBar(
+        leading: BackButton(onPressed: () => context.pop()),
+        title: const Text('Change Password'),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -67,11 +83,27 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 32),
-                    PhosphorIcon(PhosphorIconsDuotone.shieldCheck, size: 56, color: theme.colorScheme.primary),
+                    PhosphorIcon(
+                      PhosphorIconsDuotone.shieldCheck,
+                      size: 56,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(height: 24),
-                    Text('Update Password', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+                    Text(
+                      'Update Password',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 8),
-                    Text('Choose a strong password with at least 8 characters.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+                    Text(
+                      'Choose a strong password with at least 8 characters.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 36),
                     TextFormField(
                       controller: _newPasswordController,
@@ -79,11 +111,25 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
                         labelText: 'New password',
-                        prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.lock, size: 20),
-                        suffixIcon: IconButton(icon: PhosphorIcon(_obscureNew ? PhosphorIconsDuotone.eye : PhosphorIconsDuotone.eyeSlash, size: 20), onPressed: () => setState(() => _obscureNew = !_obscureNew)),
+                        prefixIcon: const PhosphorIcon(
+                          PhosphorIconsDuotone.lock,
+                          size: 20,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: PhosphorIcon(
+                            _obscureNew
+                                ? PhosphorIconsDuotone.eye
+                                : PhosphorIconsDuotone.eyeSlash,
+                            size: 20,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscureNew = !_obscureNew),
+                        ),
                         border: const OutlineInputBorder(),
                       ),
-                      validator: (v) => (v == null || v.length < 8) ? 'Minimum 8 characters' : null,
+                      validator: (v) => (v == null || v.length < 8)
+                          ? 'Minimum 8 characters'
+                          : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -93,18 +139,42 @@ class _ChangePasswordScreenState extends ConsumerState<ChangePasswordScreen> {
                       onFieldSubmitted: (_) => _save(),
                       decoration: InputDecoration(
                         labelText: 'Confirm new password',
-                        prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.lockKey, size: 20),
-                        suffixIcon: IconButton(icon: PhosphorIcon(_obscureConfirm ? PhosphorIconsDuotone.eye : PhosphorIconsDuotone.eyeSlash, size: 20), onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm)),
+                        prefixIcon: const PhosphorIcon(
+                          PhosphorIconsDuotone.lockKey,
+                          size: 20,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: PhosphorIcon(
+                            _obscureConfirm
+                                ? PhosphorIconsDuotone.eye
+                                : PhosphorIconsDuotone.eyeSlash,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
+                        ),
                         border: const OutlineInputBorder(),
                       ),
-                      validator: (v) => v != _newPasswordController.text ? 'Passwords do not match' : null,
+                      validator: (v) => v != _newPasswordController.text
+                          ? 'Passwords do not match'
+                          : null,
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 52,
                       child: FilledButton(
                         onPressed: _isLoading ? null : _save,
-                        child: _isLoading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Text('Change Password'),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Change Password'),
                       ),
                     ),
                   ],

@@ -7,6 +7,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 class CompositeItemsScreen extends ConsumerWidget {
   const CompositeItemsScreen({super.key});
@@ -63,9 +64,16 @@ class CompositeItemsScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              PhosphorIcon(PhosphorIconsDuotone.warning, size: 48, color: theme.colorScheme.error),
+              PhosphorIcon(
+                PhosphorIconsDuotone.warning,
+                size: 48,
+                color: theme.colorScheme.error,
+              ),
               const SizedBox(height: 16),
-              Text('Failed to load composite items', style: theme.textTheme.titleMedium),
+              Text(
+                'Failed to load composite items',
+                style: theme.textTheme.titleMedium,
+              ),
             ],
           ),
         ),
@@ -89,13 +97,17 @@ class CompositeItemsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           Text(
             'No Composite Items Yet',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Composite items are assemblies or kit bundles\nbuilt from two or more components.',
             textAlign: TextAlign.center,
-            style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
@@ -112,7 +124,8 @@ class CompositeItemsScreen extends ConsumerWidget {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: products.length,
-      itemBuilder: (context, index) => _CompositeItemCard(product: products[index]),
+      itemBuilder: (context, index) =>
+          _CompositeItemCard(product: products[index]),
     );
   }
 
@@ -126,7 +139,8 @@ class CompositeItemsScreen extends ConsumerWidget {
         mainAxisSpacing: 16,
       ),
       itemCount: products.length,
-      itemBuilder: (context, index) => _CompositeItemCard(product: products[index]),
+      itemBuilder: (context, index) =>
+          _CompositeItemCard(product: products[index]),
     );
   }
 
@@ -184,10 +198,18 @@ class _CompositeItemCard extends ConsumerWidget {
                       ? CachedNetworkImage(
                           imageUrl: product.imageUrl!,
                           fit: BoxFit.cover,
-                          placeholder: (context, url) => const SizedBox.shrink(),
-                          errorWidget: (context, url, err) => PhosphorIcon(PhosphorIconsDuotone.imageBroken, color: cs.onSurfaceVariant),
+                          placeholder: (context, url) =>
+                              const SizedBox.shrink(),
+                          errorWidget: (context, url, err) => PhosphorIcon(
+                            PhosphorIconsDuotone.imageBroken,
+                            color: cs.onSurfaceVariant,
+                          ),
                         )
-                      : PhosphorIcon(PhosphorIconsDuotone.stack, size: 28, color: cs.outlineVariant),
+                      : PhosphorIcon(
+                          PhosphorIconsDuotone.stack,
+                          size: 28,
+                          color: cs.outlineVariant,
+                        ),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
@@ -196,7 +218,9 @@ class _CompositeItemCard extends ConsumerWidget {
                     children: [
                       Text(
                         product.name,
-                        style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -213,13 +237,19 @@ class _CompositeItemCard extends ConsumerWidget {
                           Consumer(
                             builder: (context, ref, child) {
                               final group = product.itemGroupId != null
-                                  ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
+                                  ? ref
+                                        .watch(
+                                          itemGroupProvider(
+                                            product.itemGroupId!,
+                                          ),
+                                        )
+                                        .value
                                   : null;
                               final resolvedPrice = ref
                                   .watch(productPricingServiceProvider)
                                   .resolveSellingPrice(product, group);
                               return Text(
-                                'KES ${resolvedPrice.toStringAsFixed(0)}',
+                                CurrencyHelper.format(resolvedPrice),
                                 style: theme.textTheme.labelMedium?.copyWith(
                                   color: cs.primary,
                                   fontWeight: FontWeight.bold,

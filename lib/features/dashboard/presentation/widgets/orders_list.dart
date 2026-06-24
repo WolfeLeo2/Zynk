@@ -8,6 +8,7 @@ import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 import 'package:m3e_card_list/m3e_card_list.dart';
 import 'skeleton_widgets.dart';
 import 'empty_error_states.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // RECENT ORDERS LIST (MOBILE)
@@ -280,7 +281,7 @@ class _SaleListItem extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                CurrencyHelper.format(sale.grandTotal),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
@@ -350,7 +351,7 @@ class _SaleTableRow extends StatelessWidget {
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                CurrencyHelper.format(sale.grandTotal),
                 style: const TextStyle(fontWeight: FontWeight.bold),
               ),
             ),

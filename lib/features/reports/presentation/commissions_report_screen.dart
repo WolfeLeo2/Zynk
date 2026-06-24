@@ -7,6 +7,8 @@ import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/services/commission_service.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
@@ -14,9 +16,10 @@ import 'package:zynk/core/services/commission_service.dart';
 
 enum CommissionStatus { all, pending, paid }
 
-final _selectedMonthProvider = NotifierProvider<_SelectedMonthNotifier, DateTime>(
-  _SelectedMonthNotifier.new,
-);
+final _selectedMonthProvider =
+    NotifierProvider<_SelectedMonthNotifier, DateTime>(
+      _SelectedMonthNotifier.new,
+    );
 
 class _SelectedMonthNotifier extends Notifier<DateTime> {
   @override
@@ -53,11 +56,23 @@ final _commissionStatusProvider =
 final _commissionSummaryProvider = StreamProvider.autoDispose
     .family<
       List<SalespersonCommissionSummary>,
-      ({String tenantId, String? branchId, DateTime month, CommissionStatus status})
+      ({
+        String tenantId,
+        String? branchId,
+        DateTime month,
+        CommissionStatus status,
+      })
     >((ref, args) {
       final repo = ref.watch(repositoryProvider);
       final startDate = args.month;
-      final endDate = DateTime(args.month.year, args.month.month + 1, 0, 23, 59, 59);
+      final endDate = DateTime(
+        args.month.year,
+        args.month.month + 1,
+        0,
+        23,
+        59,
+        59,
+      );
 
       return repo
           .watchCommissionSummaryRaw(
@@ -85,7 +100,9 @@ final _commissionSummaryProvider = StreamProvider.autoDispose
             if (args.status == CommissionStatus.pending) {
               return summaries.where((s) => s.totalPending > 0).toList();
             } else if (args.status == CommissionStatus.paid) {
-              return summaries.where((s) => s.totalPaid > 0 && s.totalPending == 0).toList();
+              return summaries
+                  .where((s) => s.totalPaid > 0 && s.totalPending == 0)
+                  .toList();
             }
             return summaries;
           });
@@ -103,8 +120,15 @@ final _salespersonDetailProvider = StreamProvider.autoDispose
     >((ref, args) {
       final repo = ref.watch(repositoryProvider);
       final startDate = args.month;
-      final endDate = DateTime(args.month.year, args.month.month + 1, 0, 23, 59, 59);
-      
+      final endDate = DateTime(
+        args.month.year,
+        args.month.month + 1,
+        0,
+        23,
+        59,
+        59,
+      );
+
       return repo.watchCommissions(
         tenantId: args.tenantId,
         branchId: args.branchId,
@@ -146,8 +170,14 @@ class CommissionsReportScreen extends ConsumerWidget {
         loading: () => const _CommissionSkeletonList(),
         error: (e, _) => _ErrorState(message: e.toString()),
         data: (summaries) {
-          final grandSales = summaries.fold(0.0, (a, s) => a + s.totalSalesAmount);
-          final grandPending = summaries.fold(0.0, (a, s) => a + s.totalPending);
+          final grandSales = summaries.fold(
+            0.0,
+            (a, s) => a + s.totalSalesAmount,
+          );
+          final grandPending = summaries.fold(
+            0.0,
+            (a, s) => a + s.totalPending,
+          );
           final grandPaid = summaries.fold(0.0, (a, s) => a + s.totalPaid);
 
           return NestedScrollView(
@@ -227,19 +257,31 @@ class CommissionsReportScreen extends ConsumerWidget {
                         FilterChip(
                           label: const Text('All'),
                           selected: status == CommissionStatus.all,
-                          onSelected: (_) => ref.read(_commissionStatusProvider.notifier).state = CommissionStatus.all,
+                          onSelected: (_) =>
+                              ref
+                                      .read(_commissionStatusProvider.notifier)
+                                      .state =
+                                  CommissionStatus.all,
                         ),
                         const SizedBox(width: 8),
                         FilterChip(
                           label: const Text('Pending'),
                           selected: status == CommissionStatus.pending,
-                          onSelected: (_) => ref.read(_commissionStatusProvider.notifier).state = CommissionStatus.pending,
+                          onSelected: (_) =>
+                              ref
+                                      .read(_commissionStatusProvider.notifier)
+                                      .state =
+                                  CommissionStatus.pending,
                         ),
                         const SizedBox(width: 8),
                         FilterChip(
                           label: const Text('Paid'),
                           selected: status == CommissionStatus.paid,
-                          onSelected: (_) => ref.read(_commissionStatusProvider.notifier).state = CommissionStatus.paid,
+                          onSelected: (_) =>
+                              ref
+                                      .read(_commissionStatusProvider.notifier)
+                                      .state =
+                                  CommissionStatus.paid,
                         ),
                       ],
                     ),
@@ -319,6 +361,7 @@ class _HeroStat extends StatelessWidget {
     );
   }
 }
+
 class _SalespersonCard extends ConsumerWidget {
   const _SalespersonCard({
     required this.summary,
@@ -341,9 +384,7 @@ class _SalespersonCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withAlpha(50),
-        ),
+        border: Border.all(color: colorScheme.outlineVariant.withAlpha(50)),
       ),
       child: InkWell(
         onTap: () => _showDetail(context, ref),
@@ -403,7 +444,7 @@ class _SalespersonCard extends ConsumerWidget {
   }
 
   void _showDetail(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -431,10 +472,7 @@ class _SalespersonAvatar extends StatelessWidget {
       height: 48,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            colorScheme.primary,
-            colorScheme.primary.withAlpha(150),
-          ],
+          colors: [colorScheme.primary, colorScheme.primary.withAlpha(150)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -453,7 +491,6 @@ class _SalespersonAvatar extends StatelessWidget {
     );
   }
 }
-
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Detail Bottom Sheet
@@ -789,7 +826,7 @@ class _MonthPill extends ConsumerWidget {
   }
 
   void _showMonthPicker(BuildContext context, WidgetRef ref) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       builder: (context) => const _MonthPickerSheet(),
       shape: const RoundedRectangleBorder(
@@ -845,28 +882,25 @@ class _MonthPickerSheet extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(12),
                 child: Container(
                   decoration: BoxDecoration(
-                    color:
-                        isSelected
-                            ? colorScheme.primary
-                            : colorScheme.surfaceContainerHigh,
+                    color: isSelected
+                        ? colorScheme.primary
+                        : colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(12),
                     border: Border.all(
-                      color:
-                          isSelected
-                              ? colorScheme.primary
-                              : colorScheme.outlineVariant.withAlpha(100),
+                      color: isSelected
+                          ? colorScheme.primary
+                          : colorScheme.outlineVariant.withAlpha(100),
                     ),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     DateFormat('MMM').format(month),
                     style: textTheme.labelLarge?.copyWith(
-                      color:
-                          isSelected
-                              ? colorScheme.onPrimary
-                              : isFuture
-                              ? colorScheme.outline
-                              : colorScheme.onSurface,
+                      color: isSelected
+                          ? colorScheme.onPrimary
+                          : isFuture
+                          ? colorScheme.outline
+                          : colorScheme.onSurface,
                       fontWeight: isSelected ? FontWeight.bold : null,
                     ),
                   ),
@@ -882,24 +916,33 @@ class _MonthPickerSheet extends ConsumerWidget {
               IconButton(
                 icon: const PhosphorIcon(PhosphorIconsRegular.caretLeft),
                 onPressed: () {
-                   ref.read(_selectedMonthProvider.notifier).setMonth(
-                     DateTime(selectedMonth.year - 1, selectedMonth.month),
-                   );
+                  ref
+                      .read(_selectedMonthProvider.notifier)
+                      .setMonth(
+                        DateTime(selectedMonth.year - 1, selectedMonth.month),
+                      );
                 },
               ),
               Text(
                 selectedMonth.year.toString(),
-                style: textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               IconButton(
                 icon: const PhosphorIcon(PhosphorIconsRegular.caretRight),
                 onPressed: selectedMonth.year >= DateTime.now().year
-                  ? null
-                  : () {
-                   ref.read(_selectedMonthProvider.notifier).setMonth(
-                     DateTime(selectedMonth.year + 1, selectedMonth.month),
-                   );
-                },
+                    ? null
+                    : () {
+                        ref
+                            .read(_selectedMonthProvider.notifier)
+                            .setMonth(
+                              DateTime(
+                                selectedMonth.year + 1,
+                                selectedMonth.month,
+                              ),
+                            );
+                      },
               ),
             ],
           ),

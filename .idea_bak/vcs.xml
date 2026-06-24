@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="VcsDirectoryMappings">
+    <mapping directory="$PROJECT_DIR$" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/CSQLite" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/DKCamera" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/DKImagePickerController" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/DKPhotoGallery" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/SDWebImage" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/SwiftyGif" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/TOCropViewController" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/build/ios/SourcePackages/checkouts/powersync-sqlite-core-swift" vcs="Git" />
+    <mapping directory="$USER_HOME$/Developer/tools/flutter" vcs="Git" />
+  </component>
+</project>

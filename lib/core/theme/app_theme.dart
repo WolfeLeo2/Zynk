@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
 import 'app_tokens.dart';
 import 'app_typography.dart';
 
@@ -64,14 +65,20 @@ class AppTheme {
           horizontal: 16,
           vertical: 16,
         ),
-        border: InputBorder.none,
+        border: OutlineInputBorder(
+          borderRadius: AppTokens.roundedCard,
+          borderSide: BorderSide(color: AppTokens.borderSubtleDark),
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: Colors.transparent),
+          borderSide: BorderSide(color: AppTokens.borderSubtleDark),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.brandPrimary, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppTokens.brandPrimary,
+            width: 1.5,
+          ),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
@@ -155,14 +162,24 @@ class AppTheme {
           horizontal: 16,
           vertical: 16,
         ),
-        border: InputBorder.none,
+        border: OutlineInputBorder(
+          borderRadius: AppTokens.roundedCard,
+          borderSide: BorderSide(
+            color: AppTokens.borderSubtleLight.withValues(alpha: 0.15),
+          ),
+        ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: Colors.transparent),
+          borderSide: BorderSide(
+            color: AppTokens.borderSubtleLight.withValues(alpha: 0.15),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: const BorderSide(color: AppTokens.brandPrimary, width: 1.5),
+          borderSide: const BorderSide(
+            color: AppTokens.brandPrimary,
+            width: 1.5,
+          ),
         ),
       ),
 

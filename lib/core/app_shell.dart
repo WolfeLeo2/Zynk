@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:lottie/lottie.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 
 class AppShell extends ConsumerWidget {
@@ -21,20 +23,24 @@ class AppShell extends ConsumerWidget {
     // Enforce account status (logout if blocked)
     ref.watch(statusEnforcerProvider);
 
+    // Gate the whole shell until the profile (and therefore role/permissions)
+    // has resolved. Prevents the fail-open window where role defaults are read
+    // and permission-gated screens render before authz is known.
+    if (ref.watch(currentProfileProvider) == null) {
+      return const _ProfileLoadingScreen();
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         if (constraints.maxWidth < 840) {
           // Mobile & Tablet: Hidden drawer (requires hamburger menu on AppBar)
-          return Scaffold(
-            drawer: const AppDrawer(),
-            body: navigationShell,
-          );
+          return Scaffold(drawer: const AppDrawer(), body: navigationShell);
         } else {
           // Desktop: Persistent Sidebar
           return Scaffold(
             body: Row(
               children: [
-                const SizedBox(width: 280, child: AppDrawer()), 
+                const SizedBox(width: 280, child: AppDrawer()),
                 const VerticalDivider(thickness: 1, width: 1),
                 Expanded(child: navigationShell),
               ],
@@ -42,6 +48,46 @@ class AppShell extends ConsumerWidget {
           );
         }
       },
+    );
+  }
+}
+
+/// Shown after login while the user's profile syncs from the local DB.
+class _ProfileLoadingScreen extends StatelessWidget {
+  const _ProfileLoadingScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Scaffold(
+      backgroundColor: colorScheme.surface,
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 180,
+              height: 180,
+              child: Lottie.asset('assets/animations/welcome_loading.json'),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Just a minute…',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colorScheme.onSurface,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              "We're setting up your workspace.",
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

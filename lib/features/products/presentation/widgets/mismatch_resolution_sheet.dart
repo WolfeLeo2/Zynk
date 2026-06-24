@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class MismatchResolutionSheet extends StatefulWidget {
   final ItemGroup targetGroup;
@@ -17,7 +19,7 @@ class MismatchResolutionSheet extends StatefulWidget {
     required ItemGroup targetGroup,
     required List<Product> mismatchedProducts,
   }) {
-    return showModalBottomSheet<Map<String, bool>>(
+    return showResponsiveModal<Map<String, bool>>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -29,7 +31,8 @@ class MismatchResolutionSheet extends StatefulWidget {
   }
 
   @override
-  State<MismatchResolutionSheet> createState() => _MismatchResolutionSheetState();
+  State<MismatchResolutionSheet> createState() =>
+      _MismatchResolutionSheetState();
 }
 
 class _MismatchResolutionSheetState extends State<MismatchResolutionSheet> {
@@ -62,7 +65,10 @@ class _MismatchResolutionSheetState extends State<MismatchResolutionSheet> {
               padding: const EdgeInsets.all(16.0),
               child: Row(
                 children: [
-                  const PhosphorIcon(PhosphorIconsRegular.warning, color: Colors.orange),
+                  const PhosphorIcon(
+                    PhosphorIconsRegular.warning,
+                    color: Colors.orange,
+                  ),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -98,38 +104,57 @@ class _MismatchResolutionSheetState extends State<MismatchResolutionSheet> {
 
                   final discrepancies = <String>[];
                   if (p.pricingUnit != widget.targetGroup.defaultPricingUnit) {
-                    discrepancies.add('Unit: ${p.pricingUnit ?? "piece"} \u2192 ${widget.targetGroup.defaultPricingUnit}');
+                    discrepancies.add(
+                      'Unit: ${p.pricingUnit ?? "piece"} \u2192 ${widget.targetGroup.defaultPricingUnit}',
+                    );
                   }
-                  if (p.coveragePerBox != widget.targetGroup.defaultCoveragePerBox) {
-                    discrepancies.add('Coverage: ${p.coveragePerBox ?? "-"} \u2192 ${widget.targetGroup.defaultCoveragePerBox ?? "-"}');
+                  if (p.coveragePerBox !=
+                      widget.targetGroup.defaultCoveragePerBox) {
+                    discrepancies.add(
+                      'Coverage: ${p.coveragePerBox ?? "-"} \u2192 ${widget.targetGroup.defaultCoveragePerBox ?? "-"}',
+                    );
                   }
                   if (p.basePrice != widget.targetGroup.defaultSellingPrice) {
-                    discrepancies.add('Selling: KES ${p.basePrice ?? "-"} \u2192 KES ${widget.targetGroup.defaultSellingPrice ?? "-"}');
+                    discrepancies.add(
+                      'Selling: KES ${p.basePrice ?? "-"} \u2192 KES ${widget.targetGroup.defaultSellingPrice ?? "-"}',
+                    );
                   }
                   if (p.costPrice != widget.targetGroup.defaultBuyingPrice) {
-                    discrepancies.add('Buying: KES ${p.costPrice ?? "-"} \u2192 KES ${widget.targetGroup.defaultBuyingPrice ?? "-"}');
+                    discrepancies.add(
+                      'Buying: KES ${p.costPrice ?? "-"} \u2192 KES ${widget.targetGroup.defaultBuyingPrice ?? "-"}',
+                    );
                   }
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16.0,
+                      vertical: 8.0,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           p.name,
-                          style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                         const SizedBox(height: 8),
-                        ...discrepancies.map((d) => Padding(
-                          padding: const EdgeInsets.only(bottom: 4.0),
-                          child: Row(
-                            children: [
-                              const PhosphorIcon(PhosphorIconsRegular.arrowRight, size: 16),
-                              const SizedBox(width: 4),
-                              Text(d, style: theme.textTheme.bodySmall),
-                            ],
+                        ...discrepancies.map(
+                          (d) => Padding(
+                            padding: const EdgeInsets.only(bottom: 4.0),
+                            child: Row(
+                              children: [
+                                const PhosphorIcon(
+                                  PhosphorIconsRegular.arrowRight,
+                                  size: 16,
+                                ),
+                                const SizedBox(width: 4),
+                                Text(d, style: theme.textTheme.bodySmall),
+                              ],
+                            ),
                           ),
-                        )),
+                        ),
                         const SizedBox(height: 12),
                         Row(
                           children: [

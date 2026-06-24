@@ -26,15 +26,19 @@ class _ReportsDateRangeNotifier extends Notifier<DateTimeRange> {
   @override
   DateTimeRange build() {
     final now = DateTime.now();
-    return DateTimeRange(start: now.subtract(const Duration(days: 30)), end: now);
+    return DateTimeRange(
+      start: now.subtract(const Duration(days: 30)),
+      end: now,
+    );
   }
 
   void setRange(DateTimeRange range) => state = range;
 }
 
-final reportsDateRangeProvider = NotifierProvider<_ReportsDateRangeNotifier, DateTimeRange>(
-  _ReportsDateRangeNotifier.new,
-);
+final reportsDateRangeProvider =
+    NotifierProvider<_ReportsDateRangeNotifier, DateTimeRange>(
+      _ReportsDateRangeNotifier.new,
+    );
 
 final reportsSummaryProvider = StreamProvider.autoDispose<Map<String, dynamic>>(
   (ref) {
@@ -43,13 +47,13 @@ final reportsSummaryProvider = StreamProvider.autoDispose<Map<String, dynamic>>(
     final localBranchId = ref.watch(reportsBranchFilterProvider);
     final branchId = localBranchId ?? globalBranchId;
     final range = ref.watch(reportsDateRangeProvider);
-    
+
     if (tenantId == null) return Stream.value(<String, dynamic>{});
     return ref
         .watch(repositoryProvider)
         .watchReportSummary(
-          tenantId: tenantId, 
-          branchId: branchId, 
+          tenantId: tenantId,
+          branchId: branchId,
           startDate: range.start,
           endDate: range.end,
         );
@@ -64,7 +68,7 @@ final reportsDailySalesProvider =
       final branchId = localBranchId ?? globalBranchId;
       final range = ref.watch(reportsDateRangeProvider);
       final repo = ref.watch(repositoryProvider);
-      
+
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return repo.watchDailySalesDataSmart(
         tenantId: tenantId,
@@ -82,7 +86,7 @@ final reportsWeeklyProfitProvider =
       final branchId = localBranchId ?? globalBranchId;
       final range = ref.watch(reportsDateRangeProvider);
       final repo = ref.watch(repositoryProvider);
-      
+
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return repo.watchWeeklyProfit(
         tenantId: tenantId,
@@ -99,7 +103,7 @@ final reportsPaymentBreakdownProvider =
       final localBranchId = ref.watch(reportsBranchFilterProvider);
       final branchId = localBranchId ?? globalBranchId;
       final range = ref.watch(reportsDateRangeProvider);
-      
+
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return ref
           .watch(repositoryProvider)
@@ -118,7 +122,7 @@ final reportsTopProductsProvider =
       final localBranchId = ref.watch(reportsBranchFilterProvider);
       final branchId = localBranchId ?? globalBranchId;
       final range = ref.watch(reportsDateRangeProvider);
-      
+
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return ref
           .watch(repositoryProvider)
@@ -138,7 +142,7 @@ final reportsInvoiceStatusProvider =
       final localBranchId = ref.watch(reportsBranchFilterProvider);
       final branchId = localBranchId ?? globalBranchId;
       final range = ref.watch(reportsDateRangeProvider);
-      
+
       if (tenantId == null) return Stream.value(<Map<String, dynamic>>[]);
       return ref
           .watch(repositoryProvider)
@@ -157,7 +161,7 @@ final reportsCommissionSummaryProvider =
       final localBranchId = ref.watch(reportsBranchFilterProvider);
       final branchId = localBranchId ?? globalBranchId;
       final range = ref.watch(reportsDateRangeProvider);
-      
+
       if (tenantId == null) {
         return Stream.value(<SalespersonCommissionSummary>[]);
       }
@@ -215,7 +219,10 @@ class ReportsScreen extends ConsumerWidget {
             title: const Text('Reports'),
             actions: [
               TextButton.icon(
-                icon: const PhosphorIcon(PhosphorIconsRegular.calendarBlank, size: 18),
+                icon: const PhosphorIcon(
+                  PhosphorIconsRegular.calendarBlank,
+                  size: 18,
+                ),
                 label: Text(
                   '${DateFormat('MMM d').format(range.start)} - ${DateFormat('MMM d').format(range.end)}',
                   style: const TextStyle(fontWeight: FontWeight.w600),
@@ -228,15 +235,17 @@ class ReportsScreen extends ConsumerWidget {
                     initialDateRange: range,
                     builder: (context, child) {
                       return Theme(
-                        data: Theme.of(context).copyWith(
-                          colorScheme: colorScheme,
-                        ),
+                        data: Theme.of(
+                          context,
+                        ).copyWith(colorScheme: colorScheme),
                         child: child!,
                       );
                     },
                   );
                   if (picked != null) {
-                    ref.read(reportsDateRangeProvider.notifier).setRange(picked);
+                    ref
+                        .read(reportsDateRangeProvider.notifier)
+                        .setRange(picked);
                   }
                 },
               ),
@@ -258,7 +267,9 @@ class ReportsScreen extends ConsumerWidget {
                   const SizedBox(height: 16),
                   BranchFilterChips(
                     selectedBranchId: ref.watch(reportsBranchFilterProvider),
-                    onSelected: (id) => ref.read(reportsBranchFilterProvider.notifier).state = id,
+                    onSelected: (id) =>
+                        ref.read(reportsBranchFilterProvider.notifier).state =
+                            id,
                   ),
                   const SizedBox(height: 16),
                   const _ReportSummaryGrid(),
@@ -304,7 +315,6 @@ class ReportsScreen extends ConsumerWidget {
   }
 }
 
-
 class _ReportSummaryGrid extends ConsumerWidget {
   const _ReportSummaryGrid();
 
@@ -314,7 +324,10 @@ class _ReportSummaryGrid extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return summaryAsync.when(
-      loading: () => const SizedBox(height: 200, child: Center(child: CircularProgressIndicator())),
+      loading: () => const SizedBox(
+        height: 200,
+        child: Center(child: CircularProgressIndicator()),
+      ),
       error: (e, _) => Center(child: Text('Failed to load summary: $e')),
       data: (summary) {
         final grossSales = _asDouble(summary['gross_sales']);
@@ -556,7 +569,7 @@ class _WeeklyProfitCard extends ConsumerWidget {
 
           final spots = <BarChartGroupData>[];
           final labels = <String>[];
-          
+
           // Rows come in descending order (newest first). Let's reverse them to chart chronologically.
           final reversedRows = rows.reversed.toList();
 
@@ -564,15 +577,15 @@ class _WeeklyProfitCard extends ConsumerWidget {
             final row = reversedRows[i];
             final weekStr = (row['week'] as String?) ?? '';
             final profit = _asDouble(row['profit']);
-            
+
             final weekStartStr = row['week_start'] as String?;
             if (weekStartStr != null) {
-                final dt = DateTime.tryParse(weekStartStr);
-                labels.add(dt == null ? weekStr : DateFormat('d MMM').format(dt));
+              final dt = DateTime.tryParse(weekStartStr);
+              labels.add(dt == null ? weekStr : DateFormat('d MMM').format(dt));
             } else {
-                labels.add(weekStr);
+              labels.add(weekStr);
             }
-            
+
             spots.add(
               BarChartGroupData(
                 x: i,
@@ -581,14 +594,19 @@ class _WeeklyProfitCard extends ConsumerWidget {
                     toY: profit < 0 ? 0 : profit,
                     color: Theme.of(context).colorScheme.tertiary,
                     width: 16,
-                    borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(4),
+                    ),
                   ),
                 ],
               ),
             );
           }
 
-          final maxY = spots.fold<double>(0, (m, g) => g.barRods.first.toY > m ? g.barRods.first.toY : m);
+          final maxY = spots.fold<double>(
+            0,
+            (m, g) => g.barRods.first.toY > m ? g.barRods.first.toY : m,
+          );
           final safeMaxY = maxY <= 0 ? 100.0 : maxY * 1.2;
           final colorScheme = Theme.of(context).colorScheme;
 
@@ -608,8 +626,12 @@ class _WeeklyProfitCard extends ConsumerWidget {
                 ),
                 borderData: FlBorderData(show: false),
                 titlesData: FlTitlesData(
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
+                  topTitles: const AxisTitles(
+                    sideTitles: SideTitles(showTitles: false),
+                  ),
                   bottomTitles: AxisTitles(
                     sideTitles: SideTitles(
                       showTitles: true,
@@ -620,7 +642,8 @@ class _WeeklyProfitCard extends ConsumerWidget {
                           return const SizedBox();
                         }
                         // Only show every Nth label if there are too many weeks
-                        if (labels.length > 8 && idx % 2 != 0) return const SizedBox();
+                        if (labels.length > 8 && idx % 2 != 0)
+                          return const SizedBox();
                         return SideTitleWidget(
                           meta: meta,
                           child: Text(
@@ -994,7 +1017,9 @@ class _CommissionLeaderboardCard extends ConsumerWidget {
                           Expanded(
                             child: Text(
                               row.salespersonName,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
                           Text(_currency(total)),
@@ -1029,8 +1054,10 @@ class _CommissionLeaderboardCard extends ConsumerWidget {
                 width: double.infinity,
                 child: OutlinedButton.icon(
                   onPressed: () => context.push('/settings/commissions'),
-                  icon:
-                      const PhosphorIcon(PhosphorIconsRegular.arrowRight, size: 16),
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.arrowRight,
+                    size: 16,
+                  ),
                   label: const Text('View Detailed Commission Report'),
                 ),
               ),
@@ -1068,10 +1095,7 @@ class _KpiTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? colorScheme.surfaceContainerHigh : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: color.withValues(alpha: 0.15),
-          width: 1.5,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.15), width: 1.5),
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.05),
@@ -1100,11 +1124,7 @@ class _KpiTile extends StatelessWidget {
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(12),
                 ),
-                child: PhosphorIcon(
-                  icon,
-                  color: color,
-                  size: isHero ? 24 : 18,
-                ),
+                child: PhosphorIcon(icon, color: color, size: isHero ? 24 : 18),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1127,11 +1147,15 @@ class _KpiTile extends StatelessWidget {
                       alignment: Alignment.centerLeft,
                       child: Text(
                         value,
-                        style: (isHero ? textTheme.headlineSmall : textTheme.titleMedium)?.copyWith(
-                          fontWeight: FontWeight.w800,
-                          color: colorScheme.onSurface,
-                          letterSpacing: -0.5,
-                        ),
+                        style:
+                            (isHero
+                                    ? textTheme.headlineSmall
+                                    : textTheme.titleMedium)
+                                ?.copyWith(
+                                  fontWeight: FontWeight.w800,
+                                  color: colorScheme.onSurface,
+                                  letterSpacing: -0.5,
+                                ),
                       ),
                     ),
                   ],

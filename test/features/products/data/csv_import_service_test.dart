@@ -49,7 +49,12 @@ void main() {
     when(() => mockRepo.watchItemGroups()).thenAnswer((_) => Stream.value([]));
     when(() => mockRepo.createCategory(any())).thenAnswer((_) async {});
     when(() => mockRepo.createItemGroup(any())).thenAnswer((_) async {});
-    when(() => mockRepo.createProduct(any(), targetBranchIds: any(named: 'targetBranchIds'))).thenAnswer((_) async {});
+    when(
+      () => mockRepo.createProduct(
+        any(),
+        targetBranchIds: any(named: 'targetBranchIds'),
+      ),
+    ).thenAnswer((_) async {});
     when(
       () => mockRepo.adjustStock(
         tenantId: any(named: 'tenantId'),

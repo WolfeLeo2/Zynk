@@ -28,7 +28,8 @@ class ExpenseCategory {
     this.updatedAt,
   });
 
-  factory ExpenseCategory.fromMap(Map<String, dynamic> map) => _$ExpenseCategoryFromJson(map);
+  factory ExpenseCategory.fromMap(Map<String, dynamic> map) =>
+      _$ExpenseCategoryFromJson(map);
   Map<String, dynamic> toMap() => _$ExpenseCategoryToJson(this);
 
   @override

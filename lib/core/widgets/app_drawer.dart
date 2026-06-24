@@ -1,13 +1,14 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:zynk/core/providers/profile_provider.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/core/models/user_role.dart';
-import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/core/services/auth_service.dart';
+import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/shared/widgets/branch_dropdown.dart';
 
 class AppDrawer extends ConsumerWidget {
   const AppDrawer({super.key});
@@ -19,14 +20,18 @@ class AppDrawer extends ConsumerWidget {
     final profileAsync = ref.watch(currentUserProfileProvider);
     final user = ref.watch(authStateProvider).value;
     final tenant = ref.watch(currentTenantProvider).value;
-    
-    final displayName = profileAsync.value?.displayName ?? 
-        user?.userMetadata?['display_name'] as String? ?? 
+
+    final displayName =
+        profileAsync.value?.displayName ??
+        user?.userMetadata?['display_name'] as String? ??
         'Business Owner';
     final photoUrl = profileAsync.value?.profilePictureUrl;
-    
+
     // Attempt to dynamically break the tenant name into two lines if it contains a space
-    String shopName = tenant?.name ?? user?.userMetadata?['shop_name'] as String? ?? 'Passionate Homes';
+    String shopName =
+        tenant?.name ??
+        user?.userMetadata?['shop_name'] as String? ??
+        'Passionate Homes';
     if (shopName.contains(' ') && !shopName.contains('\n')) {
       shopName = shopName.replaceFirst(' ', '\n');
     }
@@ -59,17 +64,27 @@ class AppDrawer extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Text(
-                  shopName,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
+                Expanded(
+                  child: Text(
+                    shopName,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.5,
+                    ),
                   ),
                 ),
               ],
             ),
           ),
+
+          // Branch picker / current-branch indicator.
+          const Padding(
+            padding: EdgeInsets.fromLTRB(24, 0, 16, 4),
+            child: BranchDropdown(isExpanded: true),
+          ),
+          const Divider(height: 1, thickness: 0.5),
+          const SizedBox(height: 6),
 
           Expanded(
             child: Material(

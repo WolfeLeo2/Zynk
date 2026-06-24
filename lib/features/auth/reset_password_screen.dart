@@ -7,7 +7,8 @@ class ResetPasswordScreen extends ConsumerStatefulWidget {
   const ResetPasswordScreen({super.key});
 
   @override
-  ConsumerState<ResetPasswordScreen> createState() => _ResetPasswordScreenState();
+  ConsumerState<ResetPasswordScreen> createState() =>
+      _ResetPasswordScreenState();
 }
 
 class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
@@ -27,13 +28,15 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
 
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
-    
+
     final messenger = ScaffoldMessenger.of(context);
     FocusScope.of(context).unfocus();
-    
+
     setState(() => _isLoading = true);
     try {
-      await ref.read(authServiceProvider).updatePassword(newPassword: _newPasswordController.text);
+      await ref
+          .read(authServiceProvider)
+          .updatePassword(newPassword: _newPasswordController.text);
       if (mounted) {
         messenger.showSnackBar(
           const SnackBar(
@@ -45,7 +48,13 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         await ref.read(authServiceProvider).signOut();
       }
     } catch (e) {
-      if (mounted) messenger.showSnackBar(SnackBar(content: Text('Failed to update password: $e'), behavior: SnackBarBehavior.floating));
+      if (mounted)
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('Failed to update password: $e'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -55,7 +64,10 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     return Scaffold(
-      appBar: AppBar(automaticallyImplyLeading: false, title: const Text('New Password')),
+      appBar: AppBar(
+        automaticallyImplyLeading: false,
+        title: const Text('New Password'),
+      ),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -68,11 +80,27 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const SizedBox(height: 32),
-                    PhosphorIcon(PhosphorIconsDuotone.lockOpen, size: 56, color: theme.colorScheme.primary),
+                    PhosphorIcon(
+                      PhosphorIconsDuotone.lockOpen,
+                      size: 56,
+                      color: theme.colorScheme.primary,
+                    ),
                     const SizedBox(height: 24),
-                    Text('Create new password', style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700), textAlign: TextAlign.center),
+                    Text(
+                      'Create new password',
+                      style: theme.textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 8),
-                    Text('Choose a strong password with at least 8 characters.', style: theme.textTheme.bodyMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant), textAlign: TextAlign.center),
+                    Text(
+                      'Choose a strong password with at least 8 characters.',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 36),
                     TextFormField(
                       controller: _newPasswordController,
@@ -80,11 +108,25 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                       textInputAction: TextInputAction.next,
                       decoration: InputDecoration(
                         labelText: 'New password',
-                        prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.lock, size: 20),
-                        suffixIcon: IconButton(icon: PhosphorIcon(_obscureNew ? PhosphorIconsDuotone.eye : PhosphorIconsDuotone.eyeSlash, size: 20), onPressed: () => setState(() => _obscureNew = !_obscureNew)),
+                        prefixIcon: const PhosphorIcon(
+                          PhosphorIconsDuotone.lock,
+                          size: 20,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: PhosphorIcon(
+                            _obscureNew
+                                ? PhosphorIconsDuotone.eye
+                                : PhosphorIconsDuotone.eyeSlash,
+                            size: 20,
+                          ),
+                          onPressed: () =>
+                              setState(() => _obscureNew = !_obscureNew),
+                        ),
                         border: const OutlineInputBorder(),
                       ),
-                      validator: (v) => (v == null || v.length < 8) ? 'Minimum 8 characters' : null,
+                      validator: (v) => (v == null || v.length < 8)
+                          ? 'Minimum 8 characters'
+                          : null,
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
@@ -94,18 +136,42 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                       onFieldSubmitted: (_) => _save(),
                       decoration: InputDecoration(
                         labelText: 'Confirm new password',
-                        prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.lockKey, size: 20),
-                        suffixIcon: IconButton(icon: PhosphorIcon(_obscureConfirm ? PhosphorIconsDuotone.eye : PhosphorIconsDuotone.eyeSlash, size: 20), onPressed: () => setState(() => _obscureConfirm = !_obscureConfirm)),
+                        prefixIcon: const PhosphorIcon(
+                          PhosphorIconsDuotone.lockKey,
+                          size: 20,
+                        ),
+                        suffixIcon: IconButton(
+                          icon: PhosphorIcon(
+                            _obscureConfirm
+                                ? PhosphorIconsDuotone.eye
+                                : PhosphorIconsDuotone.eyeSlash,
+                            size: 20,
+                          ),
+                          onPressed: () => setState(
+                            () => _obscureConfirm = !_obscureConfirm,
+                          ),
+                        ),
                         border: const OutlineInputBorder(),
                       ),
-                      validator: (v) => v != _newPasswordController.text ? 'Passwords do not match' : null,
+                      validator: (v) => v != _newPasswordController.text
+                          ? 'Passwords do not match'
+                          : null,
                     ),
                     const SizedBox(height: 24),
                     SizedBox(
                       height: 52,
                       child: FilledButton(
                         onPressed: _isLoading ? null : _save,
-                        child: _isLoading ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white)) : const Text('Save Password'),
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Text('Save Password'),
                       ),
                     ),
                   ],

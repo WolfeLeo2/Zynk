@@ -21,7 +21,6 @@ class StaffScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
-        
         title: Text(
           'User Accounts',
           style: theme.textTheme.titleLarge?.copyWith(
@@ -35,8 +34,10 @@ class StaffScreen extends ConsumerWidget {
       body: staffAsync.when(
         data: (staff) {
           // Filter out the owner from the user accounts list to keep it focused on staff management
-          final humanStaff = staff.where((member) => member.role != UserRole.owner).toList();
-          
+          final humanStaff = staff
+              .where((member) => member.role != UserRole.owner)
+              .toList();
+
           if (humanStaff.isEmpty) {
             return _buildEmptyState(context, colorScheme);
           }
@@ -125,7 +126,9 @@ class _StaffCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final isBlocked = member.status == ProfileStatus.inactive || member.status == ProfileStatus.blocked;
+    final isBlocked =
+        member.status == ProfileStatus.inactive ||
+        member.status == ProfileStatus.blocked;
 
     // Determine a role color
     Color roleColor;
@@ -160,8 +163,10 @@ class _StaffCard extends ConsumerWidget {
                     height: 48,
                     placeholder: (context, url) =>
                         const Center(child: CircularProgressIndicator()),
-                    errorWidget: (context, url, error) =>
-                        const PhosphorIcon(PhosphorIconsRegular.user, color: Colors.grey),
+                    errorWidget: (context, url, error) => const PhosphorIcon(
+                      PhosphorIconsRegular.user,
+                      color: Colors.grey,
+                    ),
                   )
                 : Text(
                     (member.displayName?.isNotEmpty ?? false)
@@ -195,7 +200,9 @@ class _StaffCard extends ConsumerWidget {
                   border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                 ),
                 child: Text(
-                  member.status == ProfileStatus.inactive ? 'BANNED' : 'BLOCKED',
+                  member.status == ProfileStatus.inactive
+                      ? 'BANNED'
+                      : 'BLOCKED',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: Colors.red,
                     fontSize: 8,
@@ -216,7 +223,10 @@ class _StaffCard extends ConsumerWidget {
           ),
         ),
         trailing: PopupMenuButton<String>(
-          icon: PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical, color: colorScheme.onSurfaceVariant),
+          icon: PhosphorIcon(
+            PhosphorIconsRegular.dotsThreeVertical,
+            color: colorScheme.onSurfaceVariant,
+          ),
           onSelected: (value) async {
             if (value == 'edit') {
               context.push('/settings/add-staff', extra: member);
@@ -226,21 +236,32 @@ class _StaffCard extends ConsumerWidget {
                 builder: (ctx) => _ResetPasswordDialog(member: member),
               );
             } else if (value == 'block' || value == 'unblock') {
-              final newStatus = value == 'block' ? ProfileStatus.blocked : ProfileStatus.active;
+              final newStatus = value == 'block'
+                  ? ProfileStatus.blocked
+                  : ProfileStatus.active;
               try {
-                await ref.read(repositoryProvider).updateProfileStatus(
-                  userId: member.userId,
-                  status: newStatus,
-                );
+                await ref
+                    .read(repositoryProvider)
+                    .updateProfileStatus(
+                      userId: member.userId,
+                      status: newStatus,
+                    );
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Account ${value == 'block' ? 'blocked' : 'activated'}')),
+                    SnackBar(
+                      content: Text(
+                        'Account ${value == 'block' ? 'blocked' : 'activated'}',
+                      ),
+                    ),
                   );
                 }
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               }
@@ -249,23 +270,36 @@ class _StaffCard extends ConsumerWidget {
                 context: context,
                 builder: (ctx) => AlertDialog(
                   title: const Text('Delete Account'),
-                  content: Text('Are you sure you want to delete "${member.displayName}"? This will revoke all access.'),
+                  content: Text(
+                    'Are you sure you want to delete "${member.displayName}"? This will revoke all access.',
+                  ),
                   actions: [
-                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: const Text('Cancel'),
+                    ),
                     TextButton(
                       onPressed: () => Navigator.pop(ctx, true),
-                      child: const Text('Delete', style: TextStyle(color: Colors.red)),
+                      child: const Text(
+                        'Delete',
+                        style: TextStyle(color: Colors.red),
+                      ),
                     ),
                   ],
                 ),
               );
               if (confirmed == true) {
                 try {
-                  await ref.read(repositoryProvider).deleteProfile(member.userId);
+                  await ref
+                      .read(repositoryProvider)
+                      .deleteProfile(member.userId);
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                      SnackBar(
+                        content: Text('Error: $e'),
+                        backgroundColor: Colors.red,
+                      ),
                     );
                   }
                 }
@@ -284,7 +318,11 @@ class _StaffCard extends ConsumerWidget {
             PopupMenuItem(
               value: isBlocked ? 'unblock' : 'block',
               child: ListTile(
-                leading: PhosphorIcon(isBlocked ? PhosphorIconsRegular.checkCircle : PhosphorIconsRegular.prohibit),
+                leading: PhosphorIcon(
+                  isBlocked
+                      ? PhosphorIconsRegular.checkCircle
+                      : PhosphorIconsRegular.prohibit,
+                ),
                 title: Text(isBlocked ? 'Unblock' : 'Block'),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -301,7 +339,10 @@ class _StaffCard extends ConsumerWidget {
             const PopupMenuItem(
               value: 'delete',
               child: ListTile(
-                leading: PhosphorIcon(PhosphorIconsRegular.trash, color: Colors.red),
+                leading: PhosphorIcon(
+                  PhosphorIconsRegular.trash,
+                  color: Colors.red,
+                ),
                 title: Text('Delete', style: TextStyle(color: Colors.red)),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -319,7 +360,8 @@ class _ResetPasswordDialog extends ConsumerStatefulWidget {
   const _ResetPasswordDialog({required this.member});
 
   @override
-  ConsumerState<_ResetPasswordDialog> createState() => _ResetPasswordDialogState();
+  ConsumerState<_ResetPasswordDialog> createState() =>
+      _ResetPasswordDialogState();
 }
 
 class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
@@ -340,7 +382,9 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
     setState(() => _isLoading = true);
 
     try {
-      await ref.read(authServiceProvider).resetStaffPassword(
+      await ref
+          .read(authServiceProvider)
+          .resetStaffPassword(
             userId: widget.member.userId,
             newPassword: _passwordController.text,
           );
@@ -349,17 +393,16 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
         Navigator.pop(context);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Password reset successfully for ${widget.member.displayName}'),
+            content: Text(
+              'Password reset successfully for ${widget.member.displayName}',
+            ),
           ),
         );
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Colors.red,
-          ),
+          SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
         );
       }
     } finally {
@@ -377,7 +420,9 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Set a new password for ${widget.member.displayName ?? 'this account'}.'),
+            Text(
+              'Set a new password for ${widget.member.displayName ?? 'this account'}.',
+            ),
             const SizedBox(height: 16),
             TextFormField(
               controller: _passwordController,
@@ -388,14 +433,17 @@ class _ResetPasswordDialogState extends ConsumerState<_ResetPasswordDialog> {
                 prefixIcon: const PhosphorIcon(PhosphorIconsRegular.lockKey),
                 suffixIcon: IconButton(
                   icon: PhosphorIcon(
-                    _obscureText ? PhosphorIconsRegular.eyeClosed : PhosphorIconsRegular.eye,
+                    _obscureText
+                        ? PhosphorIconsRegular.eyeClosed
+                        : PhosphorIconsRegular.eye,
                   ),
                   onPressed: () => setState(() => _obscureText = !_obscureText),
                 ),
               ),
               validator: (v) {
                 if (v == null || v.isEmpty) return 'Please enter a password';
-                if (v.length < 6) return 'Password must be at least 6 characters';
+                if (v.length < 6)
+                  return 'Password must be at least 6 characters';
                 return null;
               },
             ),
