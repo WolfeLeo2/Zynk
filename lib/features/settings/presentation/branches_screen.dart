@@ -6,6 +6,8 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class BranchesScreen extends ConsumerWidget {
   const BranchesScreen({super.key});
@@ -222,7 +224,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
   final addressController = TextEditingController(text: branch.address);
   String phone = branch.phone ?? '';
 
-  showModalBottomSheet(
+  showResponsiveModal(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
@@ -253,7 +255,9 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   labelText: 'Branch Name',
-                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.storefront),
+                  prefixIcon: const PhosphorIcon(
+                    PhosphorIconsRegular.storefront,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),

@@ -19,7 +19,7 @@ class CommissionService {
     if (session == null) {
       throw Exception('Not authenticated. Please sign in again.');
     }
-    
+
     // Check if session is expired or expiring soon (within 60s)
     final expiresAt = session.expiresAt;
     if (expiresAt != null) {
@@ -30,16 +30,16 @@ class CommissionService {
     }
   }
 
-  Future<dynamic> _invoke(String action, String tenantId, Map<String, dynamic> params) async {
+  Future<dynamic> _invoke(
+    String action,
+    String tenantId,
+    Map<String, dynamic> params,
+  ) async {
     await _ensureSession();
-    
+
     final response = await _supabase.functions.invoke(
       'manage-commissions',
-      body: {
-        'action': action,
-        'tenant_id': tenantId,
-        ...params,
-      },
+      body: {'action': action, 'tenant_id': tenantId, ...params},
     );
 
     if (response.status != 200) {
@@ -57,9 +57,7 @@ class CommissionService {
     required String commissionId,
   }) async {
     _log.i('Marking commission $commissionId as paid');
-    await _invoke('mark_paid', tenantId, {
-      'commission_id': commissionId,
-    });
+    await _invoke('mark_paid', tenantId, {'commission_id': commissionId});
   }
 
   /// Marks all pending commissions for a salesperson as paid for a specific month.
@@ -70,7 +68,7 @@ class CommissionService {
     DateTime? month,
   }) async {
     _log.i('Marking all commissions for salesperson $salespersonId as paid');
-    
+
     // Format month as yyyy-MM
     String? monthStr;
     if (month != null) {

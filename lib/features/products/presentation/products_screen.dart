@@ -1,13 +1,14 @@
-import 'package:cached_network_image/cached_network_image.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/shared/widgets/shared_product_card.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/features/products/presentation/batch_upload_screen.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
-import 'package:zynk/core/services/product_pricing_service.dart';
+import 'package:zynk/features/pos/providers/cart_provider.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   final String? initialGroupId;
@@ -114,7 +115,10 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                   ),
                 ],
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   decoration: BoxDecoration(
                     color: theme.colorScheme.secondary,
                     borderRadius: BorderRadius.circular(24),
@@ -151,16 +155,22 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Search item by name...',
-                prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.magnifyingGlass),
+                prefixIcon: const PhosphorIcon(
+                  PhosphorIconsDuotone.magnifyingGlass,
+                ),
                 filled: true,
                 fillColor: theme.colorScheme.surface,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                  borderSide: BorderSide(
+                    color: theme.colorScheme.outlineVariant,
+                  ),
                 ),
                 focusedBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(16),
@@ -186,7 +196,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                         showCheckmark: true,
                         label: const Text('Filtered by Group'),
                         selected: true,
-                        onSelected: (_) => setState(() => _filterGroupId = null),
+                        onSelected: (_) =>
+                            setState(() => _filterGroupId = null),
                         selectedColor: theme.colorScheme.primaryContainer,
                         checkmarkColor: theme.colorScheme.onPrimaryContainer,
                       ),
@@ -197,7 +208,8 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                       showCheckmark: false,
                       label: const Text('All Categories'),
                       selected: _selectedCategoryId == null,
-                      onSelected: (_) => setState(() => _selectedCategoryId = null),
+                      onSelected: (_) =>
+                          setState(() => _selectedCategoryId = null),
                     ),
                   ),
                   ...categories.map(
@@ -236,7 +248,11 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
                 }
                 if (_searchQuery.isNotEmpty) {
                   filtered = filtered
-                      .where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+                      .where(
+                        (p) => p.name.toLowerCase().contains(
+                          _searchQuery.toLowerCase(),
+                        ),
+                      )
                       .toList();
                 }
 
@@ -284,14 +300,18 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           const SizedBox(height: 24),
           Text(
             _searchQuery.isEmpty ? 'No Items Yet' : 'No Results Found',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             _searchQuery.isEmpty
                 ? 'Get started by adding your first product.'
                 : 'Try adjusting your search or category filter.',
-            style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           if (_searchQuery.isEmpty) ...[
             const SizedBox(height: 24),
@@ -350,164 +370,10 @@ class _ProductGridCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.03),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => context.push('/products/details', extra: product),
-          borderRadius: BorderRadius.circular(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Product Image
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(20),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        product.imageUrl != null && product.imageUrl!.isNotEmpty
-                            ? CachedNetworkImage(
-                                imageUrl: product.imageUrl!,
-                                fit: BoxFit.cover,
-                                placeholder: (context, url) => Container(
-                                  color: cs.surfaceContainerHighest,
-                                ),
-                                errorWidget: (context, url, error) => Container(
-                                  color: cs.surfaceContainerHighest,
-                                  child: Center(
-                                    child: PhosphorIcon(
-                                      PhosphorIconsDuotone.imageBroken,
-                                      color: cs.onSurfaceVariant,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            : Container(
-                                color: cs.surfaceContainerHighest,
-                                child: Center(
-                                  child: PhosphorIcon(
-                                    PhosphorIconsDuotone.package,
-                                    size: 40,
-                                    color: cs.outlineVariant,
-                                  ),
-                                ),
-                              ),
-                        // Inventory Badge Overlay
-                        if (!product.isService)
-                          Positioned(
-                            top: 8,
-                            right: 8,
-                            child: ref.watch(stockProvider(product.id)).when(
-                              data: (stock) {
-                                final quantity = stock?.quantity ?? 0;
-                                final isLowStock = quantity <= 5;
-                                return Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: isLowStock
-                                        ? cs.errorContainer.withValues(
-                                            alpha: 0.9,
-                                          )
-                                        : cs.surface.withValues(alpha: 0.85),
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      PhosphorIcon(
-                                        isLowStock
-                                            ? PhosphorIconsFill.warningCircle
-                                            : PhosphorIconsFill.circle,
-                                        size: 10,
-                                        color: isLowStock ? cs.error : cs.primary,
-                                      ),
-                                      const SizedBox(width: 4),
-                                      Text(
-                                        isLowStock ? '$quantity Left' : 'Stocked',
-                                        style: theme.textTheme.labelSmall?.copyWith(
-                                          fontWeight: FontWeight.bold,
-                                          color: isLowStock
-                                              ? cs.onErrorContainer
-                                              : cs.onSurface,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                );
-                              },
-                              loading: () => const SizedBox.shrink(),
-                              error: (err, stack) => const SizedBox.shrink(),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              // Name and Details
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      product.name,
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
-                        fontSize: 14,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final group = product.itemGroupId != null
-                            ? ref
-                                .watch(itemGroupProvider(product.itemGroupId!))
-                                .value
-                            : null;
-                        final resolvedPrice = ref
-                            .watch(productPricingServiceProvider)
-                            .resolveSellingPrice(product, group);
-                        return Text(
-                          'KES ${resolvedPrice.toStringAsFixed(0)}',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            color: cs.onSurface,
-                            fontWeight: FontWeight.w800,
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    return SharedProductCard(
+      product: product,
+      onTap: () => context.push('/products/details', extra: product),
+      showCartBadges: false,
     );
   }
 }

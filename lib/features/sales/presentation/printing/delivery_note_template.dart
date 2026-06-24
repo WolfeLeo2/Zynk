@@ -269,7 +269,6 @@ class DeliveryNoteTemplate {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
-
               if (sale.salespersonId != null)
                 _infoRow(
                   'Salesperson',
@@ -324,11 +323,7 @@ class DeliveryNoteTemplate {
       data: items.asMap().entries.map((entry) {
         final i = entry.key;
         final item = entry.value;
-        return [
-          '${i + 1}',
-          item.productName ?? 'Item',
-          '${item.quantity}',
-        ];
+        return ['${i + 1}', item.productName ?? 'Item', '${item.quantity}'];
       }).toList(),
     );
   }

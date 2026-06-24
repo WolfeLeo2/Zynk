@@ -8,6 +8,8 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/customers/presentation/widgets/customer_form.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class CustomersScreen extends ConsumerWidget {
   const CustomersScreen({super.key});
@@ -18,7 +20,8 @@ class CustomersScreen extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final profile = ref.watch(currentUserProfileProvider).value;
-    final canManage = profile?.hasPermission(Permission.manageCustomers) ?? false;
+    final canManage =
+        profile?.hasPermission(Permission.manageCustomers) ?? false;
 
     return Scaffold(
       appBar: AppBar(
@@ -60,7 +63,8 @@ class CustomersScreen extends ConsumerWidget {
                   const SizedBox(height: 24),
                   if (canManage)
                     FilledButton.icon(
-                      onPressed: () => _showAddEditCustomerSheet(context, ref, null),
+                      onPressed: () =>
+                          _showAddEditCustomerSheet(context, ref, null),
                       icon: const PhosphorIcon(PhosphorIconsRegular.plus),
                       label: const Text('Add Customer'),
                     ),
@@ -85,9 +89,13 @@ class CustomersScreen extends ConsumerWidget {
           );
         },
         loading: () => const _CustomerListSkeleton(),
-        error: (err, stack) => Center(child: Text('Error loading customers: $err')),
+        error: (err, stack) =>
+            Center(child: Text('Error loading customers: $err')),
       ),
-      floatingActionButton: canManage && customersAsync.hasValue && customersAsync.value!.isNotEmpty
+      floatingActionButton:
+          canManage &&
+              customersAsync.hasValue &&
+              customersAsync.value!.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: () => _showAddEditCustomerSheet(context, ref, null),
               icon: const PhosphorIcon(PhosphorIconsBold.plus),
@@ -102,7 +110,7 @@ class CustomersScreen extends ConsumerWidget {
     WidgetRef ref,
     Customer? existing,
   ) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -128,9 +136,7 @@ class CustomersScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Delete'),
           ),
@@ -142,9 +148,9 @@ class CustomersScreen extends ConsumerWidget {
       try {
         await ref.read(repositoryProvider).deleteCustomer(customer.id);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${customer.name} deleted')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('${customer.name} deleted')));
         }
       } catch (e) {
         if (context.mounted) {
@@ -177,10 +183,7 @@ class _CustomerCard extends StatelessWidget {
 
     return Card(
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 8,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           radius: 24,
           backgroundColor: cs.primaryContainer,
@@ -253,8 +256,6 @@ class _CustomerCard extends StatelessWidget {
     );
   }
 }
-
-
 
 class _CustomerListSkeleton extends StatelessWidget {
   const _CustomerListSkeleton();

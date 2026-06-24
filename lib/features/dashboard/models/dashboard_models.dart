@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENUMS
@@ -15,7 +16,7 @@ enum MetricType {
   conversion,
   customers,
   expenses,
-  netProfit
+  netProfit,
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -143,13 +144,13 @@ MetricDetailData createRevenueDetailData(
   return MetricDetailData(
     type: MetricType.revenue,
     title: 'Revenue Details',
-    value: 'Ksh ${revenue.toStringAsFixed(0)}',
+    value: CurrencyHelper.format(revenue),
     rawValue: revenue,
     subtitle: "Today's total revenue",
     relatedMetrics: [
       MetricRelation(
         label: 'Total Revenue',
-        value: 'Ksh ${revenue.toStringAsFixed(0)}',
+        value: CurrencyHelper.format(revenue),
         icon: PhosphorIconsRegular.money,
         color: colorScheme.primary,
       ),
@@ -180,12 +181,12 @@ MetricDetailData createAOVDetailData(double aov, ColorScheme colorScheme) {
   return MetricDetailData(
     type: MetricType.aov,
     title: 'Average Order Value',
-    value: 'Ksh ${aov.toStringAsFixed(0)}',
+    value: CurrencyHelper.format(aov),
     subtitle: 'Average per transaction today',
     relatedMetrics: [
       MetricRelation(
         label: 'Avg Order Value',
-        value: 'Ksh ${aov.toStringAsFixed(0)}',
+        value: CurrencyHelper.format(aov),
         icon: PhosphorIconsRegular.chartBar,
         color: colorScheme.primary,
       ),
@@ -219,13 +220,13 @@ MetricDetailData createExpensesDetailData(
   return MetricDetailData(
     type: MetricType.expenses,
     title: 'Expenses Details',
-    value: 'Ksh ${expenses.toStringAsFixed(0)}',
+    value: CurrencyHelper.format(expenses),
     rawValue: expenses,
     subtitle: "Today's total expenses",
     relatedMetrics: [
       MetricRelation(
         label: 'Total Expenses',
-        value: 'Ksh ${expenses.toStringAsFixed(0)}',
+        value: CurrencyHelper.format(expenses),
         icon: PhosphorIconsRegular.receipt,
         color: Colors.red,
       ),
@@ -241,13 +242,13 @@ MetricDetailData createNetProfitDetailData(
   return MetricDetailData(
     type: MetricType.netProfit,
     title: 'Net Profit Details',
-    value: 'Ksh ${netProfit.toStringAsFixed(0)}',
+    value: CurrencyHelper.format(netProfit),
     rawValue: netProfit,
     subtitle: "Today's net profit (Revenue - Expenses)",
     relatedMetrics: [
       MetricRelation(
         label: 'Net Profit',
-        value: 'Ksh ${netProfit.toStringAsFixed(0)}',
+        value: CurrencyHelper.format(netProfit),
         icon: PhosphorIconsRegular.wallet,
         color: netProfit >= 0 ? Colors.green : Colors.red,
       ),

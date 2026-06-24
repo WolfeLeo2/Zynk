@@ -11,7 +11,6 @@ import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
@@ -22,6 +21,9 @@ import 'package:zynk/features/sales/presentation/printing/receipt_template.dart'
 import 'package:zynk/features/sales/presentation/printing/delivery_note_template.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
+import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
@@ -72,31 +74,10 @@ class SaleDetailScreen extends ConsumerWidget {
       hasPermissionProvider(Permission.createInvoices),
     );
 
-    // Evaluate dual-approval slots
-    final profileAsync = ref.watch(currentUserProfileProvider);
-    final isOwner = profileAsync.value?.role == UserRole.owner;
-    final currentUserId = profileAsync.value?.userId;
-
-    final approvalsAsync = ref.watch(saleApprovalsProvider(saleId));
-    final approvals = approvalsAsync.value ?? [];
-
-    bool hasOwnerApproval = approvals.any((a) => a.approverRole?.toLowerCase() == 'owner' && a.decision == SaleApprovalDecision.approved);
-    bool hasStaffApproval = approvals.any((a) => a.approverRole?.toLowerCase() != 'owner' && a.decision == SaleApprovalDecision.approved);
-    bool hasCurrentUserApproved = approvals.any((a) => a.approverUserId == currentUserId && a.decision == SaleApprovalDecision.approved);
-
-    bool canSubmitApproval = false;
-    if (canApprove && !hasCurrentUserApproved) {
-      if (isOwner && !hasOwnerApproval) {
-        canSubmitApproval = true;
-      } else if (!isOwner && !hasStaffApproval) {
-        canSubmitApproval = true;
-      }
-    }
-    
-    // Fail-safe: if approval count is already met, don't allow more
-    if (saleAsync.value != null && saleAsync.value!.approvalCount >= saleAsync.value!.requiredApprovals) {
-      canSubmitApproval = false;
-    }
+    // Dual-approval eligibility is derived in a provider (authz, not UI).
+    final eligibility = ref.watch(saleApprovalEligibilityProvider(saleId));
+    final canSubmitApproval = eligibility.canSubmitApproval;
+    final hasCurrentUserApproved = eligibility.hasCurrentUserApproved;
 
     return saleAsync.when(
       data: (sale) {
@@ -170,17 +151,20 @@ class SaleDetailScreen extends ConsumerWidget {
                         value: 'clone_invoice',
                         child: Text('Clone Invoice'),
                       ),
-                    if (sale.status == InvoiceStatus.pendingApproval && canSubmitApproval)
+                    if (sale.status == InvoiceStatus.pendingApproval &&
+                        canSubmitApproval)
                       const PopupMenuItem(
                         value: 'approve',
                         child: Text('Approve'),
                       ),
-                    if (sale.status == InvoiceStatus.pendingApproval && canApprove)
+                    if (sale.status == InvoiceStatus.pendingApproval &&
+                        canApprove)
                       const PopupMenuItem(
                         value: 'final_approve',
                         child: Text('Final Approve (Fast-Track)'),
                       ),
-                    if (sale.status == InvoiceStatus.pendingApproval && canSubmitApproval)
+                    if (sale.status == InvoiceStatus.pendingApproval &&
+                        canSubmitApproval)
                       const PopupMenuItem(
                         value: 'reject',
                         child: Text('Reject'),
@@ -329,8 +313,8 @@ class SaleDetailScreen extends ConsumerWidget {
                     hasCurrentUserApproved
                         ? 'Already Approved'
                         : (!canSubmitApproval && canApprove
-                            ? 'Slot Filled'
-                            : 'Approve (${sale.approvalCount}/${sale.requiredApprovals})'),
+                              ? 'Slot Filled'
+                              : 'Approve (${sale.approvalCount}/${sale.requiredApprovals})'),
                   ),
             style: FilledButton.styleFrom(
               backgroundColor: canSubmitApproval && !isLoading
@@ -436,7 +420,9 @@ class SaleDetailScreen extends ConsumerWidget {
       context,
       ref,
       sale,
-      documentType: sale.saleType == 'pos_sale' ? 'print_receipt' : 'print_invoice',
+      documentType: sale.saleType == 'pos_sale'
+          ? 'print_receipt'
+          : 'print_invoice',
     );
     if (payload == null) {
       return;
@@ -492,8 +478,9 @@ class SaleDetailScreen extends ConsumerWidget {
     String? customerPhone;
     if (sale.customerId != null && customersAsync.hasValue) {
       try {
-        final customer = customersAsync.value!
-            .firstWhere((c) => c.id == sale.customerId);
+        final customer = customersAsync.value!.firstWhere(
+          (c) => c.id == sale.customerId,
+        );
         customerName = customer.name;
         customerAddress = null;
         customerPhone = customer.phone;
@@ -572,13 +559,10 @@ class SaleDetailScreen extends ConsumerWidget {
     final fileName = documentType == 'print_delivery_note'
         ? 'delivery_note_${sale.invoiceNumber ?? 'draft'}'
         : documentType == 'print_receipt' || sale.saleType == 'pos_sale'
-            ? 'receipt_${sale.invoiceNumber ?? 'draft'}'
-            : 'invoice_${sale.invoiceNumber ?? 'draft'}';
+        ? 'receipt_${sale.invoiceNumber ?? 'draft'}'
+        : 'invoice_${sale.invoiceNumber ?? 'draft'}';
 
-    return _PrintablePayload(
-      document: document,
-      fileName: fileName,
-    );
+    return _PrintablePayload(document: document, fileName: fileName);
   }
 
   void _handleAction(
@@ -643,10 +627,14 @@ class SaleDetailScreen extends ConsumerWidget {
             );
 
             final cartItems = items.map((item) {
-              final product = allProducts.where((p) => p.id == item.productId).firstOrNull;
+              final product = allProducts
+                  .where((p) => p.id == item.productId)
+                  .firstOrNull;
 
               if (product == null) {
-                throw Exception('Product "${item.productName ?? 'Unknown'}" no longer exists in inventory');
+                throw Exception(
+                  'Product "${item.productName ?? 'Unknown'}" no longer exists in inventory',
+                );
               }
 
               return PosCartItem(
@@ -660,19 +648,21 @@ class SaleDetailScreen extends ConsumerWidget {
             if (context.mounted) {
               context.push(
                 '/sales/create-invoice',
-                  extra: {
-                    'cartItems': cartItems,
-                    'customer': customer,
-                    'salespersonId': sale.salespersonId,
-                    'branchId': sale.branchId,
-                  },
+                extra: {
+                  'cartItems': cartItems,
+                  'customer': customer,
+                  'salespersonId': sale.salespersonId,
+                  'branchId': sale.branchId,
+                },
               );
             }
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
-                  content: Text('Failed to clone: ${e.toString().replaceAll('Exception: ', '')}'),
+                  content: Text(
+                    'Failed to clone: ${e.toString().replaceAll('Exception: ', '')}',
+                  ),
                   backgroundColor: Theme.of(context).colorScheme.error,
                 ),
               );
@@ -688,9 +678,9 @@ class SaleDetailScreen extends ConsumerWidget {
           ref.invalidate(saleDetailProvider(sale.id));
           ref.invalidate(saleApprovalsProvider(sale.id));
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Invoice approved')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Invoice approved')));
           }
           break;
 
@@ -756,7 +746,9 @@ class SaleDetailScreen extends ConsumerWidget {
             ref.invalidate(salePaymentsProvider(sale.id));
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Invoice reverted to Pending Approval')),
+                const SnackBar(
+                  content: Text('Invoice reverted to Pending Approval'),
+                ),
               );
             }
           }
@@ -770,9 +762,9 @@ class SaleDetailScreen extends ConsumerWidget {
           );
           ref.invalidate(saleDetailProvider(sale.id));
           if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Invoice rejected')),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('Invoice rejected')));
           }
           break;
         case 'fulfill':
@@ -815,9 +807,9 @@ class SaleDetailScreen extends ConsumerWidget {
             );
             ref.invalidate(saleDetailProvider(sale.id));
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Invoice voided')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Invoice voided')));
             }
           }
           break;
@@ -846,9 +838,9 @@ class SaleDetailScreen extends ConsumerWidget {
             await service.deleteSale(saleId: sale.id, tenantId: sale.tenantId);
             ref.invalidate(saleDetailProvider(sale.id));
             if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Invoice deleted')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Invoice deleted')));
               Navigator.pop(context);
             }
           }
@@ -866,7 +858,7 @@ class SaleDetailScreen extends ConsumerWidget {
   }
 
   void _showRecordPayment(BuildContext context, WidgetRef ref, Sale sale) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -876,7 +868,7 @@ class SaleDetailScreen extends ConsumerWidget {
   }
 
   void _showCreateCreditNote(BuildContext context, WidgetRef ref, Sale sale) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -1007,14 +999,14 @@ class _StatusHero extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Text(
-                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                CurrencyHelper.format(sale.grandTotal),
                 style: theme.textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.bold,
                 ),
               ),
               if (sale.remainingBalance > 0)
                 Text(
-                  'Due: Ksh ${sale.remainingBalance.toStringAsFixed(0)}',
+                  'Due: ${CurrencyHelper.format(sale.remainingBalance)}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: const Color(0xFFFFA726),
                     fontWeight: FontWeight.w600,
@@ -1068,17 +1060,26 @@ class _ItemsList extends ConsumerWidget {
             children: items.asMap().entries.map((e) {
               final i = e.key;
               final item = e.value;
-              
+
               // Resolve product & item group to check sqm details
-              final product = products.where((p) => p.id == item.productId).firstOrNull;
+              final product = products
+                  .where((p) => p.id == item.productId)
+                  .firstOrNull;
               final itemGroup = (product != null && product.itemGroupId != null)
                   ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
                   : null;
-              
-              final isSqmBased = product != null &&
-                  (product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm');
-              final coverage = (product?.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
-              final sqmPrice = isSqmBased ? (item.unitPrice / coverage) : item.unitPrice;
+
+              final isSqmBased =
+                  product != null &&
+                  (product.pricingUnit == 'sqm' ||
+                      itemGroup?.defaultPricingUnit == 'sqm');
+              final coverage =
+                  (product?.coveragePerBox ??
+                      itemGroup?.defaultCoveragePerBox) ??
+                  1.0;
+              final sqmPrice = isSqmBased
+                  ? (item.unitPrice / coverage)
+                  : item.unitPrice;
               final totalSqm = isSqmBased ? (item.quantity * coverage) : 0.0;
 
               return Column(
@@ -1105,7 +1106,9 @@ class _ItemsList extends ConsumerWidget {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            isSqmBased ? totalSqm.toStringAsFixed(2) : '${item.quantity}',
+                            isSqmBased
+                                ? totalSqm.toStringAsFixed(2)
+                                : '${item.quantity}',
                             style: theme.textTheme.labelMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -1125,7 +1128,7 @@ class _ItemsList extends ConsumerWidget {
                               ),
                               if (isSqmBased) ...[
                                 Text(
-                                  '@ Ksh ${sqmPrice.toStringAsFixed(0)}/sqm (Ksh ${item.unitPrice.toStringAsFixed(0)}/box)',
+                                  '@ ${CurrencyHelper.format(sqmPrice)}/sqm (${CurrencyHelper.format(item.unitPrice)}/box)',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: cs.onSurfaceVariant,
                                   ),
@@ -1141,7 +1144,7 @@ class _ItemsList extends ConsumerWidget {
                                 ),
                               ] else ...[
                                 Text(
-                                  '@ Ksh ${item.unitPrice.toStringAsFixed(0)} each',
+                                  '@ ${CurrencyHelper.format(item.unitPrice)} each',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: cs.onSurfaceVariant,
                                   ),
@@ -1151,7 +1154,7 @@ class _ItemsList extends ConsumerWidget {
                           ),
                         ),
                         Text(
-                          'Ksh ${item.total.toStringAsFixed(0)}',
+                          CurrencyHelper.format(item.total),
                           style: theme.textTheme.bodyMedium?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
@@ -1207,7 +1210,7 @@ class _TotalsCard extends StatelessWidget {
                 ),
               ),
               Text(
-                'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
+                CurrencyHelper.format(sale.grandTotal),
                 style: theme.textTheme.titleMedium?.copyWith(
                   fontWeight: FontWeight.bold,
                   color: cs.primary,
@@ -1244,7 +1247,7 @@ class _TotalsCard extends StatelessWidget {
         children: [
           Text(label, style: theme.textTheme.bodyMedium),
           Text(
-            '${amount < 0 ? "-" : ""}Ksh ${amount.abs().toStringAsFixed(0)}',
+            '${amount < 0 ? "-" : ""}${CurrencyHelper.format(amount.abs())}',
             style: theme.textTheme.bodyMedium?.copyWith(
               fontWeight: FontWeight.w500,
               color: color,
@@ -1269,9 +1272,7 @@ class _PaymentsList extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final paymentsAsync = ref.watch(salePaymentsProvider(saleId));
-    final isAdmin = ref.watch(
-      hasPermissionProvider(Permission.deleteSales),
-    );
+    final isAdmin = ref.watch(hasPermissionProvider(Permission.deleteSales));
 
     return paymentsAsync.when(
       data: (payments) {
@@ -1326,7 +1327,7 @@ class _PaymentsList extends ConsumerWidget {
                     ),
                   ),
                   Text(
-                    'Ksh ${p.amount.toStringAsFixed(0)}',
+                    CurrencyHelper.format(p.amount),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: const Color(0xFF66BB6A),
@@ -1482,7 +1483,7 @@ class _CreditNotesList extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       Text(
-                        'Ksh ${cn.total.toStringAsFixed(0)}',
+                        CurrencyHelper.format(cn.total),
                         style: theme.textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
                           color: color,
@@ -1541,6 +1542,31 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
     super.dispose();
   }
 
+  Future<bool?> _confirmOverpayment(double excess) {
+    final cs = Theme.of(context).colorScheme;
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Overpayment'),
+        content: Text(
+          'This payment is ${CurrencyHelper.format(excess)} more than the '
+          'outstanding balance. Record the overpayment anyway?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: cs.error),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _submit() async {
     final amount = double.tryParse(_amountController.text) ?? 0;
     if (amount <= 0) return;
@@ -1560,6 +1586,16 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
       }
     }
 
+    // Overpayment guard: confirm before recording more than the balance.
+    // The server enforces this too (allow_overpayment flag) — the dialog is
+    // the UX, the flag is what makes the server accept the deliberate excess.
+    final overpaying = amount > widget.sale.remainingBalance + 0.01;
+    if (overpaying) {
+      final excess = amount - widget.sale.remainingBalance;
+      final proceed = await _confirmOverpayment(excess);
+      if (proceed != true) return;
+    }
+
     setState(() => _loading = true);
     try {
       await ref
@@ -1572,6 +1608,7 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
             referenceNumber: _refController.text.trim().isEmpty
                 ? null
                 : _refController.text.trim(),
+            allowOverpayment: overpaying,
           );
 
       // Force refresh
@@ -1618,7 +1655,7 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Balance: Ksh ${widget.sale.remainingBalance.toStringAsFixed(0)}',
+              'Balance: ${CurrencyHelper.format(widget.sale.remainingBalance)}',
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: cs.onSurfaceVariant,
               ),
@@ -1848,7 +1885,7 @@ class _CreateCreditNoteSheetState
                                   ),
                                 ),
                                 Text(
-                                  '${item.quantity} sold @ Ksh ${item.unitPrice.toStringAsFixed(0)}',
+                                  '${item.quantity} sold @ ${CurrencyHelper.format(item.unitPrice)}',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: cs.onSurfaceVariant,
                                   ),
@@ -1881,7 +1918,9 @@ class _CreateCreditNoteSheetState
                                                   returnQty - 1,
                                         )
                                       : null,
-                                  icon: const PhosphorIcon(PhosphorIconsRegular.minus),
+                                  icon: const PhosphorIcon(
+                                    PhosphorIconsRegular.minus,
+                                  ),
                                 ),
                                 SizedBox(
                                   width: 28,
@@ -1907,7 +1946,9 @@ class _CreateCreditNoteSheetState
                                                   returnQty + 1,
                                         )
                                       : null,
-                                  icon: const PhosphorIcon(PhosphorIconsRegular.plus),
+                                  icon: const PhosphorIcon(
+                                    PhosphorIconsRegular.plus,
+                                  ),
                                 ),
                               ],
                             ),
@@ -2091,7 +2132,12 @@ class _DetailsSection extends ConsumerWidget {
     );
   }
 
-  Widget _buildRow(ThemeData theme, PhosphorIconData icon, String label, String value) {
+  Widget _buildRow(
+    ThemeData theme,
+    PhosphorIconData icon,
+    String label,
+    String value,
+  ) {
     return Row(
       children: [
         PhosphorIcon(icon, size: 20, color: theme.colorScheme.onSurfaceVariant),
@@ -2143,11 +2189,32 @@ class _ApprovalTimeline extends ConsumerWidget {
             .toList();
 
         final profiles = profilesAsync.value ?? [];
-        final ownerProfile = profiles.firstWhere((p) => p.role.isOwner, orElse: () => Profile(id: '', userId: '', tenantId: '', role: UserRole.owner, displayName: 'Owner'));
-        
-        final eligibleStaff = profiles.where((p) => p.hasPermission(Permission.approveInvoices) && !p.role.isOwner).toList();
-        eligibleStaff.sort((a, b) => (a.createdAt ?? DateTime.now()).compareTo(b.createdAt ?? DateTime.now()));
-        final designatedStaff = eligibleStaff.isNotEmpty ? eligibleStaff.first : null;
+        final ownerProfile = profiles.firstWhere(
+          (p) => p.role.isOwner,
+          orElse: () => Profile(
+            id: '',
+            userId: '',
+            tenantId: '',
+            role: UserRole.owner,
+            displayName: 'Owner',
+          ),
+        );
+
+        final eligibleStaff = profiles
+            .where(
+              (p) =>
+                  p.hasPermission(Permission.approveInvoices) &&
+                  !p.role.isOwner,
+            )
+            .toList();
+        eligibleStaff.sort(
+          (a, b) => (a.createdAt ?? DateTime.now()).compareTo(
+            b.createdAt ?? DateTime.now(),
+          ),
+        );
+        final designatedStaff = eligibleStaff.isNotEmpty
+            ? eligibleStaff.first
+            : null;
 
         return Container(
           padding: const EdgeInsets.all(16),
@@ -2175,20 +2242,29 @@ class _ApprovalTimeline extends ConsumerWidget {
                     _buildApprovalChip(
                       cs,
                       approved.cast<SaleApproval?>().firstWhere(
-                            (a) => a?.approverRole?.toLowerCase() == 'owner' || 
-                                   a?.approverUserId == ownerProfile.userId,
-                            orElse: () => null,
-                          ),
-                      pendingName: ownerProfile.displayName?.trim().isNotEmpty == true ? ownerProfile.displayName!.trim() : 'Owner',
+                        (a) =>
+                            a?.approverRole?.toLowerCase() == 'owner' ||
+                            a?.approverUserId == ownerProfile.userId,
+                        orElse: () => null,
+                      ),
+                      pendingName:
+                          ownerProfile.displayName?.trim().isNotEmpty == true
+                          ? ownerProfile.displayName!.trim()
+                          : 'Owner',
                     ),
                     _buildApprovalChip(
                       cs,
                       approved.cast<SaleApproval?>().firstWhere(
-                            (a) => a?.approverRole?.toLowerCase() != 'owner' && 
-                                   a?.approverUserId != ownerProfile.userId,
-                            orElse: () => null,
-                          ),
-                      pendingName: designatedStaff?.displayName?.trim().isNotEmpty == true ? designatedStaff!.displayName!.trim() : 'Staff',
+                        (a) =>
+                            a?.approverRole?.toLowerCase() != 'owner' &&
+                            a?.approverUserId != ownerProfile.userId,
+                        orElse: () => null,
+                      ),
+                      pendingName:
+                          designatedStaff?.displayName?.trim().isNotEmpty ==
+                              true
+                          ? designatedStaff!.displayName!.trim()
+                          : 'Staff',
                     ),
                   ] else ...[
                     /* Fallback for single approval or generic setup
@@ -2199,7 +2275,7 @@ class _ApprovalTimeline extends ConsumerWidget {
                           cs, 'Approval #${index + 1}', approval);
                     }),
                   ],*/
-                  ]
+                  ],
                 ],
               ),
             ],
@@ -2212,18 +2288,25 @@ class _ApprovalTimeline extends ConsumerWidget {
   }
 
   Widget _buildApprovalChip(
-      ColorScheme cs, SaleApproval? approval, {String? pendingName}) {
+    ColorScheme cs,
+    SaleApproval? approval, {
+    String? pendingName,
+  }) {
     if (approval != null) {
       final approverName =
           approval.approverDisplayName?.trim().isNotEmpty == true
-              ? approval.approverDisplayName!.trim()
-              : approval.approverUserId;
+          ? approval.approverDisplayName!.trim()
+          : approval.approverUserId;
       final ts = approval.createdAt != null
           ? _formatFull(approval.createdAt)
           : 'time unavailable';
 
       return Chip(
-        avatar: PhosphorIcon(PhosphorIconsRegular.checkCircle, size: 16, color: cs.onPrimaryContainer),
+        avatar: PhosphorIcon(
+          PhosphorIconsRegular.checkCircle,
+          size: 16,
+          color: cs.onPrimaryContainer,
+        ),
         label: Text('$approverName · $ts'),
         backgroundColor: cs.primaryContainer,
         side: BorderSide.none,
@@ -2296,8 +2379,19 @@ String _formatFull(DateTime? date) {
   if (date == null) return '';
   final d = date.toLocal();
   final months = [
-    '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    '',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final hour = d.hour > 12 ? d.hour - 12 : (d.hour == 0 ? 12 : d.hour);
   final min = d.minute.toString().padLeft(2, '0');

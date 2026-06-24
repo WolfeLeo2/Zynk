@@ -6,6 +6,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:uuid/uuid.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 const _uuid = Uuid();
 
@@ -29,10 +30,12 @@ class CompositeItemDetailsScreen extends ConsumerStatefulWidget {
   const CompositeItemDetailsScreen({super.key, required this.productId});
 
   @override
-  ConsumerState<CompositeItemDetailsScreen> createState() => _CompositeItemDetailsScreenState();
+  ConsumerState<CompositeItemDetailsScreen> createState() =>
+      _CompositeItemDetailsScreenState();
 }
 
-class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetailsScreen> {
+class _CompositeItemDetailsScreenState
+    extends ConsumerState<CompositeItemDetailsScreen> {
   bool _isEditing = false;
   bool _isSaving = false;
   String? _searchQuery;
@@ -41,16 +44,23 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
   List<_EditableComponent>? _editableComponents;
   Product? _product;
 
-  void _beginEdit(List<CompositeItemComponent> dbComponents, List<Product> allProducts) {
+  void _beginEdit(
+    List<CompositeItemComponent> dbComponents,
+    List<Product> allProducts,
+  ) {
     _editableComponents = [];
     for (final comp in dbComponents) {
       try {
-        final p = allProducts.firstWhere((x) => x.id == comp.componentProductId);
-        _editableComponents!.add(_EditableComponent(
-          product: p,
-          componentId: comp.id,
-          quantity: comp.quantity,
-        ));
+        final p = allProducts.firstWhere(
+          (x) => x.id == comp.componentProductId,
+        );
+        _editableComponents!.add(
+          _EditableComponent(
+            product: p,
+            componentId: comp.id,
+            quantity: comp.quantity,
+          ),
+        );
       } catch (_) {
         // Product missing
       }
@@ -68,16 +78,17 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
 
   void _addComponent(Product p) {
     if (_editableComponents == null) return;
-    final existing = _editableComponents!.indexWhere((e) => e.product.id == p.id && !e.isDeleted);
+    final existing = _editableComponents!.indexWhere(
+      (e) => e.product.id == p.id && !e.isDeleted,
+    );
     if (existing >= 0) {
       setState(() => _editableComponents![existing].quantity++);
     } else {
       setState(() {
-        _editableComponents!.add(_EditableComponent(
-          product: p,
-          componentId: _uuid.v4(),
-          quantity: 1,
-        )..isNew = true);
+        _editableComponents!.add(
+          _EditableComponent(product: p, componentId: _uuid.v4(), quantity: 1)
+            ..isNew = true,
+        );
       });
     }
   }
@@ -85,10 +96,14 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
   Future<void> _saveChanges() async {
     if (_product == null || _editableComponents == null) return;
 
-    final activeComponents = _editableComponents!.where((e) => !e.isDeleted).toList();
+    final activeComponents = _editableComponents!
+        .where((e) => !e.isDeleted)
+        .toList();
     if (activeComponents.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('A composite item must have at least one component.')),
+        const SnackBar(
+          content: Text('A composite item must have at least one component.'),
+        ),
       );
       return;
     }
@@ -97,26 +112,28 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
 
     try {
       final repository = ref.read(repositoryProvider);
-      
+
       // Calculate new cost price based on components
       final newCost = activeComponents.fold(
-        0.0, 
-        (sum, e) => sum + ((e.product.costPrice ?? 0.0) * e.quantity)
+        0.0,
+        (sum, e) => sum + ((e.product.costPrice ?? 0.0) * e.quantity),
       );
 
       // We need to update product cost price, and fully replace/update components.
       // Easiest is to prepare the new Component list and call repository.
-      
+
       final dbComponents = _editableComponents!
           .where((e) => !e.isDeleted)
-          .map((e) => CompositeItemComponent(
-                id: e.componentId,
-                tenantId: _product!.tenantId,
-                branchId: _product!.branchId ?? '',
-                compositeProductId: _product!.id,
-                componentProductId: e.product.id,
-                quantity: e.quantity,
-              ))
+          .map(
+            (e) => CompositeItemComponent(
+              id: e.componentId,
+              tenantId: _product!.tenantId,
+              branchId: _product!.branchId ?? '',
+              compositeProductId: _product!.id,
+              componentProductId: e.product.id,
+              quantity: e.quantity,
+            ),
+          )
           .toList();
 
       final updatedProduct = _product!.copyWith(costPrice: newCost);
@@ -136,16 +153,16 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
           _isEditing = false;
           _editableComponents = null;
         });
-        
+
         // Invalidate to refresh UI
         ref.invalidate(compositeComponentsProvider(widget.productId));
         ref.invalidate(allProductsProvider);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error saving: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error saving: $e')));
       }
     } finally {
       if (mounted) {
@@ -158,9 +175,11 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    
+
     final allProductsAsync = ref.watch(allProductsProvider);
-    final componentsAsync = ref.watch(compositeComponentsProvider(widget.productId));
+    final componentsAsync = ref.watch(
+      compositeComponentsProvider(widget.productId),
+    );
 
     return Scaffold(
       backgroundColor: cs.surface,
@@ -177,19 +196,31 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
               padding: const EdgeInsets.only(right: 16, left: 8),
               child: FilledButton(
                 onPressed: _isSaving ? null : _saveChanges,
-                child: _isSaving 
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Save'),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Text('Save'),
               ),
             )
           else if (allProductsAsync.hasValue && componentsAsync.hasValue)
             Padding(
               padding: const EdgeInsets.only(right: 16),
               child: OutlinedButton.icon(
-                icon: const PhosphorIcon(PhosphorIconsDuotone.pencilSimple, size: 18),
+                icon: const PhosphorIcon(
+                  PhosphorIconsDuotone.pencilSimple,
+                  size: 18,
+                ),
                 label: const Text('Edit'),
                 onPressed: () {
-                  _product = allProductsAsync.value!.firstWhere((p) => p.id == widget.productId);
+                  _product = allProductsAsync.value!.firstWhere(
+                    (p) => p.id == widget.productId,
+                  );
                   _beginEdit(componentsAsync.value!, allProductsAsync.value!);
                 },
               ),
@@ -218,12 +249,20 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
     );
   }
 
-  Widget _buildBody(ThemeData theme, ColorScheme cs, List<Product> allProducts, List<CompositeItemComponent> dbComponents) {
+  Widget _buildBody(
+    ThemeData theme,
+    ColorScheme cs,
+    List<Product> allProducts,
+    List<CompositeItemComponent> dbComponents,
+  ) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final isWide = constraints.maxWidth > 800;
         return SingleChildScrollView(
-          padding: EdgeInsets.symmetric(horizontal: isWide ? 80 : 20, vertical: 24),
+          padding: EdgeInsets.symmetric(
+            horizontal: isWide ? 80 : 20,
+            vertical: 24,
+          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -233,7 +272,9 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
+                  border: Border.all(
+                    color: cs.outlineVariant.withValues(alpha: 0.5),
+                  ),
                   boxShadow: [
                     BoxShadow(
                       color: cs.shadow.withValues(alpha: 0.05),
@@ -252,7 +293,11 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Center(
-                        child: PhosphorIcon(PhosphorIconsDuotone.package, color: cs.primary, size: 32),
+                        child: PhosphorIcon(
+                          PhosphorIconsDuotone.package,
+                          color: cs.primary,
+                          size: 32,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 20),
@@ -260,9 +305,20 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_product!.name, style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold)),
-                          if (_product!.sku != null && _product!.sku!.isNotEmpty)
-                            Text('SKU: ${_product!.sku}', style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                          Text(
+                            _product!.name,
+                            style: theme.textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          if (_product!.sku != null &&
+                              _product!.sku!.isNotEmpty)
+                            Text(
+                              'SKU: ${_product!.sku}',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: cs.onSurfaceVariant,
+                              ),
+                            ),
                         ],
                       ),
                     ),
@@ -272,45 +328,70 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                         Consumer(
                           builder: (context, ref, child) {
                             final group = _product!.itemGroupId != null
-                                ? ref.watch(itemGroupProvider(_product!.itemGroupId!)).value
+                                ? ref
+                                      .watch(
+                                        itemGroupProvider(
+                                          _product!.itemGroupId!,
+                                        ),
+                                      )
+                                      .value
                                 : null;
                             final resolvedPrice = ref
                                 .watch(productPricingServiceProvider)
                                 .resolveSellingPrice(_product!, group);
                             return Text(
-                              'Price: Ksh ${resolvedPrice.toStringAsFixed(2)}',
-                              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                              'Price: ${CurrencyHelper.format(resolvedPrice)}',
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                             );
                           },
                         ),
-                        Text('Cost: Ksh ${_product!.costPrice?.toStringAsFixed(2) ?? '0.00'}', style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant)),
+                        Text(
+                          'Cost: Ksh ${_product!.costPrice?.toStringAsFixed(2) ?? '0.00'}',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                   ],
                 ),
               ),
               const SizedBox(height: 32),
-              
-              Text('Bill of Materials', style: theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold)),
+
+              Text(
+                'Bill of Materials',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 16),
-              
+
               if (_isEditing) ...[
                 _buildSearchField(cs, allProducts),
                 const SizedBox(height: 16),
               ],
-              
+
               _buildComponentsList(theme, cs, allProducts, dbComponents),
             ],
           ),
         );
-      }
+      },
     );
   }
 
   Widget _buildSearchField(ColorScheme cs, List<Product> allProducts) {
-    var available = allProducts.where((p) => p.id != widget.productId).toList(); // don't add itself
+    var available = allProducts
+        .where((p) => p.id != widget.productId)
+        .toList(); // don't add itself
     final filtered = _searchQuery != null && _searchQuery!.isNotEmpty
-        ? available.where((p) => p.name.toLowerCase().contains(_searchQuery!.toLowerCase())).toList()
+        ? available
+              .where(
+                (p) =>
+                    p.name.toLowerCase().contains(_searchQuery!.toLowerCase()),
+              )
+              .toList()
         : <Product>[];
 
     return Column(
@@ -319,7 +400,9 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
         TextField(
           decoration: InputDecoration(
             hintText: 'Search items to add...',
-            prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.magnifyingGlass),
+            prefixIcon: const PhosphorIcon(
+              PhosphorIconsDuotone.magnifyingGlass,
+            ),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
             filled: true,
             fillColor: cs.surfaceContainerLowest,
@@ -348,19 +431,27 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                       final p = filtered[index];
                       return ListTile(
                         dense: true,
-                        title: Text(p.name, style: const TextStyle(fontWeight: FontWeight.w500)),
+                        title: Text(
+                          p.name,
+                          style: const TextStyle(fontWeight: FontWeight.w500),
+                        ),
                         subtitle: Consumer(
                           builder: (context, ref, child) {
                             final group = p.itemGroupId != null
-                                ? ref.watch(itemGroupProvider(p.itemGroupId!)).value
+                                ? ref
+                                      .watch(itemGroupProvider(p.itemGroupId!))
+                                      .value
                                 : null;
                             final resolvedPrice = ref
                                 .watch(productPricingServiceProvider)
                                 .resolveSellingPrice(p, group);
-                            return Text('KES ${resolvedPrice.toStringAsFixed(0)}');
+                            return Text(CurrencyHelper.format(resolvedPrice));
                           },
                         ),
-                        trailing: const PhosphorIcon(PhosphorIconsBold.plus, size: 18),
+                        trailing: const PhosphorIcon(
+                          PhosphorIconsBold.plus,
+                          size: 18,
+                        ),
                         onTap: () {
                           _addComponent(p);
                           setState(() => _searchQuery = null);
@@ -374,7 +465,12 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
     );
   }
 
-  Widget _buildComponentsList(ThemeData theme, ColorScheme cs, List<Product> allProducts, List<CompositeItemComponent> dbComponents) {
+  Widget _buildComponentsList(
+    ThemeData theme,
+    ColorScheme cs,
+    List<Product> allProducts,
+    List<CompositeItemComponent> dbComponents,
+  ) {
     if (_isEditing && _editableComponents != null) {
       final active = _editableComponents!.where((e) => !e.isDeleted).toList();
       if (active.isEmpty) {
@@ -393,7 +489,9 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
       return Column(
         children: dbComponents.map((comp) {
           try {
-            final p = allProducts.firstWhere((x) => x.id == comp.componentProductId);
+            final p = allProducts.firstWhere(
+              (x) => x.id == comp.componentProductId,
+            );
             return _buildComponentRow(theme, cs, dbComp: comp, product: p);
           } catch (_) {
             return const SizedBox.shrink();
@@ -414,7 +512,11 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
       ),
       child: Column(
         children: [
-          PhosphorIcon(PhosphorIconsDuotone.lego, size: 48, color: cs.onSurfaceVariant.withValues(alpha: 0.5)),
+          PhosphorIcon(
+            PhosphorIconsDuotone.lego,
+            size: 48,
+            color: cs.onSurfaceVariant.withValues(alpha: 0.5),
+          ),
           const SizedBox(height: 16),
           Text(msg, style: TextStyle(color: cs.onSurfaceVariant)),
         ],
@@ -422,7 +524,9 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
     );
   }
 
-  Widget _buildComponentRow(ThemeData theme, ColorScheme cs, {
+  Widget _buildComponentRow(
+    ThemeData theme,
+    ColorScheme cs, {
     _EditableComponent? entry,
     CompositeItemComponent? dbComp,
     Product? product,
@@ -449,7 +553,10 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
-              child: PhosphorIcon(PhosphorIconsDuotone.cube, color: cs.secondary),
+              child: PhosphorIcon(
+                PhosphorIconsDuotone.cube,
+                color: cs.secondary,
+              ),
             ),
           ),
           const SizedBox(width: 16),
@@ -457,10 +564,17 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(p.name, style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600)),
                 Text(
-                  'Cost: KES ${(p.costPrice ?? 0).toStringAsFixed(2)} each',
-                  style: theme.textTheme.bodySmall?.copyWith(color: cs.onSurfaceVariant),
+                  p.name,
+                  style: theme.textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                Text(
+                  'Cost: ${CurrencyHelper.format((p.costPrice ?? 0))} each',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -478,13 +592,22 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                     }
                   },
                 ),
-                Text('$quantity', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)),
+                Text(
+                  '$quantity',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
                 IconButton(
                   icon: const PhosphorIcon(PhosphorIconsBold.plus, size: 16),
                   onPressed: () => setState(() => entry!.quantity++),
                 ),
                 IconButton(
-                  icon: PhosphorIcon(PhosphorIconsDuotone.trash, color: cs.error, size: 20),
+                  icon: PhosphorIcon(
+                    PhosphorIconsDuotone.trash,
+                    color: cs.error,
+                    size: 20,
+                  ),
                   onPressed: () => setState(() => entry!.isDeleted = true),
                 ),
               ],
@@ -496,15 +619,23 @@ class _CompositeItemDetailsScreenState extends ConsumerState<CompositeItemDetail
                 color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Text('Qty: $quantity', style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)),
+              child: Text(
+                'Qty: $quantity',
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           const SizedBox(width: 16),
           SizedBox(
             width: 100,
             child: Text(
-              'KES ${totalCost.toStringAsFixed(2)}',
+              CurrencyHelper.format(totalCost),
               textAlign: TextAlign.right,
-              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold, color: cs.primary),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: cs.primary,
+              ),
             ),
           ),
         ],

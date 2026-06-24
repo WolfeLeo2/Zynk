@@ -21,13 +21,15 @@ class _StatusFilterNotifier extends Notifier<String?> {
 }
 
 final _adjustmentStatusFilterProvider =
-    NotifierProvider.autoDispose<_StatusFilterNotifier, String?>(_StatusFilterNotifier.new);
+    NotifierProvider.autoDispose<_StatusFilterNotifier, String?>(
+      _StatusFilterNotifier.new,
+    );
 
 final _adjustmentsProvider = StreamProvider.autoDispose
-    .family<
-      List<StockAdjustment>,
-      ({String tenantId, String? branchId})
-    >((ref, args) {
+    .family<List<StockAdjustment>, ({String tenantId, String? branchId})>((
+      ref,
+      args,
+    ) {
       final repo = ref.watch(repositoryProvider);
       return repo.watchAllStockAdjustments(
         tenantId: args.tenantId,
@@ -57,10 +59,7 @@ class AdjustmentsScreen extends ConsumerWidget {
     final statusFilter = ref.watch(_adjustmentStatusFilterProvider);
 
     final adjustmentsAsync = ref.watch(
-      _adjustmentsProvider((
-        tenantId: tenantId,
-        branchId: branchId,
-      )),
+      _adjustmentsProvider((tenantId: tenantId, branchId: branchId)),
     );
 
     return Scaffold(
@@ -120,13 +119,13 @@ class AdjustmentsScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 20),
             itemCount: bundleIds.length,
             itemBuilder: (context, i) {
-               final bundleId = bundleIds[i];
-               final items = grouped[bundleId]!;
-               return _BundleTile(
-                 bundleId: bundleId,
-                 items: items,
-                 canApprove: canApprove,
-               );
+              final bundleId = bundleIds[i];
+              final items = grouped[bundleId]!;
+              return _BundleTile(
+                bundleId: bundleId,
+                items: items,
+                canApprove: canApprove,
+              );
             },
           );
         },
@@ -211,10 +210,10 @@ class _BundleTile extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
     final dateFmt = DateFormat('dd MMM yyyy');
-    
+
     final first = items.first;
     final status = first.status;
-    
+
     final (statusLabel, statusColor) = switch (status) {
       StockAdjustmentStatus.pending => ('Pending', colorScheme.secondary),
       StockAdjustmentStatus.approved => ('Approved', colorScheme.primary),
@@ -242,10 +241,13 @@ class _BundleTile extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        first.reasonLabel ?? 'ADJ-${bundleId.substring(0, 5).toUpperCase()}',
+                        first.reasonLabel ??
+                            'ADJ-${bundleId.substring(0, 5).toUpperCase()}',
                         style: textTheme.titleSmall?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: first.reasonLabel != null ? colorScheme.primary : null,
+                          color: first.reasonLabel != null
+                              ? colorScheme.primary
+                              : null,
                         ),
                       ),
                     ),
@@ -253,7 +255,8 @@ class _BundleTile extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
-                if (first.referenceNumber != null && first.referenceNumber!.isNotEmpty) ...[
+                if (first.referenceNumber != null &&
+                    first.referenceNumber!.isNotEmpty) ...[
                   Text(
                     'Ref: ${first.referenceNumber}',
                     style: textTheme.labelSmall?.copyWith(
@@ -267,26 +270,43 @@ class _BundleTile extends StatelessWidget {
                   items.length == 1
                       ? first.productName ?? 'Unknown Product'
                       : '${first.productName ?? "Unknown"} and ${items.length - 1} others',
-                  style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
+                  style: textTheme.bodyLarge?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    PhosphorIcon(PhosphorIconsRegular.user, size: 14, color: colorScheme.onSurfaceVariant),
+                    PhosphorIcon(
+                      PhosphorIconsRegular.user,
+                      size: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       first.adjusterName ?? 'System',
-                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(width: 16),
-                    PhosphorIcon(PhosphorIconsRegular.calendar, size: 14, color: colorScheme.onSurfaceVariant),
+                    PhosphorIcon(
+                      PhosphorIconsRegular.calendar,
+                      size: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 4),
                     Text(
                       dateFmt.format(first.createdAt ?? DateTime.now()),
-                      style: textTheme.bodySmall?.copyWith(color: colorScheme.onSurfaceVariant),
+                      style: textTheme.bodySmall?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const Spacer(),
-                    const PhosphorIcon(PhosphorIconsRegular.caretRight, size: 16),
+                    const PhosphorIcon(
+                      PhosphorIconsRegular.caretRight,
+                      size: 16,
+                    ),
                   ],
                 ),
               ],
@@ -361,7 +381,11 @@ class _ErrorState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          const PhosphorIcon(PhosphorIconsRegular.warningCircle, size: 48, color: Colors.red),
+          const PhosphorIcon(
+            PhosphorIconsRegular.warningCircle,
+            size: 48,
+            color: Colors.red,
+          ),
           const SizedBox(height: 16),
           Text(message),
         ],
@@ -380,7 +404,11 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          PhosphorIcon(PhosphorIconsRegular.clipboardText, size: 64, color: Colors.grey[400]),
+          PhosphorIcon(
+            PhosphorIconsRegular.clipboardText,
+            size: 64,
+            color: Colors.grey[400],
+          ),
           const SizedBox(height: 16),
           Text(
             filter == null

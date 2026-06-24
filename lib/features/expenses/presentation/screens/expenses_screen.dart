@@ -5,6 +5,9 @@ import 'package:intl/intl.dart';
 import 'package:zynk/features/expenses/providers/expenses_provider.dart';
 import 'package:zynk/features/expenses/presentation/widgets/log_expense_sheet.dart';
 import 'package:zynk/shared/widgets/shimmer_skeletons.dart';
+import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class ExpensesScreen extends ConsumerWidget {
   const ExpensesScreen({super.key});
@@ -19,6 +22,12 @@ class ExpensesScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Expenses'),
+        leading: MediaQuery.of(context).size.width < 840
+            ? IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                onPressed: () => Scaffold.maybeOf(context)?.openDrawer(),
+              )
+            : null,
         actions: [
           IconButton(
             onPressed: () {
@@ -35,43 +44,49 @@ class ExpensesScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  PhosphorIcon(PhosphorIconsRegular.receipt, size: 64, color: cs.outline),
+                  PhosphorIcon(
+                    PhosphorIconsRegular.receipt,
+                    size: 64,
+                    color: cs.outline,
+                  ),
                   const SizedBox(height: 16),
                   Text(
                     'No expenses logged yet',
-                    style: theme.textTheme.titleMedium?.copyWith(color: cs.outline),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: cs.outline,
+                    ),
                   ),
                 ],
               ),
             );
           }
 
-          return ListView.builder(
+          return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: expenses.length,
+            separatorBuilder: (_, _) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final expense = expenses[index];
               final category = categoriesAsync.whenOrNull(
-                data: (cats) => cats.where((c) => c.id == expense.categoryId).firstOrNull,
+                data: (cats) =>
+                    cats.where((c) => c.id == expense.categoryId).firstOrNull,
               );
 
               return RepaintBoundary(
                 child: Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 0,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
-                  ),
                   child: ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: cs.primaryContainer.withValues(alpha: 0.4),
-                        shape: BoxShape.circle,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    leading: CircleAvatar(
+                      radius: 24,
+                      backgroundColor: cs.primaryContainer,
+                      child: PhosphorIcon(
+                        PhosphorIconsRegular.receipt,
+                        color: cs.onPrimaryContainer,
+                        size: 24,
                       ),
-                      child: PhosphorIcon(PhosphorIconsRegular.receipt, color: cs.primary, size: 24),
                     ),
                     title: Text(
                       category?.name ?? 'Uncategorized',
@@ -99,16 +114,21 @@ class ExpensesScreen extends ConsumerWidget {
                             const SizedBox(width: 4),
                             Text(
                               DateFormat('MMM dd, yyyy • HH:mm').format(
-                                expense.expenseDate ?? expense.createdAt ?? DateTime.now(),
+                                expense.expenseDate ??
+                                    expense.createdAt ??
+                                    DateTime.now(),
                               ),
-                              style: theme.textTheme.bodySmall
+                              style: theme.textTheme.bodySmall,
                             ),
                           ],
                         ),
                         const SizedBox(height: 4),
                         Row(
                           children: [
-                            PhosphorIcon(PhosphorIconsRegular.houseLine, size: 12),
+                            PhosphorIcon(
+                              PhosphorIconsRegular.houseLine,
+                              size: 12,
+                            ),
                             const SizedBox(width: 4),
                             Text(
                               expense.branchName ?? 'Branch',
@@ -126,7 +146,7 @@ class ExpensesScreen extends ConsumerWidget {
                       ],
                     ),
                     trailing: Text(
-                      'Ksh ${expense.amount.toStringAsFixed(2)}',
+                      CurrencyHelper.format(expense.amount),
                       style: theme.textTheme.titleMedium?.copyWith(
                         color: cs.error,
                         fontWeight: FontWeight.bold,
@@ -150,7 +170,7 @@ class ExpensesScreen extends ConsumerWidget {
   }
 
   void _showLogExpense(BuildContext context) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,

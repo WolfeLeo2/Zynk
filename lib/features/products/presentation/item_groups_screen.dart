@@ -8,6 +8,8 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/products/presentation/widgets/batch_pricing_update_sheet.dart';
 import 'package:zynk/features/products/presentation/widgets/batch_stock_update_sheet.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class ItemGroupsScreen extends ConsumerWidget {
   const ItemGroupsScreen({super.key});
@@ -190,9 +192,7 @@ class _ItemGroupCard extends ConsumerWidget {
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: ListTile(
           onTap: () =>
               context.push('/products/groups/${group.id}', extra: group),
@@ -257,9 +257,7 @@ class _ItemGroupCard extends ConsumerWidget {
             ],
           ),
           trailing: PopupMenuButton<String>(
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.dotsThreeVertical,
-            ),
+            icon: const PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical),
             tooltip: 'Batch Actions',
             onSelected: (value) {
               switch (value) {
@@ -274,10 +272,7 @@ class _ItemGroupCard extends ConsumerWidget {
               }
             },
             itemBuilder: (context) => [
-              const PopupMenuItem(
-                value: 'view',
-                child: Text('View Items'),
-              ),
+              const PopupMenuItem(value: 'view', child: Text('View Items')),
               const PopupMenuItem(
                 value: 'price',
                 child: Text('Batch Update Price'),
@@ -291,9 +286,7 @@ class _ItemGroupCard extends ConsumerWidget {
                 value: 'delete',
                 child: Text(
                   'Delete Group',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.error,
-                  ),
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
               ),
             ],
@@ -330,13 +323,11 @@ void _showBatchPriceSheet(
   WidgetRef ref,
   ItemGroup group,
 ) {
-  showModalBottomSheet(
+  showResponsiveModal(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
-    builder: (context) => BatchPricingUpdateSheet(
-      group: group,
-    ),
+    builder: (context) => BatchPricingUpdateSheet(group: group),
   );
 }
 
@@ -345,7 +336,7 @@ void _showBatchStockSheet(
   WidgetRef ref,
   ItemGroup group,
 ) {
-  showModalBottomSheet(
+  showResponsiveModal(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,

@@ -269,7 +269,9 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                     ),
                     TextButton.icon(
                       onPressed: _pickFile,
-                      icon: const PhosphorIcon(PhosphorIconsRegular.pencilSimple),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.pencilSimple,
+                      ),
                       label: const Text('Change File'),
                     ),
                   ],

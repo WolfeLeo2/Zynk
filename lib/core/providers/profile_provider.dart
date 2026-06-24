@@ -48,7 +48,9 @@ final profileBranchSyncProvider = Provider<void>((ref) {
       //  a) no branch is selected yet (nothing from auth metadata or prefs), AND
       //  b) not already locked (locked = auth metadata set it synchronously).
       if (!currentState.isLocked && currentState.selectedBranchId == null) {
-        _log.i('profileBranchSyncProvider: setting branch from profile: $branchId');
+        _log.i(
+          'profileBranchSyncProvider: setting branch from profile: $branchId',
+        );
         notifier.selectBranch(branchId);
       }
     });

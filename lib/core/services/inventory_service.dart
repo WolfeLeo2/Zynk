@@ -8,7 +8,7 @@ class InventoryService {
   Future<void> _ensureSession() async {
     final session = _supabase.auth.currentSession;
     if (session == null) throw Exception('Not authenticated');
-    
+
     final expiresAt = session.expiresAt;
     if (expiresAt != null) {
       final expiryTime = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
@@ -18,11 +18,16 @@ class InventoryService {
     }
   }
 
-  Future<dynamic> _invoke(String functionName, Map<String, dynamic> body) async {
+  Future<dynamic> _invoke(
+    String functionName,
+    Map<String, dynamic> body,
+  ) async {
     await _ensureSession();
     final response = await _supabase.functions.invoke(functionName, body: body);
     if (response.status != 200) {
-      final error = response.data is Map ? response.data['error'] : response.data;
+      final error = response.data is Map
+          ? response.data['error']
+          : response.data;
       throw Exception(error ?? 'Failed to invoke $functionName');
     }
     return response.data;
@@ -68,6 +73,7 @@ class InventoryService {
       'adjustment_id': adjustmentId,
     });
   }
+
   Future<void> unapproveAdjustment({
     required String tenantId,
     String? bundleId,

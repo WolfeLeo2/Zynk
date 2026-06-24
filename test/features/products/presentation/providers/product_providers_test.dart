@@ -72,7 +72,10 @@ void main() {
       final container = buildContainer('all');
       addTearDown(container.dispose);
 
-      final sub = container.listen(stockHistoryProvider('product-2'), (_, __) {});
+      final sub = container.listen(
+        stockHistoryProvider('product-2'),
+        (_, __) {},
+      );
       await container.read(stockHistoryProvider('product-2').future);
       sub.close();
 

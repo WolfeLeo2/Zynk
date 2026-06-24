@@ -23,9 +23,7 @@ void main() {
       // Build our app wrapped in ProviderScope
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            sharedPreferencesProvider.overrideWithValue(prefs),
-          ],
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
           child: const MyApp(),
         ),
       );
@@ -42,9 +40,7 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [
-            sharedPreferencesProvider.overrideWithValue(prefs),
-          ],
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
           child: const MyApp(),
         ),
       );

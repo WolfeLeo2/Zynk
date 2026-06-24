@@ -56,11 +56,13 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
       branchesAsync.whenData((branches) {
         final selectable = branches.where((b) => b.id != 'all').toList();
         Branch? toSelect;
-        
+
         if (selectable.length == 1) {
           toSelect = selectable.first;
         } else if (currentBranchId != 'all') {
-          toSelect = selectable.where((b) => b.id == currentBranchId).firstOrNull;
+          toSelect = selectable
+              .where((b) => b.id == currentBranchId)
+              .firstOrNull;
         }
 
         if (toSelect != null) {
@@ -84,11 +86,13 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           children: [
             branchesAsync.when(
               data: (branches) {
-                final selectableBranches =
-                    branches.where((b) => b.id != 'all').toList();
-                
+                final selectableBranches = branches
+                    .where((b) => b.id != 'all')
+                    .toList();
+
                 // If only one branch, don't show the selector (it's auto-selected anyway)
-                if (selectableBranches.length <= 1) return const SizedBox.shrink();
+                if (selectableBranches.length <= 1)
+                  return const SizedBox.shrink();
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -97,14 +101,17 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                       labelText: 'Target Branch',
                       border: OutlineInputBorder(),
                       isDense: true,
-                      prefixIcon: PhosphorIcon(PhosphorIconsRegular.storefront, size: 20),
+                      prefixIcon: PhosphorIcon(
+                        PhosphorIconsRegular.storefront,
+                        size: 20,
+                      ),
                     ),
                     initialValue: _selectedBranch,
                     items: selectableBranches
-                        .map((b) => DropdownMenuItem(
-                              value: b,
-                              child: Text(b.name),
-                            ))
+                        .map(
+                          (b) =>
+                              DropdownMenuItem(value: b, child: Text(b.name)),
+                        )
                         .toList(),
                     onChanged: (val) {
                       setState(() => _selectedBranch = val);
@@ -120,26 +127,22 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
               children: [
                 Expanded(
                   child: staffAsync.when(
-                    data:
-                        (staffList) => DropdownButtonFormField<StaffMember>(
-                          decoration: const InputDecoration(
-                            labelText: 'Adjuster',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          initialValue: _selectedAdjuster,
-                          items:
-                              staffList
-                                  .map(
-                                    (s) => DropdownMenuItem(
-                                      value: s,
-                                      child: Text(s.name),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (val) => setState(() => _selectedAdjuster = val),
-                        ),
+                    data: (staffList) => DropdownButtonFormField<StaffMember>(
+                      decoration: const InputDecoration(
+                        labelText: 'Adjuster',
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      initialValue: _selectedAdjuster,
+                      items: staffList
+                          .map(
+                            (s) =>
+                                DropdownMenuItem(value: s, child: Text(s.name)),
+                          )
+                          .toList(),
+                      onChanged: (val) =>
+                          setState(() => _selectedAdjuster = val),
+                    ),
                     loading: () => const LinearProgressIndicator(),
                     error: (_, _) => const Text('Error loading staff'),
                   ),
@@ -147,25 +150,24 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: reasonsAsync.when(
-                    data:
-                        (reasons) => DropdownButtonFormField<AdjustmentReason>(
+                    data: (reasons) =>
+                        DropdownButtonFormField<AdjustmentReason>(
                           decoration: const InputDecoration(
                             labelText: 'Reason',
                             border: OutlineInputBorder(),
                             isDense: true,
                           ),
                           initialValue: _selectedReason,
-                          items:
-                              reasons
-                                  .map(
-                                    (r) => DropdownMenuItem(
-                                      value: r,
-                                      child: Text(r.label),
-                                    ),
-                                  )
-                                  .toList(),
-                          onChanged:
-                              (val) => setState(() => _selectedReason = val),
+                          items: reasons
+                              .map(
+                                (r) => DropdownMenuItem(
+                                  value: r,
+                                  child: Text(r.label),
+                                ),
+                              )
+                              .toList(),
+                          onChanged: (val) =>
+                              setState(() => _selectedReason = val),
                         ),
                     loading: () => const LinearProgressIndicator(),
                     error: (_, _) => const Text('Error loading reasons'),
@@ -230,10 +232,12 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           );
         }
 
-        final stockAsync = ref.watch(stockByBranchProvider((
-          productId: product.id,
-          branchId: _selectedBranch?.id,
-        )));
+        final stockAsync = ref.watch(
+          stockByBranchProvider((
+            productId: product.id,
+            branchId: _selectedBranch?.id,
+          )),
+        );
         final currentStock = stockAsync.value?.quantity ?? 0;
         final amount = int.tryParse(_qtyController.text) ?? 0;
 
@@ -247,12 +251,11 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
         }
 
         final delta = newStock - currentStock;
-        final color =
-            delta > 0
-                ? Colors.green
-                : delta < 0
-                ? theme.colorScheme.error
-                : theme.colorScheme.onSurface;
+        final color = delta > 0
+            ? Colors.green
+            : delta < 0
+            ? theme.colorScheme.error
+            : theme.colorScheme.onSurface;
 
         return Padding(
           padding: const EdgeInsets.only(top: 4),
@@ -266,7 +269,11 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
               ),
               if (isSelected && amount != 0) ...[
                 const SizedBox(width: 8),
-                PhosphorIcon(PhosphorIconsRegular.arrowRight, size: 12, color: color),
+                PhosphorIcon(
+                  PhosphorIconsRegular.arrowRight,
+                  size: 12,
+                  color: color,
+                ),
                 const SizedBox(width: 8),
                 Text(
                   '$newStock',
@@ -316,7 +323,12 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           }
 
           if (quantityChange != 0) {
-            items.add(BatchAdjustmentItem(productId: id, quantityChange: quantityChange));
+            items.add(
+              BatchAdjustmentItem(
+                productId: id,
+                quantityChange: quantityChange,
+              ),
+            );
           }
         }
 
@@ -330,9 +342,9 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           salespersonId: _selectedAdjuster?.id,
           adjustmentType: 'auto',
           reasonId: _selectedReason?.id,
-          referenceNumber: _referenceController.text.trim().isEmpty 
-            ? null 
-            : _referenceController.text.trim(),
+          referenceNumber: _referenceController.text.trim().isEmpty
+              ? null
+              : _referenceController.text.trim(),
         );
 
         if (context.mounted) {

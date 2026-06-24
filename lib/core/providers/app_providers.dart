@@ -85,8 +85,10 @@ final branchesProvider = StreamProvider<List<Branch>>((ref) {
 });
 
 /// Stream of branches assigned to a specific profile
-final profileBranchesProvider =
-    StreamProvider.family<List<String>, String>((ref, profileId) {
+final profileBranchesProvider = StreamProvider.family<List<String>, String>((
+  ref,
+  profileId,
+) {
   final repository = ref.watch(repositoryProvider);
   return repository.watchProfileBranchIds(profileId);
 });
@@ -255,8 +257,13 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
   }
 
   Future<void> selectBranch(String branchId) async {
+    // No-op if already selected — avoids prefs writes + state churn that
+    // cause branch "flapping" when PowerSync re-emits the branch list.
+    if (branchId == state.selectedBranchId) return;
     if (state.isLocked) {
-      _log.w('Attempted to switch branch while locked to ${state.selectedBranchId}');
+      _log.w(
+        'Attempted to switch branch while locked to ${state.selectedBranchId}',
+      );
       return;
     }
     try {
@@ -274,8 +281,15 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
   }
 
   void setAvailableBranches(List<Branch> branches) {
-    // Always update the available list so the UI can show branch names.
-    state = state.copyWith(availableBranches: branches);
+    // Only update the list when it actually changed, to avoid state churn.
+    final sameList =
+        branches.length == state.availableBranches.length &&
+        branches.asMap().entries.every(
+          (e) => e.value.id == state.availableBranches[e.key].id,
+        );
+    if (!sameList) {
+      state = state.copyWith(availableBranches: branches);
+    }
 
     // If the branch is locked (set from auth metadata), never clear or switch it.
     // The locked branch ID is the canonical truth — even if it's not yet in the
@@ -288,21 +302,11 @@ class BranchSelectionNotifier extends Notifier<BranchSelectionState> {
         'Auto-selecting first branch: ${branches.first.id} (${branches.first.name})',
       );
       selectBranch(branches.first.id);
-      return;
     }
-
-    // Verify current selection is still valid.
-    if (state.selectedBranchId != null) {
-      final stillValid = branches.any((b) => b.id == state.selectedBranchId);
-      if (!stillValid && branches.isNotEmpty) {
-        _log.d(
-          'Previously selected branch no longer valid, switching to first',
-        );
-        selectBranch(branches.first.id);
-      } else if (!stillValid) {
-        clearSelection();
-      }
-    }
+    // ponytail: do NOT switch/clear when the current selection is missing from
+    // `branches` — PowerSync delivers partial lists during sync, and treating a
+    // not-yet-synced branch as "invalid" caused branch flapping. A genuinely
+    // deleted branch self-corrects on next selection.
   }
 }
 
@@ -463,8 +467,8 @@ final humanStaffProvider = StreamProvider<List<StaffMember>>((ref) {
 /// OR staff with NO branch assigned (shared staff).
 final humanStaffByBranchProvider =
     StreamProvider.family<List<StaffMember>, String?>((ref, branchId) {
-  final repository = ref.watch(repositoryProvider);
-  final tenantId = ref.watch(tenantIdProvider);
-  if (tenantId == null) return const Stream.empty();
-  return repository.watchStaffMembers(tenantId, branchId: branchId);
-});
+      final repository = ref.watch(repositoryProvider);
+      final tenantId = ref.watch(tenantIdProvider);
+      if (tenantId == null) return const Stream.empty();
+      return repository.watchStaffMembers(tenantId, branchId: branchId);
+    });

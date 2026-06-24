@@ -68,7 +68,9 @@ class StaffDashboardLayout extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // 1. Staff Metrics Grid
-                      isDesktop ? const _StaffDesktopMetricsGrid() : const _StaffMobileMetricsGrid(),
+                      isDesktop
+                          ? const _StaffDesktopMetricsGrid()
+                          : const _StaffMobileMetricsGrid(),
 
                       const SizedBox(height: 24),
 
@@ -89,10 +91,7 @@ class StaffDashboardLayout extends ConsumerWidget {
                               ),
                             ),
                             const SizedBox(width: 24),
-                            Expanded(
-                              flex: 1,
-                              child: const _LowStockList(),
-                            ),
+                            Expanded(flex: 1, child: const _LowStockList()),
                           ],
                         )
                       else
@@ -452,7 +451,9 @@ class _LowStockList extends ConsumerWidget {
                             children: [
                               Text(
                                 p['name']?.toString() ?? 'Unknown',
-                                style: const TextStyle(fontWeight: FontWeight.w600),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -467,7 +468,10 @@ class _LowStockList extends ConsumerWidget {
                           ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: colorScheme.error.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),

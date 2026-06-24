@@ -59,7 +59,8 @@ class _IconsCatalogState extends State<IconsCatalog> {
         actions: [
           PopupMenuButton<PhosphorIconsStyle>(
             tooltip: 'Style',
-            icon: PhosphorIcon(PhosphorIcons.pencilLine(PhosphorIconsStyle.regular)),
+            icon: PhosphorIcon(
+                PhosphorIcons.pencilLine(PhosphorIconsStyle.regular)),
             itemBuilder: (context) => PhosphorIconsStyle.values
                 .map((style) => PopupMenuItem<PhosphorIconsStyle>(
                       value: style,

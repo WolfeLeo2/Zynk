@@ -211,9 +211,7 @@ class Branch {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is Branch &&
-          runtimeType == other.runtimeType &&
-          id == other.id;
+      other is Branch && runtimeType == other.runtimeType && id == other.id;
 
   @override
   int get hashCode => id.hashCode;
@@ -692,8 +690,8 @@ class ProductTransaction {
           ? DateTime.tryParse(map['created_at'].toString())?.toLocal()
           : null,
       type: map['type']?.toString() ?? 'adjustment',
-      quantityChange: map['quantity'] is num 
-          ? (map['quantity'] as num).toInt() 
+      quantityChange: map['quantity'] is num
+          ? (map['quantity'] as num).toInt()
           : int.tryParse(map['quantity']?.toString() ?? '0') ?? 0,
       referenceId: map['reference_id']?.toString(),
       referenceNumber: map['reference_number']?.toString(),
@@ -701,4 +699,3 @@ class ProductTransaction {
     );
   }
 }
-

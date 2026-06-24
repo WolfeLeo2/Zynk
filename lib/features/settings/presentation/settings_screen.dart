@@ -8,6 +8,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/shared/widgets/branch_dropdown.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/user_role.dart';
@@ -182,94 +183,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(authServiceProvider).signOut();
   }
 
-  void _showDefaultBranchSelector(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final branches = ref.read(branchSelectionProvider).availableBranches;
-    final selectedId = ref.read(currentBranchIdProvider);
-
-    showModalBottomSheet(
-      context: context,
-      showDragHandle: true,
-      backgroundColor: colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-                child: Text(
-                  'Select Default Branch',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const Divider(height: 1),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: branches.length,
-                  itemBuilder: (context, index) {
-                    final branch = branches[index];
-                    final isSelected = selectedId == branch.id;
-                    return ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? colorScheme.primaryContainer
-                              : colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: PhosphorIcon(
-                          branch.id == 'all'
-                              ? PhosphorIconsDuotone.chartPieSlice
-                              : PhosphorIconsDuotone.storefront,
-                          color: isSelected
-                              ? colorScheme.onPrimaryContainer
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      title: Text(branch.name),
-                      trailing: isSelected
-                          ? PhosphorIcon(
-                              PhosphorIconsBold.check,
-                              color: colorScheme.primary,
-                            )
-                          : null,
-                      onTap: () {
-                        ref
-                            .read(branchSelectionProvider.notifier)
-                            .selectBranch(branch.id);
-                        Navigator.pop(sheetContext);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
     final profileAsync = ref.watch(currentUserProfileProvider);
     final canSwitch = ref.watch(canSwitchBranchProvider);
-    final selectedBranchId = ref.watch(currentBranchIdProvider);
-    final branchName = ref.watch(currentBranchProvider)?.name ??
-        (selectedBranchId == 'all'
-            ? 'All Branches'
-            : selectedBranchId != null
-                ? 'Loading…'
-                : 'Not assigned');
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
@@ -298,186 +217,281 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 contentPadding: const EdgeInsets.symmetric(vertical: 8),
                 lightTheme: SettingsThemeData(
                   settingsListBackground: Theme.of(context).colorScheme.surface,
-                  settingsSectionBackground: Theme.of(context).colorScheme.surfaceContainerLow,
+                  settingsSectionBackground: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerLow,
                   dividerColor: Theme.of(context).colorScheme.outlineVariant,
-                  tileDescriptionTextColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  tileDescriptionTextColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant,
                   leadingIconsColor: Theme.of(context).colorScheme.primary,
                 ),
                 darkTheme: SettingsThemeData(
                   settingsListBackground: Theme.of(context).colorScheme.surface,
-                  settingsSectionBackground: Theme.of(context).colorScheme.surfaceContainerLow,
+                  settingsSectionBackground: Theme.of(
+                    context,
+                  ).colorScheme.surfaceContainerLow,
                   dividerColor: Theme.of(context).colorScheme.outlineVariant,
-                  tileDescriptionTextColor: Theme.of(context).colorScheme.onSurfaceVariant,
+                  tileDescriptionTextColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurfaceVariant,
                   leadingIconsColor: Theme.of(context).colorScheme.primary,
                 ),
                 sections: [
-              CustomSettingsSection(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: _SettingsSection(
-                    title: 'Profile',
-                    children: [
-                      Center(
-                        child: Stack(
-                          children: [
-                            Container(
-                              width: 100,
-                              height: 100,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: cs.surfaceContainerHighest,
-                                border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.15))
-                              ),
-                              child: ClipOval(
-                                child: profile?.profilePictureUrl != null
-                                    ? CachedNetworkImage(
-                                        imageUrl: profile!.profilePictureUrl!,
-                                        fit: BoxFit.cover,
-                                        errorWidget: (context, url, error) =>
-                                            const PhosphorIcon(
-                                              PhosphorIconsBold.sealWarning,
-                                              color: Colors.red,
-                                            ),
-                                      )
-                                    : Center(
-                                        child: Text(
-                                          (displayName.isNotEmpty)
-                                              ? displayName[0].toUpperCase()
-                                              : '?',
-                                          style: const TextStyle(fontSize: 32),
-                                        ),
+                  CustomSettingsSection(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: _SettingsSection(
+                        title: 'Profile',
+                        children: [
+                          Center(
+                            child: Stack(
+                              children: [
+                                Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: cs.surfaceContainerHighest,
+                                    border: Border.all(
+                                      color: cs.outlineVariant.withValues(
+                                        alpha: 0.15,
                                       ),
-                              ),
-                            ),
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: IconButton.filled(
-                                onPressed: _isLoading
-                                    ? null
-                                    : _updateProfilePicture,
-                                icon: const PhosphorIcon(
-                                  PhosphorIconsBold.camera,
-                                  size: 18,
+                                    ),
+                                  ),
+                                  child: ClipOval(
+                                    child: profile?.profilePictureUrl != null
+                                        ? CachedNetworkImage(
+                                            imageUrl:
+                                                profile!.profilePictureUrl!,
+                                            fit: BoxFit.cover,
+                                            errorWidget:
+                                                (
+                                                  context,
+                                                  url,
+                                                  error,
+                                                ) => const PhosphorIcon(
+                                                  PhosphorIconsBold.sealWarning,
+                                                  color: Colors.red,
+                                                ),
+                                          )
+                                        : Center(
+                                            child: Text(
+                                              (displayName.isNotEmpty)
+                                                  ? displayName[0].toUpperCase()
+                                                  : '?',
+                                              style: const TextStyle(
+                                                fontSize: 32,
+                                              ),
+                                            ),
+                                          ),
+                                  ),
                                 ),
-                              ),
+                                Positioned(
+                                  bottom: 0,
+                                  right: 0,
+                                  child: IconButton.filled(
+                                    onPressed: _isLoading
+                                        ? null
+                                        : _updateProfilePicture,
+                                    icon: const PhosphorIcon(
+                                      PhosphorIconsBold.camera,
+                                      size: 18,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 24),
+                          Form(
+                            key: _formKey,
+                            child: Column(
+                              children: [
+                                TextFormField(
+                                  controller: _nameController,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Display Name',
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: PhosphorIcon(
+                                      PhosphorIconsDuotone.user,
+                                    ),
+                                  ),
+                                  validator: (v) =>
+                                      v?.isEmpty == true ? 'Required' : null,
+                                ),
+                                const SizedBox(height: 16),
+                                TextFormField(
+                                  initialValue: user?.email,
+                                  readOnly: true,
+                                  decoration: const InputDecoration(
+                                    labelText: 'Email',
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: PhosphorIcon(
+                                      PhosphorIconsDuotone.envelope,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: FilledButton.tonal(
+                                    onPressed: _isLoading ? null : _saveProfile,
+                                    child: Text(
+                                      _isLoading
+                                          ? 'Updating...'
+                                          : 'Update Profile Info',
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      Form(
-                        key: _formKey,
-                        child: Column(
-                          children: [
-                            TextFormField(
-                              controller: _nameController,
-                              decoration: const InputDecoration(
-                                labelText: 'Display Name',
-                                border: OutlineInputBorder(),
-                                prefixIcon: PhosphorIcon(PhosphorIconsDuotone.user),
-                              ),
-                              validator: (v) =>
-                                  v?.isEmpty == true ? 'Required' : null,
+                    ),
+                  ),
+
+                  if (isOwner ||
+                      (profile?.hasPermission(Permission.manageBranches) ==
+                          true) ||
+                      (profile?.hasPermission(Permission.manageStaff) ==
+                          true) ||
+                      (profile?.hasPermission(Permission.manageCustomers) ==
+                          true))
+                    SettingsSection(
+                      title: Text(
+                        'Business',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      tiles: [
+                        if (isOwner)
+                          SettingsTile.navigation(
+                            leading: const PhosphorIcon(
+                              PhosphorIconsDuotone.image,
                             ),
-                            const SizedBox(height: 16),
-                            TextFormField(
-                              initialValue: user?.email,
-                              readOnly: true,
-                              decoration: const InputDecoration(
-                                labelText: 'Email',
-                                border: OutlineInputBorder(),
-                                prefixIcon: PhosphorIcon(PhosphorIconsDuotone.envelope),
-                              ),
+                            title: Text(
+                              'Business Logo',
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
-                            const SizedBox(height: 16),
-                            SizedBox(
-                              width: double.infinity,
-                              child: FilledButton.tonal(
-                                onPressed: _isLoading ? null : _saveProfile,
-                                child: Text(
-                                  _isLoading
-                                      ? 'Updating...'
-                                      : 'Update Profile Info',
-                                ),
-                              ),
+                            description: Text(
+                              'Update your shop\'s logo',
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
-                          ],
+                            trailing: _isLoading
+                                ? Text(
+                                    'Updating',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.labelSmall,
+                                  )
+                                : null,
+                            enabled: !_isLoading,
+                            onPressed: (_) => _updateBusinessLogo(),
+                          ),
+                        if (profile?.hasPermission(Permission.manageBranches) ==
+                            true)
+                          SettingsTile.navigation(
+                            leading: const PhosphorIcon(
+                              PhosphorIconsDuotone.storefront,
+                            ),
+                            title: Text(
+                              'Branches',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            description: Text(
+                              'Manage your business locations',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            onPressed: (_) =>
+                                context.push('/settings/branches'),
+                          ),
+                        if (profile?.hasPermission(Permission.manageStaff) ==
+                            true)
+                          SettingsTile.navigation(
+                            leading: const PhosphorIcon(
+                              PhosphorIconsDuotone.userList,
+                            ),
+                            title: Text(
+                              'Salespersons',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            description: Text(
+                              'Manage actual employees',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            onPressed: (_) =>
+                                context.push('/settings/staff-members'),
+                          ),
+                        if (profile?.hasPermission(Permission.manageStaff) ==
+                            true)
+                          SettingsTile.navigation(
+                            leading: const PhosphorIcon(
+                              PhosphorIconsDuotone.users,
+                            ),
+                            title: Text(
+                              'User Accounts',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            description: Text(
+                              'Manage branch logins and permissions',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            onPressed: (_) => context.push('/settings/staff'),
+                          ),
+                        if (profile?.hasPermission(
+                              Permission.manageCustomers,
+                            ) ==
+                            true)
+                          SettingsTile.navigation(
+                            leading: const PhosphorIcon(
+                              PhosphorIconsDuotone.usersFour,
+                            ),
+                            title: Text(
+                              'Customers',
+                              style: Theme.of(context).textTheme.titleMedium,
+                            ),
+                            description: Text(
+                              'Manage your customer directory',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            onPressed: (_) =>
+                                context.push('/settings/customers'),
+                          ),
+                      ],
+                    ),
+
+                  SettingsSection(
+                    title: Text(
+                      'Security',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    tiles: [
+                      SettingsTile.navigation(
+                        leading: const PhosphorIcon(
+                          PhosphorIconsDuotone.password,
                         ),
+                        title: Text(
+                          'Change Password',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        description: Text(
+                          'Update your login password',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                        onPressed: (_) =>
+                            context.push('/settings/change-password'),
                       ),
                     ],
                   ),
-                ),
-              ),
 
-              if (isOwner || 
-                  (profile?.hasPermission(Permission.manageBranches) == true) || 
-                  (profile?.hasPermission(Permission.manageStaff) == true) ||
-                  (profile?.hasPermission(Permission.manageCustomers) == true))
-                SettingsSection(
-                  title: Text('Business', style: Theme.of(context).textTheme.titleMedium),
-                  tiles: [
-                    if (isOwner)
-                      SettingsTile.navigation(
-                        leading: const PhosphorIcon(PhosphorIconsDuotone.image),
-                        title: Text('Business Logo', style: Theme.of(context).textTheme.titleMedium),
-                        description: Text('Update your shop\'s logo', style: Theme.of(context).textTheme.bodySmall),
-                        trailing: _isLoading
-                            ? Text(
-                                'Updating',
-                                style: Theme.of(context).textTheme.labelSmall,
-                              )
-                            : null,
-                        enabled: !_isLoading,
-                        onPressed: (_) => _updateBusinessLogo(),
-                      ),
-                    if (profile?.hasPermission(Permission.manageBranches) == true)
-                      SettingsTile.navigation(
-                        leading: const PhosphorIcon(PhosphorIconsDuotone.storefront),
-                        title: Text('Branches', style: Theme.of(context).textTheme.titleMedium),
-                        description: Text('Manage your business locations', style: Theme.of(context).textTheme.bodySmall),
-                        onPressed: (_) => context.push('/settings/branches'),
-                      ),
-                    if (profile?.hasPermission(Permission.manageStaff) == true)
-                      SettingsTile.navigation(
-                        leading: const PhosphorIcon(PhosphorIconsDuotone.userList),
-                        title: Text('Salespersons', style: Theme.of(context).textTheme.titleMedium),
-                        description: Text('Manage actual employees', style: Theme.of(context).textTheme.bodySmall),
-                        onPressed: (_) => context.push('/settings/staff-members'),
-                      ),
-                    if (profile?.hasPermission(Permission.manageStaff) == true)
-                      SettingsTile.navigation(
-                        leading: const PhosphorIcon(PhosphorIconsDuotone.users),
-                        title: Text('User Accounts', style: Theme.of(context).textTheme.titleMedium),
-                        description: Text('Manage branch logins and permissions', style: Theme.of(context).textTheme.bodySmall),
-                        onPressed: (_) => context.push('/settings/staff'),
-                      ),
-                    if (profile?.hasPermission(Permission.manageCustomers) == true)
-                      SettingsTile.navigation(
-                        leading: const PhosphorIcon(PhosphorIconsDuotone.usersFour),
-                        title: Text('Customers', style: Theme.of(context).textTheme.titleMedium),
-                        description: Text('Manage your customer directory', style: Theme.of(context).textTheme.bodySmall),
-                        onPressed: (_) => context.push('/settings/customers'),
-                      ),
-                  ],
-                ),
-
-              SettingsSection(
-                title: Text('Security', style: Theme.of(context).textTheme.titleMedium),
-                tiles: [
-                  SettingsTile.navigation(
-                    leading: const PhosphorIcon(PhosphorIconsDuotone.password),
-                    title: Text('Change Password', style: Theme.of(context).textTheme.titleMedium),
-                    description: Text('Update your login password', style: Theme.of(context).textTheme.bodySmall),
-                    onPressed: (_) => context.push('/settings/change-password'),
-                  ),
-                ],
-              ),
-
-              SettingsSection(
-                title: Text('App Settings', style: Theme.of(context).textTheme.titleMedium),
-                tiles: [
-                  /*
+                  SettingsSection(
+                    title: Text(
+                      'App Settings',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    tiles: [
+                      /*
                   SettingsTile.navigation(
                     leading: const PhosphorIcon(PhosphorIconsDuotone.ruler),
                     title: Text('Measurement System', style: Theme.of(context).textTheme.titleMedium),
@@ -490,97 +504,113 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                   */
-                  SettingsTile(
-                    leading: const PhosphorIcon(PhosphorIconsDuotone.palette),
-                    title: Text('Theme', style: Theme.of(context).textTheme.titleMedium),
-                    trailing: DropdownButton<ThemeMode>(
-                      value: ref.watch(themeModeProvider),
-                      underline: const SizedBox(),
-                      borderRadius: BorderRadius.circular(12),
-                      dropdownColor: Theme.of(context).colorScheme.surfaceContainerHigh,
-                      onChanged: (ThemeMode? mode) {
-                        if (mode != null) {
-                          ref.read(themeModeProvider.notifier).setThemeMode(mode);
-                        }
-                      },
-                      items: [
-                        DropdownMenuItem(
-                          value: ThemeMode.system,
-                          child: Text('System', style: Theme.of(context).textTheme.bodyMedium),
+                      SettingsTile(
+                        leading: const PhosphorIcon(
+                          PhosphorIconsDuotone.palette,
                         ),
-                        DropdownMenuItem(
-                          value: ThemeMode.light,
-                          child: Text('Light', style: Theme.of(context).textTheme.bodyMedium),
+                        title: Text(
+                          'Theme',
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
-                        DropdownMenuItem(
-                          value: ThemeMode.dark,
-                          child: Text('Dark', style: Theme.of(context).textTheme.bodyMedium),
-                        ),
-                      ],
-                    ),
-                  ),
-                  SettingsTile.navigation(
-                    leading: const PhosphorIcon(PhosphorIconsDuotone.storefront),
-                    title: Text(
-                      canSwitch ? 'Default Branch' : 'Assigned Branch',
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                    description: Text(
-                      branchName,
-                      style: Theme.of(context).textTheme.bodySmall,
-                    ),
-                    onPressed: canSwitch
-                        ? (_) => _showDefaultBranchSelector(context)
-                        : (_) {},
-                  ),
-                ],
-              ),
-
-              SettingsSection(
-                tiles: [
-                  SettingsTile.navigation(
-                    leading: PhosphorIcon(
-                      PhosphorIconsDuotone.signOut,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    title: Text(
-                      'Sign Out',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                    ),
-                    onPressed: (_) async {
-                      final confirm = await showDialog<bool>(
-                        context: context,
-                        builder: (context) => AlertDialog(
-                          title: const Text('Sign Out'),
-                          content: const Text(
-                            'Are you sure you want to sign out?',
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, false),
-                              child: const Text('Cancel'),
+                        trailing: DropdownButton<ThemeMode>(
+                          value: ref.watch(themeModeProvider),
+                          underline: const SizedBox(),
+                          borderRadius: BorderRadius.circular(12),
+                          dropdownColor: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHigh,
+                          onChanged: (ThemeMode? mode) {
+                            if (mode != null) {
+                              ref
+                                  .read(themeModeProvider.notifier)
+                                  .setThemeMode(mode);
+                            }
+                          },
+                          items: [
+                            DropdownMenuItem(
+                              value: ThemeMode.system,
+                              child: Text(
+                                'System',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
                             ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(context, true),
-                              child: const Text('Sign Out'),
+                            DropdownMenuItem(
+                              value: ThemeMode.light,
+                              child: Text(
+                                'Light',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
+                            ),
+                            DropdownMenuItem(
+                              value: ThemeMode.dark,
+                              child: Text(
+                                'Dark',
+                                style: Theme.of(context).textTheme.bodyMedium,
+                              ),
                             ),
                           ],
                         ),
-                      );
+                      ),
+                      SettingsTile(
+                        leading: const PhosphorIcon(
+                          PhosphorIconsDuotone.storefront,
+                        ),
+                        title: Text(
+                          canSwitch ? 'Default Branch' : 'Assigned Branch',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        trailing: const BranchDropdown(),
+                      ),
+                    ],
+                  ),
 
-                      if (confirm == true) {
-                        await _signOut();
-                      }
-                    },
+                  SettingsSection(
+                    tiles: [
+                      SettingsTile.navigation(
+                        leading: PhosphorIcon(
+                          PhosphorIconsDuotone.signOut,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        title: Text(
+                          'Sign Out',
+                          style: Theme.of(context).textTheme.bodyMedium
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                        ),
+                        onPressed: (_) async {
+                          final confirm = await showDialog<bool>(
+                            context: context,
+                            builder: (context) => AlertDialog(
+                              title: const Text('Sign Out'),
+                              content: const Text(
+                                'Are you sure you want to sign out?',
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.pop(context, false),
+                                  child: const Text('Cancel'),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context, true),
+                                  child: const Text('Sign Out'),
+                                ),
+                              ],
+                            ),
+                          );
+
+                          if (confirm == true) {
+                            await _signOut();
+                          }
+                        },
+                      ),
+                    ],
                   ),
                 ],
               ),
-            ],
-          ),
-        ),
-      );
+            ),
+          );
         },
         loading: () => const _SettingsLoadingView(),
         error: (e, st) => Center(child: Text('Error: $e')),
@@ -602,10 +632,7 @@ class _SettingsSection extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 8),
-          child: Text(
-            title,
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
+          child: Text(title, style: Theme.of(context).textTheme.titleMedium),
         ),
         Card(
           child: Padding(

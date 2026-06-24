@@ -11,7 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-
+import 'package:zynk/core/utils/responsive_modal.dart';
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -65,8 +65,7 @@ class StaffMembersScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
-                    onPressed: () =>
-                        _showAddEditStaffSheet(context, ref, null),
+                    onPressed: () => _showAddEditStaffSheet(context, ref, null),
                     icon: const PhosphorIcon(PhosphorIconsRegular.plus),
                     label: const Text('Add Staff Member'),
                   ),
@@ -83,8 +82,7 @@ class StaffMembersScreen extends ConsumerWidget {
               final member = staff[i];
               return _StaffMemberCard(
                 member: member,
-                onEdit: () =>
-                    _showAddEditStaffSheet(context, ref, member),
+                onEdit: () => _showAddEditStaffSheet(context, ref, member),
                 onDelete: () => _confirmDelete(context, ref, member),
               );
             },
@@ -108,7 +106,7 @@ class StaffMembersScreen extends ConsumerWidget {
     WidgetRef ref,
     StaffMember? existing,
   ) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -134,9 +132,7 @@ class StaffMembersScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Remove'),
           ),
@@ -148,9 +144,9 @@ class StaffMembersScreen extends ConsumerWidget {
       try {
         await ref.read(repositoryProvider).deleteStaffMember(member.id);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${member.name} removed')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('${member.name} removed')));
         }
       } catch (e) {
         if (context.mounted) {
@@ -182,21 +178,18 @@ class _StaffMemberCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final isBlocked = member.status == StaffStatus.inactive || member.status == StaffStatus.blocked;
+    final isBlocked =
+        member.status == StaffStatus.inactive ||
+        member.status == StaffStatus.blocked;
 
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: cs.outlineVariant.withValues(alpha: 0.5),
-        ),
+        side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 8,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           radius: 24,
           backgroundColor: cs.surface,
@@ -284,21 +277,31 @@ class _StaffMemberCard extends ConsumerWidget {
           ],
         ),
         trailing: PopupMenuButton<String>(
-          icon: PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical, color: cs.onSurfaceVariant),
+          icon: PhosphorIcon(
+            PhosphorIconsRegular.dotsThreeVertical,
+            color: cs.onSurfaceVariant,
+          ),
           onSelected: (value) async {
             if (value == 'edit') onEdit();
             if (value == 'delete') onDelete();
             if (value == 'block' || value == 'unblock') {
-              final newStatus = value == 'block' ? StaffStatus.blocked : StaffStatus.active;
+              final newStatus = value == 'block'
+                  ? StaffStatus.blocked
+                  : StaffStatus.active;
               try {
-                await ref.read(repositoryProvider).updateStaffMemberStatus(
-                  memberId: member.id,
-                  status: newStatus,
-                );
+                await ref
+                    .read(repositoryProvider)
+                    .updateStaffMemberStatus(
+                      memberId: member.id,
+                      status: newStatus,
+                    );
               } catch (e) {
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
                   );
                 }
               }
@@ -316,7 +319,11 @@ class _StaffMemberCard extends ConsumerWidget {
             PopupMenuItem(
               value: isBlocked ? 'unblock' : 'block',
               child: ListTile(
-                leading: PhosphorIcon(isBlocked ? PhosphorIconsRegular.checkCircle : PhosphorIconsRegular.prohibit),
+                leading: PhosphorIcon(
+                  isBlocked
+                      ? PhosphorIconsRegular.checkCircle
+                      : PhosphorIconsRegular.prohibit,
+                ),
                 title: Text(isBlocked ? 'Unblock' : 'Block'),
                 contentPadding: EdgeInsets.zero,
               ),
@@ -329,10 +336,7 @@ class _StaffMemberCard extends ConsumerWidget {
                   PhosphorIconsRegular.trash,
                   color: Colors.red,
                 ),
-                title: Text(
-                  'Remove',
-                  style: TextStyle(color: Colors.red),
-                ),
+                title: Text('Remove', style: TextStyle(color: Colors.red)),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
@@ -407,11 +411,12 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
         .uploadBinary(
           path,
           _imageBytes!,
-          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
         );
-    return Supabase.instance.client.storage
-        .from('avatars')
-        .getPublicUrl(path);
+    return Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
   }
 
   Future<void> _submit() async {
@@ -510,20 +515,25 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                             : null,
                         child: _imageBytes == null
                             ? (_currentPictureUrl != null
-                                ? ClipOval(
-                                    child: CachedNetworkImage(
-                                      imageUrl: _currentPictureUrl!,
-                                      fit: BoxFit.cover,
-                                      width: 96,
-                                      height: 96,
-                                      errorWidget: (context, url, error) => const CircleAvatar(child: PhosphorIcon(PhosphorIconsRegular.user)),
-                                    ),
-                                  )
-                                : PhosphorIcon(
-                                    PhosphorIconsDuotone.user,
-                                    size: 40,
-                                    color: cs.onPrimaryContainer,
-                                  ))
+                                  ? ClipOval(
+                                      child: CachedNetworkImage(
+                                        imageUrl: _currentPictureUrl!,
+                                        fit: BoxFit.cover,
+                                        width: 96,
+                                        height: 96,
+                                        errorWidget: (context, url, error) =>
+                                            const CircleAvatar(
+                                              child: PhosphorIcon(
+                                                PhosphorIconsRegular.user,
+                                              ),
+                                            ),
+                                      ),
+                                    )
+                                  : PhosphorIcon(
+                                      PhosphorIconsDuotone.user,
+                                      size: 40,
+                                      color: cs.onPrimaryContainer,
+                                    ))
                             : null,
                       ),
                       Positioned(
@@ -583,8 +593,9 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   final branchesAsync = ref.watch(branchesProvider);
                   return branchesAsync.when(
                     data: (branches) {
-                      final filteredBranches =
-                          branches.where((b) => b.id != 'all').toList();
+                      final filteredBranches = branches
+                          .where((b) => b.id != 'all')
+                          .toList();
                       return DropdownButtonFormField<String>(
                         initialValue: _selectedBranchId,
                         decoration: InputDecoration(
@@ -592,7 +603,9 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          prefixIcon: const PhosphorIcon(PhosphorIconsRegular.storefront),
+                          prefixIcon: const PhosphorIcon(
+                            PhosphorIconsRegular.storefront,
+                          ),
                           helperText: 'Leave empty for shared staff',
                         ),
                         items: [

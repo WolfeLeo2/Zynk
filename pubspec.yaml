@@ -42,6 +42,7 @@ dependencies:
   http: ^1.6.0
   json_annotation: ^4.11.0
   m3e_card_list: ^0.0.1
+  animations: ^2.2.0
 
 dependency_overrides:
   phosphor_flutter:
@@ -70,14 +71,14 @@ flutter:
 
   assets:
     - assets/animations/hero_login.json
+    - assets/animations/welcome_loading.json
     - assets/images/logo.png
     - shorebird.yaml
 
-fonts:
-  - family: GoogleSansFlex
-    fonts:
-      - asset: assets/fonts/GoogleSansFlex.ttf
-  
-  - family: ClashDisplay
-    fonts:
-      - asset: assets/fonts/ClashDisplay.ttf
+  fonts:
+    - family: GoogleSansFlex
+      fonts:
+        - asset: assets/fonts/GoogleSansFlex.ttf
+    - family: ClashDisplay
+      fonts:
+        - asset: assets/fonts/ClashDisplay.ttf

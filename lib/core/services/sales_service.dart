@@ -1,9 +1,16 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/services/app_logger.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 
 final _log = AppLogger('SalesService');
+
+/// Resolved pricing for a single invoice line.
+/// [quantity] is the persisted unit count (boxes for sqm-based items),
+/// [unitPrice] is the per-persisted-unit price (per box for sqm), and [total]
+/// is `unitPrice * quantity`.
+typedef InvoiceLine = ({int quantity, double unitPrice, double total});
 
 /// Thin client service that delegates heavy operations to Supabase edge functions.
 ///
@@ -13,6 +20,28 @@ class SalesService {
   final SupabaseClient _supabase;
 
   SalesService(this._supabase);
+
+  /// Single source of truth for invoice line-item pricing — used by the create,
+  /// edit and clone screens so totals never drift between them.
+  ///
+  /// [enteredPrice] is the per-sqm price for sqm-based items, otherwise the unit
+  /// price. [enteredQty] is the total sqm for sqm-based items, otherwise the
+  /// unit count. sqm quantities are rounded UP to whole boxes.
+  static InvoiceLine resolveLine({
+    required bool isSqmBased,
+    required double coveragePerBox,
+    required double enteredPrice,
+    required double enteredQty,
+  }) {
+    if (isSqmBased) {
+      final coverage = coveragePerBox <= 0 ? 1.0 : coveragePerBox;
+      final boxes = (enteredQty / coverage).ceil();
+      final unitPrice = enteredPrice * coverage; // price per box
+      return (quantity: boxes, unitPrice: unitPrice, total: unitPrice * boxes);
+    }
+    final qty = enteredQty.toInt();
+    return (quantity: qty, unitPrice: enteredPrice, total: enteredPrice * qty);
+  }
 
   /// Ensures the session is fresh before making edge function calls.
   Future<void> _ensureSession() async {
@@ -210,14 +239,20 @@ class SalesService {
     required String paymentMethod,
     String? referenceNumber,
     String? notes,
+    bool allowOverpayment = false,
   }) async {
+    // Stable idempotency key: a 401-refresh retry re-sends the same body, so a
+    // network retry can't double-charge or double-release stock.
+    final paymentId = const Uuid().v4();
     await _manageSale('record_payment', {
       'sale_id': saleId,
       'tenant_id': tenantId,
+      'payment_id': paymentId,
       'amount': amount,
       'payment_method': paymentMethod,
       'reference_number': referenceNumber,
       'notes': notes,
+      'allow_overpayment': allowOverpayment,
     });
     _log.i('Payment of \$amount recorded server-side for sale: \$saleId');
   }

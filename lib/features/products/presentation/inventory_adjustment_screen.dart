@@ -16,6 +16,8 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:zynk/core/models/staff_model.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -188,7 +190,7 @@ class _InventoryAdjustmentScreenState
     List<AdjustmentReason> reasons,
     String tenantId,
   ) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       builder: (ctx) =>
@@ -392,31 +394,33 @@ class _InventoryAdjustmentScreenState
                                       branchesList.isNotEmpty) {
                                     WidgetsBinding.instance
                                         .addPostFrameCallback((_) {
-                                      if (mounted) {
-                                        final branchState =
-                                            ref.read(branchSelectionProvider);
-                                        setState(() {
-                                          if (branchState.isLocked &&
-                                              branchState.selectedBranchId !=
-                                                  null) {
-                                            _selectedBranchIds = {
-                                              branchState.selectedBranchId!,
-                                            };
-                                          } else if (selectedBranchId ==
-                                              'all') {
-                                            _selectedBranchIds =
-                                                branchesList
-                                                    .map((b) => b.id)
-                                                    .toSet();
-                                          } else {
-                                            _selectedBranchIds = {
-                                              selectedBranchId,
-                                            };
+                                          if (mounted) {
+                                            final branchState = ref.read(
+                                              branchSelectionProvider,
+                                            );
+                                            setState(() {
+                                              if (branchState.isLocked &&
+                                                  branchState
+                                                          .selectedBranchId !=
+                                                      null) {
+                                                _selectedBranchIds = {
+                                                  branchState.selectedBranchId!,
+                                                };
+                                              } else if (selectedBranchId ==
+                                                  'all') {
+                                                _selectedBranchIds =
+                                                    branchesList
+                                                        .map((b) => b.id)
+                                                        .toSet();
+                                              } else {
+                                                _selectedBranchIds = {
+                                                  selectedBranchId,
+                                                };
+                                              }
+                                              _initializedBranches = true;
+                                            });
                                           }
-                                          _initializedBranches = true;
                                         });
-                                      }
-                                    });
                                   }
 
                                   return Container(
@@ -439,10 +443,10 @@ class _InventoryAdjustmentScreenState
                                               'Apply to branches:',
                                               style: theme.textTheme.bodySmall
                                                   ?.copyWith(
-                                                color: colorScheme
-                                                    .onSurfaceVariant,
-                                                fontWeight: FontWeight.bold,
-                                              ),
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
                                             ),
                                             const SizedBox(width: 8),
                                             if (ref
@@ -464,31 +468,30 @@ class _InventoryAdjustmentScreenState
                                                   label: Text(b.name),
                                                   selected: _selectedBranchIds
                                                       .contains(b.id),
-                                                  onSelected: ref
-                                                              .watch(
-                                                                branchSelectionProvider,
-                                                              )
-                                                              .isLocked
-                                                          ? null
-                                                          : (selected) {
-                                                              setState(() {
-                                                                if (selected) {
-                                                                  _selectedBranchIds
-                                                                      .add(
-                                                                        b.id,
-                                                                      );
-                                                                } else {
-                                                                  if (_selectedBranchIds
-                                                                          .length >
-                                                                      1) {
-                                                                    _selectedBranchIds
-                                                                        .remove(
-                                                                          b.id,
-                                                                        );
-                                                                  }
-                                                                }
-                                                              });
-                                                            },
+                                                  onSelected:
+                                                      ref
+                                                          .watch(
+                                                            branchSelectionProvider,
+                                                          )
+                                                          .isLocked
+                                                      ? null
+                                                      : (selected) {
+                                                          setState(() {
+                                                            if (selected) {
+                                                              _selectedBranchIds
+                                                                  .add(b.id);
+                                                            } else {
+                                                              if (_selectedBranchIds
+                                                                      .length >
+                                                                  1) {
+                                                                _selectedBranchIds
+                                                                    .remove(
+                                                                      b.id,
+                                                                    );
+                                                              }
+                                                            }
+                                                          });
+                                                        },
                                                   avatar: const PhosphorIcon(
                                                     PhosphorIconsRegular
                                                         .storefront,
@@ -582,10 +585,11 @@ class _InventoryAdjustmentScreenState
                                                 initialValue: _reasonId,
                                                 decoration: InputDecoration(
                                                   labelText: 'Reason *',
-                                                  prefixIcon: const PhosphorIcon(
-                                                    PhosphorIconsRegular
-                                                        .question,
-                                                  ),
+                                                  prefixIcon:
+                                                      const PhosphorIcon(
+                                                        PhosphorIconsRegular
+                                                            .question,
+                                                      ),
                                                   border: OutlineInputBorder(
                                                     borderRadius:
                                                         BorderRadius.circular(
@@ -728,7 +732,9 @@ class _InventoryAdjustmentScreenState
                                     color: Colors.white,
                                   ),
                                 )
-                              : const PhosphorIcon(PhosphorIconsRegular.checkCircle),
+                              : const PhosphorIcon(
+                                  PhosphorIconsRegular.checkCircle,
+                                ),
                           label: Text(
                             _isLoading
                                 ? 'Processing...'
@@ -844,10 +850,7 @@ class _BatchItemCard extends ConsumerStatefulWidget {
   final BatchItemState item;
   final Set<String> selectedBranchIds;
 
-  const _BatchItemCard({
-    required this.item,
-    required this.selectedBranchIds,
-  });
+  const _BatchItemCard({required this.item, required this.selectedBranchIds});
 
   @override
   ConsumerState<_BatchItemCard> createState() => _BatchItemCardState();
@@ -899,8 +902,9 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
     final colorScheme = Theme.of(context).colorScheme;
     final product = widget.item.product;
     final branchStocksAsync = ref.watch(branchStocksProvider(product.id));
-    
-    final currentStock = branchStocksAsync.value
+
+    final currentStock =
+        branchStocksAsync.value
             ?.where((s) => widget.selectedBranchIds.contains(s.branchId))
             .fold<int>(0, (sum, s) => sum + s.quantity) ??
         0;
@@ -1031,7 +1035,10 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                             widget.item.quantityChange - 1,
                           );
                     },
-                    icon: const PhosphorIcon(PhosphorIconsRegular.minus, size: 16),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.minus,
+                      size: 16,
+                    ),
                     constraints: const BoxConstraints(
                       minWidth: 36,
                       minHeight: 36,
@@ -1082,7 +1089,10 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                             widget.item.quantityChange + 1,
                           );
                     },
-                    icon: const PhosphorIcon(PhosphorIconsRegular.plus, size: 16),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.plus,
+                      size: 16,
+                    ),
                     constraints: const BoxConstraints(
                       minWidth: 36,
                       minHeight: 36,
@@ -1262,7 +1272,9 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                         itemBuilder: (_, i) {
                           final r = reasons[i];
                           return ListTile(
-                            leading: const PhosphorIcon(PhosphorIconsRegular.tagSimple),
+                            leading: const PhosphorIcon(
+                              PhosphorIconsRegular.tagSimple,
+                            ),
                             title: Text(r.label),
                             trailing: IconButton(
                               icon: PhosphorIcon(

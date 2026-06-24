@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class EditItemGroupSheet extends ConsumerStatefulWidget {
   final ItemGroup? existingGroup;
@@ -19,7 +21,7 @@ class EditItemGroupSheet extends ConsumerStatefulWidget {
     ItemGroup? existingGroup,
     String? defaultBranchId,
   }) {
-    return showModalBottomSheet<ItemGroup>(
+    return showResponsiveModal<ItemGroup>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,

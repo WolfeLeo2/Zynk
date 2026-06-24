@@ -80,18 +80,23 @@ class CsvImportService {
 
     for (final p in parsedProducts) {
       final newProductId = const Uuid().v4();
-      
+
       // Pricing
       final sellingPriceRaw = p['selling_price']?.toString() ?? '';
-      final double? basePrice = sellingPriceRaw.isEmpty ? null : double.tryParse(sellingPriceRaw);
-      
+      final double? basePrice = sellingPriceRaw.isEmpty
+          ? null
+          : double.tryParse(sellingPriceRaw);
+
       final costPriceRaw = p['cost_price']?.toString() ?? '';
-      final double? costPrice = costPriceRaw.isEmpty ? null : double.tryParse(costPriceRaw);
-      
+      final double? costPrice = costPriceRaw.isEmpty
+          ? null
+          : double.tryParse(costPriceRaw);
+
       final int initialStock = int.tryParse(p['initial_stock'].toString()) ?? 0;
 
       // Category Resolution
-      final String categoryNameRaw = p['category']?.toString() ?? 'Uncategorized';
+      final String categoryNameRaw =
+          p['category']?.toString() ?? 'Uncategorized';
       final String categoryNameClean = categoryNameRaw.trim();
       final String categoryKey = categoryNameClean.toLowerCase();
 
@@ -122,12 +127,18 @@ class CsvImportService {
         itemGroupId = groupMap[groupKey]!;
       } else {
         itemGroupId = const Uuid().v4();
-        
+
         // Parse optional group defaults from CSV row if present
-        final defSelling = double.tryParse(p['group_selling_price']?.toString() ?? '');
-        final defBuying = double.tryParse(p['group_buying_price']?.toString() ?? '');
+        final defSelling = double.tryParse(
+          p['group_selling_price']?.toString() ?? '',
+        );
+        final defBuying = double.tryParse(
+          p['group_buying_price']?.toString() ?? '',
+        );
         final commType = p['group_commission_type']?.toString();
-        final commValue = double.tryParse(p['group_commission_value']?.toString() ?? '');
+        final commValue = double.tryParse(
+          p['group_commission_value']?.toString() ?? '',
+        );
 
         final newGroup = ItemGroup(
           id: itemGroupId,

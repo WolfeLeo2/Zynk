@@ -6,14 +6,6 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REFRESH TRIGGER
-// ─────────────────────────────────────────────────────────────────────────────
-
-final dashboardRefreshTriggerProvider = Provider<DateTime>(
-  (ref) => DateTime.now(),
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
 // CHART TYPE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -33,7 +25,6 @@ final chartTypeProvider = NotifierProvider<ChartTypeNotifier, ChartType>(
 
 /// Today's revenue (sum of completed sales grand_total for today)
 final todaysRevenueProvider = StreamProvider<double>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -45,7 +36,6 @@ final todaysRevenueProvider = StreamProvider<double>((ref) {
 
 /// Today's expenses
 final todaysExpensesProvider = StreamProvider<double>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -55,25 +45,12 @@ final todaysExpensesProvider = StreamProvider<double>((ref) {
       .map((row) => ((row['expenses_total'] as num?) ?? 0).toDouble());
 });
 
-/// Today's Net Profit (Payments Collected - Expenses)
-final todaysNetProfitProvider = Provider<AsyncValue<double>>((ref) {
-  final revenue = ref.watch(todaysRevenueProvider);
-  final expenses = ref.watch(todaysExpensesProvider);
-
-  return revenue.when(
-    data: (rev) => expenses.when(
-      data: (exp) => AsyncValue.data(rev - exp),
-      loading: () => const AsyncValue.loading(),
-      error: (e, st) => AsyncValue.error(e, st),
-    ),
-    loading: () => const AsyncValue.loading(),
-    error: (e, st) => AsyncValue.error(e, st),
-  );
-});
+// Net profit (revenue − expenses) is derived inline in metric_cards.dart from
+// the revenue/expenses providers — not a derived Provider over StreamProviders
+// (that pattern trips the Riverpod TickerMode pause-count assertion).
 
 /// Total all-time revenue
 final salesDataProvider = StreamProvider<double>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repository = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   return repository.watchTotalSales(branchId: branchId);
@@ -81,7 +58,6 @@ final salesDataProvider = StreamProvider<double>((ref) {
 
 /// Today's order count
 final todaysOrderCountProvider = StreamProvider<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -93,7 +69,6 @@ final todaysOrderCountProvider = StreamProvider<int>((ref) {
 
 /// Pending Approvals Count
 final pendingApprovalsCountProvider = StreamProvider<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -105,7 +80,6 @@ final pendingApprovalsCountProvider = StreamProvider<int>((ref) {
 
 /// Low stock item count
 final lowStockCountProvider = StreamProvider<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -117,7 +91,6 @@ final lowStockCountProvider = StreamProvider<int>((ref) {
 
 /// Total Inventory Value
 final totalInventoryValueProvider = StreamProvider<double>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
@@ -129,7 +102,6 @@ final totalInventoryValueProvider = StreamProvider<double>((ref) {
 
 /// Recent Adjustments Count
 final recentAdjustmentsCountProvider = StreamProvider<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   return repo.watchRecentAdjustmentsCount(branchId: branchId);
@@ -137,14 +109,12 @@ final recentAdjustmentsCountProvider = StreamProvider<int>((ref) {
 
 /// Staff count
 final staffCountProvider = StreamProvider<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   return repo.watchStaffCount();
 });
 
 /// Customer count
 final customerCountProvider = StreamProvider<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   return repo.watchCustomers().map((list) => list.length);
 });
@@ -154,7 +124,6 @@ final customerCountProvider = StreamProvider<int>((ref) {
 // ─────────────────────────────────────────────────────────────────────────────
 
 final recentSalesProvider = StreamProvider<List<Sale>>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
   final repo = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   return repo.watchSales(branchId: branchId, limit: 10);
@@ -164,13 +133,11 @@ final recentSalesProvider = StreamProvider<List<Sale>>((ref) {
 // TOP PRODUCTS (replaces mock productsDataProvider)
 // ─────────────────────────────────────────────────────────────────────────────
 
-final topProductsProvider =
-    StreamProvider<List<Map<String, dynamic>>>((ref) {
-      ref.watch(dashboardRefreshTriggerProvider);
-      final repo = ref.watch(repositoryProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      return repo.watchTopProducts(branchId: branchId, limit: 6);
-    });
+final topProductsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  final repo = ref.watch(repositoryProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchTopProducts(branchId: branchId, limit: 6);
+});
 
 // ─────────────────────────────────────────────────────────────────────────────
 // LOW STOCK PRODUCTS
@@ -178,7 +145,6 @@ final topProductsProvider =
 
 final lowStockProductsProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-      ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
       final tenantId = ref.watch(tenantIdProvider);
       final branchId = ref.watch(currentBranchIdProvider);
@@ -190,13 +156,13 @@ final lowStockProductsProvider =
 // PAYMENT METHOD BREAKDOWN (replaces mock paymentMethodsProvider)
 // ─────────────────────────────────────────────────────────────────────────────
 
-final paymentBreakdownProvider =
-    StreamProvider<List<Map<String, dynamic>>>((ref) {
-      ref.watch(dashboardRefreshTriggerProvider);
-      final repo = ref.watch(repositoryProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      return repo.watchPaymentMethodBreakdown(branchId: branchId);
-    });
+final paymentBreakdownProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  final repo = ref.watch(repositoryProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchPaymentMethodBreakdown(branchId: branchId);
+});
 
 // Static chart palette — no theme dependency so this works everywhere
 const _chartColors = [
@@ -264,44 +230,10 @@ String _formatMethodName(String raw) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SPARKLINE DATA (kept as simple lists for metric cards — derived from streams)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Sparklines show a mini trend indicator. Since we don't store daily aggregates
-// locally, we just show a flat line at the current value for now. The sparkline
-// widget handles empty lists gracefully.
-final revenueSparklineProvider = Provider<AsyncValue<List<double>>>(
-  (ref) {
-    final revenue = ref.watch(todaysRevenueProvider);
-    return revenue.when(
-      data: (val) => AsyncValue.data([
-        val * 0.7,
-        val * 0.8,
-        val * 0.85,
-        val * 0.9,
-        val * 0.95,
-        val,
-      ]),
-      loading: () => const AsyncValue.loading(),
-      error: (e, st) => AsyncValue.error(e, st),
-    );
-  },
-);
-
-final ordersSparklineProvider = Provider<AsyncValue<List<double>>>((
-  ref,
-) {
-  final orders = ref.watch(todaysOrderCountProvider);
-  return orders.when(
-    data: (val) {
-      final v = val.toDouble();
-      return AsyncValue.data([v * 0.6, v * 0.7, v * 0.8, v * 0.85, v * 0.9, v]);
-    },
-    loading: () => const AsyncValue.loading(),
-    error: (e, st) => AsyncValue.error(e, st),
-  );
-});
+// Sparkline trend data is derived inline in metric_cards.dart from the value
+// providers above. It is deliberately NOT a separate Provider watching these
+// StreamProviders — that pattern tripped a Riverpod pause-count assertion under
+// the StatefulShellRoute's TickerMode pausing.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // METRIC DETAIL DATA
@@ -383,26 +315,26 @@ int _rangeToDays(String range) {
 }
 
 /// Daily revenue + order data for the interactive chart
-final dailySalesChartProvider =
-    StreamProvider<List<Map<String, dynamic>>>((ref) {
-      ref.watch(dashboardRefreshTriggerProvider);
-      final repo = ref.watch(repositoryProvider);
-      final tenantId = ref.watch(tenantIdProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      final range = ref.watch(chartTimeRangeProvider);
-      final days = _rangeToDays(range);
+final dailySalesChartProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  final range = ref.watch(chartTimeRangeProvider);
+  final days = _rangeToDays(range);
 
-      final now = DateTime.now();
-      final startDate = now.subtract(Duration(days: days - 1));
-      final endDate = now;
+  final now = DateTime.now();
+  final startDate = now.subtract(Duration(days: days - 1));
+  final endDate = now;
 
-      if (tenantId == null) {
-        return repo.watchDailySalesData(branchId: branchId, days: days);
-      }
-      return repo.watchDailySalesDataSmart(
-        tenantId: tenantId,
-        branchId: branchId,
-        startDate: startDate,
-        endDate: endDate,
-      );
-    });
+  if (tenantId == null) {
+    return repo.watchDailySalesData(branchId: branchId, days: days);
+  }
+  return repo.watchDailySalesDataSmart(
+    tenantId: tenantId,
+    branchId: branchId,
+    startDate: startDate,
+    endDate: endDate,
+  );
+});

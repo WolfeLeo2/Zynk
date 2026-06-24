@@ -18,7 +18,8 @@ class PosCartItem {
   String get effectiveName => overrideName ?? product.name;
 
   bool get isSqmBased {
-    final unit = product.pricingUnit ?? itemGroup?.defaultPricingUnit ?? 'piece';
+    final unit =
+        product.pricingUnit ?? itemGroup?.defaultPricingUnit ?? 'piece';
     return unit == 'sqm';
   }
 
@@ -31,7 +32,8 @@ class PosCartItem {
 
   double get pricePerSqm {
     if (overridePrice != null) return overridePrice!;
-    if (product.basePrice != null && product.basePrice! > 0) return product.basePrice!;
+    if (product.basePrice != null && product.basePrice! > 0)
+      return product.basePrice!;
     return itemGroup?.defaultSellingPrice ?? 0.0;
   }
 
@@ -40,7 +42,8 @@ class PosCartItem {
       return pricePerSqm * coveragePerBox;
     }
     if (overridePrice != null) return overridePrice!;
-    if (product.basePrice != null && product.basePrice! > 0) return product.basePrice!;
+    if (product.basePrice != null && product.basePrice! > 0)
+      return product.basePrice!;
     return itemGroup?.defaultSellingPrice ?? 0.0;
   }
 

@@ -43,9 +43,7 @@ class BranchFilterChips extends ConsumerWidget {
                   child: Row(
                     children: [
                       _branchChip(cs, null, 'All Branches'),
-                      ...branches.map(
-                        (b) => _branchChip(cs, b.id, b.name),
-                      ),
+                      ...branches.map((b) => _branchChip(cs, b.id, b.name)),
                     ],
                   ),
                 ),

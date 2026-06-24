@@ -12,6 +12,9 @@ import 'package:zynk/features/products/presentation/widgets/edit_item_group_shee
 
 import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
 import 'package:zynk/features/products/presentation/widgets/mismatch_resolution_sheet.dart';
+import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class GroupDetailsScreen extends ConsumerStatefulWidget {
   final ItemGroup group;
@@ -54,7 +57,9 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
 
   Future<void> _showAssignProducts() async {
     final products = ref.read(allProductsProvider).value ?? [];
-    final availableProducts = products.where((p) => p.itemGroupId != _currentGroup.id).toList();
+    final availableProducts = products
+        .where((p) => p.itemGroupId != _currentGroup.id)
+        .toList();
 
     if (availableProducts.isEmpty) {
       if (mounted) {
@@ -72,13 +77,18 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
     );
 
     if (selectedIds != null && selectedIds.isNotEmpty && mounted) {
-      final selectedProducts = availableProducts.where((p) => selectedIds.contains(p.id)).toList();
-      final mismatchedProducts = selectedProducts.where((p) => 
-        p.pricingUnit != _currentGroup.defaultPricingUnit ||
-        p.coveragePerBox != _currentGroup.defaultCoveragePerBox ||
-        p.basePrice != _currentGroup.defaultSellingPrice ||
-        p.costPrice != _currentGroup.defaultBuyingPrice
-      ).toList();
+      final selectedProducts = availableProducts
+          .where((p) => selectedIds.contains(p.id))
+          .toList();
+      final mismatchedProducts = selectedProducts
+          .where(
+            (p) =>
+                p.pricingUnit != _currentGroup.defaultPricingUnit ||
+                p.coveragePerBox != _currentGroup.defaultCoveragePerBox ||
+                p.basePrice != _currentGroup.defaultSellingPrice ||
+                p.costPrice != _currentGroup.defaultBuyingPrice,
+          )
+          .toList();
 
       Map<String, bool>? resolutionDecisions = {};
 
@@ -98,10 +108,12 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
 
       // Perform updates
       for (final p in selectedProducts) {
-        final normalize = resolutionDecisions[p.id] ?? true; // if no mismatch, normalize logic is harmless
+        final normalize =
+            resolutionDecisions[p.id] ??
+            true; // if no mismatch, normalize logic is harmless
 
         var updatedProduct = p.copyWith(itemGroupId: _currentGroup.id);
-        
+
         if (normalize) {
           updatedProduct = updatedProduct.copyWith(
             pricingUnit: _currentGroup.defaultPricingUnit,
@@ -123,7 +135,10 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
   }
 
   Future<void> _editGroupDetails() async {
-    final updated = await EditItemGroupSheet.show(context, existingGroup: _currentGroup);
+    final updated = await EditItemGroupSheet.show(
+      context,
+      existingGroup: _currentGroup,
+    );
     if (updated != null && mounted) {
       setState(() {
         _currentGroup = updated;
@@ -142,19 +157,29 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Apply to all items?'),
-        content: const Text('You changed the default prices. Would you like to apply these to all existing items in this group?'),
+        content: const Text(
+          'You changed the default prices. Would you like to apply these to all existing items in this group?',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
-          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('No'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Yes'),
+          ),
         ],
       ),
     );
 
     if (apply == true && mounted) {
       final products = ref.read(allProductsProvider).value ?? [];
-      final groupProducts = products.where((p) => p.itemGroupId == updatedGroup.id).toList();
-      
-      showModalBottomSheet(
+      final groupProducts = products
+          .where((p) => p.itemGroupId == updatedGroup.id)
+          .toList();
+
+      showResponsiveModal(
         context: context,
         isScrollControlled: true,
         useSafeArea: true,
@@ -178,27 +203,37 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
       body: NestedScrollView(
         headerSliverBuilder: (context, innerBoxIsScrolled) => [
           SliverAppBar(
-            title: _selectionMode 
-                ? Text('${_selectedProductIds.length} Selected') 
+            title: _selectionMode
+                ? Text('${_selectedProductIds.length} Selected')
                 : Text(_currentGroup.name),
             expandedHeight: 240,
             pinned: true,
             stretch: true,
-            leading: _selectionMode ? IconButton(
-              icon: const PhosphorIcon(PhosphorIconsRegular.x),
-              onPressed: _clearSelection,
-            ) : null,
+            leading: _selectionMode
+                ? IconButton(
+                    icon: const PhosphorIcon(PhosphorIconsRegular.x),
+                    onPressed: _clearSelection,
+                  )
+                : null,
             backgroundColor: colorScheme.surface,
             actions: [
               if (!_selectionMode)
                 PopupMenuButton<String>(
                   onSelected: (val) {
-                    if (val == 'edit') _editGroupDetails();
-                    else if (val == 'assign') _showAssignProducts();
+                    if (val == 'edit')
+                      _editGroupDetails();
+                    else if (val == 'assign')
+                      _showAssignProducts();
                   },
                   itemBuilder: (context) => const [
-                    PopupMenuItem(value: 'edit', child: Text('Edit Group Details')),
-                    PopupMenuItem(value: 'assign', child: Text('Assign Products')),
+                    PopupMenuItem(
+                      value: 'edit',
+                      child: Text('Edit Group Details'),
+                    ),
+                    PopupMenuItem(
+                      value: 'assign',
+                      child: Text('Assign Products'),
+                    ),
                   ],
                 ),
             ],
@@ -225,26 +260,30 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                          Text(
-                            '${_currentGroup.name}',
-                            style: theme.textTheme.titleLarge?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '${productsAsync.value?.where((p) => p.itemGroupId == _currentGroup.id).length ?? 0} Items'
-                            ),
+                              Text(
+                                '${_currentGroup.name}',
+                                style: theme.textTheme.titleLarge?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '${productsAsync.value?.where((p) => p.itemGroupId == _currentGroup.id).length ?? 0} Items',
+                              ),
                             ],
-                        )
+                          ),
                         ),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
                           decoration: BoxDecoration(
                             color: colorScheme.primary.withAlpha(30),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
-                            (_currentGroup.defaultPricingUnit ?? 'piece').toUpperCase(),
+                            (_currentGroup.defaultPricingUnit ?? 'piece')
+                                .toUpperCase(),
                             style: theme.textTheme.labelSmall?.copyWith(
                               color: colorScheme.primary,
                               fontWeight: FontWeight.bold,
@@ -253,7 +292,8 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                         ),
                       ],
                     ),
-                    if (_currentGroup.description != null && _currentGroup.description!.isNotEmpty) ...[
+                    if (_currentGroup.description != null &&
+                        _currentGroup.description!.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Text(
                         _currentGroup.description!,
@@ -269,19 +309,25 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                       children: [
                         _StatItem(
                           label: 'Selling',
-                          value: _currentGroup.defaultSellingPrice != null ? 'KES ${_currentGroup.defaultSellingPrice}' : '-',
+                          value: _currentGroup.defaultSellingPrice != null
+                              ? 'KES ${_currentGroup.defaultSellingPrice}'
+                              : '-',
                         ),
                         const SizedBox(width: 24),
                         _StatItem(
                           label: 'Buying',
-                          value: _currentGroup.defaultBuyingPrice != null ? 'KES ${_currentGroup.defaultBuyingPrice}' : '-',
+                          value: _currentGroup.defaultBuyingPrice != null
+                              ? 'KES ${_currentGroup.defaultBuyingPrice}'
+                              : '-',
                         ),
                         const SizedBox(width: 24),
                         _StatItem(
                           label: 'Commission',
-                          value: _currentGroup.defaultCommissionType == 'none' || _currentGroup.defaultCommissionType == null 
-                            ? 'None' 
-                            : '${_currentGroup.defaultCommissionValue}${_currentGroup.defaultCommissionType == 'percentage' ? '%' : ''}',
+                          value:
+                              _currentGroup.defaultCommissionType == 'none' ||
+                                  _currentGroup.defaultCommissionType == null
+                              ? 'None'
+                              : '${_currentGroup.defaultCommissionValue}${_currentGroup.defaultCommissionType == 'percentage' ? '%' : ''}',
                         ),
                       ],
                     ),
@@ -293,7 +339,9 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
         ],
         body: productsAsync.when(
           data: (products) {
-            final groupProducts = products.where((p) => p.itemGroupId == _currentGroup.id).toList();
+            final groupProducts = products
+                .where((p) => p.itemGroupId == _currentGroup.id)
+                .toList();
 
             if (groupProducts.isEmpty) {
               return Center(
@@ -307,7 +355,10 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
             }
 
             return ListView.builder(
-              padding: EdgeInsets.only(bottom: _selectionMode ? 100 : 24, top: 8),
+              padding: EdgeInsets.only(
+                bottom: _selectionMode ? 100 : 24,
+                top: 8,
+              ),
               itemCount: groupProducts.length,
               itemBuilder: (context, index) {
                 final product = groupProducts[index];
@@ -318,8 +369,15 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                   selectedTileColor: colorScheme.surfaceContainerHighest,
                   leading: CircleAvatar(
                     backgroundColor: colorScheme.surfaceContainerHighest,
-                    backgroundImage: product.imageUrl != null ? CachedNetworkImageProvider(product.imageUrl!) : null,
-                    child: product.imageUrl == null ? PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant) : null,
+                    backgroundImage: product.imageUrl != null
+                        ? CachedNetworkImageProvider(product.imageUrl!)
+                        : null,
+                    child: product.imageUrl == null
+                        ? PhosphorIcon(
+                            PhosphorIconsDuotone.package,
+                            color: colorScheme.onSurfaceVariant,
+                          )
+                        : null,
                   ),
                   trailing: _selectionMode
                       ? Checkbox(
@@ -330,8 +388,10 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
                   title: Text(product.name),
                   subtitle: Consumer(
                     builder: (context, ref, child) {
-                      final resolvedPrice = ref.watch(productPricingServiceProvider).resolveSellingPrice(product, _currentGroup);
-                      return Text('KES ${resolvedPrice.toStringAsFixed(2)}');
+                      final resolvedPrice = ref
+                          .watch(productPricingServiceProvider)
+                          .resolveSellingPrice(product, _currentGroup);
+                      return Text(CurrencyHelper.format(resolvedPrice));
                     },
                   ),
                   onLongPress: () {
@@ -357,13 +417,15 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
           error: (e, s) => Center(child: Text('Error: $e')),
         ),
       ),
-      bottomSheet: _selectionMode && _selectedProductIds.isNotEmpty 
+      bottomSheet: _selectionMode && _selectedProductIds.isNotEmpty
           ? _BatchOperationsBar(
               selectedCount: _selectedProductIds.length,
               onUpdatePricing: () {
                 final products = ref.read(allProductsProvider).value ?? [];
-                final toProcess = products.where((p) => _selectedProductIds.contains(p.id)).toList();
-                showModalBottomSheet(
+                final toProcess = products
+                    .where((p) => _selectedProductIds.contains(p.id))
+                    .toList();
+                showResponsiveModal(
                   context: context,
                   isScrollControlled: true,
                   useSafeArea: true,
@@ -375,8 +437,10 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
               },
               onUpdateStock: () {
                 final products = ref.read(allProductsProvider).value ?? [];
-                final toProcess = products.where((p) => _selectedProductIds.contains(p.id)).toList();
-                showModalBottomSheet(
+                final toProcess = products
+                    .where((p) => _selectedProductIds.contains(p.id))
+                    .toList();
+                showResponsiveModal(
                   context: context,
                   isScrollControlled: true,
                   useSafeArea: true,
@@ -388,7 +452,10 @@ class _GroupDetailsScreenState extends ConsumerState<GroupDetailsScreen> {
               },
               onRemove: () async {
                 final rep = ref.read(repositoryProvider);
-                await rep.batchUpdateProductGroups(_selectedProductIds.toList(), null);
+                await rep.batchUpdateProductGroups(
+                  _selectedProductIds.toList(),
+                  null,
+                );
                 _clearSelection();
               },
             )
@@ -416,9 +483,9 @@ class _StatItem extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.bold,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
         ),
       ],
     );
@@ -443,7 +510,9 @@ class _BatchOperationsBar extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return Container(
       padding: EdgeInsets.only(
-        left: 16, right: 16, top: 12,
+        left: 16,
+        right: 16,
+        top: 12,
         bottom: MediaQuery.of(context).padding.bottom + 12,
       ),
       decoration: BoxDecoration(
@@ -496,7 +565,9 @@ class _ActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = isDestructive ? Theme.of(context).colorScheme.error : Theme.of(context).colorScheme.primary;
+    final color = isDestructive
+        ? Theme.of(context).colorScheme.error
+        : Theme.of(context).colorScheme.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),

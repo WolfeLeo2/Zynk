@@ -20,7 +20,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
   final _formKey = GlobalKey<FormState>();
   final _amountController = TextEditingController();
   final _descriptionController = TextEditingController();
-  
+
   ExpenseCategory? _selectedCategory;
   StaffMember? _selectedStaff;
   Branch? _selectedBranch;
@@ -51,7 +51,9 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
         if (selectable.length == 1) {
           toSelect = selectable.first;
         } else if (currentBranchId != 'all') {
-          toSelect = selectable.where((b) => b.id == currentBranchId).firstOrNull;
+          toSelect = selectable
+              .where((b) => b.id == currentBranchId)
+              .firstOrNull;
         }
         if (toSelect != null) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -94,11 +96,13 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
               ],
             ),
             const SizedBox(height: 24),
-            
+
             // Amount Field
             TextFormField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               style: theme.textTheme.headlineMedium?.copyWith(
                 color: cs.primary,
                 fontWeight: FontWeight.bold,
@@ -120,111 +124,124 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Branch & Category Row
-            Row(
-              children: [
-                Expanded(
-                  child: branchesAsync.when(
-                    data: (branches) {
-                      final selectable = branches.where((b) => b.id != 'all').toList();
-                      return DropdownButtonFormField<Branch>(
-                        initialValue: _selectedBranch,
-                        decoration: const InputDecoration(
-                          labelText: 'Branch',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                        items: selectable.map((b) => DropdownMenuItem(
+            // Branch
+            branchesAsync.when(
+              data: (branches) {
+                final selectable = branches
+                    .where((b) => b.id != 'all')
+                    .toList();
+                return DropdownButtonFormField<Branch>(
+                  initialValue: _selectedBranch,
+                  decoration: const InputDecoration(
+                    labelText: 'Branch',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: selectable
+                      .map(
+                        (b) => DropdownMenuItem(
                           value: b,
-                          child: Text(b.name, overflow: TextOverflow.ellipsis),
-                        )).toList(),
-                        onChanged: (val) => setState(() => _selectedBranch = val),
-                        validator: (val) => val == null ? 'Required' : null,
-                      );
-                    },
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Error'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: categoriesAsync.when(
-                    data: (categories) => DropdownButtonFormField<ExpenseCategory>(
-                      initialValue: _selectedCategory,
-                      decoration: const InputDecoration(
-                        labelText: 'Category',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: [
-                        ...categories.map((c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(c.name, overflow: TextOverflow.ellipsis),
-                        )),
-                        const DropdownMenuItem(
-                          value: null,
-                          child: Text('+ Add New'),
+                          child: Text(
+                            b.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
                         ),
-                      ],
-                      onChanged: (val) {
-                        if (val == null) {
-                          _showAddCategoryDialog();
-                        } else {
-                          setState(() => _selectedCategory = val);
-                        }
-                      },
-                      validator: (val) => val == null ? 'Required' : null,
-                    ),
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Error'),
-                  ),
-                ),
-              ],
+                      )
+                      .toList(),
+                  onChanged: (val) =>
+                      setState(() => _selectedBranch = val),
+                  validator: (val) => val == null ? 'Required' : null,
+                );
+              },
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('Error'),
             ),
             const SizedBox(height: 16),
-
-            // Staff & Payment Method
-            Row(
-              children: [
-                Expanded(
-                  child: staffAsync.when(
-                    data: (staff) => DropdownButtonFormField<StaffMember>(
-                      initialValue: _selectedStaff,
-                      decoration: const InputDecoration(
-                        labelText: 'Logged By',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      items: staff.map((s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s.name, overflow: TextOverflow.ellipsis),
-                      )).toList(),
-                      validator: (val) => val == null ? 'Please select who is logging this' : null,
-                      onChanged: (val) => setState(() => _selectedStaff = val),
-                    ),
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Error'),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: DropdownButtonFormField<String>(
-                    initialValue: _paymentMethod,
+            
+            // Category
+            categoriesAsync.when(
+              data: (categories) =>
+                  DropdownButtonFormField<ExpenseCategory>(
+                    initialValue: _selectedCategory,
                     decoration: const InputDecoration(
-                      labelText: 'Payment',
+                      labelText: 'Category',
                       border: OutlineInputBorder(),
                       isDense: true,
                     ),
-                    items: const [
-                      DropdownMenuItem(value: 'cash', child: Text('Cash')),
-                      DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
-                      DropdownMenuItem(value: 'bank', child: Text('Bank')),
-                      DropdownMenuItem(value: 'card', child: Text('Card')),
+                    items: [
+                      ...categories.map(
+                        (c) => DropdownMenuItem(
+                          value: c,
+                          child: Text(
+                            c.name,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                      const DropdownMenuItem(
+                        value: null,
+                        child: Text('+ Add New'),
+                      ),
                     ],
-                    onChanged: (val) => setState(() => _paymentMethod = val!),
+                    onChanged: (val) {
+                      if (val == null) {
+                        _showAddCategoryDialog();
+                      } else {
+                        setState(() => _selectedCategory = val);
+                      }
+                    },
+                    validator: (val) => val == null ? 'Required' : null,
                   ),
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('Error'),
+            ),
+            const SizedBox(height: 16),
+
+            // Logged By
+            staffAsync.when(
+              data: (staff) => DropdownButtonFormField<StaffMember>(
+                initialValue: _selectedStaff,
+                decoration: const InputDecoration(
+                  labelText: 'Logged By',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
+                items: staff
+                    .map(
+                      (s) => DropdownMenuItem(
+                        value: s,
+                        child: Text(
+                          s.name,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    )
+                    .toList(),
+                validator: (val) => val == null
+                    ? 'Please select who is logging this'
+                    : null,
+                onChanged: (val) => setState(() => _selectedStaff = val),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('Error'),
+            ),
+            const SizedBox(height: 16),
+            
+            // Payment Method
+            DropdownButtonFormField<String>(
+              initialValue: _paymentMethod,
+              decoration: const InputDecoration(
+                labelText: 'Payment',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(value: 'cash', child: Text('Cash')),
+                DropdownMenuItem(value: 'mpesa', child: Text('M-Pesa')),
+                DropdownMenuItem(value: 'bank', child: Text('Bank')),
+                DropdownMenuItem(value: 'card', child: Text('Card')),
               ],
+              onChanged: (val) => setState(() => _paymentMethod = val!),
             ),
             const SizedBox(height: 16),
 
@@ -272,8 +289,14 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
           decoration: const InputDecoration(hintText: 'e.g. Rent, Utilities'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context, controller.text), child: const Text('Add')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('Add'),
+          ),
         ],
       ),
     );
@@ -298,7 +321,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
 
     final repo = ref.read(expensesRepositoryProvider);
     final tenantId = ref.read(tenantIdProvider) ?? '';
-    
+
     final expense = Expense(
       id: const Uuid().v4(),
       tenantId: tenantId,
@@ -306,7 +329,9 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
       categoryId: _selectedCategory!.id,
       staffMemberId: _selectedStaff?.id,
       amount: double.parse(_amountController.text),
-      description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
+      description: _descriptionController.text.isEmpty
+          ? null
+          : _descriptionController.text,
       paymentMethod: _paymentMethod,
       expenseDate: _expenseDate,
       createdAt: DateTime.now(),
@@ -323,9 +348,9 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }

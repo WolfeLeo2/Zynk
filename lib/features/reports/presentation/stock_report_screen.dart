@@ -23,27 +23,26 @@ class _StockReportBranchNotifier extends Notifier<String?> {
 
 final _stockReportBranchProvider =
     NotifierProvider.autoDispose<_StockReportBranchNotifier, String?>(
-  _StockReportBranchNotifier.new,
-);
+      _StockReportBranchNotifier.new,
+    );
 
 final _stockReportDataProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-  final tenantId = ref.watch(tenantIdProvider);
-  final globalBranch = ref.watch(currentBranchIdProvider);
-  final localBranch = ref.watch(_stockReportBranchProvider);
+      final tenantId = ref.watch(tenantIdProvider);
+      final globalBranch = ref.watch(currentBranchIdProvider);
+      final localBranch = ref.watch(_stockReportBranchProvider);
 
-  // Always resolve to a concrete branch — never send null into the repo
-  final branchId = localBranch ?? globalBranch;
+      // Always resolve to a concrete branch — never send null into the repo
+      final branchId = localBranch ?? globalBranch;
 
-  if (tenantId == null || branchId == null || branchId == 'all') {
-    return Stream.value([]);
-  }
+      if (tenantId == null || branchId == null || branchId == 'all') {
+        return Stream.value([]);
+      }
 
-  return ref.watch(repositoryProvider).watchStockReport(
-        tenantId: tenantId,
-        branchId: branchId,
-      );
-});
+      return ref
+          .watch(repositoryProvider)
+          .watchStockReport(tenantId: tenantId, branchId: branchId);
+    });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Screen
@@ -61,14 +60,12 @@ class StockReportScreen extends ConsumerWidget {
         ref.watch(currentBranchIdProvider);
 
     // Resolve selected branch name for the PDF header
-    final selectedBranchName = branchesAsync.value
+    final selectedBranchName =
+        branchesAsync.value
             ?.firstWhere(
               (b) => b.id == selectedBranchId,
-              orElse: () => Branch(
-                id: '',
-                tenantId: '',
-                name: 'Unknown Branch',
-              ),
+              orElse: () =>
+                  Branch(id: '', tenantId: '', name: 'Unknown Branch'),
             )
             .name ??
         'Branch';
@@ -90,13 +87,10 @@ class StockReportScreen extends ConsumerWidget {
                 data: (rows) => rows.isEmpty
                     ? const SizedBox.shrink()
                     : IconButton(
-                        icon: const PhosphorIcon(
-                          PhosphorIconsRegular.filePdf,
-                        ),
+                        icon: const PhosphorIcon(PhosphorIconsRegular.filePdf),
                         tooltip: 'Export PDF',
                         onPressed: () {
-                          final messenger =
-                              ScaffoldMessenger.of(context);
+                          final messenger = ScaffoldMessenger.of(context);
                           _exportPdf(rows, selectedBranchName, messenger);
                         },
                       ),
@@ -123,8 +117,9 @@ class StockReportScreen extends ConsumerWidget {
                     loading: () => const _BranchChipShimmer(),
                     error: (_, _) => const SizedBox.shrink(),
                     data: (branches) {
-                      final realBranches =
-                          branches.where((b) => b.id != 'all').toList();
+                      final realBranches = branches
+                          .where((b) => b.id != 'all')
+                          .toList();
                       return SingleChildScrollView(
                         scrollDirection: Axis.horizontal,
                         child: Row(
@@ -156,21 +151,16 @@ class StockReportScreen extends ConsumerWidget {
           ),
           // Table area
           dataAsync.when(
-            loading: () => const SliverToBoxAdapter(
-              child: _StockTableShimmer(),
-            ),
+            loading: () =>
+                const SliverToBoxAdapter(child: _StockTableShimmer()),
             error: (e, _) => SliverFillRemaining(
               child: Center(child: Text('Failed to load report: $e')),
             ),
             data: (rows) {
               if (rows.isEmpty) {
-                return const SliverFillRemaining(
-                  child: _EmptyState(),
-                );
+                return const SliverFillRemaining(child: _EmptyState());
               }
-              return SliverToBoxAdapter(
-                child: _StockDataTable(rows: rows),
-              );
+              return SliverToBoxAdapter(child: _StockDataTable(rows: rows));
             },
           ),
           const SliverPadding(padding: EdgeInsets.only(bottom: 32)),
@@ -202,10 +192,7 @@ Future<void> _exportPdf(
           children: [
             pw.Text(
               'Stock Report for $branchName',
-              style: pw.TextStyle(
-                fontSize: 18,
-                fontWeight: pw.FontWeight.bold,
-              ),
+              style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold),
             ),
             pw.SizedBox(height: 4),
             pw.Text(
@@ -279,9 +266,7 @@ Future<void> _exportPdf(
       );
     }
   } catch (e) {
-    messenger.showSnackBar(
-      SnackBar(content: Text('Export failed: $e')),
-    );
+    messenger.showSnackBar(SnackBar(content: Text('Export failed: $e')));
   }
 }
 
@@ -316,27 +301,39 @@ class _StockDataTable extends StatelessWidget {
             ),
             columns: [
               DataColumn(
-                label: Text('Item',
-                    style: textTheme.labelLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                label: Text(
+                  'Item',
+                  style: textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               DataColumn(
                 numeric: true,
-                label: Text('Received',
-                    style: textTheme.labelLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                label: Text(
+                  'Received',
+                  style: textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               DataColumn(
                 numeric: true,
-                label: Text('Sold',
-                    style: textTheme.labelLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                label: Text(
+                  'Sold',
+                  style: textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
               DataColumn(
                 numeric: true,
-                label: Text('Available',
-                    style: textTheme.labelLarge
-                        ?.copyWith(fontWeight: FontWeight.bold)),
+                label: Text(
+                  'Available',
+                  style: textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
             ],
             rows: rows.map((r) {
@@ -372,8 +369,7 @@ class _StockDataTable extends StatelessWidget {
                         color: isLow
                             ? colorScheme.error
                             : colorScheme.onSurface,
-                        fontWeight:
-                            isLow ? FontWeight.bold : FontWeight.normal,
+                        fontWeight: isLow ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                   ),
@@ -487,15 +483,15 @@ class _EmptyState extends StatelessWidget {
           Text(
             'No stock data for this branch',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             'Try selecting a different branch above',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

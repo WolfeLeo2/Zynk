@@ -8,10 +8,14 @@ class ExpensesRepository {
   ExpensesRepository(this._db);
 
   Stream<List<ExpenseCategory>> watchExpenseCategories(String tenantId) {
-    return _db.watch(
-      'SELECT * FROM expense_categories WHERE tenant_id = ? ORDER BY name ASC',
-      parameters: [tenantId],
-    ).map((rows) => rows.map((row) => ExpenseCategory.fromMap(row)).toList());
+    return _db
+        .watch(
+          'SELECT * FROM expense_categories WHERE tenant_id = ? ORDER BY name ASC',
+          parameters: [tenantId],
+        )
+        .map(
+          (rows) => rows.map((row) => ExpenseCategory.fromMap(row)).toList(),
+        );
   }
 
   Stream<List<Expense>> watchExpenses({
@@ -39,8 +43,19 @@ class ExpensesRepository {
     }
 
     if (month != null) {
-      final startOfMonth = DateTime(month.year, month.month, 1).toIso8601String();
-      final endOfMonth = DateTime(month.year, month.month + 1, 0, 23, 59, 59).toIso8601String();
+      final startOfMonth = DateTime(
+        month.year,
+        month.month,
+        1,
+      ).toIso8601String();
+      final endOfMonth = DateTime(
+        month.year,
+        month.month + 1,
+        0,
+        23,
+        59,
+        59,
+      ).toIso8601String();
       sql += ' AND e.expense_date >= ? AND e.expense_date <= ?';
       params.add(startOfMonth);
       params.add(endOfMonth);
@@ -48,7 +63,9 @@ class ExpensesRepository {
 
     sql += ' ORDER BY e.expense_date DESC';
 
-    return _db.watch(sql, parameters: params).map((rows) => rows.map((row) => Expense.fromMap(row)).toList());
+    return _db
+        .watch(sql, parameters: params)
+        .map((rows) => rows.map((row) => Expense.fromMap(row)).toList());
   }
 
   Future<void> insertExpense(Expense expense) async {
@@ -65,7 +82,8 @@ class ExpensesRepository {
         expense.amount,
         expense.description,
         expense.paymentMethod,
-        expense.expenseDate?.toIso8601String() ?? DateTime.now().toIso8601String(),
+        expense.expenseDate?.toIso8601String() ??
+            DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
         DateTime.now().toIso8601String(),
       ],

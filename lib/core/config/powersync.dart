@@ -485,7 +485,8 @@ class SupabaseConnector extends PowerSyncBackendConnector {
           // UPSERT (Insert or Update)
           final payload = <String, dynamic>{...data ?? {}, 'id': id};
 
-          if (payload.containsKey('branch_id') && payload['branch_id'] == 'all') {
+          if (payload.containsKey('branch_id') &&
+              payload['branch_id'] == 'all') {
             payload['branch_id'] = null;
           }
 
@@ -505,15 +506,13 @@ class SupabaseConnector extends PowerSyncBackendConnector {
             payload['created_by'] = _normalizeCreatedBy(payload['created_by']);
           }
           if (table == 'product_branches') {
-            await supabase.from(table).upsert(
-              payload,
-              onConflict: 'product_id,branch_id',
-            );
+            await supabase
+                .from(table)
+                .upsert(payload, onConflict: 'product_id,branch_id');
           } else if (table == 'profile_branches') {
-            await supabase.from(table).upsert(
-              payload,
-              onConflict: 'profile_id,branch_id',
-            );
+            await supabase
+                .from(table)
+                .upsert(payload, onConflict: 'profile_id,branch_id');
           } else {
             await supabase.from(table).upsert(payload);
           }
@@ -521,7 +520,8 @@ class SupabaseConnector extends PowerSyncBackendConnector {
           // UPDATE
           final payload = <String, dynamic>{...data!};
 
-          if (payload.containsKey('branch_id') && payload['branch_id'] == 'all') {
+          if (payload.containsKey('branch_id') &&
+              payload['branch_id'] == 'all') {
             payload['branch_id'] = null;
           }
 
@@ -580,4 +580,3 @@ Future<void> openPowerSyncDatabase() async {
   final connector = SupabaseConnector(Supabase.instance.client);
   db.connect(connector: connector);
 }
-

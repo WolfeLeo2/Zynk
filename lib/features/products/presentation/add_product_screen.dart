@@ -11,6 +11,8 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:zynk/features/products/presentation/providers/add_product_controller.dart';
 import 'package:zynk/features/products/presentation/scanner_screen.dart';
 import 'package:zynk/features/products/presentation/widgets/edit_item_group_sheet.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
@@ -413,7 +415,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     final factorController = TextEditingController();
     String? baseUnitId;
 
-    await showModalBottomSheet(
+    await showResponsiveModal(
       context: context,
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
@@ -620,7 +622,11 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     );
   }
 
-  Widget _buildSectionHeader(ThemeData theme, String title, PhosphorIconData icon) {
+  Widget _buildSectionHeader(
+    ThemeData theme,
+    String title,
+    PhosphorIconData icon,
+  ) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -654,7 +660,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
         Center(
           child: GestureDetector(
             onTap: () {
-              showModalBottomSheet(
+              showResponsiveModal(
                 showDragHandle: true,
                 context: context,
                 backgroundColor: Theme.of(context).colorScheme.surface,
@@ -1080,7 +1086,9 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
             prefixText: 'KES ',
             hintText: '0.00',
             border: const OutlineInputBorder(),
-            prefixIcon: const PhosphorIcon(PhosphorIconsDuotone.currencyCircleDollar),
+            prefixIcon: const PhosphorIcon(
+              PhosphorIconsDuotone.currencyCircleDollar,
+            ),
             fillColor: (_selectedItemGroupId != null && !_overrideSellingPrice)
                 ? cs.surfaceContainerHighest.withValues(alpha: 0.8)
                 : null,

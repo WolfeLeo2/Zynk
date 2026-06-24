@@ -22,10 +22,11 @@ import 'staff_dashboard_layout.dart';
 class DashboardLayout extends ConsumerWidget {
   const DashboardLayout({super.key});
 
+  // PowerSync streams are live, so dashboard data is already up to date — the
+  // pull-to-refresh is just a tactile confirmation, no provider invalidation.
   Future<void> _refreshDashboard(WidgetRef ref) async {
     HapticFeedback.mediumImpact();
-    ref.invalidate(dashboardRefreshTriggerProvider);
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 600));
     HapticFeedback.lightImpact();
   }
 
@@ -43,7 +44,8 @@ class DashboardLayout extends ConsumerWidget {
     final displayName = profileAsync.value?.displayName ?? 'User';
     final tenantName = tenantAsync.value?.name ?? 'Passionate Homes';
 
-    final hasDashboardPermission = profileAsync.value?.hasPermission(Permission.viewDashboard) ?? false;
+    final hasDashboardPermission =
+        profileAsync.value?.hasPermission(Permission.viewDashboard) ?? false;
     if (!hasDashboardPermission && profileAsync.value != null) {
       return StaffDashboardLayout(
         role: role,
