@@ -598,7 +598,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             style: Theme.of(context).textTheme.titleMedium,
                           ),
                           description: Text(
-                            'Set or change your sign-in PIN',
+                            (ref
+                                        .watch(profilesWithPinProvider)
+                                        .value
+                                        ?.contains(profile.id) ??
+                                    false)
+                                ? 'PIN set — tap to change'
+                                : 'Not set — tap to set a sign-in PIN',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                           onPressed: (_) => showDialog(

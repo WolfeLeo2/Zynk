@@ -64,6 +64,15 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authStateProvider).value != null;
 });
 
+/// Set of profile ids (current tenant) that have a login PIN set — for showing
+/// "PIN set" confirmation in the UI.
+final profilesWithPinProvider = StreamProvider<Set<String>>((ref) {
+  final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+  if (tenantId == null) return Stream.value(<String>{});
+  return repo.watchProfileIdsWithPin(tenantId);
+});
+
 /// Stream of all branches in the current tenant
 final branchesProvider = StreamProvider<List<Branch>>((ref) {
   final repository = ref.watch(repositoryProvider);

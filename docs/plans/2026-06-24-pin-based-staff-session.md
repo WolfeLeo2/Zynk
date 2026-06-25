@@ -141,7 +141,7 @@ New deps: `flutter_secure_storage`, plus `cryptography` (Argon2id) **or** `point
 2. ✅ **Owner Set-PIN UI** — `setStaffPin()` + "Set Login PIN" on the User Accounts screen (owner sets staff *and* their own PIN; re-setting = reset).
 3. ✅ **Lock flow + auto-lock** — LockScreen + PIN pad → `loginWithPin` → welcome screen; `lockProvider` gate in AppShell; drawer Lock button; `InactivityDetector` idle auto-lock; Settings auto-lock tile (1/2/5/10 min).
 4. ⏸️ **Attribution — DEFERRED (no go-ahead).** Keep current `salesperson_id` handling; change nothing. No-op until approved (see §1).
-5. ⬜ **Lockout** — `pin-login` per-tenant failed-attempt rate-limit + lockout (the key remaining hardening; it's brute-forceable online today). Owner PIN reset already works via Set-PIN.
+5. ✅ **Lockout** — `pin-login` throttles per (tenant_id, client ip): 5 fails → exponential lockout (30s→…→15 min cap), reset on success/stale window (`pin_login_attempts` table, service-role only). Forgot-PIN = owner re-sets via Set-PIN (overwrites). Also: `sync_rules` switched to explicit columns so `pin_hash`/`pin_lookup` no longer travel to devices; `pin_set_at` is synced to drive a "PIN set" indicator. **Requires deploying the updated `sync_rules.yaml` to PowerSync.**
 6. ⬜ **Hardening + tests** (§11). Optional: lock-on-cold-start (currently resumes unlocked as the last session's user).
 
 ---

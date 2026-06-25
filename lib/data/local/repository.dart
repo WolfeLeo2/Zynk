@@ -50,6 +50,17 @@ class PowerSyncRepository {
         });
   }
 
+  /// Profile ids in [tenantId] that have a login PIN set. `pin_set_at` is the
+  /// only PIN column synced to the device (the hash/lookup are server-only).
+  Stream<Set<String>> watchProfileIdsWithPin(String tenantId) {
+    return _db
+        .watch(
+          'SELECT id FROM profiles WHERE tenant_id = ? AND pin_set_at IS NOT NULL',
+          parameters: [tenantId],
+        )
+        .map((rows) => rows.map((r) => r['id'] as String).toSet());
+  }
+
   Stream<Tenant?> watchTenant(String tenantId) {
     return _db
         .watch('SELECT * FROM tenants WHERE id = ?', parameters: [tenantId])

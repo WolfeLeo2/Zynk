@@ -55,6 +55,9 @@ final schema = Schema([
     Column.text('phone'),
     Column.text('address'),
     Column.text('status'),
+    // Non-secret "has a PIN" timestamp (the hash/lookup are NOT synced — see
+    // sync_rules.yaml). Lets the UI confirm whether a login PIN is set.
+    Column.text('pin_set_at'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
