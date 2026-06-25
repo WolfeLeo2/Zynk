@@ -386,11 +386,6 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                             decoration: BoxDecoration(
                               color: theme.colorScheme.tertiaryContainer,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: theme.colorScheme.tertiary.withValues(
-                                  alpha: 0.4,
-                                ),
-                              ),
                             ),
                             child: Row(
                               children: [
@@ -428,9 +423,6 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                               alpha: 0.2,
                             ),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: cs.outline.withValues(alpha: 0.3),
-                            ),
                           ),
                           child: Column(
                             children: [
@@ -506,9 +498,6 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                             decoration: BoxDecoration(
                               color: cs.surface,
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: cs.outline.withValues(alpha: 0.3),
-                              ),
                             ),
                             child: Row(
                               children: [
@@ -732,7 +721,6 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -941,11 +929,11 @@ class _EditableSaleItem {
 
   /// Resolved pricing — single source for subtotal, the row total and saving.
   InvoiceLine resolvedLine() => SalesService.resolveLine(
-        isSqmBased: isSqmBased,
-        coveragePerBox: coveragePerBox,
-        enteredPrice: _enteredPrice,
-        enteredQty: _enteredQty,
-      );
+    isSqmBased: isSqmBased,
+    coveragePerBox: coveragePerBox,
+    enteredPrice: _enteredPrice,
+    enteredQty: _enteredQty,
+  );
 
   void dispose() {
     nameCtr.dispose();

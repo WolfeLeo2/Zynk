@@ -57,18 +57,20 @@ class _VerifyOtpScreenState extends ConsumerState<VerifyOtpScreen> {
       await ref
           .read(authServiceProvider)
           .sendPasswordResetOtp(email: widget.email);
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('New code sent!'),
             behavior: SnackBarBehavior.floating,
           ),
         );
+      }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Could not resend: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isResending = false);
     }

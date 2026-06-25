@@ -171,11 +171,7 @@ class _StatusFilterBar extends StatelessWidget {
               showCheckmark: false,
               selectedColor: colorScheme.primary,
               backgroundColor: Colors.transparent,
-              side: BorderSide(
-                color: isSelected
-                    ? colorScheme.primary
-                    : colorScheme.outline.withValues(alpha: 0.7),
-              ),
+
               labelStyle: TextStyle(
                 color: isSelected
                     ? colorScheme.onPrimary
@@ -225,10 +221,7 @@ class _BundleTile extends StatelessWidget {
       child: Card(
         elevation: 0,
         color: colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
-          side: BorderSide(color: colorScheme.outline.withValues(alpha: 0.5)),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: InkWell(
           onTap: () => context.push('/settings/adjustments-review/$bundleId'),
           borderRadius: BorderRadius.circular(14),
@@ -330,7 +323,6 @@ class _StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withAlpha(25),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: color.withAlpha(51)),
       ),
       child: Text(
         label,

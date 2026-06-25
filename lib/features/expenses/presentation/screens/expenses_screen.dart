@@ -8,7 +8,6 @@ import 'package:zynk/shared/widgets/shimmer_skeletons.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class ExpensesScreen extends ConsumerWidget {
   const ExpensesScreen({super.key});
 

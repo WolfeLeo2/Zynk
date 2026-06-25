@@ -1,18 +1,18 @@
 import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart'; // Add uuid import
-import 'package:zynk/core/providers/app_providers.dart'; // for repositoryProvider
 import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/providers/app_providers.dart'; // for repositoryProvider
+import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/features/products/presentation/providers/add_product_controller.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/scanner_screen.dart';
 import 'package:zynk/features/products/presentation/widgets/edit_item_group_sheet.dart';
-import 'package:zynk/core/utils/responsive_modal.dart';
-
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
@@ -570,7 +570,7 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
           TextButton.icon(
             onPressed: _saveProduct,
             icon: const PhosphorIcon(PhosphorIconsBold.check),
-            label: Text(isEditing ? 'Save' : 'Create'),
+            label: Text("Save"),
             style: TextButton.styleFrom(
               foregroundColor: colorScheme.primary,
               textStyle: const TextStyle(fontWeight: FontWeight.bold),
@@ -920,7 +920,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               decoration: BoxDecoration(
                 color: cs.secondaryContainer.withValues(alpha: 0.3),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cs.secondary.withValues(alpha: 0.2)),
               ),
               child: Row(
                 children: [
@@ -1242,11 +1241,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
               context,
             ).colorScheme.secondaryContainer.withValues(alpha: 0.4),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: Theme.of(
-                context,
-              ).colorScheme.secondary.withValues(alpha: 0.25),
-            ),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1290,11 +1284,6 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                   alpha: 0.5,
                 ),
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isOverridden
-                ? theme.colorScheme.primary
-                : theme.colorScheme.outlineVariant,
-          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,

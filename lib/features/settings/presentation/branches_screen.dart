@@ -8,7 +8,6 @@ import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class BranchesScreen extends ConsumerWidget {
   const BranchesScreen({super.key});
 
@@ -132,9 +131,7 @@ class _BranchCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
+
         boxShadow: [
           BoxShadow(
             color: colorScheme.shadow.withValues(alpha: 0.05),

@@ -5,7 +5,6 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class EditItemGroupSheet extends ConsumerStatefulWidget {
   final ItemGroup? existingGroup;
   final String? defaultBranchId;

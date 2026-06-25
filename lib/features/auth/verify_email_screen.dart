@@ -263,12 +263,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen>
                           color: filled
                               ? (_pinError ? colorScheme.error : successColor)
                               : Colors.transparent,
-                          border: Border.all(
-                            color: filled
-                                ? (_pinError ? colorScheme.error : successColor)
-                                : colorScheme.outline,
-                            width: 2,
-                          ),
                         ),
                       );
                     }),

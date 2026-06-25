@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class ProductSelectionSheet extends StatefulWidget {
   final List<Product> availableProducts;
   final Set<String> initiallySelectedIds;

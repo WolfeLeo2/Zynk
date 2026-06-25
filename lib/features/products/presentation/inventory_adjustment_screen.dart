@@ -18,7 +18,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
 
@@ -429,9 +428,6 @@ class _InventoryAdjustmentScreenState
                                       color: colorScheme.surfaceContainerHighest
                                           .withValues(alpha: 0.45),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(
-                                        color: colorScheme.outlineVariant,
-                                      ),
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -915,7 +911,6 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(

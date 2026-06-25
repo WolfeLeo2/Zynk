@@ -24,7 +24,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -901,7 +900,6 @@ class _StatusHero extends StatelessWidget {
           end: Alignment.bottomCenter,
         ),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [
@@ -1052,10 +1050,7 @@ class _ItemsList extends ConsumerWidget {
           return _emptyHint(theme, 'No items');
         }
         return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
           child: Column(
             children: items.asMap().entries.map((e) {
               final i = e.key;
@@ -1286,7 +1281,6 @@ class _PaymentsList extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
               ),
               child: Row(
                 children: [
@@ -1438,7 +1432,6 @@ class _CreditNotesList extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
               ),
               child: Row(
                 children: [
@@ -1897,9 +1890,6 @@ class _CreateCreditNoteSheetState
                           Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: cs.outline.withValues(alpha: 0.2),
-                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -2221,7 +2211,6 @@ class _ApprovalTimeline extends ConsumerWidget {
           decoration: BoxDecoration(
             color: cs.surfaceContainerLow,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2309,7 +2298,6 @@ class _ApprovalTimeline extends ConsumerWidget {
         ),
         label: Text('$approverName · $ts'),
         backgroundColor: cs.primaryContainer,
-        side: BorderSide.none,
       );
     }
 
@@ -2317,7 +2305,6 @@ class _ApprovalTimeline extends ConsumerWidget {
     return Chip(
       avatar: const PhosphorIcon(PhosphorIconsRegular.clock, size: 16),
       label: Text('$pendingDisplay · Pending'),
-      side: BorderSide(color: cs.outline.withValues(alpha: 0.8)),
     );
   }
 }

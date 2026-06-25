@@ -31,121 +31,119 @@ class SaleCard extends ConsumerWidget {
       orElse: () => 'Loading...',
     );
 
-    return InkWell(
-      onTap: () => context.push('/sales/${sale.id}'),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          children: [
-            // Status icon
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: _statusColor(sale.status).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: PhosphorIcon(
-                  _statusIcon(sale.status),
-                  color: _statusColor(sale.status),
-                  size: 22,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        onTap: () => context.push('/sales/${sale.id}'),
+        borderRadius: AppTokens.roundedCard,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              // Status icon
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: _statusColor(sale.status).withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Center(
+                  child: PhosphorIcon(
+                    _statusIcon(sale.status),
+                    color: _statusColor(sale.status),
+                    size: 22,
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(width: 14),
+              const SizedBox(width: 14),
 
-            // Info & Status
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+              // Info & Status
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                sale.invoiceNumber ?? '#—',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                customerName,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        // Time Ago (Top Right)
+                        Text(
+                          _formatDate(sale.createdAt),
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        // Badges
+                        Expanded(
+                          child: Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              _LifecycleBadge(status: sale.status),
+                              _PaymentStatusBadge(status: sale.paymentStatus),
+                              _FulfillmentStatusBadge(
+                                status: sale.fulfillmentStatus,
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        // Amount
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
                           children: [
                             Text(
-                              sale.invoiceNumber ?? '#—',
-                              style: theme.textTheme.titleSmall?.copyWith(
+                              CurrencyHelper.format(sale.grandTotal),
+                              style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
-                              overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              customerName,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: cs.onSurfaceVariant,
-                              ),
-                            ),
+                            _buildPaymentStatusText(theme, sale),
                           ],
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      // Time Ago (Top Right)
-                      Text(
-                        _formatDate(sale.createdAt),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: cs.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      // Badges
-                      Expanded(
-                        child: Wrap(
-                          spacing: 6,
-                          runSpacing: 6,
-                          children: [
-                            _LifecycleBadge(status: sale.status),
-                            _PaymentStatusBadge(status: sale.paymentStatus),
-                            _FulfillmentStatusBadge(
-                              status: sale.fulfillmentStatus,
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      // Amount
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            CurrencyHelper.format(sale.grandTotal),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          _buildPaymentStatusText(theme, sale),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
 
-            const SizedBox(width: 4),
-            PhosphorIcon(
-              PhosphorIconsRegular.caretRight,
-              size: 18,
-              color: cs.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-          ],
+              const SizedBox(width: 4),
+              PhosphorIcon(
+                PhosphorIconsRegular.caretRight,
+                size: 18,
+                color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+              ),
+            ],
+          ),
         ),
       ),
     );

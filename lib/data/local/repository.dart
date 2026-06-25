@@ -1485,7 +1485,8 @@ class PowerSyncRepository {
       params.add(endDate.toIso8601String());
     }
     if (searchQuery != null && searchQuery.isNotEmpty) {
-      sql += ' AND (invoice_number LIKE ? OR customer_id IN (SELECT id FROM customers WHERE name LIKE ?))';
+      sql +=
+          ' AND (invoice_number LIKE ? OR customer_id IN (SELECT id FROM customers WHERE name LIKE ?))';
       params.add('%$searchQuery%');
       params.add('%$searchQuery%');
     }

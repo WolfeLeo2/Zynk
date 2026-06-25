@@ -327,7 +327,6 @@ class InvoiceTemplate {
     NumberFormat currencyFormat,
   ) {
     return pw.TableHelper.fromTextArray(
-      border: pw.TableBorder.all(color: borderColor, width: 0.5),
       headerDecoration: const pw.BoxDecoration(color: headerBg),
       headerStyle: pw.TextStyle(
         fontSize: 9,
@@ -464,7 +463,6 @@ class InvoiceTemplate {
         ),
         pw.SizedBox(height: 8),
         pw.TableHelper.fromTextArray(
-          border: pw.TableBorder.all(color: borderColor, width: 0.5),
           headerDecoration: const pw.BoxDecoration(color: lightGrey),
           headerStyle: pw.TextStyle(
             fontSize: 8,

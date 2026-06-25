@@ -19,47 +19,43 @@ class RevenueBarChart extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final chartDataAsync = ref.watch(dailySalesChartProvider);
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Revenue',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Revenue',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
-              ),
-              const _TimeRangeToggle(),
-            ],
-          ),
-          const SizedBox(height: 20),
-          SizedBox(
-            height: 210,
-            child: chartDataAsync.when(
-              data: (rows) =>
-                  _SimpleBarChart(colorScheme: colorScheme, data: rows),
-              loading: () => SkeletonChart(colorScheme: colorScheme),
-              error: (_, _) => Center(
-                child: Text(
-                  'Unable to load chart data',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                const _TimeRangeToggle(),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 210,
+              child: chartDataAsync.when(
+                data: (rows) =>
+                    _SimpleBarChart(colorScheme: colorScheme, data: rows),
+                loading: () => SkeletonChart(colorScheme: colorScheme),
+                error: (_, _) => Center(
+                  child: Text(
+                    'Unable to load chart data',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -311,122 +307,121 @@ class PaymentMethodsChart extends ConsumerWidget {
       Color(0xFF8B5CF6),
     ];
 
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Payment Methods',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Payment Methods',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            height: 170,
-            child: breakdownData.when(
-              loading: () => SkeletonChart(colorScheme: colorScheme),
-              error: (_, _) => const Center(child: Text('Error loading data')),
-              data: (rows) {
-                if (rows.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No payment data yet',
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
-                  );
-                }
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 170,
+              child: breakdownData.when(
+                loading: () => SkeletonChart(colorScheme: colorScheme),
+                error: (_, _) =>
+                    const Center(child: Text('Error loading data')),
+                data: (rows) {
+                  if (rows.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No payment data yet',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
+                      ),
+                    );
+                  }
 
+                  final total = rows.fold<double>(
+                    0,
+                    (sum, row) =>
+                        sum + ((row['total'] as num?)?.toDouble() ?? 0),
+                  );
+
+                  final sections = rows.asMap().entries.map((entry) {
+                    final amount =
+                        (entry.value['total'] as num?)?.toDouble() ?? 0;
+                    return PieChartSectionData(
+                      value: amount,
+                      color: legendColors[entry.key % legendColors.length],
+                      radius: 10,
+                      showTitle: false,
+                    );
+                  }).toList();
+
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          sections: sections,
+                          centerSpaceRadius: 52,
+                          sectionsSpace: 2,
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Ksh ${_formatCompact(total)}',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            'Collected',
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            breakdownData.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
+              data: (rows) {
+                if (rows.isEmpty) return const SizedBox.shrink();
                 final total = rows.fold<double>(
                   0,
                   (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
                 );
 
-                final sections = rows.asMap().entries.map((entry) {
-                  final amount =
-                      (entry.value['total'] as num?)?.toDouble() ?? 0;
-                  return PieChartSectionData(
-                    value: amount,
-                    color: legendColors[entry.key % legendColors.length],
-                    radius: 10,
-                    showTitle: false,
-                  );
-                }).toList();
+                return Column(
+                  children: rows.asMap().entries.map((entry) {
+                    final row = entry.value;
+                    final method =
+                        (row['payment_method'] as String?) ?? 'Other';
+                    final amount = (row['total'] as num?)?.toDouble() ?? 0;
+                    final pct = total > 0 ? (amount / total * 100).round() : 0;
 
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    PieChart(
-                      PieChartData(
-                        sections: sections,
-                        centerSpaceRadius: 52,
-                        sectionsSpace: 2,
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _buildLegend(
+                        label: _formatMethodName(method),
+                        color: legendColors[entry.key % legendColors.length],
+                        percentage: '$pct%',
+                        amountLabel: 'Ksh ${_formatCompact(amount)}',
+                        colorScheme: colorScheme,
                       ),
-                    ),
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Ksh ${_formatCompact(total)}',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
-                        ),
-                        Text(
-                          'Collected',
-                          style: TextStyle(
-                            color: colorScheme.onSurfaceVariant,
-                            fontSize: 11,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                    );
+                  }).toList(),
                 );
               },
             ),
-          ),
-          const SizedBox(height: 12),
-          breakdownData.when(
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-            data: (rows) {
-              if (rows.isEmpty) return const SizedBox.shrink();
-              final total = rows.fold<double>(
-                0,
-                (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
-              );
-
-              return Column(
-                children: rows.asMap().entries.map((entry) {
-                  final row = entry.value;
-                  final method = (row['payment_method'] as String?) ?? 'Other';
-                  final amount = (row['total'] as num?)?.toDouble() ?? 0;
-                  final pct = total > 0 ? (amount / total * 100).round() : 0;
-
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildLegend(
-                      label: _formatMethodName(method),
-                      color: legendColors[entry.key % legendColors.length],
-                      percentage: '$pct%',
-                      amountLabel: 'Ksh ${_formatCompact(amount)}',
-                      colorScheme: colorScheme,
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -43,6 +43,7 @@ dependencies:
   json_annotation: ^4.11.0
   m3e_card_list: ^0.0.1
   animations: ^2.2.0
+  flutter_speed_dial: ^7.0.0
 
 dependency_overrides:
   phosphor_flutter:

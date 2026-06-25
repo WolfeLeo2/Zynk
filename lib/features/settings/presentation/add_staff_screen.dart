@@ -449,9 +449,6 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    border: Border.all(
-                      color: colorScheme.outline.withValues(alpha: 0.5),
-                    ),
                     borderRadius: BorderRadius.circular(16),
                     color: colorScheme.surface,
                   ),
@@ -475,11 +472,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
                         },
                         selectedColor: colorScheme.primary,
                         backgroundColor: Colors.transparent,
-                        side: BorderSide(
-                          color: selected
-                              ? colorScheme.primary
-                              : colorScheme.outline.withValues(alpha: 0.7),
-                        ),
+
                         labelStyle: TextStyle(
                           color: selected
                               ? colorScheme.onPrimary
@@ -612,7 +605,6 @@ class _PermissionCategoryCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outline.withValues(alpha: 0.15)),
       ),
       child: Column(
         children: [

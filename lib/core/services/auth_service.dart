@@ -78,11 +78,16 @@ class AuthService {
     );
     if (res.status != 200) {
       final data = res.data;
-      final msg = data is Map ? (data['error'] ?? 'Invalid PIN') : 'Invalid PIN';
+      final msg = data is Map
+          ? (data['error'] ?? 'Invalid PIN')
+          : 'Invalid PIN';
       throw Exception(msg.toString());
     }
     final tokenHash = (res.data as Map)['token_hash'] as String;
-    await _supabase.auth.verifyOTP(type: OtpType.magiclink, tokenHash: tokenHash);
+    await _supabase.auth.verifyOTP(
+      type: OtpType.magiclink,
+      tokenHash: tokenHash,
+    );
     await switchUser();
     await _ensureLocalProfile();
   }
@@ -143,6 +148,23 @@ class AuthService {
       'reset-staff-password',
       body: {'user_id_to_reset': userId, 'new_password': newPassword},
     );
+  }
+
+  /// Owner-only: set/reset a staffer's login PIN. The PIN is hashed + checked
+  /// for per-tenant uniqueness server-side by the `set-staff-pin` function.
+  Future<void> setStaffPin({
+    required String targetProfileId,
+    required String pin,
+  }) async {
+    final res = await _supabase.functions.invoke(
+      'set-staff-pin',
+      body: {'target_profile_id': targetProfileId, 'pin': pin},
+    );
+    if (res.status != 200) {
+      final data = res.data;
+      final msg = data is Map ? (data['error'] ?? 'Failed to set PIN') : 'Failed to set PIN';
+      throw Exception(msg.toString());
+    }
   }
 
   /// Send a 6-digit OTP to the given email for password reset.

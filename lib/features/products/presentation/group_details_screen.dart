@@ -15,7 +15,6 @@ import 'package:zynk/features/products/presentation/widgets/mismatch_resolution_
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class GroupDetailsScreen extends ConsumerStatefulWidget {
   final ItemGroup group;
   const GroupDetailsScreen({super.key, required this.group});

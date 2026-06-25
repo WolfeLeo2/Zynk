@@ -227,11 +227,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                     color: isActive ? cs.onPrimary : cs.onSurface,
                   ),
                   selectedColor: cs.primary,
-                  side: BorderSide(
-                    color: isActive
-                        ? cs.primary
-                        : cs.outline.withValues(alpha: 0.3),
-                  ),
+
                   onSelected: (_) => setState(() => _filter = f.$1),
                 ),
               );

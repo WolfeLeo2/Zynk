@@ -176,7 +176,6 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(color: colorScheme.outlineVariant),
                 ),
                 child: Padding(
                   padding: const EdgeInsets.all(16.0),
@@ -293,7 +292,6 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      border: Border.all(color: colorScheme.outlineVariant),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: ListView.separated(

@@ -10,7 +10,6 @@ import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/customers/presentation/widgets/customer_form.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class CustomersScreen extends ConsumerWidget {
   const CustomersScreen({super.key});
 

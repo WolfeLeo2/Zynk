@@ -13,7 +13,6 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // STAFF MEMBERS SCREEN
 // ─────────────────────────────────────────────────────────────────────────────
@@ -184,10 +183,7 @@ class _StaffMemberCard extends ConsumerWidget {
 
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.5)),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
@@ -244,7 +240,6 @@ class _StaffMemberCard extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   member.status == StaffStatus.inactive ? 'BANNED' : 'BLOCKED',

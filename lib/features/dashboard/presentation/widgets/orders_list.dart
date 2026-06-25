@@ -5,7 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
-import 'package:m3e_card_list/m3e_card_list.dart';
+
 import 'skeleton_widgets.dart';
 import 'empty_error_states.dart';
 import 'package:zynk/core/utils/currency.dart';
@@ -22,74 +22,70 @@ class RecentOrdersList extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final salesAsync = ref.watch(recentSalesProvider);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recent Orders',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Orders',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/sales'),
+                  child: const Text('View All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            salesAsync.when(
+              data: (sales) {
+                if (sales.isEmpty) {
+                  return EmptyState(
+                    colorScheme: colorScheme,
+                    title: 'No orders yet',
+                    message: 'Complete a sale in the POS to see orders here',
+                    icon: PhosphorIconsDuotone.receipt,
+                  );
+                }
+                return Column(
+                  children: List.generate(sales.take(5).length, (index) {
+                    return InkWell(
+                      onTap: () => context.push('/sales/${sales[index].id}'),
+                      borderRadius: BorderRadius.circular(8),
+                      child: RepaintBoundary(
+                        child: _SaleListItem(
+                          sale: sales[index],
+                          colorScheme: colorScheme,
+                          index: index,
+                        ),
+                      ),
+                    );
+                  }),
+                );
+              },
+              loading: () => Column(
+                children: List.generate(
+                  3,
+                  (_) => SkeletonListItem(colorScheme: colorScheme),
                 ),
               ),
-              TextButton(
-                onPressed: () => context.push('/sales'),
-                child: const Text('View All'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          salesAsync.when(
-            data: (sales) {
-              if (sales.isEmpty) {
-                return EmptyState(
-                  colorScheme: colorScheme,
-                  title: 'No orders yet',
-                  message: 'Complete a sale in the POS to see orders here',
-                  icon: PhosphorIconsDuotone.receipt,
-                );
-              }
-              return M3ECardList(
-                itemCount: sales.take(5).length,
-                gap: 2,
-                padding: EdgeInsets.zero,
-                onTap: (index) => context.push('/sales/${sales[index].id}'),
-                itemBuilder: (context, index) {
-                  return RepaintBoundary(
-                    child: _SaleListItem(
-                      sale: sales[index],
-                      colorScheme: colorScheme,
-                      index: index,
-                    ),
-                  );
-                },
-              );
-            },
-            loading: () => Column(
-              children: List.generate(
-                3,
-                (_) => SkeletonListItem(colorScheme: colorScheme),
+              error: (error, stack) => ErrorState(
+                colorScheme: colorScheme,
+                message: 'Failed to load orders',
+                onRetry: () => ref.invalidate(recentSalesProvider),
               ),
             ),
-            error: (error, stack) => ErrorState(
-              colorScheme: colorScheme,
-              message: 'Failed to load orders',
-              onRetry: () => ref.invalidate(recentSalesProvider),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -107,79 +103,76 @@ class RecentOrdersTable extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final salesAsync = ref.watch(recentSalesProvider);
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Recent Orders',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Orders',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                Row(
+                  children: [
+                    TextButton(
+                      onPressed: () => context.push('/sales'),
+                      child: const Text('View All'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _TableHeader(colorScheme: colorScheme),
+            const SizedBox(height: 8),
+            salesAsync.when(
+              data: (sales) {
+                if (sales.isEmpty) {
+                  return EmptyState(
+                    colorScheme: colorScheme,
+                    title: 'No orders yet',
+                    message: 'Complete a sale in the POS to see orders here',
+                    icon: PhosphorIconsDuotone.receipt,
+                  );
+                }
+                return Column(
+                  children: List.generate(sales.take(5).length, (index) {
+                    return InkWell(
+                      onTap: () => context.push('/sales/${sales[index].id}'),
+                      borderRadius: BorderRadius.circular(8),
+                      child: RepaintBoundary(
+                        child: _SaleTableRow(
+                          sale: sales[index],
+                          index: index,
+                          colorScheme: colorScheme,
+                        ),
+                      ),
+                    );
+                  }),
+                );
+              },
+              loading: () => Column(
+                children: List.generate(
+                  5,
+                  (_) => SkeletonListItem(colorScheme: colorScheme),
                 ),
               ),
-              Row(
-                children: [
-                  TextButton(
-                    onPressed: () => context.push('/sales'),
-                    child: const Text('View All'),
-                  ),
-                ],
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          _TableHeader(colorScheme: colorScheme),
-          const SizedBox(height: 8),
-          salesAsync.when(
-            data: (sales) {
-              if (sales.isEmpty) {
-                return EmptyState(
-                  colorScheme: colorScheme,
-                  title: 'No orders yet',
-                  message: 'Complete a sale in the POS to see orders here',
-                  icon: PhosphorIconsDuotone.receipt,
-                );
-              }
-              return M3ECardList(
-                itemCount: sales.take(5).length,
-                padding: EdgeInsets.zero,
-                onTap: (index) => context.push('/sales/${sales[index].id}'),
-                itemBuilder: (context, index) {
-                  return RepaintBoundary(
-                    child: _SaleTableRow(
-                      sale: sales[index],
-                      index: index,
-                      colorScheme: colorScheme,
-                    ),
-                  );
-                },
-              );
-            },
-            loading: () => Column(
-              children: List.generate(
-                5,
-                (_) => SkeletonListItem(colorScheme: colorScheme),
+              error: (error, stack) => ErrorState(
+                colorScheme: colorScheme,
+                message: 'Failed to load orders',
+                onRetry: () => ref.invalidate(recentSalesProvider),
               ),
             ),
-            error: (error, stack) => ErrorState(
-              colorScheme: colorScheme,
-              message: 'Failed to load orders',
-              onRetry: () => ref.invalidate(recentSalesProvider),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

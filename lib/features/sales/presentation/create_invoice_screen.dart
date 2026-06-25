@@ -342,7 +342,6 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
               ),
               child: Column(
                 children: [
@@ -402,7 +401,6 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 decoration: BoxDecoration(
                   color: cs.surface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.outline.withValues(alpha: 0.3)),
                 ),
                 child: Row(
                   children: [
@@ -584,11 +582,11 @@ class _EditableInvoiceItem {
   /// Resolved pricing for this line — the single source for subtotal, the row
   /// total and submission. Delegates to [SalesService.resolveLine].
   InvoiceLine resolvedLine() => SalesService.resolveLine(
-        isSqmBased: originalItem.isSqmBased,
-        coveragePerBox: originalItem.coveragePerBox,
-        enteredPrice: enteredUnitPrice,
-        enteredQty: _enteredQty,
-      );
+    isSqmBased: originalItem.isSqmBased,
+    coveragePerBox: originalItem.coveragePerBox,
+    enteredPrice: enteredUnitPrice,
+    enteredQty: _enteredQty,
+  );
 
   void dispose() {
     nameCtr.dispose();
@@ -639,7 +637,6 @@ class _EditableItemRow extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -767,7 +764,8 @@ class _EditableItemRow extends StatelessWidget {
             Builder(
               builder: (context) {
                 final line = item.resolvedLine();
-                final actualSqm = line.quantity * item.originalItem.coveragePerBox;
+                final actualSqm =
+                    line.quantity * item.originalItem.coveragePerBox;
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [

@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/powersync.dart'; // Import global 'db'
-import '../../data/local/repository.dart';
 import '../../core/models/schema_models.dart';
+import '../../data/local/repository.dart';
 import '../models/staff_model.dart';
-
-import '../services/auth_service.dart';
-import '../services/app_logger.dart';
 import '../models/user_role.dart';
+import '../services/app_logger.dart';
+import '../services/auth_service.dart';
 import 'user_provider.dart';
 
 final _log = AppLogger('AppProviders');

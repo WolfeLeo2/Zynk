@@ -48,13 +48,14 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
         await ref.read(authServiceProvider).signOut();
       }
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         messenger.showSnackBar(
           SnackBar(
             content: Text('Failed to update password: $e'),
             behavior: SnackBarBehavior.floating,
           ),
         );
+      }
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

@@ -302,7 +302,6 @@ class DeliveryNoteTemplate {
 
   static pw.Widget _buildItemsTable(List<SaleItem> items) {
     return pw.TableHelper.fromTextArray(
-      border: pw.TableBorder.all(color: borderColor, width: 0.5),
       headerDecoration: const pw.BoxDecoration(color: headerBg),
       headerStyle: pw.TextStyle(
         fontSize: 9,

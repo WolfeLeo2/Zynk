@@ -183,7 +183,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(authServiceProvider).signOut();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
@@ -253,11 +252,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: cs.surfaceContainerHighest,
-                                    border: Border.all(
-                                      color: cs.outlineVariant.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                    ),
                                   ),
                                   child: ClipOval(
                                     child: profile?.profilePictureUrl != null

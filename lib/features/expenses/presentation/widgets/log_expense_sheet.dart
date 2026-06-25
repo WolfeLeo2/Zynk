@@ -141,15 +141,11 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                       .map(
                         (b) => DropdownMenuItem(
                           value: b,
-                          child: Text(
-                            b.name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
+                          child: Text(b.name, overflow: TextOverflow.ellipsis),
                         ),
                       )
                       .toList(),
-                  onChanged: (val) =>
-                      setState(() => _selectedBranch = val),
+                  onChanged: (val) => setState(() => _selectedBranch = val),
                   validator: (val) => val == null ? 'Required' : null,
                 );
               },
@@ -157,41 +153,34 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
               error: (_, _) => const Text('Error'),
             ),
             const SizedBox(height: 16),
-            
+
             // Category
             categoriesAsync.when(
-              data: (categories) =>
-                  DropdownButtonFormField<ExpenseCategory>(
-                    initialValue: _selectedCategory,
-                    decoration: const InputDecoration(
-                      labelText: 'Category',
-                      border: OutlineInputBorder(),
-                      isDense: true,
+              data: (categories) => DropdownButtonFormField<ExpenseCategory>(
+                initialValue: _selectedCategory,
+                decoration: const InputDecoration(
+                  labelText: 'Category',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+                items: [
+                  ...categories.map(
+                    (c) => DropdownMenuItem(
+                      value: c,
+                      child: Text(c.name, overflow: TextOverflow.ellipsis),
                     ),
-                    items: [
-                      ...categories.map(
-                        (c) => DropdownMenuItem(
-                          value: c,
-                          child: Text(
-                            c.name,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                      ),
-                      const DropdownMenuItem(
-                        value: null,
-                        child: Text('+ Add New'),
-                      ),
-                    ],
-                    onChanged: (val) {
-                      if (val == null) {
-                        _showAddCategoryDialog();
-                      } else {
-                        setState(() => _selectedCategory = val);
-                      }
-                    },
-                    validator: (val) => val == null ? 'Required' : null,
                   ),
+                  const DropdownMenuItem(value: null, child: Text('+ Add New')),
+                ],
+                onChanged: (val) {
+                  if (val == null) {
+                    _showAddCategoryDialog();
+                  } else {
+                    setState(() => _selectedCategory = val);
+                  }
+                },
+                validator: (val) => val == null ? 'Required' : null,
+              ),
               loading: () => const LinearProgressIndicator(),
               error: (_, _) => const Text('Error'),
             ),
@@ -210,23 +199,19 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                     .map(
                       (s) => DropdownMenuItem(
                         value: s,
-                        child: Text(
-                          s.name,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                        child: Text(s.name, overflow: TextOverflow.ellipsis),
                       ),
                     )
                     .toList(),
-                validator: (val) => val == null
-                    ? 'Please select who is logging this'
-                    : null,
+                validator: (val) =>
+                    val == null ? 'Please select who is logging this' : null,
                 onChanged: (val) => setState(() => _selectedStaff = val),
               ),
               loading: () => const LinearProgressIndicator(),
               error: (_, _) => const Text('Error'),
             ),
             const SizedBox(height: 16),
-            
+
             // Payment Method
             DropdownButtonFormField<String>(
               initialValue: _paymentMethod,
