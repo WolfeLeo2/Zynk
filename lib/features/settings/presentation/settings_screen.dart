@@ -11,6 +11,7 @@ import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/shared/widgets/branch_dropdown.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/auth/providers/lock_provider.dart';
+import 'package:zynk/shared/widgets/set_pin_dialog.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/user_role.dart';
 
@@ -585,6 +586,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ],
                         ),
                       ),
+                      // Owner's own login PIN — the owner is hidden from the
+                      // User Accounts list, so this is their path to set it.
+                      if (isOwner && profile != null)
+                        SettingsTile.navigation(
+                          leading: const PhosphorIcon(
+                            PhosphorIconsDuotone.password,
+                          ),
+                          title: Text(
+                            'My Login PIN',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          description: Text(
+                            'Set or change your sign-in PIN',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          onPressed: (_) => showDialog(
+                            context: context,
+                            builder: (_) => SetPinDialog(member: profile),
+                          ),
+                        ),
                     ],
                   ),
 

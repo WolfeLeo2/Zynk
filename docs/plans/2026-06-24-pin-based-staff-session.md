@@ -11,9 +11,12 @@
 **Goal:** On a shared device, let staff switch users with a short **PIN** instead of typing email+password — and *without* the slow full re-sync that happens today. Each staffer remains their **own real Supabase account**, so identity, owner ops, and attribution all work natively.
 
 **Non-goals (this phase):**
-- Removing the `salesperson` table/field (deferred; this lands the groundwork — once every action is done by a real signed-in staffer, salesperson auto-derives from `auth.uid()`).
-- Offline *user-switching* (see §7 — switching requires a quick auth call; this is the one real caveat to settle).
+- **Changing salesperson attribution — DEFERRED (no go-ahead).** Keep the app's current `salesperson_id` handling exactly as-is. Do NOT auto-derive the salesperson from the signed-in staffer yet. (Model B makes this trivial later — `auth.uid()` is already the real staffer — but it is explicitly out of scope until approved. So "Phase 4 = attribution" is a no-op for now: verify nothing regressed, change nothing.)
+- Removing the `salesperson` table/field (separate, even later).
+- Offline *user-switching* (see §7 — switching requires a quick auth call).
 - Biometric unlock (could layer on later via `local_auth`).
+
+**Owner's own PIN:** the owner sets it the same way as staff — User Accounts → their own card → ⋮ → "Set Login PIN" (`watchStaff` includes owners, and `set-staff-pin` allows an Owner to target their own profile). No separate flow needed.
 
 ---
 
@@ -134,12 +137,12 @@ New deps: `flutter_secure_storage`, plus `cryptography` (Argon2id) **or** `point
 
 ## 10. Phasing (incremental, each shippable)
 
-1. **Foundation & proof** — add deps; `profiles` migration; `set-staff-pin` edge fn; implement `switchUser()` (no-wipe) and **verify no re-download on same-tenant token swap**.
-2. **Enrollment + PIN set** — owner sets a staffer's PIN; device captures/encrypts that staffer's session on their first login.
-3. **Lock flow** — PIN pad + verification + drawer Lock/Switch action → `switchUser()` → welcome screen.
-4. **Auto-lock** — idle timer.
-5. **Lockout + reset** — failed-attempt lockout; owner PIN reset.
-6. **Hardening + tests** (§11).
+1. ✅ **Foundation** — `profiles` PIN migration; `set-staff-pin` + `pin-login` edge fns; `switchUser()` (no-wipe) + `loginWithPin()`. (Enrollment/session-caching dropped — `pin-login` mints sessions server-side.)
+2. ✅ **Owner Set-PIN UI** — `setStaffPin()` + "Set Login PIN" on the User Accounts screen (owner sets staff *and* their own PIN; re-setting = reset).
+3. ✅ **Lock flow + auto-lock** — LockScreen + PIN pad → `loginWithPin` → welcome screen; `lockProvider` gate in AppShell; drawer Lock button; `InactivityDetector` idle auto-lock; Settings auto-lock tile (1/2/5/10 min).
+4. ⏸️ **Attribution — DEFERRED (no go-ahead).** Keep current `salesperson_id` handling; change nothing. No-op until approved (see §1).
+5. ⬜ **Lockout** — `pin-login` per-tenant failed-attempt rate-limit + lockout (the key remaining hardening; it's brute-forceable online today). Owner PIN reset already works via Set-PIN.
+6. ⬜ **Hardening + tests** (§11). Optional: lock-on-cold-start (currently resumes unlocked as the last session's user).
 
 ---
 
@@ -147,8 +150,8 @@ New deps: `flutter_secure_storage`, plus `cryptography` (Argon2id) **or** `point
 
 - PIN hash/verify round-trip; wrong PIN; lockout after N attempts; per-tenant PIN uniqueness.
 - **Switch user does NOT re-download** (assert local row counts stable across a same-tenant switch).
-- Attribution: after switch, `created_by`/`salesperson_id` = the new staffer.
-- Auto-lock after idle; restart restores locked state.
+- ~~Attribution: after switch, `created_by`/`salesperson_id` = the new staffer~~ — DEFERRED; instead assert current `salesperson_id` behaviour is unchanged by the switch.
+- Auto-lock after idle.
 - Web (Vercel preview) secure-storage smoke test over HTTPS.
 
 ---
