@@ -148,6 +148,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       context,
       availableProducts: available,
       initiallySelectedIds: const {},
+      branchId: _sale?.branchId,
     );
     if (selected == null || selected.isEmpty || !mounted) return;
     setState(() {

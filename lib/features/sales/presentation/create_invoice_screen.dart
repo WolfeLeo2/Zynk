@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
@@ -11,6 +12,9 @@ import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:zynk/core/services/sales_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final List<PosCartItem> cartItems;
@@ -71,6 +75,48 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
 
   double _computeSubtotal() =>
       _items.fold(0, (sum, item) => sum + item.resolvedLine().total);
+
+  /// Build an editable item from a catalogue product (qty defaults to 1).
+  _EditableInvoiceItem _editableFromProduct(Product product) {
+    final itemGroup = product.itemGroupId != null
+        ? ref.read(itemGroupProvider(product.itemGroupId!)).value
+        : null;
+    final pricingService = ref.read(productPricingServiceProvider);
+    final resolvedPrice = pricingService.resolveSellingPrice(product, itemGroup);
+    final cartItem = PosCartItem(
+      product: product,
+      quantity: 1,
+      overridePrice: resolvedPrice,
+    );
+    return _EditableInvoiceItem(cartItem);
+  }
+
+  /// Opens the product picker and appends chosen products as new line items.
+  Future<void> _addItems(List<Product> products) async {
+    final existingIds = _items.map((i) => i.originalItem.product.id).toSet();
+    final available = products.where((p) => !existingIds.contains(p.id)).toList();
+    if (available.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All products are already on this invoice.')),
+        );
+      }
+      return;
+    }
+    final selected = await ProductSelectionSheet.show(
+      context,
+      availableProducts: available,
+      initiallySelectedIds: const {},
+      branchId: widget.branchId ?? ref.read(currentBranchIdProvider),
+    );
+    if (selected == null || selected.isEmpty || !mounted) return;
+    setState(() {
+      for (final id in selected) {
+        final product = products.firstWhere((p) => p.id == id, orElse: () => throw Exception());
+        _items.add(_editableFromProduct(product));
+      }
+    });
+  }
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
@@ -458,9 +504,28 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
                 },
               );
             }),
+            const SizedBox(height: 4),
+            Consumer(
+              builder: (context, ref, _) {
+                final productsAsync = ref.watch(allProductsProvider);
+                return productsAsync.when(
+                  data: (products) => OutlinedButton.icon(
+                    onPressed: () => _addItems(products),
+                    icon: const PhosphorIcon(PhosphorIconsBold.plus, size: 18),
+                    label: const Text('Add Item'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, _) => const SizedBox.shrink(),
+                );
+              },
+            ),
             const SizedBox(height: 16),
 
             // ── Totals ──
+
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
