@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 class AuthNavButton extends StatelessWidget {
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
 
   const AuthNavButton({super.key, required this.icon, required this.onTap});
@@ -17,7 +17,6 @@ class AuthNavButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).colorScheme.outline),
         ),
         child: PhosphorIcon(icon, size: 18),
       ),

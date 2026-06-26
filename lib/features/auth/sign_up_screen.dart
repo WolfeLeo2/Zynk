@@ -320,7 +320,7 @@ class _StepOne extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
+          // PhosphorIcon
           Container(
             width: 56,
             height: 56,
@@ -371,13 +371,9 @@ class _StepOne extends StatelessWidget {
                               fit: BoxFit.cover,
                             )
                           : null,
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                        width: 2,
-                      ),
                     ),
                     child: logoFile == null
-                        ? Icon(
+                        ? PhosphorIcon(
                             PhosphorIconsRegular.camera,
                             size: 32,
                             color: theme.colorScheme.onSurfaceVariant,
@@ -392,12 +388,8 @@ class _StepOne extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.surface,
-                          width: 2,
-                        ),
                       ),
-                      child: Icon(
+                      child: PhosphorIcon(
                         PhosphorIconsRegular.pencilSimple,
                         size: 14,
                         color: theme.colorScheme.onPrimary,
@@ -504,7 +496,7 @@ class _StepTwo extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Icon
+          // PhosphorIcon
           Container(
             width: 56,
             height: 56,

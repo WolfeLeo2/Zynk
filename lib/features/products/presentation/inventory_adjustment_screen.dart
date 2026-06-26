@@ -1,17 +1,22 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:go_router/go_router.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:uuid/uuid.dart';
-import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/models/staff_model.dart';
+import 'package:shimmer/shimmer.dart';
+import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
 
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -27,7 +32,10 @@ class _InventoryAdjustmentScreenState
   final TextEditingController _referenceController = TextEditingController();
   String _searchQuery = '';
   bool _isLoading = false;
+  Set<String> _selectedBranchIds = {};
+  bool _initializedBranches = false;
   String? _reasonId;
+  StaffMember? _selectedAdjuster;
 
   @override
   void dispose() {
@@ -55,58 +63,110 @@ class _InventoryAdjustmentScreenState
     final profile = ref.read(currentProfileProvider);
     if (profile == null) return;
 
-    final selectedBranchId = ref.read(currentBranchIdProvider);
-    if (selectedBranchId == null || selectedBranchId == 'all') {
+    if (_selectedAdjuster == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please select a specific branch first.'),
+          content: const Text('Please select an adjuster.'),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
     }
 
+    final adjusterId = profile.userId;
+
+    final selectedBranchId = ref.read(currentBranchIdProvider);
+    if (selectedBranchId == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Please select a branch first.'),
+          backgroundColor: Theme.of(context).colorScheme.error,
+        ),
+      );
+      return;
+    }
+
+    final allBranchesMode = _selectedBranchIds.length > 1;
+
     final adjustmentItems = items
         .where((item) => item.quantityChange != 0)
-        .map((item) => BatchAdjustmentItem(
-              productId: item.product.id,
-              quantityChange: item.quantityChange,
-              notes: item.notes,
-            ))
+        .map(
+          (item) => BatchAdjustmentItem(
+            productId: item.product.id,
+            quantityChange: item.quantityChange,
+            notes: item.notes,
+          ),
+        )
         .toList();
 
     if (adjustmentItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please enter a non-zero quantity for at least one item.'),
+          content: const Text(
+            'Please enter a non-zero quantity for at least one item.',
+          ),
           backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
       return;
     }
 
+    // Removed restriction: All Branches mode now supports both additions and reductions.
+
     setState(() => _isLoading = true);
 
     try {
       final repo = ref.read(repositoryProvider);
+      final referenceNumber = _referenceController.text.isNotEmpty
+          ? _referenceController.text
+          : null;
 
-      await repo.batchAdjustStock(
-        tenantId: profile.tenantId,
-        branchId: selectedBranchId,
-        items: adjustmentItems,
-        createdBy: profile.userId,
-        reasonId: _reasonId,
-        referenceNumber: _referenceController.text.isNotEmpty
-            ? _referenceController.text
-            : null,
-      );
+      if (_selectedBranchIds.length > 1) {
+        final visibleBranches = ref.read(branchesProvider).value;
+        final branches =
+            (visibleBranches ?? await repo.getBranches(profile.tenantId))
+                .where((b) => _selectedBranchIds.contains(b.id))
+                .toList();
+
+        if (branches.isEmpty) {
+          throw Exception('No branches found to apply stock changes.');
+        }
+
+        for (final branch in branches) {
+          await repo.batchAdjustStock(
+            tenantId: profile.tenantId,
+            branchId: branch.id,
+            items: adjustmentItems,
+            createdBy: adjusterId,
+            salespersonId: _selectedAdjuster?.id,
+            adjustmentType: 'auto',
+            reasonId: _reasonId,
+            referenceNumber: referenceNumber,
+          );
+        }
+      } else if (_selectedBranchIds.isNotEmpty) {
+        await repo.batchAdjustStock(
+          tenantId: profile.tenantId,
+          branchId: _selectedBranchIds.first,
+          items: adjustmentItems,
+          createdBy: adjusterId,
+          salespersonId: _selectedAdjuster?.id,
+          adjustmentType: 'auto',
+          reasonId: _reasonId,
+          referenceNumber: referenceNumber,
+        );
+      }
 
       if (mounted) {
         ref.read(batchStockProvider.notifier).clear();
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Adjustment confirmed for ${adjustmentItems.length} item(s)!'),
+            content: Text(
+              allBranchesMode
+                  ? 'Added stock for ${adjustmentItems.length} item(s) across all branches.'
+                  : 'Adjustment confirmed for ${adjustmentItems.length} item(s)!',
+            ),
           ),
         );
       }
@@ -129,13 +189,11 @@ class _InventoryAdjustmentScreenState
     List<AdjustmentReason> reasons,
     String tenantId,
   ) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
-      builder: (ctx) => _ManageReasonsSheet(
-        reasons: reasons,
-        tenantId: tenantId,
-      ),
+      builder: (ctx) =>
+          _ManageReasonsSheet(reasons: reasons, tenantId: tenantId),
     );
   }
 
@@ -144,14 +202,27 @@ class _InventoryAdjustmentScreenState
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;
     final productsAsync = ref.watch(allProductsProvider);
+    final branchesAsync = ref.watch(branchesProvider);
     final batchItems = ref.watch(batchStockProvider);
     final selectedBranchId = ref.watch(currentBranchIdProvider);
+    final effectiveAllBranchesMode = _selectedBranchIds.length > 1;
 
-    final isInvalidBranch =
-        selectedBranchId == null || selectedBranchId == 'all';
+    final isInvalidBranch = selectedBranchId == null;
 
     return Scaffold(
+      drawer: const AppDrawer(),
       appBar: AppBar(
+        leading: Builder(
+          builder: (context) {
+            if (MediaQuery.of(context).size.width < 840) {
+              return IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              );
+            }
+            return const SizedBox.shrink();
+          },
+        ),
         title: const Text('Adjustments'),
         actions: [
           if (batchItems.isNotEmpty)
@@ -159,7 +230,7 @@ class _InventoryAdjustmentScreenState
               onPressed: () {
                 ref.read(batchStockProvider.notifier).clear();
               },
-              icon: const Icon(PhosphorIconsRegular.trash),
+              icon: const PhosphorIcon(PhosphorIconsRegular.trash),
               label: const Text('Clear All'),
               style: TextButton.styleFrom(foregroundColor: colorScheme.error),
             ),
@@ -170,145 +241,137 @@ class _InventoryAdjustmentScreenState
           : LayoutBuilder(
               builder: (context, constraints) {
                 final leftPanel = Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.all(16.0),
-                        child: SearchBar(
-                          controller: _searchController,
-                          hintText: 'Search items by name or SKU...',
-                          leading: const Icon(
-                            PhosphorIconsRegular.magnifyingGlass,
-                          ),
-                          onChanged: (val) =>
-                              setState(() => _searchQuery = val),
-                          padding: const WidgetStatePropertyAll(
-                            EdgeInsets.symmetric(horizontal: 16),
-                          ),
-                          elevation: const WidgetStatePropertyAll(0),
-                          backgroundColor: WidgetStatePropertyAll(
-                            colorScheme.surfaceContainerHighest,
-                          ),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: SearchBar(
+                        controller: _searchController,
+                        hintText: 'Search items by name or SKU...',
+                        leading: const PhosphorIcon(
+                          PhosphorIconsRegular.magnifyingGlass,
+                        ),
+                        onChanged: (val) => setState(() => _searchQuery = val),
+                        padding: const WidgetStatePropertyAll(
+                          EdgeInsets.symmetric(horizontal: 16),
+                        ),
+                        elevation: const WidgetStatePropertyAll(0),
+                        backgroundColor: WidgetStatePropertyAll(
+                          colorScheme.surfaceContainerHighest,
                         ),
                       ),
-                      Expanded(
-                        child: productsAsync.when(
-                          data: (products) {
-                            var filtered = products
-                                .where(
-                                  (p) => !p.isService,
-                                ) // Only physical goods
-                                .toList();
+                    ),
+                    Expanded(
+                      child: productsAsync.when(
+                        data: (products) {
+                          var filtered = products
+                              .where((p) => !p.isService) // Only physical goods
+                              .toList();
 
-                            if (_searchQuery.isNotEmpty) {
-                              filtered = filtered.where((p) {
-                                final nameMatch = p.name.toLowerCase().contains(
-                                  _searchQuery.toLowerCase(),
-                                );
-                                final skuMatch =
-                                    p.sku?.toLowerCase().contains(
-                                      _searchQuery.toLowerCase(),
-                                    ) ??
-                                    false;
-                                return nameMatch || skuMatch;
-                              }).toList();
-                            }
-
-                            if (filtered.isEmpty) {
-                              return const Center(
-                                child: Text('No items found'),
+                          if (_searchQuery.isNotEmpty) {
+                            filtered = filtered.where((p) {
+                              final nameMatch = p.name.toLowerCase().contains(
+                                _searchQuery.toLowerCase(),
                               );
-                            }
+                              final skuMatch =
+                                  p.sku?.toLowerCase().contains(
+                                    _searchQuery.toLowerCase(),
+                                  ) ??
+                                  false;
+                              return nameMatch || skuMatch;
+                            }).toList();
+                          }
 
-                            return ListView.builder(
-                              itemCount: filtered.length,
-                              itemBuilder: (context, index) {
-                                final product = filtered[index];
-                                final isAdded = batchItems.any(
-                                  (item) => item.product.id == product.id,
-                                );
+                          if (filtered.isEmpty) {
+                            return const Center(child: Text('No items found'));
+                          }
 
-                                return ListTile(
-                                  leading: Container(
-                                    width: 48,
-                                    height: 48,
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.primaryContainer,
-                                      borderRadius: BorderRadius.circular(8),
-                                      image: product.imageUrl != null
-                                          ? DecorationImage(
-                                              image: CachedNetworkImageProvider(
-                                                product.imageUrl!,
-                                              ),
-                                              fit: BoxFit.cover,
-                                            )
-                                          : null,
-                                    ),
-                                    child: product.imageUrl == null
-                                        ? Icon(
-                                            PhosphorIconsRegular.package,
-                                            color:
-                                                colorScheme.onPrimaryContainer,
+                          return ListView.builder(
+                            itemCount: filtered.length,
+                            itemBuilder: (context, index) {
+                              final product = filtered[index];
+                              final isAdded = batchItems.any(
+                                (item) => item.product.id == product.id,
+                              );
+
+                              return ListTile(
+                                leading: Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(8),
+                                    image: product.imageUrl != null
+                                        ? DecorationImage(
+                                            image: CachedNetworkImageProvider(
+                                              product.imageUrl!,
+                                            ),
+                                            fit: BoxFit.cover,
                                           )
                                         : null,
                                   ),
-                                  title: Text(product.name),
-                                  subtitle: Text(
-                                    product.sku ?? 'No SKU',
-                                    style: TextStyle(
-                                      color: colorScheme.onSurfaceVariant,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                  trailing: isAdded
-                                      ? Icon(
-                                          PhosphorIconsRegular.checkCircle,
-                                          color: colorScheme.primary,
+                                  child: product.imageUrl == null
+                                      ? PhosphorIcon(
+                                          PhosphorIconsRegular.package,
+                                          color: colorScheme.onPrimaryContainer,
                                         )
-                                      : IconButton(
-                                          onPressed: () {
-                                            ref
-                                                .read(
-                                                  batchStockProvider.notifier,
-                                                )
-                                                .addItem(product);
-                                          },
-                                          icon: const Icon(
-                                            PhosphorIconsRegular.plus,
-                                          ),
-                                          style: IconButton.styleFrom(
-                                            backgroundColor:
-                                                colorScheme.primaryContainer,
-                                            foregroundColor:
-                                                colorScheme.onPrimaryContainer,
-                                          ),
-                                        ),
-                                  onTap: isAdded
-                                      ? null
-                                      : () {
+                                      : null,
+                                ),
+                                title: Text(product.name),
+                                subtitle: Text(
+                                  product.sku ?? 'No SKU',
+                                  style: TextStyle(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                                trailing: isAdded
+                                    ? PhosphorIcon(
+                                        PhosphorIconsRegular.checkCircle,
+                                        color: colorScheme.primary,
+                                      )
+                                    : IconButton(
+                                        onPressed: () {
                                           ref
                                               .read(batchStockProvider.notifier)
                                               .addItem(product);
                                         },
-                                );
-                              },
-                            );
-                          },
-                          loading: () =>
-                              const Center(child: CircularProgressIndicator()),
-                          error: (err, stack) => Center(
-                            child: Text('Error loading items: $err'),
-                          ),
-                        ),
+                                        icon: const PhosphorIcon(
+                                          PhosphorIconsRegular.plus,
+                                        ),
+                                        style: IconButton.styleFrom(
+                                          backgroundColor:
+                                              colorScheme.primaryContainer,
+                                          foregroundColor:
+                                              colorScheme.onPrimaryContainer,
+                                        ),
+                                      ),
+                                onTap: isAdded
+                                    ? null
+                                    : () {
+                                        ref
+                                            .read(batchStockProvider.notifier)
+                                            .addItem(product);
+                                      },
+                              );
+                            },
+                          );
+                        },
+                        loading: () => const _InventoryItemsShimmer(),
+                        error: (err, stack) =>
+                            Center(child: Text('Error loading items: $err')),
                       ),
-                    ],
-                  );
+                    ),
+                  ],
+                );
                 final rightPanel = Container(
-                    color: colorScheme.surface,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Batch Settings Header
-                        Padding(
+                  color: colorScheme.surface,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // Batch Settings Header
+                      Flexible(
+                        fit: FlexFit.loose,
+                        child: SingleChildScrollView(
                           padding: const EdgeInsets.all(24.0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -319,15 +382,185 @@ class _InventoryAdjustmentScreenState
                                   fontWeight: FontWeight.bold,
                                 ),
                               ),
+                              const SizedBox(height: 12),
+                              branchesAsync.when(
+                                data: (branches) {
+                                  final branchesList = branches
+                                      .where((b) => b.id != 'all')
+                                      .toList();
+
+                                  if (!_initializedBranches &&
+                                      branchesList.isNotEmpty) {
+                                    WidgetsBinding.instance
+                                        .addPostFrameCallback((_) {
+                                          if (mounted) {
+                                            final branchState = ref.read(
+                                              branchSelectionProvider,
+                                            );
+                                            setState(() {
+                                              if (branchState.isLocked &&
+                                                  branchState
+                                                          .selectedBranchId !=
+                                                      null) {
+                                                _selectedBranchIds = {
+                                                  branchState.selectedBranchId!,
+                                                };
+                                              } else if (selectedBranchId ==
+                                                  'all') {
+                                                _selectedBranchIds =
+                                                    branchesList
+                                                        .map((b) => b.id)
+                                                        .toSet();
+                                              } else {
+                                                _selectedBranchIds = {
+                                                  selectedBranchId,
+                                                };
+                                              }
+                                              _initializedBranches = true;
+                                            });
+                                          }
+                                        });
+                                  }
+
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.surfaceContainerHighest
+                                          .withValues(alpha: 0.45),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              'Apply to branches:',
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: colorScheme
+                                                        .onSurfaceVariant,
+                                                    fontWeight: FontWeight.bold,
+                                                  ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            if (ref
+                                                .watch(branchSelectionProvider)
+                                                .isLoading)
+                                              const SkeletonText(
+                                                width: 60,
+                                                height: 12,
+                                              ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        Wrap(
+                                          spacing: 8,
+                                          runSpacing: 8,
+                                          children: branchesList
+                                              .map(
+                                                (b) => FilterChip(
+                                                  label: Text(b.name),
+                                                  selected: _selectedBranchIds
+                                                      .contains(b.id),
+                                                  onSelected:
+                                                      ref
+                                                          .watch(
+                                                            branchSelectionProvider,
+                                                          )
+                                                          .isLocked
+                                                      ? null
+                                                      : (selected) {
+                                                          setState(() {
+                                                            if (selected) {
+                                                              _selectedBranchIds
+                                                                  .add(b.id);
+                                                            } else {
+                                                              if (_selectedBranchIds
+                                                                      .length >
+                                                                  1) {
+                                                                _selectedBranchIds
+                                                                    .remove(
+                                                                      b.id,
+                                                                    );
+                                                              }
+                                                            }
+                                                          });
+                                                        },
+                                                  avatar: const PhosphorIcon(
+                                                    PhosphorIconsRegular
+                                                        .storefront,
+                                                    size: 14,
+                                                  ),
+                                                ),
+                                              )
+                                              .toList(),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                loading: () => const SizedBox.shrink(),
+                                error: (_, _) => const SizedBox.shrink(),
+                              ),
+                              const SizedBox(height: 16),
+                              // Adjuster Selection
+                              Consumer(
+                                builder: (context, ref, _) {
+                                  final staffAsync = ref.watch(
+                                    humanStaffProvider,
+                                  );
+                                  return staffAsync.when(
+                                    data: (staffList) =>
+                                        DropdownButtonFormField<StaffMember>(
+                                          initialValue: _selectedAdjuster,
+                                          decoration: InputDecoration(
+                                            labelText: 'Adjuster *',
+                                            prefixIcon: const PhosphorIcon(
+                                              PhosphorIconsRegular.user,
+                                            ),
+                                            border: OutlineInputBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                            ),
+                                            isDense: true,
+                                          ),
+                                          hint: const Text(
+                                            'Select an adjuster',
+                                          ),
+                                          items: staffList
+                                              .map(
+                                                (s) =>
+                                                    DropdownMenuItem<
+                                                      StaffMember
+                                                    >(
+                                                      value: s,
+                                                      child: Text(s.name),
+                                                    ),
+                                              )
+                                              .toList(),
+                                          onChanged: (v) => setState(
+                                            () => _selectedAdjuster = v,
+                                          ),
+                                        ),
+                                    loading: () => const _FormFieldShimmer(),
+                                    error: (e, _) =>
+                                        Text('Error loading staff: $e'),
+                                  );
+                                },
+                              ),
                               const SizedBox(height: 16),
                               // Reason picker row
                               Consumer(
                                 builder: (context, ref, _) {
                                   final tenantId =
                                       ref.watch(tenantIdProvider) ?? '';
-                                  final profile =
-                                      ref.watch(currentProfileProvider);
-                                  final canManage = profile != null &&
+                                  final profile = ref.watch(
+                                    currentProfileProvider,
+                                  );
+                                  final canManage =
+                                      profile != null &&
                                       (profile.role.isOwner ||
                                           profile.role.isManager ||
                                           profile.permissions.contains(
@@ -343,55 +576,62 @@ class _InventoryAdjustmentScreenState
                                     data: (reasons) => Row(
                                       children: [
                                         Expanded(
-                                          child: DropdownButtonFormField<String>(
-                                            initialValue: _reasonId,
-                                            decoration: InputDecoration(
-                                              labelText: 'Reason *',
-                                              prefixIcon: const Icon(
-                                                PhosphorIconsRegular.question,
-                                              ),
-                                              border: OutlineInputBorder(
-                                                borderRadius:
-                                                    BorderRadius.circular(12),
-                                              ),
-                                              isDense: true,
-                                            ),
-                                            hint: const Text('Select a reason'),
-                                            items: reasons
-                                                .map(
-                                                  (r) =>
-                                                      DropdownMenuItem<String>(
-                                                    value: r.id,
-                                                    child: Text(r.label),
+                                          child:
+                                              DropdownButtonFormField<String>(
+                                                initialValue: _reasonId,
+                                                decoration: InputDecoration(
+                                                  labelText: 'Reason *',
+                                                  prefixIcon:
+                                                      const PhosphorIcon(
+                                                        PhosphorIconsRegular
+                                                            .question,
+                                                      ),
+                                                  border: OutlineInputBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                          12,
+                                                        ),
                                                   ),
-                                                )
-                                                .toList(),
-                                            onChanged: (v) => setState(
-                                              () => _reasonId = v,
+                                                  isDense: true,
+                                                ),
+                                                hint: const Text(
+                                                  'Select a reason',
+                                                ),
+                                                items: reasons
+                                                    .map(
+                                                      (r) =>
+                                                          DropdownMenuItem<
+                                                            String
+                                                          >(
+                                                            value: r.id,
+                                                            child: Text(
+                                                              r.label,
+                                                            ),
+                                                          ),
+                                                    )
+                                                    .toList(),
+                                                onChanged: (v) => setState(
+                                                  () => _reasonId = v,
+                                                ),
+                                              ),
+                                        ),
+                                        if (canManage) ...[
+                                          const SizedBox(width: 8),
+                                          IconButton(
+                                            tooltip: 'Manage reasons',
+                                            onPressed: () => _showManageReasons(
+                                              context,
+                                              reasons,
+                                              tenantId,
+                                            ),
+                                            icon: const PhosphorIcon(
+                                              PhosphorIconsRegular.pencilSimple,
                                             ),
                                           ),
-                                        ),
-                                        if (canManage) ...
-                                          [
-                                            const SizedBox(width: 8),
-                                            IconButton(
-                                              tooltip: 'Manage reasons',
-                                              onPressed: () =>
-                                                  _showManageReasons(
-                                                    context,
-                                                    reasons,
-                                                    tenantId,
-                                                  ),
-                                              icon: const Icon(
-                                                PhosphorIconsRegular
-                                                    .pencilSimple,
-                                              ),
-                                            ),
-                                          ],
+                                        ],
                                       ],
                                     ),
-                                    loading: () =>
-                                        const LinearProgressIndicator(),
+                                    loading: () => const _FormFieldShimmer(),
                                     error: (e, _) =>
                                         Text('Could not load reasons: $e'),
                                   );
@@ -403,8 +643,9 @@ class _InventoryAdjustmentScreenState
                                 controller: _referenceController,
                                 decoration: InputDecoration(
                                   labelText: 'Reference Number (Optional)',
-                                  hintText: 'e.g., PO-2023-001 or Delivery Note',
-                                  prefixIcon: const Icon(
+                                  hintText:
+                                      'e.g., PO-2023-001 or Delivery Note',
+                                  prefixIcon: const PhosphorIcon(
                                     PhosphorIconsRegular.receipt,
                                   ),
                                   border: OutlineInputBorder(
@@ -415,91 +656,98 @@ class _InventoryAdjustmentScreenState
                             ],
                           ),
                         ),
-                        const Divider(height: 1),
-                        // Selected Items List
-                        Expanded(
-                          child: batchItems.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        PhosphorIconsRegular
-                                            .magnifyingGlassPlus,
-                                        size: 64,
-                                        color: colorScheme.onSurfaceVariant
-                                            .withValues(alpha: 0.5),
+                      ),
+                      const Divider(height: 1),
+                      // Selected Items List
+                      Expanded(
+                        child: batchItems.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    PhosphorIcon(
+                                      PhosphorIconsRegular.magnifyingGlassPlus,
+                                      size: 64,
+                                      color: colorScheme.onSurfaceVariant
+                                          .withValues(alpha: 0.5),
+                                    ),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No items selected\nSearch and add items from the left',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        color: colorScheme.onSurfaceVariant,
                                       ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'No items selected\nSearch and add items from the left',
-                                        textAlign: TextAlign.center,
-                                        style: TextStyle(
-                                          color: colorScheme.onSurfaceVariant,
-                                        ),
-                                      ),
-                                    ],
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.separated(
+                                padding: const EdgeInsets.all(24),
+                                itemCount: batchItems.length,
+                                separatorBuilder: (context, index) =>
+                                    const SizedBox(height: 16),
+                                itemBuilder: (context, index) {
+                                  final item = batchItems[index];
+                                  return _BatchItemCard(
+                                    item: item,
+                                    selectedBranchIds: _selectedBranchIds,
+                                  );
+                                },
+                              ),
+                      ),
+                      // Bottom Actions
+                      Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: colorScheme.surface,
+                          boxShadow: [
+                            BoxShadow(
+                              color: colorScheme.shadow.withValues(alpha: 0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, -5),
+                            ),
+                          ],
+                        ),
+                        child: FilledButton.icon(
+                          onPressed: batchItems.isEmpty || _isLoading
+                              ? null
+                              : _submitBatch,
+                          style: FilledButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 20),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                          ),
+                          icon: _isLoading
+                              ? const SizedBox(
+                                  width: 20,
+                                  height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.white,
                                   ),
                                 )
-                              : ListView.separated(
-                                  padding: const EdgeInsets.all(24),
-                                  itemCount: batchItems.length,
-                                  separatorBuilder: (context, index) =>
-                                      const SizedBox(height: 16),
-                                  itemBuilder: (context, index) {
-                                    final item = batchItems[index];
-                                    return _BatchItemCard(item: item);
-                                  },
+                              : const PhosphorIcon(
+                                  PhosphorIconsRegular.checkCircle,
                                 ),
-                        ),
-                        // Bottom Actions
-                        Container(
-                          padding: const EdgeInsets.all(24),
-                          decoration: BoxDecoration(
-                            color: colorScheme.surface,
-                            boxShadow: [
-                              BoxShadow(
-                                color: colorScheme.shadow.withValues(alpha: 0.05),
-                                blurRadius: 10,
-                                offset: const Offset(0, -5),
-                              ),
-                            ],
+                          label: Text(
+                            _isLoading
+                                ? 'Processing...'
+                                : effectiveAllBranchesMode
+                                ? 'Add to All Branches (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})'
+                                : 'Confirm Adjustment (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                           child: FilledButton.icon(
-                             onPressed: batchItems.isEmpty || _isLoading
-                                 ? null
-                                 : _submitBatch,
-                             style: FilledButton.styleFrom(
-                               padding: const EdgeInsets.symmetric(vertical: 20),
-                               shape: RoundedRectangleBorder(
-                                 borderRadius: BorderRadius.circular(16),
-                               ),
-                             ),
-                             icon: _isLoading
-                                 ? const SizedBox(
-                                     width: 20,
-                                     height: 20,
-                                     child: CircularProgressIndicator(
-                                       strokeWidth: 2,
-                                       color: Colors.white,
-                                     ),
-                                   )
-                                 : const Icon(PhosphorIconsRegular.checkCircle),
-                             label: Text(
-                               _isLoading
-                                   ? 'Processing...'
-                                   : 'Confirm Adjustment (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})',
-                               style: const TextStyle(
-                                 fontSize: 16,
-                                 fontWeight: FontWeight.bold,
-                               ),
-                             ),
-                           ),
                         ),
-                      ],
-                    ),
-                    );
-                    
+                      ),
+                    ],
+                  ),
+                );
+
                 if (constraints.maxWidth > 800) {
                   return Row(
                     children: [
@@ -509,7 +757,7 @@ class _InventoryAdjustmentScreenState
                     ],
                   );
                 }
-                
+
                 return DefaultTabController(
                   length: 2,
                   child: Column(
@@ -524,12 +772,7 @@ class _InventoryAdjustmentScreenState
                         indicatorColor: colorScheme.primary,
                       ),
                       Expanded(
-                        child: TabBarView(
-                          children: [
-                            leftPanel,
-                            rightPanel,
-                          ],
-                        ),
+                        child: TabBarView(children: [leftPanel, rightPanel]),
                       ),
                     ],
                   ),
@@ -554,14 +797,14 @@ class _InventoryAdjustmentScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
+            PhosphorIcon(
               PhosphorIconsRegular.storefront,
               size: 64,
               color: colorScheme.onErrorContainer,
             ),
             const SizedBox(height: 24),
             Text(
-              'Specific Branch Required',
+              'Branch Required',
               style: TextStyle(
                 fontSize: 24,
                 fontWeight: FontWeight.bold,
@@ -570,7 +813,7 @@ class _InventoryAdjustmentScreenState
             ),
             const SizedBox(height: 16),
             Text(
-              'Stock adjustments must physically occur at a specific location. You currently have "All Branches" selected.\n\nPlease select a specific branch from the app bar drop-down before proceeding.',
+              'Please select a branch from the app bar drop-down before proceeding.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 16,
@@ -589,7 +832,7 @@ class _InventoryAdjustmentScreenState
                   vertical: 16,
                 ),
               ),
-              icon: const Icon(PhosphorIconsRegular.arrowLeft),
+              icon: const PhosphorIcon(PhosphorIconsRegular.arrowLeft),
               label: const Text('Go Back'),
             ),
           ],
@@ -601,8 +844,9 @@ class _InventoryAdjustmentScreenState
 
 class _BatchItemCard extends ConsumerStatefulWidget {
   final BatchItemState item;
+  final Set<String> selectedBranchIds;
 
-  const _BatchItemCard({required this.item});
+  const _BatchItemCard({required this.item, required this.selectedBranchIds});
 
   @override
   ConsumerState<_BatchItemCard> createState() => _BatchItemCardState();
@@ -617,7 +861,9 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
     super.initState();
     _notesController = TextEditingController(text: widget.item.notes);
     _qtyController = TextEditingController(
-      text: widget.item.quantityChange == 0 ? '' : widget.item.quantityChange.toString(),
+      text: widget.item.quantityChange == 0
+          ? ''
+          : widget.item.quantityChange.toString(),
     );
   }
 
@@ -625,7 +871,8 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
   void didUpdateWidget(_BatchItemCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.item.quantityChange != widget.item.quantityChange) {
-      if (_qtyController.text != widget.item.quantityChange.toString() && widget.item.quantityChange != 0) {
+      if (_qtyController.text != widget.item.quantityChange.toString() &&
+          widget.item.quantityChange != 0) {
         _qtyController.text = widget.item.quantityChange.toString();
       }
     }
@@ -650,12 +897,20 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final product = widget.item.product;
+    final branchStocksAsync = ref.watch(branchStocksProvider(product.id));
+
+    final currentStock =
+        branchStocksAsync.value
+            ?.where((s) => widget.selectedBranchIds.contains(s.branchId))
+            .fold<int>(0, (sum, s) => sum + s.quantity) ??
+        0;
+
+    final newStock = currentStock + widget.item.quantityChange;
 
     return Container(
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -678,7 +933,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                       : null,
                 ),
                 child: product.imageUrl == null
-                    ? Icon(
+                    ? PhosphorIcon(
                         PhosphorIconsRegular.package,
                         color: colorScheme.onPrimaryContainer,
                       )
@@ -711,7 +966,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                 onPressed: () {
                   ref.read(batchStockProvider.notifier).removeItem(product.id);
                 },
-                icon: const Icon(PhosphorIconsRegular.x),
+                icon: const PhosphorIcon(PhosphorIconsRegular.x),
                 color: colorScheme.error,
               ),
             ],
@@ -720,6 +975,49 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Stock calculation
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest.withValues(
+                    alpha: 0.5,
+                  ),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Current Stock: $currentStock',
+                      style: TextStyle(
+                        color: colorScheme.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
+                    ),
+                    PhosphorIcon(
+                      PhosphorIconsRegular.arrowRight,
+                      size: 14,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    Text(
+                      'New Stock: $newStock',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: widget.item.quantityChange < 0
+                            ? colorScheme.error
+                            : widget.item.quantityChange > 0
+                            ? Colors.green
+                            : colorScheme.onSurface,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
               // Quantity Stepper/Input
               Row(
                 children: [
@@ -732,7 +1030,10 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                             widget.item.quantityChange - 1,
                           );
                     },
-                    icon: const Icon(PhosphorIconsRegular.minus, size: 16),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.minus,
+                      size: 16,
+                    ),
                     constraints: const BoxConstraints(
                       minWidth: 36,
                       minHeight: 36,
@@ -748,17 +1049,15 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                         decimal: false,
                       ),
                       inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^-?\d*'),
-                        ),
+                        FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
                       ],
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: widget.item.quantityChange < 0
                             ? Colors.red
                             : widget.item.quantityChange > 0
-                                ? Colors.green
-                                : null,
+                            ? Colors.green
+                            : null,
                         fontWeight: FontWeight.bold,
                       ),
                       decoration: InputDecoration(
@@ -785,7 +1084,10 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                             widget.item.quantityChange + 1,
                           );
                     },
-                    icon: const Icon(PhosphorIconsRegular.plus, size: 16),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.plus,
+                      size: 16,
+                    ),
                     constraints: const BoxConstraints(
                       minWidth: 36,
                       minHeight: 36,
@@ -831,10 +1133,7 @@ class _ManageReasonsSheet extends ConsumerStatefulWidget {
   final List<AdjustmentReason> reasons;
   final String tenantId;
 
-  const _ManageReasonsSheet({
-    required this.reasons,
-    required this.tenantId,
-  });
+  const _ManageReasonsSheet({required this.reasons, required this.tenantId});
 
   @override
   ConsumerState<_ManageReasonsSheet> createState() =>
@@ -968,12 +1267,12 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                         itemBuilder: (_, i) {
                           final r = reasons[i];
                           return ListTile(
-                            leading: const Icon(
+                            leading: const PhosphorIcon(
                               PhosphorIconsRegular.tagSimple,
                             ),
                             title: Text(r.label),
                             trailing: IconButton(
-                              icon: Icon(
+                              icon: PhosphorIcon(
                                 PhosphorIconsRegular.trash,
                                 color: colorScheme.error,
                               ),
@@ -983,13 +1282,88 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                           );
                         },
                       ),
-                loading: () => const Center(
-                  child: CircularProgressIndicator(),
-                ),
+                loading: () => const _ReasonsListShimmer(),
                 error: (e, _) => Center(child: Text('Error: $e')),
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InventoryItemsShimmer extends StatelessWidget {
+  const _InventoryItemsShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.7,
+      ),
+      child: ListView.builder(
+        itemCount: 8,
+        itemBuilder: (_, __) => ListTile(
+          leading: Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: colorScheme.surface,
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          title: Container(height: 12, color: colorScheme.surface),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Container(height: 10, color: colorScheme.surface),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FormFieldShimmer extends StatelessWidget {
+  const _FormFieldShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.7,
+      ),
+      child: Container(
+        height: 52,
+        decoration: BoxDecoration(
+          color: colorScheme.surface,
+          borderRadius: BorderRadius.circular(12),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReasonsListShimmer extends StatelessWidget {
+  const _ReasonsListShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Shimmer.fromColors(
+      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
+      highlightColor: colorScheme.surfaceContainerHighest.withValues(
+        alpha: 0.7,
+      ),
+      child: ListView.builder(
+        itemCount: 6,
+        itemBuilder: (_, __) => const ListTile(
+          leading: CircleAvatar(radius: 12),
+          title: SizedBox(height: 12),
         ),
       ),
     );

@@ -5,6 +5,10 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_pricing_update_sheet.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_stock_update_sheet.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
 
 class ItemGroupsScreen extends ConsumerWidget {
   const ItemGroupsScreen({super.key});
@@ -29,16 +33,7 @@ class ItemGroupsScreen extends ConsumerWidget {
           },
         ),
         title: const Text('Item Groups'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: FilledButton.icon(
-              onPressed: () => context.push('/products/groups/add'),
-              icon: const Icon(PhosphorIconsBold.plus, size: 18),
-              label: const Text('Add Group'),
-            ),
-          ),
-        ],
+        actions: const [],
       ),
       body: itemGroupsAsync.when(
         data: (groups) {
@@ -61,14 +56,31 @@ class ItemGroupsScreen extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(PhosphorIconsDuotone.warning, size: 48, color: theme.colorScheme.error),
+              PhosphorIcon(
+                PhosphorIconsDuotone.warning,
+                size: 48,
+                color: theme.colorScheme.error,
+              ),
               const SizedBox(height: 16),
-              Text('Failed to load item groups', style: theme.textTheme.titleMedium),
+              Text(
+                'Failed to load item groups',
+                style: theme.textTheme.titleMedium,
+              ),
               const SizedBox(height: 8),
-              Text('$e', style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+              Text(
+                '$e',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
             ],
           ),
         ),
+      ),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => context.push("/products/groups/add"),
+        icon: const PhosphorIcon(PhosphorIconsBold.plus),
+        label: const Text("Add Group"),
       ),
     );
   }
@@ -89,7 +101,9 @@ class ItemGroupsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           Text(
             'No Item Groups Yet',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
@@ -102,7 +116,7 @@ class ItemGroupsScreen extends ConsumerWidget {
           const SizedBox(height: 24),
           FilledButton.icon(
             onPressed: () => context.push('/products/groups/add'),
-            icon: const Icon(PhosphorIconsBold.plus),
+            icon: const PhosphorIcon(PhosphorIconsBold.plus),
             label: const Text('Create Item Group'),
           ),
         ],
@@ -110,7 +124,11 @@ class ItemGroupsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildList(BuildContext context, List<ItemGroup> groups, ThemeData theme) {
+  Widget _buildList(
+    BuildContext context,
+    List<ItemGroup> groups,
+    ThemeData theme,
+  ) {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: groups.length,
@@ -121,7 +139,11 @@ class ItemGroupsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildGrid(BuildContext context, List<ItemGroup> groups, {required int crossAxisCount}) {
+  Widget _buildGrid(
+    BuildContext context,
+    List<ItemGroup> groups, {
+    required int crossAxisCount,
+  }) {
     return GridView.builder(
       padding: const EdgeInsets.all(16),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
@@ -163,61 +185,195 @@ class _ItemGroupCard extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
+    final productCount = ref.watch(productCountByGroupProvider(group.id));
+
     return RepaintBoundary(
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: cs.outlineVariant),
-        ),
-        child: InkWell(
-          onTap: () => context.push('/products/groups/${group.id}', extra: group),
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: cs.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: PhosphorIcon(
-                    PhosphorIconsDuotone.folder,
-                    color: cs.onPrimaryContainer,
-                    size: 22,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        group.name,
-                        style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-                      ),
-                      if (group.description != null && group.description!.isNotEmpty) ...[
-                        const SizedBox(height: 2),
-                        Text(
-                          group.description!,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-                const PhosphorIcon(PhosphorIconsRegular.caretRight),
-              ],
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: ListTile(
+          onTap: () =>
+              context.push('/products/groups/${group.id}', extra: group),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: cs.primaryContainer,
+              borderRadius: BorderRadius.circular(10),
             ),
+            child: PhosphorIcon(
+              PhosphorIconsDuotone.folder,
+              color: cs.onPrimaryContainer,
+              size: 22,
+            ),
+          ),
+          title: Text(
+            group.name,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (group.description != null && group.description!.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(
+                    group.description!,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              Wrap(
+                spacing: 12,
+                runSpacing: 4,
+                children: [
+                  _buildStat(
+                    theme,
+                    PhosphorIconsRegular.package,
+                    '$productCount Items',
+                  ),
+                  _buildStat(
+                    theme,
+                    PhosphorIconsRegular.tag,
+                    'KES ${group.defaultSellingPrice?.toStringAsFixed(0) ?? "0"}',
+                  ),
+                  if (group.defaultCommissionValue != null &&
+                      group.defaultCommissionValue! > 0)
+                    _buildStat(
+                      theme,
+                      PhosphorIconsRegular.handCoins,
+                      group.defaultCommissionType == 'percentage'
+                          ? '${group.defaultCommissionValue}%'
+                          : 'KES ${group.defaultCommissionValue}',
+                    ),
+                ],
+              ),
+            ],
+          ),
+          trailing: PopupMenuButton<String>(
+            icon: const PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical),
+            tooltip: 'Batch Actions',
+            onSelected: (value) {
+              switch (value) {
+                case 'view':
+                  context.push('/products?groupId=${group.id}');
+                case 'price':
+                  _showBatchPriceSheet(context, ref, group);
+                case 'stock':
+                  _showBatchStockSheet(context, ref, group);
+                case 'delete':
+                  _showDeleteDialog(context, ref, group);
+              }
+            },
+            itemBuilder: (context) => [
+              const PopupMenuItem(value: 'view', child: Text('View Items')),
+              const PopupMenuItem(
+                value: 'price',
+                child: Text('Batch Update Price'),
+              ),
+              const PopupMenuItem(
+                value: 'stock',
+                child: Text('Batch Update Stock'),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: 'delete',
+                child: Text(
+                  'Delete Group',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
+
+  Widget _buildStat(ThemeData theme, PhosphorIconData icon, String label) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PhosphorIcon(
+          icon,
+          size: 14,
+          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
+        ),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+void _showBatchPriceSheet(
+  BuildContext context,
+  WidgetRef ref,
+  ItemGroup group,
+) {
+  showResponsiveModal(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (context) => BatchPricingUpdateSheet(group: group),
+  );
+}
+
+void _showBatchStockSheet(
+  BuildContext context,
+  WidgetRef ref,
+  ItemGroup group,
+) {
+  showResponsiveModal(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (context) => BatchStockUpdateSheet(group: group),
+  );
+}
+
+void _showDeleteDialog(BuildContext context, WidgetRef ref, ItemGroup group) {
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Delete "${group.name}"'),
+      content: const Text('What should happen to items in this group?'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () async {
+            Navigator.pop(context);
+            final repo = ref.read(repositoryProvider);
+            await repo.deleteGroupOnly(group.id);
+          },
+          child: const Text('Delete group, keep items'),
+        ),
+        FilledButton(
+          style: FilledButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+          onPressed: () async {
+            Navigator.pop(context);
+            final repo = ref.read(repositoryProvider);
+            await repo.deleteGroupAndAllItems(group.id);
+          },
+          child: const Text('Delete group + all items'),
+        ),
+      ],
+    ),
+  );
 }

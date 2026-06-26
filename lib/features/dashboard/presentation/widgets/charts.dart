@@ -1,15 +1,14 @@
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 import 'skeleton_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REVENUE BAR CHART (Lightweight)
+// REVENUE CHART
 // ─────────────────────────────────────────────────────────────────────────────
 
 class RevenueBarChart extends ConsumerWidget {
@@ -20,47 +19,43 @@ class RevenueBarChart extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final chartDataAsync = ref.watch(dailySalesChartProvider);
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Revenue',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Revenue',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
                 ),
-              ),
-              const _TimeRangeToggle(),
-            ],
-          ),
-          const SizedBox(height: 24),
-          SizedBox(
-            height: 200,
-            child: chartDataAsync.when(
-              data: (rows) =>
-                  _SimpleBarChart(colorScheme: colorScheme, data: rows),
-              loading: () => SkeletonChart(colorScheme: colorScheme),
-              error: (_, _) => Center(
-                child: Text(
-                  'Unable to load chart data',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant),
+                const _TimeRangeToggle(),
+              ],
+            ),
+            const SizedBox(height: 20),
+            SizedBox(
+              height: 210,
+              child: chartDataAsync.when(
+                data: (rows) =>
+                    _SimpleBarChart(colorScheme: colorScheme, data: rows),
+                loading: () => SkeletonChart(colorScheme: colorScheme),
+                error: (_, _) => Center(
+                  child: Text(
+                    'Unable to load chart data',
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -77,8 +72,8 @@ class _TimeRangeToggle extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        color: colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -110,12 +105,6 @@ class _TimeRangeToggle extends ConsumerWidget {
 }
 
 class _ToggleOption extends StatelessWidget {
-  final String title;
-  final String value;
-  final String current;
-  final ColorScheme colorScheme;
-  final VoidCallback onTap;
-
   const _ToggleOption({
     required this.title,
     required this.value,
@@ -123,6 +112,12 @@ class _ToggleOption extends StatelessWidget {
     required this.colorScheme,
     required this.onTap,
   });
+
+  final String title;
+  final String value;
+  final String current;
+  final ColorScheme colorScheme;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -140,7 +135,7 @@ class _ToggleOption extends StatelessWidget {
           title,
           style: TextStyle(
             fontSize: 12,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
             color: isSelected
                 ? colorScheme.onPrimary
                 : colorScheme.onSurfaceVariant,
@@ -152,10 +147,10 @@ class _ToggleOption extends StatelessWidget {
 }
 
 class _SimpleBarChart extends StatelessWidget {
+  const _SimpleBarChart({required this.colorScheme, required this.data});
+
   final ColorScheme colorScheme;
   final List<Map<String, dynamic>> data;
-
-  const _SimpleBarChart({required this.colorScheme, required this.data});
 
   @override
   Widget build(BuildContext context) {
@@ -169,8 +164,8 @@ class _SimpleBarChart extends StatelessWidget {
     }
 
     double maxVal = 0;
-    for (final r in data) {
-      final val = (r['revenue'] as num?)?.toDouble() ?? 0;
+    for (final row in data) {
+      final val = (row['revenue'] as num?)?.toDouble() ?? 0;
       if (val > maxVal) maxVal = val;
     }
     if (maxVal == 0) maxVal = 100;
@@ -184,99 +179,71 @@ class _SimpleBarChart extends StatelessWidget {
           enabled: true,
           touchTooltipData: BarTouchTooltipData(
             getTooltipColor: (_) => colorScheme.inverseSurface,
-            tooltipPadding: const EdgeInsets.symmetric(
-              horizontal: 12,
-              vertical: 6,
-            ),
             getTooltipItem: (group, groupIndex, rod, rodIndex) {
-              final val = rod.toY;
-              String label;
-              if (val >= 1000000) {
-                label = 'Ksh ${(val / 1000000).toStringAsFixed(1)}M';
-              } else if (val >= 1000) {
-                label = 'Ksh ${(val / 1000).toStringAsFixed(1)}K';
-              } else {
-                label = 'Ksh ${val.toStringAsFixed(0)}';
-              }
               return BarTooltipItem(
-                label,
+                'Ksh ${_compact(rod.toY)}',
                 TextStyle(
                   color: colorScheme.onInverseSurface,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
                 ),
               );
             },
           ),
         ),
         titlesData: FlTitlesData(
-          show: true,
-          bottomTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              getTitlesWidget: (value, meta) {
-                final index = value.toInt();
-                if (index < 0 || index >= data.length) return const SizedBox();
-                final dateStr = data[index]['day'] as String?;
-                if (dateStr == null) return const SizedBox();
-
-                final dt = DateTime.tryParse(dateStr);
-                final label = dt != null
-                    ? DateFormat('E').format(dt)
-                    : ''; // e.g. Mon, Tue
-
-                // Show fewer labels for monthly view
-                if (data.length > 10 && index % 5 != 0) return const SizedBox();
-
-                return SideTitleWidget(
-                  meta: meta,
-                  space: 8,
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              },
-              reservedSize: 28,
-            ),
-          ),
-          leftTitles: AxisTitles(
-            sideTitles: SideTitles(
-              showTitles: true,
-              reservedSize: 40,
-              getTitlesWidget: (value, meta) {
-                if (value == 0) return const SizedBox();
-                String label;
-                if (value >= 1000000) {
-                  label = '${(value / 1000000).toStringAsFixed(1)}M';
-                } else if (value >= 1000) {
-                  label = '${(value / 1000).toStringAsFixed(1)}K';
-                } else {
-                  label = value.toStringAsFixed(0);
-                }
-                return SideTitleWidget(
-                  meta: meta,
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: colorScheme.onSurfaceVariant,
-                      fontSize: 10,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              },
-            ),
-          ),
           rightTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
           ),
           topTitles: const AxisTitles(
             sideTitles: SideTitles(showTitles: false),
+          ),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 44,
+              getTitlesWidget: (value, meta) {
+                if (value == 0) return const SizedBox();
+                return SideTitleWidget(
+                  meta: meta,
+                  child: Text(
+                    _axisLabel(value),
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 28,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= data.length) return const SizedBox();
+                final dateStr = data[index]['day'] as String?;
+                final dt = dateStr == null ? null : DateTime.tryParse(dateStr);
+                final label = dt == null ? '' : DateFormat('E').format(dt);
+
+                if (data.length > 10 && index % 5 != 0) {
+                  return const SizedBox();
+                }
+
+                return SideTitleWidget(
+                  meta: meta,
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: colorScheme.onSurfaceVariant,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
         gridData: FlGridData(
@@ -286,7 +253,6 @@ class _SimpleBarChart extends StatelessWidget {
           getDrawingHorizontalLine: (value) => FlLine(
             color: colorScheme.outlineVariant.withValues(alpha: 0.2),
             strokeWidth: 1,
-            dashArray: [4, 4],
           ),
         ),
         borderData: FlBorderData(show: false),
@@ -298,7 +264,7 @@ class _SimpleBarChart extends StatelessWidget {
               BarChartRodData(
                 toY: val,
                 color: colorScheme.primary,
-                width: data.length > 10 ? 4 : 16,
+                width: data.length > 10 ? 5 : 14,
                 borderRadius: BorderRadius.circular(4),
               ),
             ],
@@ -307,9 +273,22 @@ class _SimpleBarChart extends StatelessWidget {
       ),
     );
   }
+
+  String _axisLabel(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+    return value.toStringAsFixed(0);
+  }
+
+  String _compact(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+    return value.toStringAsFixed(0);
+  }
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
-// PAYMENT METHODS CHART (SIDE PANEL)
+// PAYMENT METHODS CHART
 // ─────────────────────────────────────────────────────────────────────────────
 
 class PaymentMethodsChart extends ConsumerWidget {
@@ -318,108 +297,139 @@ class PaymentMethodsChart extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
-    final paymentData = ref.watch(paymentMethodsProvider);
     final breakdownData = ref.watch(paymentBreakdownProvider);
 
     const legendColors = [
-      Color(0xFF6366F1), // Indigo
-      Color(0xFF22C55E), // Green
-      Color(0xFFF59E0B), // Amber
-      Color(0xFFEF4444), // Red
-      Color(0xFF8B5CF6), // Purple
+      Color(0xFF6366F1),
+      Color(0xFF22C55E),
+      Color(0xFFF59E0B),
+      Color(0xFFEF4444),
+      Color(0xFF8B5CF6),
     ];
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Payment Methods',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Payment Methods',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 150,
-            child: paymentData.when(
-              data: (sections) {
-                if (sections.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No payment data yet',
-                      style: TextStyle(color: colorScheme.onSurfaceVariant),
-                    ),
-                  );
-                }
-                return Stack(
-                  alignment: Alignment.center,
-                  children: [
-                    Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(PhosphorIconsDuotone.wallet, color: colorScheme.onSurfaceVariant.withValues(alpha: 0.5), size: 24),
-                      ],
-                    ),
-                    PieChart(
-                      PieChartData(
-                        sections: sections
-                            .map((s) => s.copyWith(radius: 12, showTitle: false))
-                            .toList(),
-                        centerSpaceRadius: 40,
-                        sectionsSpace: 4,
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 170,
+              child: breakdownData.when(
+                loading: () => SkeletonChart(colorScheme: colorScheme),
+                error: (_, _) =>
+                    const Center(child: Text('Error loading data')),
+                data: (rows) {
+                  if (rows.isEmpty) {
+                    return Center(
+                      child: Text(
+                        'No payment data yet',
+                        style: TextStyle(color: colorScheme.onSurfaceVariant),
                       ),
-                    ),
-                  ],
+                    );
+                  }
+
+                  final total = rows.fold<double>(
+                    0,
+                    (sum, row) =>
+                        sum + ((row['total'] as num?)?.toDouble() ?? 0),
+                  );
+
+                  final sections = rows.asMap().entries.map((entry) {
+                    final amount =
+                        (entry.value['total'] as num?)?.toDouble() ?? 0;
+                    return PieChartSectionData(
+                      value: amount,
+                      color: legendColors[entry.key % legendColors.length],
+                      radius: 10,
+                      showTitle: false,
+                    );
+                  }).toList();
+
+                  return Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      PieChart(
+                        PieChartData(
+                          sections: sections,
+                          centerSpaceRadius: 52,
+                          sectionsSpace: 2,
+                        ),
+                      ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Ksh ${_formatCompact(total)}',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                          Text(
+                            'Collected',
+                            style: TextStyle(
+                              color: colorScheme.onSurfaceVariant,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 12),
+            breakdownData.when(
+              loading: () => const SizedBox.shrink(),
+              error: (_, _) => const SizedBox.shrink(),
+              data: (rows) {
+                if (rows.isEmpty) return const SizedBox.shrink();
+                final total = rows.fold<double>(
+                  0,
+                  (sum, row) => sum + ((row['total'] as num?)?.toDouble() ?? 0),
+                );
+
+                return Column(
+                  children: rows.asMap().entries.map((entry) {
+                    final row = entry.value;
+                    final method =
+                        (row['payment_method'] as String?) ?? 'Other';
+                    final amount = (row['total'] as num?)?.toDouble() ?? 0;
+                    final pct = total > 0 ? (amount / total * 100).round() : 0;
+
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _buildLegend(
+                        label: _formatMethodName(method),
+                        color: legendColors[entry.key % legendColors.length],
+                        percentage: '$pct%',
+                        amountLabel: 'Ksh ${_formatCompact(amount)}',
+                        colorScheme: colorScheme,
+                      ),
+                    );
+                  }).toList(),
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (_, _) => const Center(child: Text('Error loading data')),
             ),
-          ),
-          const SizedBox(height: 16),
-          // Dynamic legend from real data
-          breakdownData.when(
-            data: (rows) {
-              if (rows.isEmpty) return const SizedBox.shrink();
-              final total = rows.fold<double>(
-                0,
-                (sum, r) => sum + ((r['total'] as num?)?.toDouble() ?? 0),
-              );
-              return Column(
-                children: rows.asMap().entries.map((entry) {
-                  final r = entry.value;
-                  final method = (r['payment_method'] as String?) ?? 'Other';
-                  final amount = (r['total'] as num?)?.toDouble() ?? 0;
-                  final pct = total > 0 ? (amount / total * 100).round() : 0;
-                  final label = _formatMethodName(method);
-                  return Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _buildLegend(
-                      label,
-                      legendColors[entry.key % legendColors.length],
-                      '$pct%',
-                      colorScheme,
-                    ),
-                  );
-                }).toList(),
-              );
-            },
-            loading: () => const SizedBox.shrink(),
-            error: (_, _) => const SizedBox.shrink(),
-          ),
-        ],
+          ],
+        ),
       ),
     );
+  }
+
+  String _formatCompact(double value) {
+    if (value >= 1000000) return '${(value / 1000000).toStringAsFixed(1)}M';
+    if (value >= 1000) return '${(value / 1000).toStringAsFixed(1)}K';
+    return value.toStringAsFixed(0);
   }
 
   String _formatMethodName(String raw) {
@@ -438,20 +448,21 @@ class PaymentMethodsChart extends ConsumerWidget {
     }
   }
 
-  Widget _buildLegend(
-    String label,
-    Color color,
-    String percentage,
-    ColorScheme colorScheme,
-  ) {
+  Widget _buildLegend({
+    required String label,
+    required Color color,
+    required String percentage,
+    required String amountLabel,
+    required ColorScheme colorScheme,
+  }) {
     return Row(
       children: [
         Container(
-          width: 12,
-          height: 12,
+          width: 10,
+          height: 10,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(2),
           ),
         ),
         const SizedBox(width: 8),
@@ -461,7 +472,21 @@ class PaymentMethodsChart extends ConsumerWidget {
             style: TextStyle(color: colorScheme.onSurfaceVariant),
           ),
         ),
-        Text(percentage, style: const TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          amountLabel,
+          style: TextStyle(
+            color: colorScheme.onSurface,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          percentage,
+          style: TextStyle(
+            color: colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ],
     );
   }

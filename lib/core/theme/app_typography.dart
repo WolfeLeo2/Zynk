@@ -12,7 +12,7 @@ class AppTypography {
 
   static TextTheme _buildTextTheme(Color baseColor) {
     // We start with Outfit as the base for everything
-    final baseTheme = GoogleFonts.outfitTextTheme().apply(
+    final baseTheme = GoogleFonts.googleSansTextTheme().apply(
       displayColor: baseColor,
       bodyColor: baseColor,
     );
@@ -53,18 +53,18 @@ class AppTypography {
       ),
 
       // TITLES (Outfit - Geometric, readable)
-      titleLarge: GoogleFonts.outfit(
+      titleLarge: GoogleFonts.googleSansFlex(
         //fontSize: 22,
         fontWeight: FontWeight.w600,
         color: baseColor,
       ),
-      titleMedium: GoogleFonts.outfit(
+      titleMedium: GoogleFonts.googleSansFlex(
         //fontSize: 16,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.15,
         color: baseColor,
       ),
-      titleSmall: GoogleFonts.outfit(
+      titleSmall: GoogleFonts.googleSansFlex(
         //fontSize: 14,
         fontWeight: FontWeight.w500,
         letterSpacing: 0.1,
@@ -72,19 +72,19 @@ class AppTypography {
       ),
 
       // BODY (Outfit)
-      bodyLarge: GoogleFonts.outfit(
+      bodyLarge: GoogleFonts.googleSansFlex(
         //fontSize: 16,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.5,
         color: baseColor,
       ),
-      bodyMedium: GoogleFonts.outfit(
+      bodyMedium: GoogleFonts.googleSansFlex(
         //fontSize: 14,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.25,
         color: baseColor,
       ),
-      bodySmall: GoogleFonts.outfit(
+      bodySmall: GoogleFonts.googleSansFlex(
         //fontSize: 12,
         fontWeight: FontWeight.w400,
         letterSpacing: 0.4,
@@ -92,19 +92,19 @@ class AppTypography {
       ),
 
       // LABELS (Outfit - UI Elements)
-      labelLarge: GoogleFonts.outfit(
+      labelLarge: GoogleFonts.googleSansFlex(
         //fontSize: 14,
         fontWeight: FontWeight.w600, // Important for buttons
         letterSpacing: 0.1,
         color: baseColor,
       ),
-      labelMedium: GoogleFonts.outfit(
+      labelMedium: GoogleFonts.googleSansFlex(
         //fontSize: 12,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,
         color: baseColor,
       ),
-      labelSmall: GoogleFonts.outfit(
+      labelSmall: GoogleFonts.googleSansFlex(
         //fontSize: 11,
         fontWeight: FontWeight.w600,
         letterSpacing: 0.5,

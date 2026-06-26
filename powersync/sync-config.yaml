@@ -1,0 +1,44 @@
+# Adds YAML Schema support for VSCode users with the YAML extension installed. This enables features like validation and autocompletion based on the provided schema.
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-sync-rules@latest/schema/sync_rules.json
+# Adds YAML Schema support for VSCode users with the YAML extension installed. This enables features like validation and autocompletion based on the provided schema.
+# yaml-language-server: $schema=https://unpkg.com/@powersync/service-sync-rules@latest/schema/sync_rules.json
+
+config:
+  edition: 3
+streams:
+  # This Sync Stream has been translated from bucket definitions. There may be more efficient ways to express these queries.
+  # You can add additional queries to this list if you need them.
+  # For details, see the documentation: https://docs.powersync.com/sync/streams/overview
+  migrated_to_streams:
+    auto_subscribe: true
+    with:
+      user_data_param: SELECT tenant_id FROM profiles WHERE user_id = auth.user_id()
+    queries:
+      - "SELECT tenants.* FROM tenants,user_data_param AS bucket WHERE tenants.id = bucket.tenant_id"
+      - "SELECT profiles.* FROM profiles,user_data_param AS bucket WHERE profiles.tenant_id = bucket.tenant_id"
+      - "SELECT products.* FROM products,user_data_param AS bucket WHERE products.tenant_id = bucket.tenant_id"
+      - "SELECT customers.* FROM customers,user_data_param AS bucket WHERE customers.tenant_id = bucket.tenant_id"
+      - "SELECT categories.* FROM categories,user_data_param AS bucket WHERE categories.tenant_id = bucket.tenant_id"
+      - "SELECT item_groups.* FROM item_groups,user_data_param AS bucket WHERE item_groups.tenant_id = bucket.tenant_id"
+      - "SELECT composite_item_components.* FROM composite_item_components,user_data_param AS bucket WHERE composite_item_components.tenant_id = bucket.tenant_id"
+      - "SELECT units_of_measurement.* FROM units_of_measurement,user_data_param AS bucket WHERE units_of_measurement.tenant_id = bucket.tenant_id"
+      - "SELECT staff_members.* FROM staff_members,user_data_param AS bucket WHERE staff_members.tenant_id = bucket.tenant_id"
+      - "SELECT stock.* FROM stock,user_data_param AS bucket WHERE stock.tenant_id = bucket.tenant_id"
+      - "SELECT stock_adjustments.* FROM stock_adjustments,user_data_param AS bucket WHERE stock_adjustments.tenant_id = bucket.tenant_id"
+      - "SELECT stock_adjustment_reasons.* FROM stock_adjustment_reasons,user_data_param AS bucket WHERE stock_adjustment_reasons.tenant_id = bucket.tenant_id"
+      - "SELECT locations.* FROM locations,user_data_param AS bucket WHERE locations.tenant_id = bucket.tenant_id"
+      - "SELECT branches.* FROM branches,user_data_param AS bucket WHERE branches.tenant_id = bucket.tenant_id"
+      - "SELECT sales.* FROM sales,user_data_param AS bucket WHERE sales.tenant_id = bucket.tenant_id"
+      - "SELECT sale_items.* FROM sale_items,user_data_param AS bucket WHERE sale_items.tenant_id = bucket.tenant_id"
+      - "SELECT sale_payments.* FROM sale_payments,user_data_param AS bucket WHERE sale_payments.tenant_id = bucket.tenant_id"
+      - "SELECT sale_approvals.* FROM sale_approvals,user_data_param AS bucket WHERE sale_approvals.tenant_id = bucket.tenant_id"
+      - "SELECT credit_notes.* FROM credit_notes,user_data_param AS bucket WHERE credit_notes.tenant_id = bucket.tenant_id"
+      - "SELECT credit_note_items.* FROM credit_note_items,user_data_param AS bucket WHERE credit_note_items.tenant_id = bucket.tenant_id"
+      - "SELECT commissions.* FROM commissions,user_data_param AS bucket WHERE commissions.tenant_id = bucket.tenant_id"
+      - "SELECT profile_branches.* FROM profile_branches,user_data_param AS bucket WHERE profile_branches.tenant_id = bucket.tenant_id"
+      - "SELECT daily_kpi_snapshots.* FROM daily_kpi_snapshots,user_data_param AS bucket WHERE daily_kpi_snapshots.tenant_id = bucket.tenant_id"
+      - "SELECT daily_payment_method_snapshots.* FROM daily_payment_method_snapshots,user_data_param AS bucket WHERE daily_payment_method_snapshots.tenant_id = bucket.tenant_id"
+      - "SELECT daily_product_sales_snapshots.* FROM daily_product_sales_snapshots,user_data_param AS bucket WHERE daily_product_sales_snapshots.tenant_id = bucket.tenant_id"
+      - "SELECT expense_categories.* FROM expense_categories,user_data_param AS bucket WHERE expense_categories.tenant_id = bucket.tenant_id"
+      - "SELECT expenses.* FROM expenses,user_data_param AS bucket WHERE expenses.tenant_id = bucket.tenant_id"
+

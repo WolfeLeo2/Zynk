@@ -1,3 +1,32 @@
+import 'package:json_annotation/json_annotation.dart';
+
+part 'staff_model.g.dart';
+
+enum StaffStatus {
+  @JsonValue('active')
+  active,
+  @JsonValue('inactive')
+  inactive,
+  @JsonValue('blocked')
+  blocked,
+  @JsonValue('deleted')
+  deleted;
+
+  String get displayName {
+    switch (this) {
+      case StaffStatus.active:
+        return 'Active';
+      case StaffStatus.inactive:
+        return 'Inactive';
+      case StaffStatus.blocked:
+        return 'Blocked';
+      case StaffStatus.deleted:
+        return 'Deleted';
+    }
+  }
+}
+
+@JsonSerializable(fieldRename: FieldRename.snake)
 class StaffMember {
   final String id;
   final String tenantId;
@@ -6,7 +35,8 @@ class StaffMember {
   final String? phone;
   final String? email;
   final String? profilePictureUrl;
-  final String status;
+  @JsonKey(defaultValue: StaffStatus.active)
+  final StaffStatus status;
   final DateTime? createdAt;
   final DateTime? updatedAt;
 
@@ -18,38 +48,22 @@ class StaffMember {
     this.phone,
     this.email,
     this.profilePictureUrl,
-    this.status = 'active',
+    this.status = StaffStatus.active,
     this.createdAt,
     this.updatedAt,
   });
 
-  factory StaffMember.fromJson(Map<String, dynamic> json) {
-    return StaffMember(
-      id: json['id'] as String,
-      tenantId: json['tenant_id'] as String,
-      branchId: json['branch_id'] as String?,
-      name: json['name'] as String,
-      phone: json['phone'] as String?,
-      email: json['email'] as String?,
-      profilePictureUrl: json['profile_picture_url'] as String?,
-      status: json['status'] as String? ?? 'active',
-      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at'] as String) : null,
-      updatedAt: json['updated_at'] != null ? DateTime.parse(json['updated_at'] as String) : null,
-    );
-  }
+  factory StaffMember.fromJson(Map<String, dynamic> json) =>
+      _$StaffMemberFromJson(json);
+  Map<String, dynamic> toJson() => _$StaffMemberToJson(this);
 
-  Map<String, dynamic> toJson() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'name': name,
-      'phone': phone,
-      'email': email,
-      'profile_picture_url': profilePictureUrl,
-      'status': status,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is StaffMember &&
+          runtimeType == other.runtimeType &&
+          id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ENUMS
@@ -6,7 +8,16 @@ import 'package:flutter/material.dart';
 
 enum ChartType { line, bar, pie }
 
-enum MetricType { revenue, orders, lowStock, aov, conversion, customers }
+enum MetricType {
+  revenue,
+  orders,
+  lowStock,
+  aov,
+  conversion,
+  customers,
+  expenses,
+  netProfit,
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DATA MODELS
@@ -58,7 +69,7 @@ class MetricDetailData {
 class MetricRelation {
   final String label;
   final String value;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Color color;
   final double? change;
 
@@ -80,7 +91,7 @@ class ChartPoint {
 
 class ActionData {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
 
   ActionData(this.label, this.icon, this.onTap);
@@ -99,18 +110,19 @@ Color getStatusColor(String status) {
   };
 }
 
-IconData getStatusIcon(String status) {
+PhosphorIconData getStatusIcon(String status) {
   return switch (status) {
-    'Completed' => Icons.check_circle,
-    'Preparing' => Icons.kitchen,
-    'Pending' => Icons.schedule,
-    _ => Icons.help,
+    'Completed' => PhosphorIconsRegular.checkCircle,
+    'Preparing' => PhosphorIconsRegular.cookingPot,
+    'Pending' => PhosphorIconsRegular.clock,
+    _ => PhosphorIconsRegular.question,
   };
 }
 
 String formatTimeAgo(DateTime timestamp) {
   final now = DateTime.now();
-  final diff = now.difference(timestamp);
+  final localTimestamp = timestamp.toLocal();
+  final diff = now.difference(localTimestamp);
 
   if (diff.inMinutes < 60) {
     return '${diff.inMinutes}m ago';
@@ -132,14 +144,14 @@ MetricDetailData createRevenueDetailData(
   return MetricDetailData(
     type: MetricType.revenue,
     title: 'Revenue Details',
-    value: 'Ksh ${revenue.toStringAsFixed(0)}',
+    value: CurrencyHelper.format(revenue),
     rawValue: revenue,
     subtitle: "Today's total revenue",
     relatedMetrics: [
       MetricRelation(
         label: 'Total Revenue',
-        value: 'Ksh ${revenue.toStringAsFixed(0)}',
-        icon: Icons.payments,
+        value: CurrencyHelper.format(revenue),
+        icon: PhosphorIconsRegular.money,
         color: colorScheme.primary,
       ),
     ],
@@ -157,7 +169,7 @@ MetricDetailData createOrdersDetailData(int orders, ColorScheme colorScheme) {
       MetricRelation(
         label: 'Total Orders',
         value: '$orders',
-        icon: Icons.receipt_long,
+        icon: PhosphorIconsRegular.receipt,
         color: colorScheme.primary,
       ),
     ],
@@ -169,13 +181,13 @@ MetricDetailData createAOVDetailData(double aov, ColorScheme colorScheme) {
   return MetricDetailData(
     type: MetricType.aov,
     title: 'Average Order Value',
-    value: 'Ksh ${aov.toStringAsFixed(0)}',
+    value: CurrencyHelper.format(aov),
     subtitle: 'Average per transaction today',
     relatedMetrics: [
       MetricRelation(
         label: 'Avg Order Value',
-        value: 'Ksh ${aov.toStringAsFixed(0)}',
-        icon: Icons.analytics,
+        value: CurrencyHelper.format(aov),
+        icon: PhosphorIconsRegular.chartBar,
         color: colorScheme.primary,
       ),
     ],
@@ -193,8 +205,52 @@ MetricDetailData createLowStockDetailData(int count, ColorScheme colorScheme) {
       MetricRelation(
         label: 'Items to Reorder',
         value: '$count',
-        icon: Icons.warning_amber,
+        icon: PhosphorIconsRegular.warning,
         color: count > 0 ? Colors.red : Colors.green,
+      ),
+    ],
+    chartData: [],
+  );
+}
+
+MetricDetailData createExpensesDetailData(
+  double expenses,
+  ColorScheme colorScheme,
+) {
+  return MetricDetailData(
+    type: MetricType.expenses,
+    title: 'Expenses Details',
+    value: CurrencyHelper.format(expenses),
+    rawValue: expenses,
+    subtitle: "Today's total expenses",
+    relatedMetrics: [
+      MetricRelation(
+        label: 'Total Expenses',
+        value: CurrencyHelper.format(expenses),
+        icon: PhosphorIconsRegular.receipt,
+        color: Colors.red,
+      ),
+    ],
+    chartData: [],
+  );
+}
+
+MetricDetailData createNetProfitDetailData(
+  double netProfit,
+  ColorScheme colorScheme,
+) {
+  return MetricDetailData(
+    type: MetricType.netProfit,
+    title: 'Net Profit Details',
+    value: CurrencyHelper.format(netProfit),
+    rawValue: netProfit,
+    subtitle: "Today's net profit (Revenue - Expenses)",
+    relatedMetrics: [
+      MetricRelation(
+        label: 'Net Profit',
+        value: CurrencyHelper.format(netProfit),
+        icon: PhosphorIconsRegular.wallet,
+        color: netProfit >= 0 ? Colors.green : Colors.red,
       ),
     ],
     chartData: [],

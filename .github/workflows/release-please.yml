@@ -1,0 +1,80 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - PH
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          release-type: dart
+          target-branch: PH
+
+  build-android:
+    name: Build Android
+    needs: release-please
+    if: needs.release-please.outputs.release_created
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Android Keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+          STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+        run: |
+          echo "::add-mask::$KEY_PASSWORD"
+          echo "::add-mask::$STORE_PASSWORD"
+          echo $KEYSTORE_BASE64 | base64 --decode > android/app/upload-keystore.jks
+          {
+            echo "storePassword=$STORE_PASSWORD"
+            echo "keyPassword=$KEY_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "storeFile=upload-keystore.jks"
+          } > android/key.properties
+          echo "=== key.properties written ==="
+
+      - name: Get Flutter dependencies
+        run: flutter pub get
+
+      - name: Build Android Release
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          POWERSYNC_URL: ${{ secrets.POWERSYNC_URL }}
+        run: |
+          printf '{\n  "SUPABASE_URL": "%s",\n  "SUPABASE_ANON_KEY": "%s",\n  "POWERSYNC_URL": "%s"\n}\n' \
+            "$SUPABASE_URL" "$SUPABASE_ANON_KEY" "$POWERSYNC_URL" > dart_defines.json
+          flutter build apk --release --dart-define-from-file=dart_defines.json
+
+      - name: Upload to Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
+          files: build/app/outputs/flutter-apk/app-release.apk

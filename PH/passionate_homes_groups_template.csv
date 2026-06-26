@@ -1,0 +1,6 @@
+item_group,description,pricing_unit,sqm_per_box,price,default_commission_type,default_commission_value
+MR36,30x60 High Gloss Ceramic Wall & Floor Tiles,sqm,1.44,700.00,fixed,10.00
+YMZ33,60x60 Premium Polished Porcelain Tiles,sqm,1.44,750.00,fixed,5.00
+BLO44/FGE44,40x40 Classic Ceramic Floor Tiles,sqm,1.60,1050.00,fixed,10.00
+Accessories,General Tile Grout & Spacers,piece,1.00,250.00,fixed,5.00
+Basins,Premium Ceramic Vanity Basins,piece,1.00,3500.00,fixed,30.00

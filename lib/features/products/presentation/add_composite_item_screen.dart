@@ -9,6 +9,8 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
+import 'package:zynk/core/utils/currency.dart';
 
 const _uuid = Uuid();
 
@@ -27,10 +29,12 @@ class AddCompositeItemScreen extends ConsumerStatefulWidget {
   const AddCompositeItemScreen({super.key});
 
   @override
-  ConsumerState<AddCompositeItemScreen> createState() => _AddCompositeItemScreenState();
+  ConsumerState<AddCompositeItemScreen> createState() =>
+      _AddCompositeItemScreenState();
 }
 
-class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen> {
+class _AddCompositeItemScreenState
+    extends ConsumerState<AddCompositeItemScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _skuController = TextEditingController();
@@ -52,7 +56,10 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
   }
 
   double get _totalCost {
-    return _components.fold(0.0, (sum, e) => sum + (e.product.costPrice ?? 0.0) * e.quantity);
+    return _components.fold(
+      0.0,
+      (sum, e) => sum + (e.product.costPrice ?? 0.0) * e.quantity,
+    );
   }
 
   void _addComponent(Product product) {
@@ -68,7 +75,9 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
     if (!_formKey.currentState!.validate()) return;
     if (_components.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Add at least one component to the composite item.')),
+        const SnackBar(
+          content: Text('Add at least one component to the composite item.'),
+        ),
       );
       return;
     }
@@ -86,25 +95,33 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
         tenantId: tenantId,
         branchId: branchId,
         name: _nameController.text.trim(),
-        sku: _skuController.text.trim().isEmpty ? null : _skuController.text.trim(),
-        description: _descController.text.trim().isEmpty ? null : _descController.text.trim(),
+        sku: _skuController.text.trim().isEmpty
+            ? null
+            : _skuController.text.trim(),
+        description: _descController.text.trim().isEmpty
+            ? null
+            : _descController.text.trim(),
         basePrice: price,
         costPrice: _totalCost,
-        productType: 'composite',
         isService: false,
-        variantOptions: {'composite_type': _compositeType.name},
       );
 
-      final components = _components.map((e) => CompositeItemComponent(
-        id: _uuid.v4(),
-        tenantId: tenantId,
-        branchId: branchId,
-        compositeProductId: product.id,
-        componentProductId: e.product.id,
-        quantity: e.quantity,
-      )).toList();
+      final components = _components
+          .map(
+            (e) => CompositeItemComponent(
+              id: _uuid.v4(),
+              tenantId: tenantId,
+              branchId: branchId,
+              compositeProductId: product.id,
+              componentProductId: e.product.id,
+              quantity: e.quantity,
+            ),
+          )
+          .toList();
 
-      await ref.read(repositoryProvider).createCompositeProduct(product, components);
+      await ref
+          .read(repositoryProvider)
+          .createCompositeProduct(product, components);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -118,7 +135,10 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e'), backgroundColor: Theme.of(context).colorScheme.error),
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
         );
       }
     } finally {
@@ -141,7 +161,14 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
             child: FilledButton(
               onPressed: isSaving ? null : _save,
               child: isSaving
-                  ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
                   : const Text('Save Item'),
             ),
           ),
@@ -153,14 +180,20 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
           builder: (context, constraints) {
             final isWide = constraints.maxWidth > 800;
             return SingleChildScrollView(
-              padding: EdgeInsets.symmetric(horizontal: isWide ? 80 : 20, vertical: 24),
+              padding: EdgeInsets.symmetric(
+                horizontal: isWide ? 80 : 20,
+                vertical: 24,
+              ),
               child: isWide
                   ? Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(flex: 2, child: _buildLeftPanel(theme, cs)),
                         const SizedBox(width: 24),
-                        Expanded(flex: 3, child: _buildComponentsPanel(theme, cs)),
+                        Expanded(
+                          flex: 3,
+                          child: _buildComponentsPanel(theme, cs),
+                        ),
                       ],
                     )
                   : Column(
@@ -193,7 +226,9 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                 final icon = type == _CompositeType.assembly
                     ? PhosphorIconsDuotone.wrench
                     : PhosphorIconsDuotone.package;
-                final label = type == _CompositeType.assembly ? 'Assembly Item' : 'Kit Item';
+                final label = type == _CompositeType.assembly
+                    ? 'Assembly Item'
+                    : 'Kit Item';
                 final desc = type == _CompositeType.assembly
                     ? 'Physically built from components'
                     : 'Bundled items sold together';
@@ -208,29 +243,35 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                           : const EdgeInsets.only(left: 6),
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: selected ? cs.primaryContainer : cs.surfaceContainerLow,
+                        color: selected
+                            ? cs.primaryContainer
+                            : cs.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: selected ? cs.primary : cs.outlineVariant,
-                          width: selected ? 2 : 1,
-                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          PhosphorIcon(icon, color: selected ? cs.primary : cs.onSurfaceVariant, size: 22),
+                          PhosphorIcon(
+                            icon,
+                            color: selected ? cs.primary : cs.onSurfaceVariant,
+                            size: 22,
+                          ),
                           const SizedBox(height: 8),
                           Text(
                             label,
                             style: theme.textTheme.labelLarge?.copyWith(
-                              fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                              fontWeight: selected
+                                  ? FontWeight.bold
+                                  : FontWeight.w500,
                               color: selected ? cs.primary : cs.onSurface,
                             ),
                           ),
                           const SizedBox(height: 2),
                           Text(
                             desc,
-                            style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                            style: theme.textTheme.labelSmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -251,7 +292,8 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
             TextFormField(
               controller: _nameController,
               decoration: const InputDecoration(labelText: 'Item Name *'),
-              validator: (v) => (v == null || v.trim().isEmpty) ? 'Required' : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Required' : null,
             ),
             const SizedBox(height: 14),
             TextFormField(
@@ -261,7 +303,9 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
             const SizedBox(height: 14),
             TextFormField(
               controller: _descController,
-              decoration: const InputDecoration(labelText: 'Description (optional)'),
+              decoration: const InputDecoration(
+                labelText: 'Description (optional)',
+              ),
               maxLines: 2,
             ),
           ],
@@ -282,9 +326,12 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Auto-calculated cost:', style: theme.textTheme.bodyMedium),
                   Text(
-                    'KES ${_totalCost.toStringAsFixed(2)}',
+                    'Auto-calculated cost:',
+                    style: theme.textTheme.bodyMedium,
+                  ),
+                  Text(
+                    CurrencyHelper.format(_totalCost),
                     style: theme.textTheme.titleMedium?.copyWith(
                       fontWeight: FontWeight.bold,
                       color: cs.primary,
@@ -296,11 +343,17 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
             const SizedBox(height: 14),
             TextFormField(
               controller: _priceController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.]'))],
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9.]')),
+              ],
               decoration: InputDecoration(
                 labelText: 'Selling Price (defaults to cost if empty)',
-                hintText: _totalCost > 0 ? _totalCost.toStringAsFixed(2) : '0.00',
+                hintText: _totalCost > 0
+                    ? _totalCost.toStringAsFixed(2)
+                    : '0.00',
               ),
             ),
           ],
@@ -318,16 +371,25 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
       trailing: _components.isNotEmpty
           ? Text(
               '${_components.length} items',
-              style: theme.textTheme.labelMedium?.copyWith(color: cs.primary, fontWeight: FontWeight.bold),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: cs.primary,
+                fontWeight: FontWeight.bold,
+              ),
             )
           : null,
       children: [
         // Search
         productsAsync.when(
           data: (allProducts) {
-            final available = allProducts.where((p) => p.productType != 'composite').toList();
+            final available = allProducts.toList();
             final filtered = _searchQuery != null && _searchQuery!.isNotEmpty
-                ? available.where((p) => p.name.toLowerCase().contains(_searchQuery!.toLowerCase())).toList()
+                ? available
+                      .where(
+                        (p) => p.name.toLowerCase().contains(
+                          _searchQuery!.toLowerCase(),
+                        ),
+                      )
+                      .toList()
                 : available;
 
             return Column(
@@ -336,8 +398,12 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                 TextField(
                   decoration: InputDecoration(
                     hintText: 'Search items to add...',
-                    prefixIcon: const Icon(PhosphorIconsDuotone.magnifyingGlass),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    prefixIcon: const PhosphorIcon(
+                      PhosphorIconsDuotone.magnifyingGlass,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
                     isDense: true,
                   ),
                   onChanged: (v) => setState(() => _searchQuery = v),
@@ -349,7 +415,6 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: cs.outlineVariant),
                     ),
                     child: filtered.isEmpty
                         ? const Padding(
@@ -363,9 +428,36 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                               final p = filtered[index];
                               return ListTile(
                                 dense: true,
-                                title: Text(p.name, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
-                                subtitle: Text('KES ${p.basePrice.toStringAsFixed(0)}', style: theme.textTheme.bodySmall),
-                                trailing: const Icon(PhosphorIconsBold.plus, size: 18),
+                                title: Text(
+                                  p.name,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                subtitle: Consumer(
+                                  builder: (context, ref, child) {
+                                    final group = p.itemGroupId != null
+                                        ? ref
+                                              .watch(
+                                                itemGroupProvider(
+                                                  p.itemGroupId!,
+                                                ),
+                                              )
+                                              .value
+                                        : null;
+                                    final resolvedPrice = ref
+                                        .watch(productPricingServiceProvider)
+                                        .resolveSellingPrice(p, group);
+                                    return Text(
+                                      CurrencyHelper.format(resolvedPrice),
+                                      style: theme.textTheme.bodySmall,
+                                    );
+                                  },
+                                ),
+                                trailing: const PhosphorIcon(
+                                  PhosphorIconsBold.plus,
+                                  size: 18,
+                                ),
                                 onTap: () {
                                   _addComponent(p);
                                   setState(() => _searchQuery = null);
@@ -390,23 +482,37 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
             child: Center(
               child: Column(
                 children: [
-                  PhosphorIcon(PhosphorIconsDuotone.listBullets, size: 48, color: cs.outlineVariant),
+                  PhosphorIcon(
+                    PhosphorIconsDuotone.listBullets,
+                    size: 48,
+                    color: cs.outlineVariant,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     'Search and add items above.',
-                    style: theme.textTheme.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
             ),
           )
         else
-          ...List.generate(_components.length, (i) => _buildComponentRow(_components[i], i, theme, cs)),
+          ...List.generate(
+            _components.length,
+            (i) => _buildComponentRow(_components[i], i, theme, cs),
+          ),
       ],
     );
   }
 
-  Widget _buildComponentRow(_ComponentEntry entry, int index, ThemeData theme, ColorScheme cs) {
+  Widget _buildComponentRow(
+    _ComponentEntry entry,
+    int index,
+    ThemeData theme,
+    ColorScheme cs,
+  ) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -420,10 +526,17 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(entry.product.name, style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w500)),
                 Text(
-                  'Cost: KES ${(entry.product.costPrice ?? 0).toStringAsFixed(2)} × ${entry.quantity}',
-                  style: theme.textTheme.labelSmall?.copyWith(color: cs.onSurfaceVariant),
+                  entry.product.name,
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                Text(
+                  'Cost: ${CurrencyHelper.format((entry.product.costPrice ?? 0))} × ${entry.quantity}',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -432,7 +545,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
           Row(
             children: [
               IconButton(
-                icon: const Icon(PhosphorIconsBold.minus, size: 16),
+                icon: const PhosphorIcon(PhosphorIconsBold.minus, size: 16),
                 onPressed: () {
                   if (entry.quantity > 1) {
                     setState(() => entry.quantity--);
@@ -441,16 +554,26 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
                   }
                 },
               ),
-              Text('${entry.quantity}', style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                '${entry.quantity}',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               IconButton(
-                icon: const Icon(PhosphorIconsBold.plus, size: 16),
+                icon: const PhosphorIcon(PhosphorIconsBold.plus, size: 16),
                 onPressed: () => setState(() => entry.quantity++),
               ),
             ],
           ),
           Text(
-            'KES ${((entry.product.costPrice ?? 0) * entry.quantity).toStringAsFixed(2)}',
-            style: theme.textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold, color: cs.primary),
+            CurrencyHelper.format(
+              ((entry.product.costPrice ?? 0) * entry.quantity),
+            ),
+            style: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: cs.primary,
+            ),
           ),
         ],
       ),
@@ -462,7 +585,7 @@ class _AddCompositeItemScreenState extends ConsumerState<AddCompositeItemScreen>
 
 class _SectionCard extends StatelessWidget {
   final String title;
-  final IconData icon;
+  final PhosphorIconData icon;
   final Widget? trailing;
   final List<Widget> children;
 
@@ -483,7 +606,6 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -493,9 +615,14 @@ class _SectionCard extends StatelessWidget {
             children: [
               PhosphorIcon(icon, size: 20, color: cs.primary),
               const SizedBox(width: 8),
-              Text(title, style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
+              Text(
+                title,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const Spacer(),
-              if (trailing != null) trailing!,
+              ?trailing,
             ],
           ),
           const SizedBox(height: 16),

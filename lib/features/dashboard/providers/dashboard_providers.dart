@@ -6,14 +6,6 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/dashboard/models/dashboard_models.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// REFRESH TRIGGER
-// ─────────────────────────────────────────────────────────────────────────────
-
-final dashboardRefreshTriggerProvider = Provider.autoDispose<DateTime>(
-  (ref) => DateTime.now(),
-);
-
-// ─────────────────────────────────────────────────────────────────────────────
 // CHART TYPE
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -32,71 +24,97 @@ final chartTypeProvider = NotifierProvider<ChartTypeNotifier, ChartType>(
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// Today's revenue (sum of completed sales grand_total for today)
-final todaysRevenueProvider = StreamProvider.autoDispose<double>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final todaysRevenueProvider = StreamProvider<double>((ref) {
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchTodaysRevenue(branchId: branchId);
+  if (tenantId == null) return Stream.value(0.0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['payments_collected'] as num?) ?? 0).toDouble());
 });
 
+/// Today's expenses
+final todaysExpensesProvider = StreamProvider<double>((ref) {
+  final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  if (tenantId == null) return Stream.value(0.0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['expenses_total'] as num?) ?? 0).toDouble());
+});
+
+// Net profit (revenue − expenses) is derived inline in metric_cards.dart from
+// the revenue/expenses providers — not a derived Provider over StreamProviders
+// (that pattern trips the Riverpod TickerMode pause-count assertion).
+
 /// Total all-time revenue
-final salesDataProvider = StreamProvider.autoDispose<double>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final salesDataProvider = StreamProvider<double>((ref) {
   final repository = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   return repository.watchTotalSales(branchId: branchId);
 });
 
 /// Today's order count
-final todaysOrderCountProvider = StreamProvider.autoDispose<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final todaysOrderCountProvider = StreamProvider<int>((ref) {
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchTodaysOrderCount(branchId: branchId);
+  if (tenantId == null) return Stream.value(0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['orders_count'] as num?) ?? 0).toInt());
 });
 
 /// Pending Approvals Count
-final pendingApprovalsCountProvider = StreamProvider.autoDispose<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final pendingApprovalsCountProvider = StreamProvider<int>((ref) {
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchPendingApprovalsCount(branchId: branchId);
+  if (tenantId == null) return Stream.value(0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['pending_approval_count'] as num?) ?? 0).toInt());
 });
 
 /// Low stock item count
-final lowStockCountProvider = StreamProvider.autoDispose<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final lowStockCountProvider = StreamProvider<int>((ref) {
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchLowStockCount(branchId: branchId);
+  if (tenantId == null) return Stream.value(0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['low_stock_count'] as num?) ?? 0).toInt());
 });
 
 /// Total Inventory Value
-final totalInventoryValueProvider = StreamProvider.autoDispose<double>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final totalInventoryValueProvider = StreamProvider<double>((ref) {
   final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
   final branchId = ref.watch(currentBranchIdProvider);
-  return repo.watchTotalInventoryValue(branchId: branchId);
+  if (tenantId == null) return Stream.value(0.0);
+  return repo
+      .watchTodayKpiSnapshotSmart(tenantId: tenantId, branchId: branchId)
+      .map((row) => ((row['inventory_value'] as num?) ?? 0).toDouble());
 });
 
 /// Recent Adjustments Count
-final recentAdjustmentsCountProvider = StreamProvider.autoDispose<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final recentAdjustmentsCountProvider = StreamProvider<int>((ref) {
   final repo = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   return repo.watchRecentAdjustmentsCount(branchId: branchId);
 });
 
 /// Staff count
-final staffCountProvider = StreamProvider.autoDispose<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final staffCountProvider = StreamProvider<int>((ref) {
   final repo = ref.watch(repositoryProvider);
   return repo.watchStaffCount();
 });
 
 /// Customer count
-final customerCountProvider = StreamProvider.autoDispose<int>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final customerCountProvider = StreamProvider<int>((ref) {
   final repo = ref.watch(repositoryProvider);
   return repo.watchCustomers().map((list) => list.length);
 });
@@ -105,8 +123,7 @@ final customerCountProvider = StreamProvider.autoDispose<int>((ref) {
 // RECENT SALES (replaces mock ordersDataProvider)
 // ─────────────────────────────────────────────────────────────────────────────
 
-final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
-  ref.watch(dashboardRefreshTriggerProvider);
+final recentSalesProvider = StreamProvider<List<Sale>>((ref) {
   final repo = ref.watch(repositoryProvider);
   final branchId = ref.watch(currentBranchIdProvider);
   return repo.watchSales(branchId: branchId, limit: 10);
@@ -116,25 +133,36 @@ final recentSalesProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
 // TOP PRODUCTS (replaces mock productsDataProvider)
 // ─────────────────────────────────────────────────────────────────────────────
 
-final topProductsProvider =
+final topProductsProvider = StreamProvider<List<Map<String, dynamic>>>((ref) {
+  final repo = ref.watch(repositoryProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchTopProducts(branchId: branchId, limit: 6);
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOW STOCK PRODUCTS
+// ─────────────────────────────────────────────────────────────────────────────
+
+final lowStockProductsProvider =
     StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-      ref.watch(dashboardRefreshTriggerProvider);
       final repo = ref.watch(repositoryProvider);
+      final tenantId = ref.watch(tenantIdProvider);
       final branchId = ref.watch(currentBranchIdProvider);
-      return repo.watchTopProducts(branchId: branchId, limit: 6);
+      if (tenantId == null) return Stream.value([]);
+      return repo.watchLowStockProducts(tenantId: tenantId, branchId: branchId);
     });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PAYMENT METHOD BREAKDOWN (replaces mock paymentMethodsProvider)
 // ─────────────────────────────────────────────────────────────────────────────
 
-final paymentBreakdownProvider =
-    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-      ref.watch(dashboardRefreshTriggerProvider);
-      final repo = ref.watch(repositoryProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      return repo.watchPaymentMethodBreakdown(branchId: branchId);
-    });
+final paymentBreakdownProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  final repo = ref.watch(repositoryProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  return repo.watchPaymentMethodBreakdown(branchId: branchId);
+});
 
 // Static chart palette — no theme dependency so this works everywhere
 const _chartColors = [
@@ -202,44 +230,10 @@ String _formatMethodName(String raw) {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SPARKLINE DATA (kept as simple lists for metric cards — derived from streams)
-// ─────────────────────────────────────────────────────────────────────────────
-
-// Sparklines show a mini trend indicator. Since we don't store daily aggregates
-// locally, we just show a flat line at the current value for now. The sparkline
-// widget handles empty lists gracefully.
-final revenueSparklineProvider = Provider.autoDispose<AsyncValue<List<double>>>(
-  (ref) {
-    final revenue = ref.watch(todaysRevenueProvider);
-    return revenue.when(
-      data: (val) => AsyncValue.data([
-        val * 0.7,
-        val * 0.8,
-        val * 0.85,
-        val * 0.9,
-        val * 0.95,
-        val,
-      ]),
-      loading: () => const AsyncValue.loading(),
-      error: (e, st) => AsyncValue.error(e, st),
-    );
-  },
-);
-
-final ordersSparklineProvider = Provider.autoDispose<AsyncValue<List<double>>>((
-  ref,
-) {
-  final orders = ref.watch(todaysOrderCountProvider);
-  return orders.when(
-    data: (val) {
-      final v = val.toDouble();
-      return AsyncValue.data([v * 0.6, v * 0.7, v * 0.8, v * 0.85, v * 0.9, v]);
-    },
-    loading: () => const AsyncValue.loading(),
-    error: (e, st) => AsyncValue.error(e, st),
-  );
-});
+// Sparkline trend data is derived inline in metric_cards.dart from the value
+// providers above. It is deliberately NOT a separate Provider watching these
+// StreamProviders — that pattern tripped a Riverpod pause-count assertion under
+// the StatefulShellRoute's TickerMode pausing.
 
 // ─────────────────────────────────────────────────────────────────────────────
 // METRIC DETAIL DATA
@@ -262,6 +256,10 @@ final metricDetailDataProvider =
             params.value.toInt(),
             params.colorScheme,
           );
+        case MetricType.expenses:
+          return createExpensesDetailData(params.value, params.colorScheme);
+        case MetricType.netProfit:
+          return createNetProfitDetailData(params.value, params.colorScheme);
         default:
           return createRevenueDetailData(params.value, params.colorScheme);
       }
@@ -317,14 +315,26 @@ int _rangeToDays(String range) {
 }
 
 /// Daily revenue + order data for the interactive chart
-final dailySalesChartProvider =
-    StreamProvider.autoDispose<List<Map<String, dynamic>>>((ref) {
-      ref.watch(dashboardRefreshTriggerProvider);
-      final repo = ref.watch(repositoryProvider);
-      final branchId = ref.watch(currentBranchIdProvider);
-      final range = ref.watch(chartTimeRangeProvider);
-      return repo.watchDailySalesData(
-        branchId: branchId,
-        days: _rangeToDays(range),
-      );
-    });
+final dailySalesChartProvider = StreamProvider<List<Map<String, dynamic>>>((
+  ref,
+) {
+  final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+  final branchId = ref.watch(currentBranchIdProvider);
+  final range = ref.watch(chartTimeRangeProvider);
+  final days = _rangeToDays(range);
+
+  final now = DateTime.now();
+  final startDate = now.subtract(Duration(days: days - 1));
+  final endDate = now;
+
+  if (tenantId == null) {
+    return repo.watchDailySalesData(branchId: branchId, days: days);
+  }
+  return repo.watchDailySalesDataSmart(
+    tenantId: tenantId,
+    branchId: branchId,
+    startDate: startDate,
+    endDate: endDate,
+  );
+});

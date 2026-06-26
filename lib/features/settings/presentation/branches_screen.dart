@@ -6,6 +6,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
 
 class BranchesScreen extends ConsumerWidget {
   const BranchesScreen({super.key});
@@ -130,9 +131,7 @@ class _BranchCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
+
         boxShadow: [
           BoxShadow(
             color: colorScheme.shadow.withValues(alpha: 0.05),
@@ -222,7 +221,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
   final addressController = TextEditingController(text: branch.address);
   String phone = branch.phone ?? '';
 
-  showModalBottomSheet(
+  showResponsiveModal(
     context: context,
     isScrollControlled: true,
     shape: const RoundedRectangleBorder(
@@ -253,7 +252,9 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                 textCapitalization: TextCapitalization.words,
                 decoration: InputDecoration(
                   labelText: 'Branch Name',
-                  prefixIcon: const Icon(PhosphorIconsRegular.storefront),
+                  prefixIcon: const PhosphorIcon(
+                    PhosphorIconsRegular.storefront,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -267,7 +268,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                 textCapitalization: TextCapitalization.sentences,
                 decoration: InputDecoration(
                   labelText: 'Address',
-                  prefixIcon: const Icon(PhosphorIconsRegular.mapPin),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.mapPin),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
@@ -282,7 +283,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                     : phone,
                 decoration: InputDecoration(
                   labelText: 'Phone',
-                  prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),

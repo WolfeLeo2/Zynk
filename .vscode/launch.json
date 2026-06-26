@@ -7,19 +7,28 @@
         {
             "name": "Zynk",
             "request": "launch",
-            "type": "dart"
+            "type": "dart",
+            "args": [
+                "--dart-define-from-file=dart_defines.json"
+            ]
         },
         {
             "name": "Zynk (profile mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "profile"
+            "flutterMode": "profile",
+            "args": [
+                "--dart-define-from-file=dart_defines.json"
+            ]
         },
         {
             "name": "Zynk (release mode)",
             "request": "launch",
             "type": "dart",
-            "flutterMode": "release"
+            "flutterMode": "release",
+            "args": [
+                "--dart-define-from-file=dart_defines.json"
+            ]
         },
         {
             "name": "android",

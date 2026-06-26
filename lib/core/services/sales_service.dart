@@ -1,13 +1,16 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:zynk/core/models/sales_models.dart';
 import 'package:uuid/uuid.dart';
-import 'package:zynk/core/config/powersync.dart';
+import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/services/app_logger.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 
-import 'package:zynk/data/local/repository.dart';
-
 final _log = AppLogger('SalesService');
+
+/// Resolved pricing for a single invoice line.
+/// [quantity] is the persisted unit count (boxes for sqm-based items),
+/// [unitPrice] is the per-persisted-unit price (per box for sqm), and [total]
+/// is `unitPrice * quantity`.
+typedef InvoiceLine = ({int quantity, double unitPrice, double total});
 
 /// Thin client service that delegates heavy operations to Supabase edge functions.
 ///
@@ -15,32 +18,128 @@ final _log = AppLogger('SalesService');
 /// **Server-side (edge):** complete-sale, record-payment, manage-sale (approve/void/credit).
 class SalesService {
   final SupabaseClient _supabase;
-  final PowerSyncRepository _repository;
 
-  SalesService(this._supabase, this._repository);
+  SalesService(this._supabase);
+
+  /// Single source of truth for invoice line-item pricing — used by the create,
+  /// edit and clone screens so totals never drift between them.
+  ///
+  /// [enteredPrice] is the per-sqm price for sqm-based items, otherwise the unit
+  /// price. [enteredQty] is the total sqm for sqm-based items, otherwise the
+  /// unit count. sqm quantities are rounded UP to whole boxes.
+  static InvoiceLine resolveLine({
+    required bool isSqmBased,
+    required double coveragePerBox,
+    required double enteredPrice,
+    required double enteredQty,
+  }) {
+    if (isSqmBased) {
+      final coverage = coveragePerBox <= 0 ? 1.0 : coveragePerBox;
+      final boxes = (enteredQty / coverage).ceil();
+      final unitPrice = enteredPrice * coverage; // price per box
+      return (quantity: boxes, unitPrice: unitPrice, total: unitPrice * boxes);
+    }
+    final qty = enteredQty.toInt();
+    return (quantity: qty, unitPrice: enteredPrice, total: enteredPrice * qty);
+  }
 
   /// Ensures the session is fresh before making edge function calls.
   Future<void> _ensureSession() async {
-    try {
-      final session = _supabase.auth.currentSession;
-      if (session == null) {
-        throw Exception('Not authenticated. Please sign in again.');
+    final session = _supabase.auth.currentSession;
+    if (session == null) {
+      throw Exception('Not authenticated. Please sign in again.');
+    }
+
+    final expiresAt = session.expiresAt;
+    if (expiresAt != null) {
+      final expiryTime = DateTime.fromMillisecondsSinceEpoch(expiresAt * 1000);
+      if (expiryTime.difference(DateTime.now()).inSeconds < 60) {
+        _log.i('Session expiring soon, refreshing...');
+        await _refreshAndValidateSession();
+        return;
       }
-      // Refresh if token expires within the next 60 seconds
-      final expiresAt = session.expiresAt;
-      if (expiresAt != null) {
-        final expiryTime = DateTime.fromMillisecondsSinceEpoch(
-          expiresAt * 1000,
-        );
-        if (expiryTime.difference(DateTime.now()).inSeconds < 60) {
-          _log.i('Session expiring soon, refreshing...');
-          await _supabase.auth.refreshSession();
-        }
+    }
+
+    try {
+      final userResponse = await _supabase.auth.getUser();
+      if (userResponse.user == null) {
+        await _refreshAndValidateSession();
+      }
+    } catch (e) {
+      final message = e.toString().toLowerCase();
+      if (message.contains('jwt') ||
+          message.contains('token') ||
+          message.contains('auth')) {
+        await _refreshAndValidateSession();
+        return;
+      }
+      _log.e('Session validation failed: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> _refreshAndValidateSession() async {
+    try {
+      final refreshed = await _supabase.auth.refreshSession();
+      if (refreshed.session == null) {
+        throw Exception('Session refresh returned null session');
+      }
+
+      final userResponse = await _supabase.auth.getUser();
+      if (userResponse.user == null) {
+        throw Exception('Session refresh did not yield a valid user');
       }
     } catch (e) {
       _log.e('Session refresh failed: $e');
-      rethrow;
+      throw Exception(
+        'Your session is invalid or expired. Please sign out and sign in again.',
+      );
     }
+  }
+
+  Future<dynamic> _invokeEdgeFunction(
+    String functionName, {
+    required Map<String, dynamic> body,
+  }) async {
+    await _ensureSession();
+
+    Future<dynamic> invokeOnce() async {
+      return _supabase.functions.invoke(functionName, body: body);
+    }
+
+    var response = await invokeOnce();
+    if (response.status == 401) {
+      _log.i(
+        '$functionName returned 401, refreshing session and retrying once',
+      );
+      await _refreshAndValidateSession();
+      response = await invokeOnce();
+    }
+
+    return response;
+  }
+
+  void _throwAuthAwareError({
+    required int? status,
+    required dynamic data,
+    required String action,
+  }) {
+    final raw =
+        (data is Map<String, dynamic>
+                ? data['error'] ?? data['message'] ?? data['msg']
+                : data)
+            ?.toString();
+    final normalized = (raw ?? '').toLowerCase();
+
+    if (status == 401 ||
+        normalized.contains('invalid jwt') ||
+        normalized.contains('jwt')) {
+      throw Exception(
+        'Session invalid for $action. Please sign out and sign in again.',
+      );
+    }
+
+    throw Exception('$action failed: ${raw ?? 'Unknown error'}');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -50,12 +149,11 @@ class SalesService {
   // ─────────────────────────────────────────────────────────────────────────
 
   // ─────────────────────────────────────────────────────────────────────────
-  // B2B: CREATE AN INVOICE (draft, no payment, no stock decrement)
+  // B2B: CREATE AN INVOICE (pending approval, no payment, no stock decrement)
   // ─────────────────────────────────────────────────────────────────────────
 
-  /// Creates a draft invoice LOCAL-FIRST via PowerSync.
-  /// Does NOT decrement stock or record payment.
-  Future<void> createDraftInvoiceLocal({
+  /// Creates a pending-approval invoice through the authoritative server write path.
+  Future<void> createPendingApprovalInvoiceLocal({
     required final String tenantId,
     required final String branchId,
     required final String customerId,
@@ -64,129 +162,134 @@ class SalesService {
     final String? notes,
     final String? dueDate,
   }) async {
+    await _ensureSession();
+
     // 1. Calculate totals
     double subtotal = 0;
+    final payloadItems = <Map<String, dynamic>>[];
+
     for (final item in cartItems) {
-      subtotal += (item.effectivePrice * item.quantity);
+      if (item.quantity <= 0) continue;
+      final lineTotal = item.effectivePrice * item.quantity;
+      subtotal += lineTotal;
+      payloadItems.add({
+        'product_id': item.product.id,
+        'quantity': item.quantity,
+        'unit_price': item.effectivePrice,
+        'cost_price': item.product.costPrice ?? 0.0,
+        'tax_amount': 0.0,
+        'discount': 0.0,
+        'total': lineTotal,
+        'product_name': item.effectiveName,
+      });
     }
+
+    if (payloadItems.isEmpty) {
+      throw Exception('No invoice items to submit.');
+    }
+
     // Hardcoded tax & discount mappings for now
     final double taxAmount = 0.0;
     final double discountAmount = 0.0;
     final double grandTotal = subtotal + taxAmount - discountAmount;
 
-    // 2. Generate UUIDv7 for the Sale ID
-    final saleId = const Uuid().v7();
+    // 2. Create pending-approval invoice server-side (authoritative write path)
+    final response = await _invokeEdgeFunction(
+      'create-invoice',
+      body: {
+        'tenant_id': tenantId,
+        'branch_id': branchId,
+        'customer_id': customerId,
+        'salesperson_id': salespersonId,
+        'items': payloadItems,
+        'notes': notes,
+        'due_date': dueDate,
+        'subtotal': subtotal,
+        'tax_amount': taxAmount,
+        'discount_amount': discountAmount,
+        'grand_total': grandTotal,
+      },
+    );
 
-    // We cannot reliably generate a sequential INV-xxx offline without conflicts,
-    // so we set a temporary ID. The user expects it to start with INV-.
-    final year = DateTime.now().year;
-    // For local offline creation, we use a TEMP prefix and part of timestamp to avoid clashing
-    // with the sequential ones generated by the server.
-    final tempInvoiceNumber =
-        'INV-$year-TEMP-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}';
-
-    // 3. Write locally
-    final userId = _supabase.auth.currentUser!.id;
-    final now = DateTime.now().toUtc().toIso8601String();
-
-    await db.writeTransaction((tx) async {
-      // Insert Sale
-      await tx.execute(
-        '''
-        INSERT INTO sales (
-          id, tenant_id, branch_id, customer_id, invoice_number, sale_type, 
-          created_by, salesperson_id, total_amount, subtotal, tax_amount, discount_amount, 
-          grand_total, amount_paid, payment_method, status, payment_status, notes, due_date, 
-          created_at, updated_at
-        ) VALUES (
-          ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-        )
-        ''',
-        [
-          saleId,
-          tenantId,
-          branchId,
-          customerId,
-          tempInvoiceNumber,
-          'invoice',
-          userId,
-          salespersonId,
-          grandTotal,
-          subtotal,
-          taxAmount,
-          discountAmount,
-          grandTotal,
-          0.0,
-          null,
-          'pending_approval',
-          'unpaid',
-          notes,
-          dueDate,
-          now,
-          now,
-        ],
+    if (response.status != 200) {
+      _throwAuthAwareError(
+        status: response.status,
+        data: response.data,
+        action: 'create-invoice',
       );
+    }
 
-      // Insert Sale Items
-      for (final item in cartItems) {
-        final itemId = Uuid().v7();
-        final unitPrice = item.effectivePrice;
-        final costPrice = item.product.costPrice ?? 0.0;
-        final lineTotal = unitPrice * item.quantity;
+    final payload = response.data as Map<String, dynamic>? ?? {};
+    final saleId = payload['sale_id'] as String?;
+    if (saleId == null || saleId.isEmpty) {
+      throw Exception('create-invoice did not return sale_id');
+    }
 
-        // Skip items with quantity 0 just in case
-        if (item.quantity <= 0) continue;
-
-        await tx.execute(
-          '''
-          INSERT INTO sale_items (
-            id, sale_id, product_id, tenant_id, quantity, unit_price, 
-            cost_price, tax_amount, discount, total, product_name, created_at, updated_at
-          ) VALUES (
-            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
-          )
-          ''',
-          [
-            itemId,
-            saleId,
-            item.product.id,
-            tenantId,
-            item.quantity,
-            unitPrice,
-            costPrice,
-            0.0,
-            0.0,
-            lineTotal,
-            item.effectiveName,
-            now,
-            now,
-          ],
-        );
-      }
-    });
-
-    _log.i('Draft invoice created offline: $saleId');
+    _log.i('Pending-approval invoice created server-side: $saleId');
   }
 
   // ─────────────────────────────────────────────────────────────────────────
-  // RECORD PAYMENT (Offline-first approach)
+  // RECORD PAYMENT (Server-authoritative)
   // ─────────────────────────────────────────────────────────────────────────
 
   Future<void> recordPayment({
     required String saleId,
+    required String tenantId,
     required double amount,
     required String paymentMethod,
     String? referenceNumber,
     String? notes,
+    bool allowOverpayment = false,
   }) async {
-    await _repository.recordPaymentLocally(
-      saleId: saleId,
-      amount: amount,
-      paymentMethod: paymentMethod,
-      referenceNumber: referenceNumber,
-      notes: notes,
-    );
-    _log.i('Payment of \$amount recorded locally for sale: \$saleId');
+    // Stable idempotency key: a 401-refresh retry re-sends the same body, so a
+    // network retry can't double-charge or double-release stock.
+    final paymentId = const Uuid().v4();
+    await _manageSale('record_payment', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
+      'payment_id': paymentId,
+      'amount': amount,
+      'payment_method': paymentMethod,
+      'reference_number': referenceNumber,
+      'notes': notes,
+      'allow_overpayment': allowOverpayment,
+    });
+    _log.i('Payment of \$amount recorded server-side for sale: \$saleId');
+  }
+
+  /// Updates a pending invoice header and items server-side.
+  Future<Map<String, dynamic>> updateDraftInvoice({
+    required String saleId,
+    required String tenantId,
+    required String customerId,
+    required List<SaleItem> items,
+    String? salespersonId,
+    String? notes,
+    String? dueDate,
+  }) async {
+    return _manageSale('update_draft', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
+      'customer_id': customerId,
+      'salesperson_id': salespersonId,
+      'notes': notes,
+      'due_date': dueDate,
+      'items': items
+          .map(
+            (item) => {
+              'id': item.id,
+              'product_id': item.productId,
+              'quantity': item.quantity,
+              'unit_price': item.unitPrice,
+              'cost_price': item.costPrice,
+              'tax_amount': item.taxAmount,
+              'discount': item.discount,
+              'total': item.total,
+              'product_name': item.productName,
+            },
+          )
+          .toList(),
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -203,6 +306,16 @@ class SalesService {
     });
   }
 
+  Future<Map<String, dynamic>> cloneInvoice(
+    String saleId, {
+    required String tenantId,
+  }) async {
+    return _manageSale('clone_sale', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
+    });
+  }
+
   Future<Map<String, dynamic>> approveSale(
     String saleId, {
     required String tenantId,
@@ -213,7 +326,7 @@ class SalesService {
     });
   }
 
-  /// Fulfill an approved sale
+  /// Fulfill an active sale (non-voided / non-rejected)
   Future<Map<String, dynamic>> fulfillSale(
     String saleId, {
     required String tenantId,
@@ -233,6 +346,31 @@ class SalesService {
       'sale_id': saleId,
       'tenant_id': tenantId,
       'reason': reason,
+    });
+  }
+
+  /// Reverts an approved invoice back to pending_approval.
+  /// Reverses stock (if fulfilled) and deletes all recorded payments.
+  /// Available to anyone with the approve_invoices permission.
+  Future<Map<String, dynamic>> unapproveSale(
+    String saleId, {
+    required String tenantId,
+  }) async {
+    return _manageSale('unapprove_sale', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
+    });
+  }
+
+  /// Fast-track approves a pending invoice, bypassing the dual-approval requirement.
+  /// Available to anyone with the approve_invoices permission.
+  Future<Map<String, dynamic>> finalApproveSale(
+    String saleId, {
+    required String tenantId,
+  }) async {
+    return _manageSale('final_approve_sale', {
+      'sale_id': saleId,
+      'tenant_id': tenantId,
     });
   }
 
@@ -289,6 +427,7 @@ class SalesService {
     return _manageSale('create_credit_note', {
       'tenant_id': tenantId,
       'branch_id': branchId,
+      'sale_id': originalSaleId,
       'original_sale_id': originalSaleId,
       'reason': reason,
       'items': items.map((i) => i.toMap()).toList(),
@@ -318,17 +457,18 @@ class SalesService {
     String action,
     Map<String, dynamic> params,
   ) async {
-    await _ensureSession();
-
-    final response = await _supabase.functions.invoke(
+    final response = await _invokeEdgeFunction(
       'manage-sale',
       body: {'action': action, ...params},
     );
 
     if (response.status != 200) {
-      final error = response.data?['error'] ?? 'Unknown error';
-      _log.e('$action failed: $error');
-      throw Exception('$action failed: $error');
+      _log.e('$action failed: ${response.data}');
+      _throwAuthAwareError(
+        status: response.status,
+        data: response.data,
+        action: action,
+      );
     }
 
     _log.i('$action success: ${response.data}');

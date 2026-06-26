@@ -1,15 +1,18 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/features/products/presentation/batch_upload_screen.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/features/products/presentation/batch_upload_screen.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/shared/widgets/product_card.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
-  const ProductsScreen({super.key});
+  final String? initialGroupId;
+
+  const ProductsScreen({super.key, this.initialGroupId});
 
   @override
   ConsumerState<ProductsScreen> createState() => _ProductsScreenState();
@@ -18,6 +21,13 @@ class ProductsScreen extends ConsumerStatefulWidget {
 class _ProductsScreenState extends ConsumerState<ProductsScreen> {
   String _searchQuery = '';
   String? _selectedCategoryId;
+  String? _filterGroupId;
+
+  @override
+  void initState() {
+    super.initState();
+    _filterGroupId = widget.initialGroupId;
+  }
 
   void importCsv(BuildContext context) {
     Navigator.push(
@@ -47,79 +57,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             return const SizedBox.shrink();
           },
         ),
-        title: const Text('Items'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Theme(
-              data: theme.copyWith(
-                splashColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-              ),
-              child: PopupMenuButton<String>(
-                offset: const Offset(0, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                tooltip: 'Add options',
-                onSelected: (value) {
-                  if (value == 'csv') {
-                    importCsv(context);
-                  } else if (value == 'item') {
-                    context.push('/products/add');
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'item',
-                    child: Row(
-                      children: [
-                        Icon(PhosphorIconsBold.plus, size: 20),
-                        SizedBox(width: 12),
-                        Text('Add item'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'csv',
-                    child: Row(
-                      children: [
-                        Icon(PhosphorIconsDuotone.fileCsv, size: 20),
-                        SizedBox(width: 12),
-                        Text('Import CSV'),
-                      ],
-                    ),
-                  ),
-                ],
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.secondary,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        PhosphorIconsBold.plus,
-                        size: 18,
-                        color: theme.colorScheme.onSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Add',
-                        style: TextStyle(
-                          color: theme.colorScheme.onSecondary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        title: const Text('Products'),
       ),
       body: Column(
         children: [
@@ -129,20 +67,16 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             child: TextField(
               decoration: InputDecoration(
                 hintText: 'Search item by name...',
-                prefixIcon: const Icon(PhosphorIconsDuotone.magnifyingGlass),
+                prefixIcon: const PhosphorIcon(
+                  PhosphorIconsRegular.magnifyingGlass,
+                ),
                 filled: true,
-                fillColor: theme.colorScheme.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
+                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.3,
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: theme.colorScheme.outlineVariant),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: theme.colorScheme.primary),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
               ),
               onChanged: (val) => setState(() => _searchQuery = val),
@@ -150,20 +84,34 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           ),
 
           // Category Filter Chips
-          if (categories.isNotEmpty)
+          if (categories.isNotEmpty || _filterGroupId != null)
             SizedBox(
               height: 48,
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 padding: const EdgeInsets.symmetric(horizontal: 24),
                 children: [
+                  if (_filterGroupId != null)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        showCheckmark: true,
+                        label: const Text('Filtered by Group'),
+                        selected: true,
+                        onSelected: (_) =>
+                            setState(() => _filterGroupId = null),
+                        selectedColor: theme.colorScheme.primaryContainer,
+                        checkmarkColor: theme.colorScheme.onPrimaryContainer,
+                      ),
+                    ),
                   Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: FilterChip(
                       showCheckmark: false,
                       label: const Text('All Categories'),
                       selected: _selectedCategoryId == null,
-                      onSelected: (_) => setState(() => _selectedCategoryId = null),
+                      onSelected: (_) =>
+                          setState(() => _selectedCategoryId = null),
                     ),
                   ),
                   ...categories.map(
@@ -188,19 +136,25 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           Expanded(
             child: productsAsync.when(
               data: (products) {
-                // Filter out non-standard items — those have their own screens
-                var filtered = products
-                    .where((p) => p.productType == 'standard')
-                    .toList();
+                var filtered = products.toList();
 
                 if (_selectedCategoryId != null) {
                   filtered = filtered
                       .where((p) => p.categoryId == _selectedCategoryId)
                       .toList();
                 }
+                if (_filterGroupId != null) {
+                  filtered = filtered
+                      .where((p) => p.itemGroupId == _filterGroupId)
+                      .toList();
+                }
                 if (_searchQuery.isNotEmpty) {
                   filtered = filtered
-                      .where((p) => p.name.toLowerCase().contains(_searchQuery.toLowerCase()))
+                      .where(
+                        (p) => p.name.toLowerCase().contains(
+                          _searchQuery.toLowerCase(),
+                        ),
+                      )
                       .toList();
                 }
 
@@ -225,6 +179,38 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           ),
         ],
       ),
+      floatingActionButton: SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        label: const Text('Add item'),
+        spacing: 3,
+        childPadding: const EdgeInsets.all(5),
+        spaceBetweenChildren: 4,
+        tooltip: 'Add Item',
+        heroTag: 'add-item-speed-dial',
+        elevation: 3.0, // Standard M3 FAB elevation
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16), // Standard M3 FAB shape
+        ),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        children: [
+          SpeedDialChild(
+            child: const PhosphorIcon(PhosphorIconsBold.plus),
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            foregroundColor: theme.colorScheme.onSecondaryContainer,
+            label: 'Add item',
+            onTap: () => context.push('/products/add'),
+          ),
+          SpeedDialChild(
+            child: const PhosphorIcon(PhosphorIconsDuotone.fileCsv),
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            foregroundColor: theme.colorScheme.onSecondaryContainer,
+            label: 'Import CSV',
+            onTap: () => importCsv(context),
+          ),
+        ],
+      ),
     );
   }
 
@@ -239,7 +225,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               color: theme.colorScheme.surfaceContainerHighest,
               shape: BoxShape.circle,
             ),
-            child: Icon(
+            child: PhosphorIcon(
               PhosphorIconsDuotone.package,
               size: 64,
               color: theme.colorScheme.onSurfaceVariant,
@@ -248,20 +234,24 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
           const SizedBox(height: 24),
           Text(
             _searchQuery.isEmpty ? 'No Items Yet' : 'No Results Found',
-            style: theme.textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
+            style: theme.textTheme.headlineSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+            ),
           ),
           const SizedBox(height: 8),
           Text(
             _searchQuery.isEmpty
                 ? 'Get started by adding your first product.'
                 : 'Try adjusting your search or category filter.',
-            style: theme.textTheme.bodyLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            style: theme.textTheme.bodyLarge?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
           ),
           if (_searchQuery.isEmpty) ...[
             const SizedBox(height: 24),
             FilledButton.icon(
               onPressed: () => context.push('/products/add'),
-              icon: const Icon(PhosphorIconsBold.plus),
+              icon: const PhosphorIcon(PhosphorIconsBold.plus),
               label: const Text('Add Your First Item'),
             ),
           ],
@@ -314,124 +304,10 @@ class _ProductGridCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return RepaintBoundary(
-      child: InkWell(
-        onTap: () => context.push('/products/details', extra: product),
-        borderRadius: BorderRadius.circular(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Square Image Area
-            AspectRatio(
-              aspectRatio: 1.0,
-              child: Container(
-                decoration: BoxDecoration(
-                  color: cs.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: cs.outlineVariant, width: 1),
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    product.imageUrl != null
-                        ? CachedNetworkImage(
-                            imageUrl: product.imageUrl!,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => const SizedBox.shrink(),
-                            errorWidget: (context, url, error) => Center(
-                              child: Icon(PhosphorIconsDuotone.imageBroken, color: cs.onSurfaceVariant),
-                            ),
-                          )
-                        : Center(
-                            child: Icon(PhosphorIconsDuotone.package, size: 40, color: cs.outlineVariant),
-                          ),
-                    // Inventory Badge Overlay
-                    if (!product.isService && (product.variantOptions == null || product.variantOptions!.isEmpty))
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: ref.watch(stockProvider(product.id)).when(
-                          data: (stock) {
-                            final quantity = stock?.quantity ?? 0;
-                            final isLowStock = quantity <= 5;
-                            return Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-                              decoration: BoxDecoration(
-                                color: isLowStock
-                                    ? cs.errorContainer.withValues(alpha: 0.9)
-                                    : cs.surface.withValues(alpha: 0.85),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Icon(
-                                    isLowStock ? PhosphorIconsFill.warningCircle : PhosphorIconsFill.circle,
-                                    size: 10,
-                                    color: isLowStock ? cs.error : cs.primary,
-                                  ),
-                                  const SizedBox(width: 4),
-                                  Text(
-                                    isLowStock ? '$quantity Left' : 'Stocked',
-                                    style: theme.textTheme.labelSmall?.copyWith(
-                                      fontWeight: FontWeight.bold,
-                                      color: isLowStock ? cs.onErrorContainer : cs.onSurface,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          },
-                          loading: () => const SizedBox.shrink(),
-                          error: (_, __) => const SizedBox.shrink(),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            // Name and Details
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    product.name,
-                    style: theme.textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600, height: 1.2),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  if (product.variantOptions?.isNotEmpty == true) ...[  
-                    const SizedBox(height: 2),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: cs.secondaryContainer,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        'Has Variants',
-                        style: theme.textTheme.labelSmall?.copyWith(color: cs.onSecondaryContainer),
-                      ),
-                    ),
-                  ],
-                  const SizedBox(height: 4),
-                  Text(
-                    'KES ${product.basePrice.toStringAsFixed(0)}',
-                    style: theme.textTheme.titleSmall?.copyWith(color: cs.primary, fontWeight: FontWeight.bold),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return SharedProductCard(
+      product: product,
+      onTap: () => context.push('/products/details', extra: product),
+      showCartBadges: false,
     );
   }
 }

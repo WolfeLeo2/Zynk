@@ -195,7 +195,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen>
                 color: successColor.withValues(alpha: 0.15),
                 shape: BoxShape.circle,
               ),
-              child: Icon(
+              child: PhosphorIcon(
                 PhosphorIconsDuotone.envelopeOpen,
                 size: 40,
                 color: successColor,
@@ -263,12 +263,6 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen>
                           color: filled
                               ? (_pinError ? colorScheme.error : successColor)
                               : Colors.transparent,
-                          border: Border.all(
-                            color: filled
-                                ? (_pinError ? colorScheme.error : successColor)
-                                : colorScheme.outline,
-                            width: 2,
-                          ),
                         ),
                       );
                     }),

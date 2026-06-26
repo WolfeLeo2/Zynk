@@ -1,5 +1,9 @@
 // NOTE: 'dart:convert' no longer needed — credit note items use a junction table.
 
+import 'package:json_annotation/json_annotation.dart';
+
+part 'sales_models.g.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // ENUMS
 // ─────────────────────────────────────────────────────────────────────────────
@@ -72,19 +76,16 @@ enum PaymentStatus {
 // ─────────────────────────────────────────────────────────────────────────────
 
 enum InvoiceStatus {
-  draft,
   pendingApproval,
   approved,
   rejected,
-  partiallyPaid, // Legacy, kept for safe parsing
-  paid,          // Legacy, kept for safe parsing
-  completed,
+  partiallyPaid, // Legacy value, no longer used for new lifecycle writes
+  paid, // Legacy value, no longer used for new lifecycle writes
+  completed, // Legacy value, no longer used for new lifecycle writes
   voided;
 
   String get value {
     switch (this) {
-      case InvoiceStatus.draft:
-        return 'draft';
       case InvoiceStatus.pendingApproval:
         return 'pending_approval';
       case InvoiceStatus.approved:
@@ -104,8 +105,6 @@ enum InvoiceStatus {
 
   String get displayName {
     switch (this) {
-      case InvoiceStatus.draft:
-        return 'Draft';
       case InvoiceStatus.pendingApproval:
         return 'Pending Approval';
       case InvoiceStatus.approved:
@@ -128,17 +127,10 @@ enum InvoiceStatus {
 
   bool get canBeApproved => this == InvoiceStatus.pendingApproval;
 
-  /// Paid and completed invoices cannot be voided.
-  /// Admin must delete payments first to unlock voiding.
-  bool get canBeVoided =>
-      this != InvoiceStatus.paid &&
-      this != InvoiceStatus.completed &&
-      this != InvoiceStatus.voided;
-
   static InvoiceStatus fromString(String? status) {
     switch (status?.toLowerCase()) {
       case 'draft':
-        return InvoiceStatus.draft;
+        return InvoiceStatus.pendingApproval;
       case 'pending_approval':
         return InvoiceStatus.pendingApproval;
       case 'approved':
@@ -154,7 +146,7 @@ enum InvoiceStatus {
       case 'voided':
         return InvoiceStatus.voided;
       default:
-        return InvoiceStatus.draft;
+        return InvoiceStatus.pendingApproval;
     }
   }
 }
@@ -163,6 +155,7 @@ enum InvoiceStatus {
 // SALE MODEL (Invoice)
 // ─────────────────────────────────────────────────────────────────────────────
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Sale {
   final String id;
   final String tenantId;
@@ -180,16 +173,29 @@ class Sale {
   final double grandTotal;
   final double amountPaid;
   final String? paymentMethod;
+  @JsonKey(fromJson: _invoiceStatusFromJson, toJson: _invoiceStatusToJson)
   final InvoiceStatus status;
+  final int requiredApprovals;
+  final int approvalCount;
+  @JsonKey(fromJson: _paymentStatusFromJson, toJson: _paymentStatusToJson)
   final PaymentStatus paymentStatus;
+  @JsonKey(
+    fromJson: _fulfillmentStatusFromJson,
+    toJson: _fulfillmentStatusToJson,
+  )
   final FulfillmentStatus fulfillmentStatus;
   final String? notes;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? dueDate;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? completedAt;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? voidedAt;
   final String? voidReason;
   final String? externalRef;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   Sale({
@@ -209,7 +215,9 @@ class Sale {
     this.grandTotal = 0,
     this.amountPaid = 0,
     this.paymentMethod,
-    this.status = InvoiceStatus.draft,
+    this.status = InvoiceStatus.pendingApproval,
+    this.requiredApprovals = 2,
+    this.approvalCount = 0,
     this.paymentStatus = PaymentStatus.unpaid,
     this.fulfillmentStatus = FulfillmentStatus.unreleased,
     this.notes,
@@ -224,81 +232,42 @@ class Sale {
 
   double get remainingBalance => grandTotal - amountPaid;
   bool get isFullyPaid => amountPaid >= grandTotal;
-  
-  // Can only accept payment if it's not fully paid and not voided.
-  bool get canAcceptPayment => paymentStatus != PaymentStatus.paid && status != InvoiceStatus.voided && status != InvoiceStatus.rejected;
 
-  factory Sale.fromMap(Map<String, dynamic> map) {
-    return Sale(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String,
-      customerId: map['customer_id'] as String?,
-      invoiceNumber: map['invoice_number'] as String?,
-      saleType: map['sale_type'] as String? ?? 'sale',
-      createdBy: map['created_by'] as String?,
-      salespersonId: map['salesperson_id'] as String?,
-      approvedBy: map['approved_by'] as String?,
-      totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0,
-      subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
-      taxAmount: (map['tax_amount'] as num?)?.toDouble() ?? 0,
-      discountAmount: (map['discount_amount'] as num?)?.toDouble() ?? 0,
-      grandTotal: (map['grand_total'] as num?)?.toDouble() ?? 0,
-      amountPaid: (map['amount_paid'] as num?)?.toDouble() ?? 0,
-      paymentMethod: map['payment_method'] as String?,
-      status: InvoiceStatus.fromString(map['status'] as String?),
-      paymentStatus: PaymentStatus.fromString(map['payment_status'] as String?),
-      fulfillmentStatus: FulfillmentStatus.fromString(
-        map['fulfillment_status'] as String?,
-      ),
-      notes: map['notes'] as String?,
-      dueDate: _parseDate(map['due_date']),
-      completedAt: _parseDate(map['completed_at']),
-      voidedAt: _parseDate(map['voided_at']),
-      voidReason: map['void_reason'] as String?,
-      externalRef: map['external_ref'] as String?,
-      createdAt: _parseDate(map['created_at']),
-      updatedAt: _parseDate(map['updated_at']),
-    );
-  }
+  /// Payments are accepted for active invoices and blocked only when terminal.
+  bool get canAcceptPayment =>
+      paymentStatus != PaymentStatus.paid &&
+      status != InvoiceStatus.voided &&
+      status != InvoiceStatus.rejected;
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'customer_id': customerId,
-      'invoice_number': invoiceNumber,
-      'sale_type': saleType,
-      'created_by': createdBy,
-      'salesperson_id': salespersonId,
-      'approved_by': approvedBy,
-      'total_amount': totalAmount,
-      'subtotal': subtotal,
-      'tax_amount': taxAmount,
-      'discount_amount': discountAmount,
-      'grand_total': grandTotal,
-      'amount_paid': amountPaid,
-      'payment_method': paymentMethod,
-      'status': status.value,
-      'payment_status': paymentStatus.value,
-      'fulfillment_status': fulfillmentStatus.value,
-      'notes': notes,
-      'due_date': dueDate?.toIso8601String(),
-      'completed_at': completedAt?.toIso8601String(),
-      'voided_at': voidedAt?.toIso8601String(),
-      'void_reason': voidReason,
-      'external_ref': externalRef,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  /// Voiding is blocked once any payment is recorded.
+  bool get canBeVoided =>
+      status != InvoiceStatus.voided &&
+      status != InvoiceStatus.rejected &&
+      amountPaid <= 0;
+
+  /// Goods release is independent from payment state.
+  bool get canBeReleased =>
+      status != InvoiceStatus.voided &&
+      status != InvoiceStatus.rejected &&
+      fulfillmentStatus == FulfillmentStatus.unreleased;
+
+  /// Derived business completion: paid + released while still active.
+  bool get isOperationallyCompleted =>
+      paymentStatus == PaymentStatus.paid &&
+      fulfillmentStatus == FulfillmentStatus.released &&
+      status != InvoiceStatus.voided &&
+      status != InvoiceStatus.rejected;
+
+  factory Sale.fromMap(Map<String, dynamic> map) => _$SaleFromJson(map);
+
+  Map<String, dynamic> toMap() => _$SaleToJson(this);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SALE ITEM
 // ─────────────────────────────────────────────────────────────────────────────
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class SaleItem {
   final String id;
   final String saleId;
@@ -310,11 +279,15 @@ class SaleItem {
   final double taxAmount;
   final double discount;
   final double total;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   // Joined fields (not stored, populated by queries)
+  @JsonKey(includeToJson: false)
   final String? productName;
+  @JsonKey(includeToJson: false)
   final String? productImageUrl;
 
   SaleItem({
@@ -336,41 +309,9 @@ class SaleItem {
 
   double get lineProfit => (unitPrice - costPrice) * quantity;
 
-  factory SaleItem.fromMap(Map<String, dynamic> map) {
-    return SaleItem(
-      id: map['id'] as String,
-      saleId: map['sale_id'] as String,
-      productId: map['product_id'] as String,
-      tenantId: map['tenant_id'] as String?,
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
-      unitPrice: (map['unit_price'] as num?)?.toDouble() ?? 0,
-      costPrice: (map['cost_price'] as num?)?.toDouble() ?? 0,
-      taxAmount: (map['tax_amount'] as num?)?.toDouble() ?? 0,
-      discount: (map['discount'] as num?)?.toDouble() ?? 0,
-      total: (map['total'] as num?)?.toDouble() ?? 0,
-      createdAt: _parseDate(map['created_at']),
-      updatedAt: _parseDate(map['updated_at']),
-      productName: map['product_name'] as String?,
-      productImageUrl: map['product_image_url'] as String?,
-    );
-  }
+  factory SaleItem.fromMap(Map<String, dynamic> map) => _$SaleItemFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'sale_id': saleId,
-      'product_id': productId,
-      'tenant_id': tenantId,
-      'quantity': quantity,
-      'unit_price': unitPrice,
-      'cost_price': costPrice,
-      'tax_amount': taxAmount,
-      'discount': discount,
-      'total': total,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$SaleItemToJson(this);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -433,16 +374,19 @@ enum PaymentMethod {
   }
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Payment {
   final String id;
   final String tenantId;
   final String? branchId;
   final String saleId;
   final double amount;
+  @JsonKey(fromJson: _paymentMethodFromJson, toJson: _paymentMethodToJson)
   final PaymentMethod paymentMethod;
   final String? referenceNumber;
   final String? recordedBy;
   final String? notes;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? createdAt;
 
   Payment({
@@ -458,35 +402,83 @@ class Payment {
     this.createdAt,
   });
 
-  factory Payment.fromMap(Map<String, dynamic> map) {
-    return Payment(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String?,
-      saleId: map['sale_id'] as String,
-      amount: (map['amount'] as num?)?.toDouble() ?? 0,
-      paymentMethod: PaymentMethod.fromString(map['payment_method'] as String?),
-      referenceNumber: map['reference_number'] as String?,
-      recordedBy: map['recorded_by'] as String?,
-      notes: map['notes'] as String?,
-      createdAt: _parseDate(map['created_at']),
-    );
+  factory Payment.fromMap(Map<String, dynamic> map) => _$PaymentFromJson(map);
+
+  Map<String, dynamic> toMap() => _$PaymentToJson(this);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// SALE APPROVALS
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum SaleApprovalDecision {
+  approved,
+  rejected;
+
+  String get value {
+    switch (this) {
+      case SaleApprovalDecision.approved:
+        return 'approved';
+      case SaleApprovalDecision.rejected:
+        return 'rejected';
+    }
   }
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'sale_id': saleId,
-      'amount': amount,
-      'payment_method': paymentMethod.value,
-      'reference_number': referenceNumber,
-      'recorded_by': recordedBy,
-      'notes': notes,
-      'created_at': createdAt?.toIso8601String(),
-    };
+  String get displayName {
+    switch (this) {
+      case SaleApprovalDecision.approved:
+        return 'Approved';
+      case SaleApprovalDecision.rejected:
+        return 'Rejected';
+    }
   }
+
+  static SaleApprovalDecision fromString(String? value) {
+    switch (value?.toLowerCase()) {
+      case 'rejected':
+        return SaleApprovalDecision.rejected;
+      case 'approved':
+      default:
+        return SaleApprovalDecision.approved;
+    }
+  }
+}
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class SaleApproval {
+  final String id;
+  final String saleId;
+  final String tenantId;
+  final String approverUserId;
+  @JsonKey(
+    fromJson: _saleApprovalDecisionFromJson,
+    toJson: _saleApprovalDecisionToJson,
+  )
+  final SaleApprovalDecision decision;
+  final String? notes;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
+  final DateTime? createdAt;
+  @JsonKey(includeToJson: false)
+  final String? approverDisplayName;
+  @JsonKey(includeToJson: false)
+  final String? approverRole;
+
+  SaleApproval({
+    required this.id,
+    required this.saleId,
+    required this.tenantId,
+    required this.approverUserId,
+    this.decision = SaleApprovalDecision.approved,
+    this.notes,
+    this.createdAt,
+    this.approverDisplayName,
+    this.approverRole,
+  });
+
+  factory SaleApproval.fromMap(Map<String, dynamic> map) =>
+      _$SaleApprovalFromJson(map);
+
+  Map<String, dynamic> toMap() => _$SaleApprovalToJson(this);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -548,6 +540,7 @@ enum CreditNoteStatus {
   }
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class CreditNoteItem {
   final String productId;
   final String? productName;
@@ -565,38 +558,28 @@ class CreditNoteItem {
     required this.total,
   });
 
-  factory CreditNoteItem.fromMap(Map<String, dynamic> map) {
-    return CreditNoteItem(
-      productId: map['product_id'] as String,
-      productName: map['product_name'] as String?,
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
-      unitPrice: (map['unit_price'] as num?)?.toDouble() ?? 0,
-      taxAmount: (map['tax_amount'] as num?)?.toDouble() ?? 0,
-      total: (map['total'] as num?)?.toDouble() ?? 0,
-    );
-  }
+  factory CreditNoteItem.fromJson(Map<String, dynamic> json) =>
+      _$CreditNoteItemFromJson(json);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'product_id': productId,
-      'product_name': productName,
-      'quantity': quantity,
-      'unit_price': unitPrice,
-      'tax_amount': taxAmount,
-      'total': total,
-    };
-  }
+  factory CreditNoteItem.fromMap(Map<String, dynamic> map) =>
+      _$CreditNoteItemFromJson(map);
+
+  Map<String, dynamic> toMap() => _$CreditNoteItemToJson(this);
 }
 
+@JsonSerializable(fieldRename: FieldRename.snake)
 class CreditNote {
   final String id;
   final String tenantId;
   final String? branchId;
   final String originalSaleId;
   final String? creditNumber;
+  @JsonKey(fromJson: _creditNoteStatusFromJson, toJson: _creditNoteStatusToJson)
   final CreditNoteStatus status;
+  @JsonKey(fromJson: _boolFromIntOrBool, toJson: _boolToInt)
   final bool restockItems;
   final String reason;
+  @JsonKey(includeToJson: false)
   final List<CreditNoteItem> items;
   final double subtotal;
   final double taxAmount;
@@ -604,7 +587,9 @@ class CreditNote {
   final String? appliedToSaleId;
   final String? createdBy;
   final String? approvedBy;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? createdAt;
+  @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? updatedAt;
 
   CreditNote({
@@ -627,54 +612,10 @@ class CreditNote {
     this.updatedAt,
   });
 
-  factory CreditNote.fromMap(Map<String, dynamic> map) {
-    // Items are now loaded separately from credit_note_items table.
-    // When building a CreditNote via a direct DB query that joins items,
-    // call fromMap with an explicit items list.
-    return CreditNote(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String?,
-      originalSaleId: map['original_sale_id'] as String,
-      creditNumber: map['credit_number'] as String?,
-      status: CreditNoteStatus.fromString(map['status'] as String?),
-      restockItems: map['restock_items'] == 1 || map['restock_items'] == true,
-      reason: map['reason'] as String? ?? '',
-      items: (map['items'] as List<dynamic>? ?? [])
-          .map((e) => CreditNoteItem.fromMap(e as Map<String, dynamic>))
-          .toList(),
-      subtotal: (map['subtotal'] as num?)?.toDouble() ?? 0,
-      taxAmount: (map['tax_amount'] as num?)?.toDouble() ?? 0,
-      total: (map['total'] as num?)?.toDouble() ?? 0,
-      appliedToSaleId: map['applied_to_sale_id'] as String?,
-      createdBy: map['created_by'] as String?,
-      approvedBy: map['approved_by'] as String?,
-      createdAt: _parseDate(map['created_at']),
-      updatedAt: _parseDate(map['updated_at']),
-    );
-  }
+  factory CreditNote.fromMap(Map<String, dynamic> map) =>
+      _$CreditNoteFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'original_sale_id': originalSaleId,
-      'credit_number': creditNumber,
-      'status': status.value,
-      'restock_items': restockItems ? 1 : 0,
-      'reason': reason,
-      // 'items' is now a junction table; do not serialize here
-      'subtotal': subtotal,
-      'tax_amount': taxAmount,
-      'total': total,
-      'applied_to_sale_id': appliedToSaleId,
-      'created_by': createdBy,
-      'approved_by': approvedBy,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$CreditNoteToJson(this);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -686,3 +627,40 @@ DateTime? _parseDate(dynamic value) {
   if (value is DateTime) return value;
   return DateTime.tryParse(value.toString());
 }
+
+String? _dateToIso(DateTime? value) => value?.toIso8601String();
+
+InvoiceStatus _invoiceStatusFromJson(String? value) =>
+    InvoiceStatus.fromString(value);
+
+String _invoiceStatusToJson(InvoiceStatus value) => value.value;
+
+PaymentStatus _paymentStatusFromJson(String? value) =>
+    PaymentStatus.fromString(value);
+
+String _paymentStatusToJson(PaymentStatus value) => value.value;
+
+FulfillmentStatus _fulfillmentStatusFromJson(String? value) =>
+    FulfillmentStatus.fromString(value);
+
+String _fulfillmentStatusToJson(FulfillmentStatus value) => value.value;
+
+PaymentMethod _paymentMethodFromJson(String? value) =>
+    PaymentMethod.fromString(value);
+
+String _paymentMethodToJson(PaymentMethod value) => value.value;
+
+SaleApprovalDecision _saleApprovalDecisionFromJson(String? value) =>
+    SaleApprovalDecision.fromString(value);
+
+String _saleApprovalDecisionToJson(SaleApprovalDecision value) => value.value;
+
+CreditNoteStatus _creditNoteStatusFromJson(String? value) =>
+    CreditNoteStatus.fromString(value);
+
+String _creditNoteStatusToJson(CreditNoteStatus value) => value.value;
+
+bool _boolFromIntOrBool(dynamic value) =>
+    value == true || value == 1 || value == '1';
+
+int _boolToInt(bool value) => value ? 1 : 0;

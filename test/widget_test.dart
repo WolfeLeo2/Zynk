@@ -6,17 +6,30 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/main.dart';
 
 void main() {
   group('Zynk App Tests', () {
+    late SharedPreferences prefs;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      prefs = await SharedPreferences.getInstance();
+    });
+
     testWidgets('App renders without crashing', (WidgetTester tester) async {
       // Build our app wrapped in ProviderScope
-      await tester.pumpWidget(const ProviderScope(child: MyApp()));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: const MyApp(),
+        ),
+      );
 
       // Wait for initialization
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
 
       // Verify app title is present
       expect(find.text('Zynk POS'), findsOneWidget);
@@ -25,9 +38,14 @@ void main() {
     testWidgets('Login screen shows on initial load', (
       WidgetTester tester,
     ) async {
-      await tester.pumpWidget(const ProviderScope(child: MyApp()));
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+          child: const MyApp(),
+        ),
+      );
 
-      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
 
       // Should show login screen elements
       expect(find.text('Welcome Back'), findsOneWidget);

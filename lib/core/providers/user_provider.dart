@@ -7,10 +7,13 @@ import 'package:zynk/core/providers/profile_provider.dart';
 final userRoleProvider = Provider<UserRole>((ref) {
   final profileAsync = ref.watch(currentUserProfileProvider);
 
+  // Fail CLOSED: while the profile is loading or errored, assume the
+  // least-privileged role. The app gates the shell on a resolved profile
+  // (see AppShell), so this default is only ever read transiently.
   return profileAsync.when(
-    data: (profile) => profile?.role ?? UserRole.owner,
-    loading: () => UserRole.owner,
-    error: (_, _) => UserRole.owner,
+    data: (profile) => profile?.role ?? UserRole.cashier,
+    loading: () => UserRole.cashier,
+    error: (_, _) => UserRole.cashier,
   );
 });
 

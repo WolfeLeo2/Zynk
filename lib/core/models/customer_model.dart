@@ -1,3 +1,8 @@
+import 'package:json_annotation/json_annotation.dart';
+
+part 'customer_model.g.dart';
+
+@JsonSerializable(fieldRename: FieldRename.snake)
 class Customer {
   final String id;
   final String tenantId;
@@ -23,37 +28,7 @@ class Customer {
     this.updatedAt,
   });
 
-  factory Customer.fromMap(Map<String, dynamic> map) {
-    return Customer(
-      id: map['id'] as String,
-      tenantId: map['tenant_id'] as String,
-      branchId: map['branch_id'] as String?,
-      name: map['name'] as String,
-      phone: map['phone'] as String?,
-      email: map['email'] as String?,
-      loyaltyPoints: (map['loyalty_points'] as num?)?.toInt() ?? 0,
-      creditLimit: (map['credit_limit'] as num?)?.toDouble() ?? 0,
-      createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
-          : null,
-      updatedAt: map['updated_at'] != null
-          ? DateTime.parse(map['updated_at'])
-          : null,
-    );
-  }
+  factory Customer.fromMap(Map<String, dynamic> map) => _$CustomerFromJson(map);
 
-  Map<String, dynamic> toMap() {
-    return {
-      'id': id,
-      'tenant_id': tenantId,
-      'branch_id': branchId,
-      'name': name,
-      'phone': phone,
-      'email': email,
-      'loyalty_points': loyaltyPoints,
-      'credit_limit': creditLimit,
-      'created_at': createdAt?.toIso8601String(),
-      'updated_at': updatedAt?.toIso8601String(),
-    };
-  }
+  Map<String, dynamic> toMap() => _$CustomerToJson(this);
 }

@@ -68,7 +68,7 @@ class QuickActionsRow extends StatelessWidget {
 }
 
 class _MobileQuickAction extends StatelessWidget {
-  final IconData icon;
+  final PhosphorIconData icon;
   final String label;
   final Color color;
   final VoidCallback onTap;
@@ -146,38 +146,34 @@ class QuickActionsDesktop extends StatelessWidget {
       ),
     ];
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.2),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: colorScheme.onSurface,
-            ),
-          ),
-          const SizedBox(height: 16),
-          ...actions.asMap().entries.map((entry) {
-            final action = entry.value;
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _ActionButton(
-                label: action.label,
-                icon: action.icon,
-                onTap: action.onTap,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Quick Actions',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: colorScheme.onSurface,
               ),
-            );
-          }),
-        ],
+            ),
+            const SizedBox(height: 16),
+            ...actions.asMap().entries.map((entry) {
+              final action = entry.value;
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _ActionButton(
+                  label: action.label,
+                  icon: action.icon,
+                  onTap: action.onTap,
+                ),
+              );
+            }),
+          ],
+        ),
       ),
     );
   }
@@ -185,7 +181,7 @@ class QuickActionsDesktop extends StatelessWidget {
 
 class _ActionButton extends StatelessWidget {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
 
   const _ActionButton({
@@ -240,7 +236,7 @@ class _ActionButton extends StatelessWidget {
 
 class _ActionData {
   final String label;
-  final IconData icon;
+  final PhosphorIconData icon;
   final VoidCallback onTap;
 
   _ActionData(this.label, this.icon, this.onTap);

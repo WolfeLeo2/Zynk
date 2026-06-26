@@ -19,82 +19,94 @@ class TopSellingProductsList extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final productsAsync = ref.watch(topProductsProvider);
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.3),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Top Selling Items',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: colorScheme.onSurface,
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Top Selling Items',
+                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurface,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () => context.push('/products'),
+                  child: const Text('See All'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            productsAsync.when(
+              data: (products) {
+                if (products.isEmpty) {
+                  return EmptyState(
+                    colorScheme: colorScheme,
+                    title: 'No sales data yet',
+                    message:
+                        'Complete some sales to see your top products here',
+                    icon: PhosphorIconsDuotone.package,
+                  );
+                }
+
+                // Find max sold for progress bar scaling
+                final maxSold = products.fold<double>(
+                  1,
+                  (m, p) => ((p['total_sold'] as num?)?.toDouble() ?? 0) > m
+                      ? ((p['total_sold'] as num?)?.toDouble() ?? 0)
+                      : m,
+                );
+
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16, bottom: 16),
+                  child: Column(
+                    children: List.generate(
+                      products.length > 5 ? 5 : products.length,
+                      (index) {
+                        final product = products[index];
+                        return Padding(
+                          padding: EdgeInsets.only(
+                            bottom:
+                                index ==
+                                    (products.length > 5
+                                            ? 5
+                                            : products.length) -
+                                        1
+                                ? 0
+                                : 16,
+                          ),
+                          child: _TopProductItem(
+                            product: product,
+                            index: index,
+                            maxSold: maxSold,
+                            colorScheme: colorScheme,
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                );
+              },
+              loading: () => Column(
+                children: List.generate(
+                  3,
+                  (_) => SkeletonListItem(colorScheme: colorScheme),
                 ),
               ),
-              TextButton(
-                onPressed: () => context.push('/products'),
-                child: const Text('See All'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          productsAsync.when(
-            data: (products) {
-              if (products.isEmpty) {
-                return EmptyState(
-                  colorScheme: colorScheme,
-                  title: 'No sales data yet',
-                  message: 'Complete some sales to see your top products here',
-                  icon: PhosphorIconsDuotone.package,
-                );
-              }
-
-              // Find max sold for progress bar scaling
-              final maxSold = products.fold<double>(
-                1,
-                (m, p) => ((p['total_sold'] as num?)?.toDouble() ?? 0) > m
-                    ? ((p['total_sold'] as num?)?.toDouble() ?? 0)
-                    : m,
-              );
-
-              return ListView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: products.length > 6 ? 6 : products.length,
-                itemBuilder: (context, index) {
-                  final product = products[index];
-                  return _TopProductItem(
-                    product: product,
-                    index: index,
-                    maxSold: maxSold,
-                    colorScheme: colorScheme,
-                  );
-                },
-              );
-            },
-            loading: () => Column(
-              children: List.generate(
-                3,
-                (_) => SkeletonListItem(colorScheme: colorScheme),
+              error: (error, stack) => ErrorState(
+                colorScheme: colorScheme,
+                message: 'Failed to load products',
+                onRetry: () => ref.invalidate(topProductsProvider),
               ),
             ),
-            error: (error, stack) => ErrorState(
-              colorScheme: colorScheme,
-              message: 'Failed to load products',
-              onRetry: () => ref.invalidate(topProductsProvider),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -122,78 +134,80 @@ class _TopProductItem extends StatelessWidget {
     final name = product['name'] as String? ?? 'Unknown';
     final totalSold = (product['total_sold'] as num?)?.toInt() ?? 0;
     final totalRevenue = (product['total_revenue'] as num?)?.toDouble() ?? 0;
-    final basePrice = (product['base_price'] as num?)?.toDouble() ?? 0;
-    final imageUrl = product['image_url'] as String?;
+    final progress = maxSold <= 0 ? 0.0 : totalSold / maxSold;
 
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
-      ),
-      child: Row(
-        children: [
-          // Product image or icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.5),
-              shape: BoxShape.circle,
-            ),
-            child: ClipOval(
-              child: imageUrl != null && imageUrl.isNotEmpty
-                  ? Image.network(
-                      imageUrl,
-                      fit: BoxFit.cover,
-                      errorBuilder: (context, error, stackTrace) {
-                        return PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant, size: 20);
-                      },
-                    )
-                  : PhosphorIcon(PhosphorIconsDuotone.package, color: colorScheme.onSurfaceVariant, size: 20),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  name,
-                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                Text(
-                  'KES ${basePrice.toStringAsFixed(0)}',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 12),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                'KES ${_formatRevenue(totalRevenue)}',
-                style: TextStyle(fontWeight: FontWeight.bold, color: colorScheme.primary, fontSize: 14),
+    return Column(
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(6),
               ),
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '$totalSold sold',
-                  style: TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 10, fontWeight: FontWeight.w600),
+              child: Text(
+                '${index + 1}',
+                style: TextStyle(
+                  color: colorScheme.onPrimaryContainer,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
-            ],
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                name,
+                style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              '$totalSold sold',
+              style: TextStyle(
+                color: colorScheme.onSurfaceVariant,
+                fontSize: 13,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              'Ksh ${_formatRevenue(totalRevenue)}',
+              style: TextStyle(
+                color: colorScheme.primary,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Container(
+          height: 6,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: colorScheme.surfaceContainerHighest,
+            borderRadius: BorderRadius.circular(3),
           ),
-        ],
-      ),
+          alignment: Alignment.centerLeft,
+          child: FractionallySizedBox(
+            widthFactor: progress,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colorScheme.primary,
+                borderRadius: BorderRadius.circular(3),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 

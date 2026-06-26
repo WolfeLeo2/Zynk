@@ -1,0 +1,2 @@
+{"type":"convention","content":"PowerSync sync rules must track active schema exactly: remove dropped tables and include new tenant-scoped tables.","classification":"tactical","recorded_at":"2026-04-04T14:34:30.229Z","id":"mx-0b49ef"}
+{"type":"convention","content":"Phase 6 aggregate tables must be included in both local schema and sync_rules to make snapshot-backed dashboard/report queries available offline.","classification":"tactical","recorded_at":"2026-04-04T18:53:22.810Z","id":"mx-e2c816"}

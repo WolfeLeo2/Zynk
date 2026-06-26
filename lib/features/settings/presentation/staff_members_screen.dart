@@ -11,8 +11,7 @@ import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-
-
+import 'package:zynk/core/utils/responsive_modal.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // STAFF MEMBERS SCREEN
@@ -29,11 +28,11 @@ class StaffMembersScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('People'),
+        title: const Text('Salespersons'),
         actions: [
           IconButton(
             onPressed: () => _showAddEditStaffSheet(context, ref, null),
-            icon: const Icon(PhosphorIconsBold.plus),
+            icon: const PhosphorIcon(PhosphorIconsBold.plus),
           ),
         ],
       ),
@@ -44,7 +43,7 @@ class StaffMembersScreen extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
+                  PhosphorIcon(
                     PhosphorIconsDuotone.users,
                     size: 64,
                     color: cs.onSurface.withValues(alpha: 0.3),
@@ -65,9 +64,8 @@ class StaffMembersScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
                   FilledButton.icon(
-                    onPressed: () =>
-                        _showAddEditStaffSheet(context, ref, null),
-                    icon: const Icon(PhosphorIconsRegular.plus),
+                    onPressed: () => _showAddEditStaffSheet(context, ref, null),
+                    icon: const PhosphorIcon(PhosphorIconsRegular.plus),
                     label: const Text('Add Staff Member'),
                   ),
                 ],
@@ -83,8 +81,7 @@ class StaffMembersScreen extends ConsumerWidget {
               final member = staff[i];
               return _StaffMemberCard(
                 member: member,
-                onEdit: () =>
-                    _showAddEditStaffSheet(context, ref, member),
+                onEdit: () => _showAddEditStaffSheet(context, ref, member),
                 onDelete: () => _confirmDelete(context, ref, member),
               );
             },
@@ -96,7 +93,7 @@ class StaffMembersScreen extends ConsumerWidget {
       floatingActionButton: staffAsync.hasValue && staffAsync.value!.isNotEmpty
           ? FloatingActionButton.extended(
               onPressed: () => _showAddEditStaffSheet(context, ref, null),
-              icon: const Icon(PhosphorIconsBold.plus),
+              icon: const PhosphorIcon(PhosphorIconsBold.plus),
               label: const Text('Add Member'),
             )
           : null,
@@ -108,7 +105,7 @@ class StaffMembersScreen extends ConsumerWidget {
     WidgetRef ref,
     StaffMember? existing,
   ) {
-    showModalBottomSheet(
+    showResponsiveModal(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
@@ -134,9 +131,7 @@ class StaffMembersScreen extends ConsumerWidget {
             child: const Text('Cancel'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Remove'),
           ),
@@ -148,9 +143,9 @@ class StaffMembersScreen extends ConsumerWidget {
       try {
         await ref.read(repositoryProvider).deleteStaffMember(member.id);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('${member.name} removed')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('${member.name} removed')));
         }
       } catch (e) {
         if (context.mounted) {
@@ -167,7 +162,7 @@ class StaffMembersScreen extends ConsumerWidget {
 // STAFF MEMBER CARD
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StaffMemberCard extends StatelessWidget {
+class _StaffMemberCard extends ConsumerWidget {
   final StaffMember member;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -179,19 +174,21 @@ class _StaffMemberCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
+    final isBlocked =
+        member.status == StaffStatus.inactive ||
+        member.status == StaffStatus.blocked;
 
     return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 8,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: CircleAvatar(
           radius: 24,
-          backgroundColor: cs.primaryContainer,
+          backgroundColor: cs.surface,
           child: member.profilePictureUrl != null
               ? ClipOval(
                   child: CachedNetworkImage(
@@ -220,16 +217,40 @@ class _StaffMemberCard extends StatelessWidget {
               : Text(
                   member.name[0].toUpperCase(),
                   style: theme.textTheme.titleLarge?.copyWith(
-                    color: cs.onPrimaryContainer,
+                    color: cs.primary,
                     fontWeight: FontWeight.bold,
                   ),
                 ),
         ),
-        title: Text(
-          member.name,
-          style: theme.textTheme.titleSmall?.copyWith(
-            fontWeight: FontWeight.w600,
-          ),
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                member.name,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: cs.onSurface,
+                ),
+              ),
+            ),
+            if (isBlocked)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  member.status == StaffStatus.inactive ? 'BANNED' : 'BLOCKED',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: Colors.red,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+          ],
         ),
         subtitle: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -251,30 +272,66 @@ class _StaffMemberCard extends StatelessWidget {
           ],
         ),
         trailing: PopupMenuButton<String>(
-          onSelected: (value) {
+          icon: PhosphorIcon(
+            PhosphorIconsRegular.dotsThreeVertical,
+            color: cs.onSurfaceVariant,
+          ),
+          onSelected: (value) async {
             if (value == 'edit') onEdit();
             if (value == 'delete') onDelete();
+            if (value == 'block' || value == 'unblock') {
+              final newStatus = value == 'block'
+                  ? StaffStatus.blocked
+                  : StaffStatus.active;
+              try {
+                await ref
+                    .read(repositoryProvider)
+                    .updateStaffMemberStatus(
+                      memberId: member.id,
+                      status: newStatus,
+                    );
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Error: $e'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            }
           },
           itemBuilder: (_) => [
             const PopupMenuItem(
               value: 'edit',
               child: ListTile(
-                leading: Icon(PhosphorIconsRegular.pencilSimple),
+                leading: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
                 title: Text('Edit'),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
+            PopupMenuItem(
+              value: isBlocked ? 'unblock' : 'block',
+              child: ListTile(
+                leading: PhosphorIcon(
+                  isBlocked
+                      ? PhosphorIconsRegular.checkCircle
+                      : PhosphorIconsRegular.prohibit,
+                ),
+                title: Text(isBlocked ? 'Unblock' : 'Block'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuDivider(),
             const PopupMenuItem(
               value: 'delete',
               child: ListTile(
-                leading: Icon(
+                leading: PhosphorIcon(
                   PhosphorIconsRegular.trash,
                   color: Colors.red,
                 ),
-                title: Text(
-                  'Remove',
-                  style: TextStyle(color: Colors.red),
-                ),
+                title: Text('Remove', style: TextStyle(color: Colors.red)),
                 contentPadding: EdgeInsets.zero,
               ),
             ),
@@ -306,6 +363,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
 
   Uint8List? _imageBytes;
   String? _currentPictureUrl;
+  String? _selectedBranchId;
   bool _isLoading = false;
 
   @override
@@ -315,6 +373,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
     _phoneCtrl = TextEditingController(text: widget.existing?.phone ?? '');
     _emailCtrl = TextEditingController(text: widget.existing?.email ?? '');
     _currentPictureUrl = widget.existing?.profilePictureUrl;
+    _selectedBranchId = widget.existing?.branchId;
   }
 
   @override
@@ -347,11 +406,12 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
         .uploadBinary(
           path,
           _imageBytes!,
-          fileOptions: const FileOptions(contentType: 'image/jpeg', upsert: true),
+          fileOptions: const FileOptions(
+            contentType: 'image/jpeg',
+            upsert: true,
+          ),
         );
-    return Supabase.instance.client.storage
-        .from('avatars')
-        .getPublicUrl(path);
+    return Supabase.instance.client.storage.from('avatars').getPublicUrl(path);
   }
 
   Future<void> _submit() async {
@@ -373,7 +433,8 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
         phone: _phoneCtrl.text.trim().isEmpty ? null : _phoneCtrl.text.trim(),
         email: _emailCtrl.text.trim().isEmpty ? null : _emailCtrl.text.trim(),
         profilePictureUrl: pictureUrl,
-        status: 'active',
+        branchId: _selectedBranchId,
+        status: StaffStatus.active,
       );
 
       final repo = ref.read(repositoryProvider);
@@ -449,20 +510,25 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                             : null,
                         child: _imageBytes == null
                             ? (_currentPictureUrl != null
-                                ? ClipOval(
-                                    child: CachedNetworkImage(
-                                      imageUrl: _currentPictureUrl!,
-                                      fit: BoxFit.cover,
-                                      width: 96,
-                                      height: 96,
-                                      errorWidget: (context, url, error) => const CircleAvatar(child: Icon(PhosphorIconsRegular.user)),
-                                    ),
-                                  )
-                                : Icon(
-                                    PhosphorIconsDuotone.user,
-                                    size: 40,
-                                    color: cs.onPrimaryContainer,
-                                  ))
+                                  ? ClipOval(
+                                      child: CachedNetworkImage(
+                                        imageUrl: _currentPictureUrl!,
+                                        fit: BoxFit.cover,
+                                        width: 96,
+                                        height: 96,
+                                        errorWidget: (context, url, error) =>
+                                            const CircleAvatar(
+                                              child: PhosphorIcon(
+                                                PhosphorIconsRegular.user,
+                                              ),
+                                            ),
+                                      ),
+                                    )
+                                  : PhosphorIcon(
+                                      PhosphorIconsDuotone.user,
+                                      size: 40,
+                                      color: cs.onPrimaryContainer,
+                                    ))
                             : null,
                       ),
                       Positioned(
@@ -474,7 +540,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                             color: cs.primary,
                             shape: BoxShape.circle,
                           ),
-                          child: Icon(
+                          child: PhosphorIcon(
                             PhosphorIconsBold.camera,
                             size: 16,
                             color: cs.onPrimary,
@@ -495,7 +561,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.user),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.user),
                 ),
                 validator: (v) =>
                     v == null || v.trim().isEmpty ? 'Name is required' : null,
@@ -511,8 +577,51 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.phone),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
                 ),
+              ),
+              const SizedBox(height: 16),
+
+              // Branch Selection
+              Consumer(
+                builder: (context, ref, child) {
+                  final branchesAsync = ref.watch(branchesProvider);
+                  return branchesAsync.when(
+                    data: (branches) {
+                      final filteredBranches = branches
+                          .where((b) => b.id != 'all')
+                          .toList();
+                      return DropdownButtonFormField<String>(
+                        initialValue: _selectedBranchId,
+                        decoration: InputDecoration(
+                          labelText: 'Assigned Branch',
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          prefixIcon: const PhosphorIcon(
+                            PhosphorIconsRegular.storefront,
+                          ),
+                          helperText: 'Leave empty for shared staff',
+                        ),
+                        items: [
+                          const DropdownMenuItem<String>(
+                            value: null,
+                            child: Text('Shared (All Branches)'),
+                          ),
+                          ...filteredBranches.map(
+                            (b) => DropdownMenuItem<String>(
+                              value: b.id,
+                              child: Text(b.name),
+                            ),
+                          ),
+                        ],
+                        onChanged: (v) => setState(() => _selectedBranchId = v),
+                      );
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (e, s) => const SizedBox.shrink(),
+                  );
+                },
               ),
               const SizedBox(height: 16),
 
@@ -525,7 +634,7 @@ class _StaffMemberFormState extends ConsumerState<_StaffMemberForm> {
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  prefixIcon: const Icon(PhosphorIconsRegular.envelope),
+                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.envelope),
                 ),
               ),
               const SizedBox(height: 32),

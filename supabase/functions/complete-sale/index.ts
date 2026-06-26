@@ -43,10 +43,11 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json();
     const {
+      sale_id,
       tenant_id,
       branch_id,
       customer_id,
-      salesperson,
+      salesperson_id,
       items,
       payment_method,
       payment_reference,
@@ -65,140 +66,43 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // ── Generate sequential invoice number ──
-    const currentYear = new Date().getFullYear();
+    // ── Atomic completion ──
+    // sale insert + items + payment + stock decrement + invoice number all run
+    // inside one DB transaction. A client-supplied sale_id makes retries
+    // idempotent (no duplicate sale / double stock decrement). See migration
+    // 20260624000000_atomic_sale_and_payment_rpcs.sql.
+    const saleId = sale_id || crypto.randomUUID();
 
-    // Upsert counter row and atomically increment
-    const { data: counterData, error: counterError } = await supabase.rpc(
-      "next_invoice_number",
+    const { data: result, error: rpcError } = await supabase.rpc(
+      "complete_sale_v2",
       {
+        p_sale_id: saleId,
         p_tenant_id: tenant_id,
-        p_prefix: "RCT",
-        p_year: currentYear,
+        p_branch_id: branch_id,
+        p_customer_id: customer_id || null,
+        p_created_by: user.id,
+        p_salesperson_id: salesperson_id || null,
+        p_items: items,
+        p_payment_method: payment_method,
+        p_payment_reference: payment_reference || null,
+        p_notes: notes || null,
+        p_subtotal: subtotal || 0,
+        p_tax_amount: tax_amount || 0,
+        p_discount_amount: discount_amount || 0,
+        p_grand_total: grand_total || 0,
       }
     );
 
-    if (counterError) {
-      console.error("Counter error:", counterError);
+    if (rpcError) {
+      console.error("complete_sale_v2 error:", rpcError);
       return new Response(
-        JSON.stringify({ error: `Receipt number generation failed: ${counterError.message}` }),
+        JSON.stringify({ error: "Sale completion failed" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
-    }
-
-    const seq = counterData as number;
-    const invoiceNumber = `RCT-${currentYear}-${String(seq).padStart(5, "0")}`;
-
-    // ── Generate UUIDv7 ──
-    const saleId = crypto.randomUUID(); // Deno uses v4; for v7 we'd need a lib, using v4 for now
-
-    const now = new Date().toISOString();
-
-    // ── Insert sale ──
-    const { error: saleError } = await supabase.from("sales").insert({
-      id: saleId,
-      tenant_id,
-      branch_id,
-      customer_id: customer_id || null,
-      invoice_number: invoiceNumber,
-      sale_type: "pos_sale",
-      created_by: user.id,
-      salesperson: salesperson || null,
-      subtotal: subtotal || 0,
-      tax_amount: tax_amount || 0,
-      discount_amount: discount_amount || 0,
-      grand_total: grand_total || 0,
-      amount_paid: grand_total || 0,
-      payment_method,
-      status: "completed",
-      fulfillment_status: "fulfilled",
-      notes: notes || null,
-      completed_at: now,
-      created_at: now,
-      updated_at: now,
-    });
-
-    if (saleError) {
-      console.error("Sale insert error:", saleError);
-      return new Response(
-        JSON.stringify({ error: `Sale creation failed: ${saleError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    // ── Insert sale items ──
-    const saleItems = items.map((item: any) => ({
-      id: crypto.randomUUID(),
-      sale_id: saleId,
-      tenant_id,
-      product_id: item.product_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-      cost_price: item.cost_price || 0,
-      tax_amount: item.tax_amount || 0,
-      discount: item.discount || 0,
-      total: item.total,
-      created_at: now,
-      updated_at: now,
-    }));
-
-    const { error: itemsError } = await supabase
-      .from("sale_items")
-      .insert(saleItems);
-
-    if (itemsError) {
-      console.error("Items insert error:", itemsError);
-      // Rollback sale
-      await supabase.from("sales").delete().eq("id", saleId);
-      return new Response(
-        JSON.stringify({ error: `Items creation failed: ${itemsError.message}` }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
-    const { error: paymentError } = await supabase
-      .from("sale_payments")
-      .insert({
-        id: crypto.randomUUID(),
-        sale_id: saleId,
-        tenant_id,
-        branch_id,
-        amount: grand_total || 0,
-        payment_method,
-        reference_number: null,
-        notes: "POS Sale initial payment",
-        created_at: now,
-        updated_at: now,
-      });
-
-    if (paymentError) {
-      console.error("Payment insert error:", paymentError);
-    }
-
-
-
-    // ── Decrement stock ──
-    for (const item of items) {
-      const { error: stockError } = await supabase.rpc(
-        "decrement_stock",
-        {
-          p_product_id: item.product_id,
-          p_branch_id: branch_id,
-          p_quantity: item.quantity,
-        }
-      );
-
-      if (stockError) {
-        console.error(`Stock decrement error for ${item.product_id}:`, stockError);
-      }
     }
 
     return new Response(
-      JSON.stringify({
-        sale_id: saleId,
-        invoice_number: invoiceNumber,
-        status: "completed",
-      }),
+      JSON.stringify(result),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (err: any) {

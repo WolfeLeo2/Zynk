@@ -1,225 +1,282 @@
-# Zynk: Codebase Review
+# Zynk Multi-Branch + Workflow Review (2026-04-19)
 
-> Reviewed: March 2026 | Status: MVP | Framework: Flutter + Riverpod + PowerSync + Supabase
+## Scope Investigated
 
----
-
-## Executive Summary
-
-Zynk is at a solid MVP. The architecture choices (PowerSync offline-first + Supabase + Riverpod) are production-grade and right for a multi-branch SME POS. The core flows (POS sale, invoice lifecycle, branch management) work well. The gap between this and Zoho/Shopify isn't the stack — it's polish, data integrity enforcement, and missing features. Below are the specific issues and the path to fix them.
-
----
-
-## 1. Application Logic Issues
-
-### 🔴 Critical
-
-#### 1.1 Tax is always zero
-```dart
-// sales_service.dart
-final double taxAmount = 0.0; // TODO: calculate from tax_category
-```
-`tax_amount` is hardcoded to `0` in both POS sales and draft invoice creation. The `tax_category` field exists on products but is never read. Every sale is effectively tax-free. This is a business-critical bug.
-
-**Fix:** Create a `TaxService` that maps `tax_category` strings to rates (e.g., `'vat_16'` → 16%). Apply at line-item level and roll up.
-
-#### 1.2 Stock validation is client-side only
-```dart
-// pos_screen.dart — _addToCart()
-final stockState = ref.read(stockProvider(product.id)).value;
-```
-The stock check in `_addToCart` reads local SQLite. This is a **race condition**: two devices on the same branch can both see 1 item in stock and both complete a sale. The `complete-sale` Edge Function should enforce stock checks server-side within the transaction.
-
-#### 1.3 TEMP invoice numbers leak to production
-```dart
-final tempInvoiceNumber = 'INV-$year-TEMP-${...}';
-```
-Draft invoices created offline get `INV-2026-TEMP-xxxxx` as their number. If the server edge function doesn't replace this on sync/approval, these show in the customer-facing invoice list.
-
-**Fix:** Never display the invoice number for drafts — show "Draft" until a real sequential number is assigned server-side.
-
-#### 1.4 `uploadData` has no per-operation error recovery
-```dart
-// powersync.dart
-} catch (e) {
-  _log.e('Upload Error: $e');
-  // transaction not completed — retries the whole batch
-}
-```
-If one operation in a batch fails, all retry. This can cause duplicate calls on previously-applied operations.
-
-#### 1.5 POS cart state lives in widget state — lost on navigation
-```dart
-// pos_screen.dart
-final List<PosCartItem> _cart = [];
-```
-Navigating away (e.g., to check stock) destroys the cart. This should be a `cartProvider` Notifier so it survives navigation and shows a cart badge.
+- Flutter client architecture and UX flows.
+- PowerSync local schema and sync rules.
+- Supabase edge functions and migrations.
+- Current product/stock and invoice approval design viability for SaaS scale.
 
 ---
 
-### 🟡 Medium
+## Critical Findings
 
-#### 1.6 `BranchSelectionNotifier.build()` schedules async work via `Future.microtask`
-Not fully safe — should be handled by `branchSyncProvider` pattern instead.
+### 1) Shared catalog architecture is not consistently implemented yet
 
-#### 1.7 `salesListProvider` hard-caps at 50 results with no pagination
-A merchant with 60+ sales sees a silently truncated list. Need cursor-based pagination.
+The desired model is: one product catalog, branch-specific stock. Current implementation is mixed:
 
-#### 1.8 `loyalty_points` and `credit_limit` are dead schema
-Columns exist on `customers` table but no UI or business logic to earn/redeem.
+- CSV all-branches import can create global products (`branch_id = null`) and fan stock per branch:
+  - `lib/features/products/data/csv_import_service.dart:91`
+  - `lib/features/products/data/csv_import_service.dart:103`
+  - `lib/features/products/data/csv_import_service.dart:124`
+- Standard add/edit product still writes branch-bound products:
+  - `lib/features/products/presentation/providers/add_product_controller.dart:81`
+  - `lib/features/products/presentation/providers/add_product_controller.dart:107`
+  - `lib/features/products/presentation/providers/add_product_controller.dart:138`
+- Product filtering still depends on `products.branch_id` plus fallback heuristics:
+  - `lib/data/local/repository.dart:161`
+  - `lib/data/local/repository.dart:172`
 
-#### 1.9 `fulfillment_status` on sales is never set or read
+Impact:
 
-#### 1.10 Permission checks are client-side only (no RLS enforcement)
-`hasPermissionProvider` is UI-only. If Supabase RLS is not configured, API calls can bypass permissions.
+- Duplicate catalog rows are still possible and currently present historically.
+- Data model semantics depend on entry path, which is risky at scale.
+- Last sampled tenant state (Prestine Homes) showed 2451 products, matching 817 x 3 branches.
 
----
+### 2) Branch selection is globally enforced, not contextual
 
-## 2. UI / UX Issues
+- Global guard blocks key write screens in All Branches mode:
+  - `lib/core/widgets/branch_required_guard.dart:13`
+  - `lib/core/routes.dart:109`
+  - `lib/core/routes.dart:121`
+  - `lib/core/routes.dart:143`
+  - `lib/core/routes.dart:180`
+  - `lib/core/routes.dart:198`
+  - `lib/core/routes.dart:249`
+- Owner has branch dropdown in dashboard top bar, but non-owner staff are forced into read-only branch badge even if assigned multiple branches:
+  - `lib/features/dashboard/presentation/dashboard_layout.dart:401`
+  - `lib/features/dashboard/presentation/dashboard_layout.dart:456`
+  - `lib/features/dashboard/presentation/dashboard_layout.dart:479`
+- Core write flows still require global current branch context:
+  - `lib/features/products/presentation/providers/add_product_controller.dart:51`
+  - `lib/features/sales/presentation/create_invoice_screen.dart:119`
+  - `lib/features/sales/presentation/edit_invoice_screen.dart:104`
 
-### 🔴 Jank & Performance
+Impact:
 
-#### 2.1 `LayoutBuilder` at root of AppShell rebuilds on any state change
-The sidebar + all watched providers rebuild whenever any ancestor changes. Extract sidebar into its own `ConsumerStatefulWidget`.
+- This conflicts with Zoho-style branch selection only where needed.
+- Multi-branch staff cannot switch branch context despite backend support via `profile_branches`.
 
-#### 2.2 `CircularProgressIndicator` everywhere — violates your own AGENTS.md
-- `sales_list_screen.dart` line 71  
-- `settings_screen.dart`  
-- `dashboard_layout.dart`
+### 3) Invoice approval supports only one approver
 
-These should all be shimmer skeleton loaders matching the content layout.
+- Sales model has a single `approved_by` field and no approval chain entity:
+  - `lib/core/models/sales_models.dart` (single `approvedBy` property)
+  - `supabase/functions/manage-sale/index.ts:262`
+  - `supabase/functions/manage-sale/index.ts:768`
+- Invoices are created directly as `pending_approval`, then one approval action flips state:
+  - `supabase/functions/create-invoice/index.ts:128`
+  - `supabase/functions/create-invoice/index.ts:174`
 
-#### 2.3 `PhosphorIcon` instances created fresh on every `_buildDestinations` call
-Destinations never change for a given role — memoize or use `const`.
+Impact:
 
-#### 2.4 `_SaleCard` uses `Navigator.push` instead of `GoRouter`
-```dart
-Navigator.push(context, MaterialPageRoute(...)) // line 182
-```
-Breaks deep linking, Android back-stack, and web URL routing. Use `context.push('/sales/${sale.id}')`.
+- Cannot enforce 2-approver workflow (accountant + owner, or any two authorized approvers).
 
-#### 2.5 Filter chips call `setState` rebuilding the entire screen
-The filter state should be held in a provider, so only the `ListView` rebuilds.
+### 4) Invoice/receipt output does not match requested format
 
-### 🟡 Design & Info Overload
+- Invoice template includes tenant email, salesperson ID label, tax column, and branded footer text:
+  - `lib/features/sales/presentation/printing/invoice_template.dart:166`
+  - `lib/features/sales/presentation/printing/invoice_template.dart:291`
+  - `lib/features/sales/presentation/printing/invoice_template.dart:347`
+  - `lib/features/sales/presentation/printing/invoice_template.dart:503`
+- Receipt template shows salesperson ID directly and tax line when non-zero:
+  - `lib/features/sales/presentation/printing/receipt_template.dart:98`
+  - `lib/features/sales/presentation/printing/receipt_template.dart:220`
 
-#### 2.6 Dashboard shows 8+ metric cards — information overload
-Show 3-4 KPIs above the fold. Move charts below or to a dedicated Analytics tab.
+Impact:
 
-#### 2.7 Sidebar hardcodes `'Active'` status — meaningless
-Connect to actual PowerSync sync status (`syncStatusProvider`) or remove.
-
-#### 2.8 Design System gallery visible to end users in production nav
-Gate behind a dev flag or remove from `_buildDestinations`.
-
-#### 2.9 POS mobile tab UX — users don't know the cart tab has items
-Standard pattern: floating cart badge or expand-able bottom sheet (Shopify POS style).
-
-#### 2.10 `product_details_screen` has `Expanded` inside `SingleChildScrollView` — renderflex risk
-Switch to `CustomScrollView` + `SliverList`.
-
----
-
-## 3. Supabase / Backend Review
-
-### 🔴 Critical
-
-#### 3.1 Verify RLS multi-tenant isolation
-Every table has `tenant_id` — verify RLS policies exist restricting all rows to the user's `tenant_id`. Without this, Supabase API calls can read other tenants' data.
-
-**Test:** Call `GET /rest/v1/sales` with Tenant A's token — ensure Tenant B's rows are absent.
-
-#### 3.2 No indexes on high-cardinality query columns
-Queries like `WHERE branch_id = ? AND created_at >= ?` will full-table-scan at scale.
-
-```sql
-CREATE INDEX idx_sales_branch_date ON sales(branch_id, created_at DESC);
-CREATE INDEX idx_sales_tenant_status ON sales(tenant_id, status);
-CREATE INDEX idx_stock_product ON stock(product_id);
-CREATE INDEX idx_sale_items_sale ON sale_items(sale_id);
-```
-
-#### 3.3 `credit_notes.items` stored as JSON text blob
-Should be a `credit_note_items` junction table (like `sale_items`) for queryability and proper PowerSync sync.
-
-### 🟡 Medium
-
-#### 3.4 Supabase Storage RLS on avatars bucket — verify
-Ensure users can only write to their own path (`avatars/{user_id}/...`).
-
-#### 3.5 Edge Function responses not typed
-All edge function responses are `Map<String, dynamic>`. A field rename will silently break the app. Use typed response DTOs.
-
-#### 3.6 `local_auth` still in `pubspec.yaml` — dead dependency
-Biometrics removed but package remains. Remove it to reduce binary size and avoid Play Store permission flags.
-
-### 🟢 What's Working Well
-
-- **PowerSync** offline-first is the right choice for retail with patchy connectivity
-- **Edge Functions** for transactional ops (stock decrement, approval) is correct pattern
-- **12-table schema** well-normalized for current scope
-- **`branchSyncProvider` + `addPostFrameCallback`** pattern is correct for safe stream-to-state propagation
-- **Sales lifecycle** (draft → approval → payment → fulfillment) is a proper workflow
+- Violates your requested invoice branding/output standard.
 
 ---
 
-## 4. Feature Roadmap
+## High Findings
 
-### 🔴 High Priority (blocks real customers)
-| Feature | Notes |
-|---------|-------|
-| **Tax engine** | Map `tax_category` → rates; show on receipts |
-| **PDF receipts/invoices** | `pdf` + `printing` packages in pubspec — just need wiring |
-| **Cart persistence** | Move to Riverpod `Notifier` |
-| **Barcode scanning in POS** | `mobile_scanner` in pubspec, not connected |
-| **Customer loyalty redemption** | Schema exists, no logic |
+### 5) Clone item flow is missing
 
-### 🟡 Medium Priority (competitive parity)
-| Feature | Notes |
-|---------|-------|
-| Sales reports + CSV export | `csv` package already in pubspec |
-| Purchase orders / stock receiving | Supplier → GRN flow |
-| Expense tracking | Cost of goods beyond sale `cost_price` |
-| Refund flow (POS) | Credit note creation exists, no POS UI |
-| Low-stock notifications | Supabase Realtime → push |
-| Offline sync indicator | Show PowerSync status in app bar |
+- Product form supports create/edit only, not clone-as-new:
+  - `lib/features/products/presentation/add_product_screen.dart:16`
+  - `lib/features/products/presentation/add_product_screen.dart:64`
+  - `lib/features/products/presentation/add_product_screen.dart:638`
+- Product details only routes into edit-style add screen:
+  - `lib/features/products/presentation/product_details_screen.dart:26`
 
-### 🟢 Later (polish)
-| Feature | Notes |
-|---------|-------|
-| Multi-currency | KES assumed everywhere |
-| Activity audit log | Who did what, when |
-| Customer invoice portal | Shareable link |
-| M-Pesa / Stripe integration | Online invoice payment |
-| Role-based dashboard widgets | Cashier vs Owner views |
-| Dark mode toggle | `AppTokens` infrastructure ready |
+### 6) Clone invoice flow is missing
 
----
+- Sale detail action menu includes edit/approve/reject/void/release/delete, but no clone:
+  - `lib/features/sales/presentation/sale_detail_screen.dart:88`
+  - `lib/features/sales/presentation/sale_detail_screen.dart:96`
 
-## 5. Do You Need a Separate Server?
+### 7) Cross-branch stock visibility for referrals is missing in UX
 
-**No — not yet.** Supabase Edge Functions handle all server-authority operations. PowerSync handles sync.
+- Product detail stock view binds to single current context stock provider, not a branch breakdown matrix:
+  - `lib/features/products/presentation/product_details_screen.dart:364`
+  - `lib/features/products/presentation/product_details_screen.dart:394`
+- Provider/repository currently expose per-context stock, not branch-by-branch stock list:
+  - `lib/features/products/presentation/providers/product_providers.dart:42`
+  - `lib/data/local/repository.dart:266`
 
-Add a dedicated server when:
-- Edge Functions hit memory limits (heavy ML, complex reports)
-- You need collaborative real-time features beyond Supabase Realtime
-- A client requires data sovereignty / self-hosting
+### 8) Save invoice as image is not implemented
 
-**Better near-term infrastructure moves:**
-- Postgres function for sequential invoice numbers (replaces TEMP hack)
-- `pg_cron` daily aggregation into `daily_sales_summary` for faster dashboard
-- Enable `pg_stat_statements` to profile slow queries
+- Current print flow is PDF-only via Printing plugin:
+  - `lib/features/sales/presentation/sale_detail_screen.dart:374`
+
+Operational answer to your question:
+
+- A receipt is currently rendered automatically only for `saleType == 'pos_sale'`.
+- Invoice flows render invoice template instead of receipt template.
 
 ---
 
-## Summary Scorecard
+## Medium Findings
 
-| Area | Score | Notes |
-|------|-------|-------|
-| Architecture | 8/10 | PowerSync + Riverpod is correct |
-| Data Model | 6/10 | Well-normalized but credit_notes.items is a blob, missing indexes |
-| Business Logic | 5/10 | Tax=0, TEMP invoices, client-side stock check are blockers |
-| UI Polish | 5/10 | Spinner overuse, info overload, jank risks |
-| Security | 6/10 | Verify RLS on all tables + storage |
-| Feature Completeness | 4/10 | PDF, tax, barcode, loyalty all missing |
-| **Overall MVP** | **6/10** | Solid foundation, clear path forward |
+### 9) Backend branch-assignment security policy needs hardening review
+
+- `profile_branches` was introduced with broad authenticated policies in migration:
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:95`
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:96`
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:97`
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:98`
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:99`
+- No migration currently introduces `product_branches` mapping table.
+
+### 10) UI maturity concerns are valid
+
+- High density of bespoke containers/composite cards in critical screens can lead to visual inconsistency over time:
+  - `lib/core/widgets/app_drawer.dart:237`
+  - `lib/features/dashboard/presentation/dashboard_layout.dart:83`
+  - `lib/features/dashboard/presentation/dashboard_layout.dart:429`
+- Multiple screens still use `CircularProgressIndicator` where your AGENTS rules prefer shimmer skeletons:
+  - `lib/features/products/presentation/inventory_adjustment_screen.dart:366`
+  - `lib/features/products/presentation/inventory_adjustment_screen.dart:693`
+  - `lib/features/sales/presentation/sale_detail_screen.dart:210`
+  - `lib/features/sales/presentation/sale_detail_screen.dart:549`
+
+---
+
+## Supabase Schema Audit (Deep)
+
+### A) Migration-to-live schema drift is present
+
+- Migration intends to remove legacy product variant/group fields and dead table:
+  - `supabase/migrations/20260329_ph_simplify_item_groups.sql:6`
+  - `supabase/migrations/20260329_ph_simplify_item_groups.sql:17`
+- Later migration still creates indexes on legacy column `products.group_id`, which implies cleanup was not consistently enforced across migration history:
+  - `supabase/migrations/20260404150000_phase5_fk_covering_indexes.sql:39`
+- App code has no active dependency on `stock_item_groups`, but live generated schema still exposes it.
+
+Risk:
+
+- Dirty schema persists indefinitely and can confuse future migrations and tooling.
+
+### B) Non-normalized duplication exists in credit notes
+
+- `manage-sale` writes both `credit_notes.items` (JSON blob) and `credit_note_items` (normalized table):
+  - `supabase/functions/manage-sale/index.ts:655`
+  - `supabase/functions/manage-sale/index.ts:684`
+
+Risk:
+
+- Two sources of truth can diverge and produce reporting inconsistencies.
+
+### C) Enum-like business states are mostly raw text/varchar
+
+Observed pattern:
+
+- Business-critical state fields are free text (status/type/method), including sales lifecycle/payment/fulfillment, commission status, stock adjustment status, staff status, payment method snapshots.
+- Migration evidence shows only limited CHECK enforcement (`stock_adjustments.adjustment_type`):
+  - `supabase/migrations/20260226112640_stock_adjustments.sql:9`
+- No native Postgres enums are present in generated live schema (`Enums: {}`).
+
+Risk:
+
+- Tenant-isolated RLS does not prevent invalid status value writes within tenant scope.
+- Typos and unauthorized state transitions are possible unless app/service logic catches everything.
+
+### D) App schema contract drift vs local PowerSync schema
+
+- `profiles.permissions` is JSONB in database migration, but local PowerSync schema models it as text:
+  - `supabase/migrations/20260223_invoice_system.sql:85`
+  - `lib/core/config/powersync.dart:52`
+- Local `composite_item_components` includes `branch_id`, while generated live schema does not currently expose it.
+  - `lib/core/config/powersync.dart:96`
+- Local `commissions` schema includes `commission_type`/`commission_value` columns that are not part of the current live commissions table contract.
+  - `lib/core/config/powersync.dart:276`
+  - `lib/core/config/powersync.dart:277`
+- Local sales schema includes `customer_name`; live contract is centered on `customer_id`.
+  - `lib/core/config/powersync.dart:183`
+
+Risk:
+
+- Sync/read behavior can be brittle when local and server column contracts diverge.
+
+### E) RLS policy evolution has conflicting history
+
+- `profile_branches` and `commissions` started with broad authenticated policies:
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:96`
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:19`
+- Later hardening attempts to normalize tenant isolation for many tables via dynamic migration blocks:
+  - `supabase/migrations/20260404154000_phase3_auth_rls_initplan_optimization.sql:8`
+  - `supabase/migrations/20260404154000_phase3_auth_rls_initplan_optimization.sql:40`
+
+Risk:
+
+- Without explicit live policy validation in CI, environments can drift and retain stale permissive policies.
+
+### F) Advisor diagnostics indicate schema hygiene debt
+
+- Security advisor warnings currently include:
+  - Public bucket listing policies on `avatars`, `logos`, `product-images`.
+  - Leaked password protection disabled.
+- Performance advisor shows many newly-added indexes still unused.
+
+Risk:
+
+- Security posture and index bloat should be actively managed, not left to accumulate.
+
+### G) Commission type vocabulary is inconsistent across layers
+
+- Trigger logic in migration uses `fixed` / `percentage`:
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:58`
+  - `supabase/migrations/20260404000000_commissions_and_branches.sql:60`
+- UI flows can emit `fixed` / `percent` / `none` patterns.
+
+Risk:
+
+- Commission calculations can silently diverge when type values drift.
+- This should be normalized with a dedicated lookup and one canonical vocabulary.
+
+---
+
+## What Your Previous Plan Got Right
+
+Your existing plan in `docs/plans/2026-04-15-product-branches-architecture-plan.md` is directionally correct for the client’s clarified requirement:
+
+- Shared products across branches.
+- Branch-specific stock quantities.
+- Branch-scoped decrements retained.
+
+This does not force global stock decrements as long as decrement calls remain branch-bound (which they currently are).
+
+---
+
+## Required Strategic Adjustment
+
+Do not stop at data model normalization only. The fix must include:
+
+1. Contextual branch selection UX (remove global guardrail pattern).
+2. Clone flows (product + invoice).
+3. Cross-branch stock visibility UI.
+4. Print/template compliance changes.
+5. 2-step approval workflow redesign.
+6. Progressive migration toward native Material widgets and consistent loading states.
+
+---
+
+## Final Position
+
+Your client requirement is correct and scalable:
+
+- Product catalog should be shared (single source of truth).
+- Stock should remain branch-specific.
+- Branch decrement should remain branch-specific.
+
+The current codebase partially supports this, but not end-to-end. A coordinated schema + PowerSync + repository + UI workflow migration is required.

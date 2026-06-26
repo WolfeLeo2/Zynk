@@ -1,10 +1,10 @@
-import 'package:powersync/powersync.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart';
-import '../services/app_logger.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:powersync/powersync.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/app_logger.dart';
 
 final _log = AppLogger('PowerSync');
 
@@ -52,6 +52,12 @@ final schema = Schema([
     Column.text('permissions'),
     Column.text('display_name'),
     Column.text('profile_picture_url'),
+    Column.text('phone'),
+    Column.text('address'),
+    Column.text('status'),
+    // Non-secret "has a PIN" timestamp (the hash/lookup are NOT synced — see
+    // sync_rules.yaml). Lets the UI confirm whether a login PIN is set.
+    Column.text('pin_set_at'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -61,6 +67,28 @@ final schema = Schema([
     Column.text('tenant_id'),
     Column.text('branch_id'),
     Column.text('name'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Expense Categories
+  const Table('expense_categories', [
+    Column.text('tenant_id'),
+    Column.text('name'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Expenses
+  const Table('expenses', [
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('category_id'),
+    Column.text('staff_member_id'),
+    Column.real('amount'),
+    Column.text('description'),
+    Column.text('payment_method'),
+    Column.text('expense_date'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),
@@ -78,7 +106,7 @@ final schema = Schema([
     Column.text('updated_at'),
   ]),
 
-  // Item Groups
+  // Item Groups (pure organizational containers)
   const Table('item_groups', [
     Column.text('tenant_id'),
     Column.text('branch_id'),
@@ -86,17 +114,13 @@ final schema = Schema([
     Column.text('description'),
     Column.text('default_commission_type'),
     Column.real('default_commission_value'),
-    Column.text('attributes'),
+    Column.real('default_selling_price'),
+    Column.real('default_buying_price'),
+    Column.text('default_pricing_unit'),
+    Column.real('default_coverage_per_box'),
+    Column.text('attributes'), // JSON string
     Column.text('created_at'),
     Column.text('updated_at'),
-  ]),
-
-  // Stock Item Groups
-  const Table('stock_item_groups', [
-    Column.text('tenant_id'),
-    Column.text('name'),
-    Column.text('description'),
-    Column.text('attributes'),
   ]),
 
   // Composite Item Components
@@ -130,15 +154,25 @@ final schema = Schema([
     Column.text('description'),
     Column.text('image_url'),
     Column.real('base_price'),
-    Column.real('cost_price'), // Added
+    Column.real('cost_price'),
     Column.text('tax_category'),
     Column.integer('is_service'), // Boolean as Integer (0/1)
-    Column.text('group_id'),
+    Column.text('commission_type'),
+    Column.real('commission_value'),
+    Column.text('pricing_unit'),
+    Column.real('coverage_per_box'),
     Column.text('uom_id'),
-    Column.text('variant_options'),
-    Column.text('product_type'),
+    Column.text('parent_id'),
     Column.text('created_at'),
     Column.text('updated_at'),
+  ]),
+
+  // Product-Branch availability mapping (shared catalog visibility)
+  const Table('product_branches', [
+    Column.text('tenant_id'),
+    Column.text('product_id'),
+    Column.text('branch_id'),
+    Column.text('created_at'),
   ]),
 
   // Stock
@@ -161,7 +195,10 @@ final schema = Schema([
     Column.text('reference_number'),
     Column.text('notes'),
     Column.text('created_by'),
+    Column.text('salesperson_id'),
     Column.text('reason_id'),
+    Column.text('status'),
+    Column.text('bundle_id'),
     Column.text('created_at'),
   ]),
 
@@ -190,7 +227,6 @@ final schema = Schema([
     Column.text('tenant_id'),
     Column.text('branch_id'),
     Column.text('customer_id'),
-    Column.text('customer_name'),
     Column.text('invoice_number'),
     Column.text('sale_type'),
     Column.text('created_by'),
@@ -204,6 +240,8 @@ final schema = Schema([
     Column.real('amount_paid'),
     Column.text('payment_method'),
     Column.text('status'),
+    Column.integer('required_approvals'),
+    Column.integer('approval_count'),
     Column.text('payment_status'),
     Column.text('notes'),
     Column.text('due_date'),
@@ -214,6 +252,16 @@ final schema = Schema([
     Column.text('fulfillment_status'),
     Column.text('created_at'),
     Column.text('updated_at'),
+  ]),
+
+  // Sale Approvals
+  const Table('sale_approvals', [
+    Column.text('sale_id'),
+    Column.text('tenant_id'),
+    Column.text('approver_user_id'),
+    Column.text('decision'),
+    Column.text('notes'),
+    Column.text('created_at'),
   ]),
 
   // Sale Items
@@ -276,6 +324,66 @@ final schema = Schema([
     Column.text('tenant_id'),
     Column.text('created_at'),
   ]),
+
+  // Commissions
+  const Table('commissions', [
+    Column.text('tenant_id'),
+    Column.text('sale_id'),
+    Column.text('salesperson_id'),
+    Column.real('amount'),
+    Column.text('status'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Profile Branches
+  const Table('profile_branches', [
+    Column.text('tenant_id'),
+    Column.text('profile_id'),
+    Column.text('branch_id'),
+    Column.text('created_at'),
+  ]),
+
+  // Daily KPI Snapshots (server-generated aggregates)
+  const Table('daily_kpi_snapshots', [
+    Column.text('snapshot_date'),
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.integer('orders_count'),
+    Column.real('gross_sales'),
+    Column.real('payments_collected'),
+    Column.real('total_expenses'),
+    Column.real('net_profit'),
+    Column.integer('pending_approval_count'),
+    Column.integer('low_stock_count'),
+    Column.real('inventory_value'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Daily Payment Method Snapshots (server-generated aggregates)
+  const Table('daily_payment_method_snapshots', [
+    Column.text('snapshot_date'),
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('payment_method'),
+    Column.integer('txn_count'),
+    Column.real('total_amount'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
+
+  // Daily Product Sales Snapshots (server-generated aggregates)
+  const Table('daily_product_sales_snapshots', [
+    Column.text('snapshot_date'),
+    Column.text('tenant_id'),
+    Column.text('branch_id'),
+    Column.text('product_id'),
+    Column.integer('quantity_sold'),
+    Column.real('revenue_total'),
+    Column.text('created_at'),
+    Column.text('updated_at'),
+  ]),
 ]);
 
 // 2. Global Database Instance
@@ -284,8 +392,57 @@ late final PowerSyncDatabase db;
 // 3. Supabase Connector
 class SupabaseConnector extends PowerSyncBackendConnector {
   final SupabaseClient supabase;
+  static final RegExp _uuidRegex = RegExp(
+    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+  );
+
+  // Financial writes are server-authoritative and must flow via Edge Functions.
+  static const Set<String> _serverAuthoritativeTables = {
+    'sales',
+    'sale_items',
+    'sale_payments',
+    'credit_notes',
+    'credit_note_items',
+    'commissions',
+    'daily_kpi_snapshots',
+    'daily_payment_method_snapshots',
+    'daily_product_sales_snapshots',
+  };
 
   SupabaseConnector(this.supabase);
+
+  String _normalizeAdjustmentType(dynamic raw, dynamic quantityRaw) {
+    final value = (raw as String?)?.toLowerCase();
+    if (value == 'addition' ||
+        value == 'reduction' ||
+        value == 'initial' ||
+        value == 'damage') {
+      return value!;
+    }
+
+    final quantity = (quantityRaw as num?)?.toInt() ?? 0;
+    if (quantity < 0) return 'reduction';
+    if (quantity > 0) return 'addition';
+    return 'initial';
+  }
+
+  String? _normalizeCreatedBy(dynamic raw) {
+    final currentUserId = supabase.auth.currentUser?.id;
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      return currentUserId;
+    }
+
+    final asString = raw?.toString();
+    if (asString == null || asString.isEmpty) return null;
+    return asString;
+  }
+
+  bool _hasInvalidBranchId(Map<String, dynamic> payload) {
+    if (!payload.containsKey('branch_id')) return false;
+    final branchId = payload['branch_id']?.toString();
+    if (branchId == null || branchId.isEmpty) return true;
+    return !_uuidRegex.hasMatch(branchId);
+  }
 
   @override
   Future<PowerSyncCredentials?> fetchCredentials() async {
@@ -300,9 +457,9 @@ class SupabaseConnector extends PowerSyncBackendConnector {
     final token = session.accessToken;
 
     // 3. Retrieve the PowerSync URL from environment
-    final powerSyncUrl = dotenv.env['POWERSYNC_URL'];
-    if (powerSyncUrl == null) {
-      throw Exception('POWERSYNC_URL not found in .env');
+    const powerSyncUrl = String.fromEnvironment('POWERSYNC_URL');
+    if (powerSyncUrl.isEmpty) {
+      throw Exception('POWERSYNC_URL not found in environment');
     }
 
     // 4. Return credentials
@@ -320,13 +477,80 @@ class SupabaseConnector extends PowerSyncBackendConnector {
         final id = op.id;
         final data = op.opData;
 
+        if (_serverAuthoritativeTables.contains(table)) {
+          _log.w(
+            'Skipping direct upload for server-authoritative table "$table" (id=$id). Use Edge Functions for this write path.',
+          );
+          continue;
+        }
+
         // Map PowerSync operations to Supabase (PostgREST)
         if (op.op == UpdateType.put) {
           // UPSERT (Insert or Update)
-          await supabase.from(table).upsert({...data ?? {}, 'id': id});
+          final payload = <String, dynamic>{...data ?? {}, 'id': id};
+
+          if (payload.containsKey('branch_id') &&
+              payload['branch_id'] == 'all') {
+            payload['branch_id'] = null;
+          }
+
+          if ((table == 'stock' || table == 'stock_adjustments') &&
+              _hasInvalidBranchId(payload)) {
+            _log.w(
+              'Skipping invalid $table upload with non-UUID branch_id: ${payload['branch_id']}',
+            );
+            continue;
+          }
+
+          if (table == 'stock_adjustments') {
+            payload['adjustment_type'] = _normalizeAdjustmentType(
+              payload['adjustment_type'],
+              payload['quantity'],
+            );
+            payload['created_by'] = _normalizeCreatedBy(payload['created_by']);
+          }
+          if (table == 'product_branches') {
+            await supabase
+                .from(table)
+                .upsert(payload, onConflict: 'product_id,branch_id');
+          } else if (table == 'profile_branches') {
+            await supabase
+                .from(table)
+                .upsert(payload, onConflict: 'profile_id,branch_id');
+          } else {
+            await supabase.from(table).upsert(payload);
+          }
         } else if (op.op == UpdateType.patch) {
           // UPDATE
-          await supabase.from(table).update(data!).eq('id', id);
+          final payload = <String, dynamic>{...data!};
+
+          if (payload.containsKey('branch_id') &&
+              payload['branch_id'] == 'all') {
+            payload['branch_id'] = null;
+          }
+
+          if ((table == 'stock' || table == 'stock_adjustments') &&
+              _hasInvalidBranchId(payload)) {
+            _log.w(
+              'Skipping invalid $table patch with non-UUID branch_id: ${payload['branch_id']}',
+            );
+            continue;
+          }
+
+          if (table == 'stock_adjustments') {
+            if (payload.containsKey('adjustment_type')) {
+              payload['adjustment_type'] = _normalizeAdjustmentType(
+                payload['adjustment_type'],
+                payload['quantity'],
+              );
+            }
+            if (payload.containsKey('created_by')) {
+              payload['created_by'] = _normalizeCreatedBy(
+                payload['created_by'],
+              );
+            }
+          }
+          await supabase.from(table).update(payload).eq('id', id);
         } else if (op.op == UpdateType.delete) {
           // DELETE
           await supabase.from(table).delete().eq('id', id);

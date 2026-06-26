@@ -29,6 +29,7 @@ class InvoiceTemplate {
     String? customerName,
     String? customerAddress,
     String? customerPhone,
+    String? salespersonName,
     pw.MemoryImage? logoImage,
   }) {
     final pdf = pw.Document();
@@ -37,8 +38,14 @@ class InvoiceTemplate {
 
     pdf.addPage(
       pw.MultiPage(
-        pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(40),
+        pageTheme: pw.PageTheme(
+          pageFormat: PdfPageFormat.a4,
+          margin: const pw.EdgeInsets.all(40),
+          buildBackground: (context) => pw.FullPage(
+            ignoreMargins: true,
+            child: pw.Container(color: PdfColors.white),
+          ),
+        ),
         header: (context) =>
             _buildHeader(tenant, branch, sale, dateFormat, logoImage),
         footer: (context) => _buildFooter(context, tenant),
@@ -50,6 +57,7 @@ class InvoiceTemplate {
             customerName: customerName,
             customerAddress: customerAddress,
             customerPhone: customerPhone,
+            salespersonName: salespersonName,
             sale: sale,
             dateFormat: dateFormat,
           ),
@@ -163,14 +171,6 @@ class InvoiceTemplate {
                     color: PdfColors.grey400,
                   ),
                 ),
-              if (tenant.email != null)
-                pw.Text(
-                  tenant.email!,
-                  style: const pw.TextStyle(
-                    fontSize: 9,
-                    color: PdfColors.grey400,
-                  ),
-                ),
             ],
           ),
 
@@ -207,7 +207,7 @@ class InvoiceTemplate {
               ),
               pw.SizedBox(height: 4),
               pw.Text(
-                'Date: ${dateFormat.format(sale.createdAt ?? DateTime.now())}',
+                'Date: ${dateFormat.format((sale.createdAt ?? DateTime.now()).toLocal())}',
                 style: const pw.TextStyle(
                   fontSize: 9,
                   color: PdfColors.grey400,
@@ -232,6 +232,7 @@ class InvoiceTemplate {
     String? customerName,
     String? customerAddress,
     String? customerPhone,
+    String? salespersonName,
     required Sale sale,
     required DateFormat dateFormat,
   }) {
@@ -286,9 +287,11 @@ class InvoiceTemplate {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.end,
             children: [
-              _infoRow('Status', sale.status.displayName),
               if (sale.salespersonId != null)
-                _infoRow('Salesperson ID', sale.salespersonId!),
+                _infoRow(
+                  'Salesperson',
+                  (salespersonName ?? sale.salespersonId!).trim(),
+                ),
               _infoRow(
                 'Payment',
                 sale.paymentMethod?.toUpperCase() ?? 'PENDING',
@@ -324,7 +327,6 @@ class InvoiceTemplate {
     NumberFormat currencyFormat,
   ) {
     return pw.TableHelper.fromTextArray(
-      border: pw.TableBorder.all(color: borderColor, width: 0.5),
       headerDecoration: const pw.BoxDecoration(color: headerBg),
       headerStyle: pw.TextStyle(
         fontSize: 9,
@@ -339,12 +341,11 @@ class InvoiceTemplate {
         0: const pw.FixedColumnWidth(30),
         1: const pw.FlexColumnWidth(4),
         2: const pw.FixedColumnWidth(40),
-        3: const pw.FixedColumnWidth(70),
-        4: const pw.FixedColumnWidth(60),
-        5: const pw.FixedColumnWidth(75),
+        3: const pw.FixedColumnWidth(80),
+        4: const pw.FixedColumnWidth(85),
       },
       oddRowDecoration: const pw.BoxDecoration(color: lightGrey),
-      headers: ['#', 'Item', 'Qty', 'Unit Price', 'Tax', 'Total'],
+      headers: ['#', 'Item', 'Qty', 'Unit Price', 'Total'],
       data: items.asMap().entries.map((entry) {
         final i = entry.key;
         final item = entry.value;
@@ -353,7 +354,6 @@ class InvoiceTemplate {
           item.productName ?? 'Item',
           '${item.quantity}',
           'Ksh ${currencyFormat.format(item.unitPrice)}',
-          'Ksh ${currencyFormat.format(item.taxAmount)}',
           'Ksh ${currencyFormat.format(item.total)}',
         ];
       }).toList(),
@@ -378,11 +378,6 @@ class InvoiceTemplate {
                   'Subtotal',
                   'Ksh ${currencyFormat.format(sale.subtotal)}',
                 ),
-                if (sale.taxAmount > 0)
-                  _summaryRow(
-                    'Tax',
-                    'Ksh ${currencyFormat.format(sale.taxAmount)}',
-                  ),
                 if (sale.discountAmount > 0)
                   _summaryRow(
                     'Discount',
@@ -468,7 +463,6 @@ class InvoiceTemplate {
         ),
         pw.SizedBox(height: 8),
         pw.TableHelper.fromTextArray(
-          border: pw.TableBorder.all(color: borderColor, width: 0.5),
           headerDecoration: const pw.BoxDecoration(color: lightGrey),
           headerStyle: pw.TextStyle(
             fontSize: 8,
@@ -479,7 +473,7 @@ class InvoiceTemplate {
           headers: ['Date', 'Method', 'Reference', 'Amount'],
           data: payments.map((p) {
             return [
-              dateFormat.format(p.createdAt ?? DateTime.now()),
+              dateFormat.format((p.createdAt ?? DateTime.now()).toLocal()),
               p.paymentMethod,
               p.referenceNumber ?? '—',
               'Ksh ${currencyFormat.format(p.amount)}',
@@ -497,12 +491,8 @@ class InvoiceTemplate {
       ),
       padding: const pw.EdgeInsets.only(top: 8),
       child: pw.Row(
-        mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+        mainAxisAlignment: pw.MainAxisAlignment.end,
         children: [
-          pw.Text(
-            'Generated by Zynk POS',
-            style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey500),
-          ),
           pw.Text(
             'Page ${context.pageNumber} of ${context.pagesCount}',
             style: const pw.TextStyle(fontSize: 7, color: PdfColors.grey500),

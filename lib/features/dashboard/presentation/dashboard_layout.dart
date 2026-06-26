@@ -5,15 +5,15 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/providers/app_providers.dart' hide userRoleProvider;
+import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 
-import 'package:shimmer/shimmer.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'widgets/metric_cards.dart';
 import 'widgets/charts.dart';
 import 'widgets/orders_list.dart';
 import 'widgets/products_list.dart';
+import 'staff_dashboard_layout.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN DASHBOARD LAYOUT
@@ -22,10 +22,11 @@ import 'widgets/products_list.dart';
 class DashboardLayout extends ConsumerWidget {
   const DashboardLayout({super.key});
 
+  // PowerSync streams are live, so dashboard data is already up to date — the
+  // pull-to-refresh is just a tactile confirmation, no provider invalidation.
   Future<void> _refreshDashboard(WidgetRef ref) async {
     HapticFeedback.mediumImpact();
-    ref.invalidate(dashboardRefreshTriggerProvider);
-    await Future.delayed(const Duration(milliseconds: 1200));
+    await Future.delayed(const Duration(milliseconds: 600));
     HapticFeedback.lightImpact();
   }
 
@@ -41,7 +42,19 @@ class DashboardLayout extends ConsumerWidget {
     final greeting = ref.watch(greetingProvider);
 
     final displayName = profileAsync.value?.displayName ?? 'User';
-    final tenantName = tenantAsync.value?.name ?? 'Workspace';
+    final tenantName = tenantAsync.value?.name ?? 'Passionate Homes';
+
+    final hasDashboardPermission =
+        profileAsync.value?.hasPermission(Permission.viewDashboard) ?? false;
+    if (!hasDashboardPermission && profileAsync.value != null) {
+      return StaffDashboardLayout(
+        role: role,
+        displayName: displayName,
+        tenantName: tenantName,
+        photoUrl: profileAsync.value?.profilePictureUrl,
+        greeting: greeting,
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -114,12 +127,13 @@ class _DesktopDashboard extends StatelessWidget {
         backgroundColor: colorScheme.surface,
         child: Column(
           children: [
-            _DesktopAppBar(
+            DesktopAppBar(
               colorScheme: colorScheme,
               theme: theme,
               tenantName: tenantName,
               displayName: displayName,
               role: role,
+              greeting: greeting,
             ),
             Expanded(
               child: SingleChildScrollView(
@@ -261,19 +275,22 @@ class _MobileDashboard extends StatelessWidget {
 // APP BAR COMPONENTS
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _DesktopAppBar extends StatelessWidget {
+class DesktopAppBar extends StatelessWidget {
   final ColorScheme colorScheme;
   final ThemeData theme;
   final String tenantName;
   final String displayName;
   final UserRole role;
+  final String greeting;
 
-  const _DesktopAppBar({
+  const DesktopAppBar({
+    super.key,
     required this.colorScheme,
     required this.theme,
     required this.tenantName,
     required this.displayName,
     required this.role,
+    required this.greeting,
   });
 
   @override
@@ -295,14 +312,14 @@ class _DesktopAppBar extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Welcome back, $displayName',
+                '$greeting, $displayName',
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
               ),
             ],
           ),
-          Row(children: [BranchSelector(role: role)]),
+          const SizedBox.shrink(),
         ],
       ),
     );
@@ -360,178 +377,7 @@ class DashboardSliverAppBar extends StatelessWidget {
           ),
         ],
       ),
-      actions: [
-        BranchSelector(role: role),
-        const SizedBox(width: 8),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BRANCH SELECTOR
-// ─────────────────────────────────────────────────────────────────────────────
-
-class BranchSelector extends ConsumerWidget {
-  final UserRole role;
-
-  const BranchSelector({super.key, required this.role});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final branchesState = ref.watch(branchesProvider);
-    final selectionState = ref.watch(branchSelectionProvider);
-
-    return branchesState.when(
-      data: (_) {
-        final branches = selectionState.availableBranches;
-        if (branches.isEmpty) return const SizedBox.shrink();
-
-        final selectedBranchId =
-            selectionState.selectedBranchId ?? branches.first.id;
-        final selectedBranchName = branches
-            .firstWhere(
-              (b) => b.id == selectedBranchId,
-              orElse: () => branches.first,
-            )
-            .name;
-
-        if (!role.isOwner) {
-          return _ReadOnlyBranchBadge(
-            name: selectedBranchName,
-            colorScheme: colorScheme,
-          );
-        }
-
-        return _BranchDropdown(
-          branches: branches,
-          selectedId: selectedBranchId,
-          colorScheme: colorScheme,
-          theme: theme,
-        );
-      },
-      loading: () => _BranchSkeleton(colorScheme: colorScheme),
-      error: (_, _) => const SizedBox.shrink(),
-    );
-  }
-}
-
-class _ReadOnlyBranchBadge extends StatelessWidget {
-  final String name;
-  final ColorScheme colorScheme;
-
-  const _ReadOnlyBranchBadge({required this.name, required this.colorScheme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainer,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: Row(
-        children: [
-          PhosphorIcon(
-            PhosphorIconsDuotone.storefront,
-            size: 16,
-            color: colorScheme.onSurfaceVariant,
-          ),
-          const SizedBox(width: 8),
-          Text(
-            name,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-              color: colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BranchDropdown extends ConsumerWidget {
-  final List<dynamic> branches;
-  final String selectedId;
-  final ColorScheme colorScheme;
-  final ThemeData theme;
-
-  const _BranchDropdown({
-    required this.branches,
-    required this.selectedId,
-    required this.colorScheme,
-    required this.theme,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: colorScheme.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colorScheme.outlineVariant),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: selectedId,
-          icon: Padding(
-            padding: const EdgeInsets.only(left: 8),
-            child: PhosphorIcon(
-              PhosphorIconsRegular.caretDown,
-              size: 14,
-              color: colorScheme.primary,
-            ),
-          ),
-          style: theme.textTheme.labelLarge?.copyWith(
-            fontWeight: FontWeight.w600,
-            color: colorScheme.onSurface,
-          ),
-          dropdownColor: colorScheme.surfaceContainer,
-          items: branches.map<DropdownMenuItem<String>>((branch) {
-            return DropdownMenuItem<String>(
-              value: branch.id as String,
-              child: Text(
-                branch.name as String,
-                style: TextStyle(color: colorScheme.onSurface),
-              ),
-            );
-          }).toList(),
-          onChanged: (val) {
-            if (val != null) {
-              HapticFeedback.lightImpact();
-              ref.read(branchSelectionProvider.notifier).selectBranch(val);
-            }
-          },
-        ),
-      ),
-    );
-  }
-}
-
-class _BranchSkeleton extends StatelessWidget {
-  final ColorScheme colorScheme;
-
-  const _BranchSkeleton({required this.colorScheme});
-
-  @override
-  Widget build(BuildContext context) {
-    return Shimmer.fromColors(
-      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
-      highlightColor: colorScheme.surfaceContainerHighest.withValues(
-        alpha: 0.6,
-      ),
-      child: Container(
-        width: 120,
-        height: 36,
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(10),
-        ),
-      ),
+      actions: [const SizedBox(width: 8)],
     );
   }
 }

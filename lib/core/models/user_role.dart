@@ -23,13 +23,25 @@ enum Permission {
   approveInvoices(
     'approve_invoices',
     'Approve Invoices',
-    'Can approve or reject pending invoices',
+    'Can approve or reject pending invoices.',
+    PermissionCategory.sales,
+  ),
+  editSales(
+    'edit_sales',
+    'Edit Invoices',
+    'Can edit pending invoices',
+    PermissionCategory.sales,
+  ),
+  deleteSales(
+    'delete_sales',
+    'Delete Invoices',
+    'Can delete invoices and payments',
     PermissionCategory.sales,
   ),
   voidSales(
     'void_sales',
     'Void Sales',
-    'Can void completed sales and reverse stock',
+    'Can void completed sales and reverse stock.',
     PermissionCategory.sales,
   ),
   recordPayments(
@@ -50,6 +62,12 @@ enum Permission {
     'Can apply discounts at POS or on invoices',
     PermissionCategory.sales,
   ),
+  manageExpenses(
+    'manage_expenses',
+    'Manage Expenses',
+    'Can log and view business expenses',
+    PermissionCategory.sales,
+  ),
 
   // ── Inventory ──
   manageProducts(
@@ -62,6 +80,12 @@ enum Permission {
     'manage_stock',
     'Manage Stock',
     'Can adjust stock levels manually',
+    PermissionCategory.inventory,
+  ),
+  approveStock(
+    'approve_stock',
+    'Approve Stock',
+    'Can approve or reject pending stock adjustments',
     PermissionCategory.inventory,
   ),
   viewCostPrices(
@@ -215,23 +239,28 @@ enum UserRole {
           Permission.posAccess,
           Permission.createInvoices,
           Permission.approveInvoices,
+          Permission.editSales,
+          Permission.deleteSales,
           Permission.voidSales,
           Permission.recordPayments,
           Permission.issueCreditNotes,
           Permission.applyDiscounts,
           Permission.manageProducts,
           Permission.manageStock,
+          Permission.approveStock,
           Permission.viewCostPrices,
           Permission.viewReports,
           Permission.viewDashboard,
           Permission.exportData,
           Permission.manageCustomers,
+          Permission.manageExpenses,
         };
       case UserRole.cashier:
         return {
           Permission.posAccess,
           Permission.recordPayments,
           Permission.manageCustomers,
+          Permission.manageStock,
         };
     }
   }

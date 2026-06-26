@@ -1,0 +1,18 @@
+Item group,description,pricing_unit,sqm_per_box,price,buying_price,default_commission_type,default _commission_value
+BLO44/FGE44,400x400mm,sqm,1.92,920,0,fixed,10
+FGB44,400x400mm,sqm,1.92,910,0,fixed,10
+GG44,4000x400mm,sqm,1.92,920,0,fixed,10
+GW24,250x400mm,sqm,1.5,850,0,fixed,5
+MCP36,300x600mm,sqm,1.44,1280,0,fixed,10
+MR36,300x600mm,sqm,1.44,1300,0,fixed,10
+MR44,400x400mm,sqm,1.92,940,0,fixed,10
+MR612/MRP612,1200x600mm,sqm,1.44,2200,0,fixed,50
+MR66/FGC66,600x600mm,sqm,1.44,1700,0,fixed,20
+FGP55/PGS55,500x500mm,sqm,1.75,1600,0,fixed,20
+MRG44,400x400mm,sqm,1.44,1250,0,fixed,10
+MRP66/YMP66,600x600mm,sqm,1.44,1700,0,fixed,20
+MRS45/CG45,450x450mm,sqm,1.62,870,0,fixed,20
+PMCP24,250x400mm,sqm,1.5,850,0,fixed,5
+FGP33,300x300mm,sqm,1.5,850,0,fixed,5
+MRG212,200x1200mm,sqm,0.144,1800,0,fixed,20
+BLO33/YMZ33,300x300mm,sqm,1.5,870,0,fixed,5

@@ -1,0 +1,1 @@
+{"type":"pattern","name":"Branch Locking","description":"Enforced branch-locking logic in BranchSelectionNotifier using profile data to resolve race conditions.","classification":"tactical","recorded_at":"2026-04-30T09:46:17.620Z","id":"mx-38f2bb"}

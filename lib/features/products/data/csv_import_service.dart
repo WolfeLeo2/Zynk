@@ -44,11 +44,27 @@ class CsvImportService {
     final repo = ref.read(repositoryProvider);
     final profile = ref.read(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? 'tenant_1';
-    final branchId = ref.read(currentBranchIdProvider);
-    if (branchId == null) {
+    final selectedBranchId = ref.read(currentBranchIdProvider);
+    if (selectedBranchId == null) {
       throw Exception('No branch selected. Please select a branch first.');
     }
+    final allBranchesMode = selectedBranchId == 'all';
+    final targetBranches = allBranchesMode
+        ? (await repo.getBranches(
+            tenantId,
+          )).where((b) => b.id != 'all').toList()
+        : const <Branch>[];
+    final targetBranchIds = allBranchesMode
+        ? targetBranches.map((b) => b.id).toList()
+        : <String>[selectedBranchId];
+
+    if (allBranchesMode && targetBranches.isEmpty) {
+      throw Exception(
+        'All Branches selected but no target branches were found for this tenant.',
+      );
+    }
     final createdBy = profile?.userId ?? 'system';
+    final bundleId = const Uuid().v4();
 
     final categoriesSnapshot = await repo.watchCategories().first;
     final Map<String, String> categoryMap = {
@@ -56,13 +72,29 @@ class CsvImportService {
         cat.name.trim().toLowerCase(): cat.id,
     };
 
+    final groupsSnapshot = await repo.watchItemGroups().first;
+    final Map<String, String> groupMap = {
+      for (final group in groupsSnapshot)
+        group.name.trim().toLowerCase(): group.id,
+    };
+
     for (final p in parsedProducts) {
       final newProductId = const Uuid().v4();
-      final double basePrice =
-          double.tryParse(p['selling_price'].toString()) ?? 0.0;
-      final double? costPrice = double.tryParse(p['cost_price'].toString());
+
+      // Pricing
+      final sellingPriceRaw = p['selling_price']?.toString() ?? '';
+      final double? basePrice = sellingPriceRaw.isEmpty
+          ? null
+          : double.tryParse(sellingPriceRaw);
+
+      final costPriceRaw = p['cost_price']?.toString() ?? '';
+      final double? costPrice = costPriceRaw.isEmpty
+          ? null
+          : double.tryParse(costPriceRaw);
+
       final int initialStock = int.tryParse(p['initial_stock'].toString()) ?? 0;
 
+      // Category Resolution
       final String categoryNameRaw =
           p['category']?.toString() ?? 'Uncategorized';
       final String categoryNameClean = categoryNameRaw.trim();
@@ -76,7 +108,7 @@ class CsvImportService {
         final newCategory = Category(
           id: categoryId,
           tenantId: tenantId,
-          branchId: branchId,
+          branchId: allBranchesMode ? null : selectedBranchId,
           name: categoryNameClean,
           createdAt: DateTime.now(),
           updatedAt: DateTime.now(),
@@ -85,12 +117,51 @@ class CsvImportService {
         categoryMap[categoryKey] = categoryId;
       }
 
+      // Item Group Resolution
+      final String groupNameRaw = p['item_group']?.toString() ?? 'Default';
+      final String groupNameClean = groupNameRaw.trim();
+      final String groupKey = groupNameClean.toLowerCase();
+
+      String? itemGroupId;
+      if (groupMap.containsKey(groupKey)) {
+        itemGroupId = groupMap[groupKey]!;
+      } else {
+        itemGroupId = const Uuid().v4();
+
+        // Parse optional group defaults from CSV row if present
+        final defSelling = double.tryParse(
+          p['group_selling_price']?.toString() ?? '',
+        );
+        final defBuying = double.tryParse(
+          p['group_buying_price']?.toString() ?? '',
+        );
+        final commType = p['group_commission_type']?.toString();
+        final commValue = double.tryParse(
+          p['group_commission_value']?.toString() ?? '',
+        );
+
+        final newGroup = ItemGroup(
+          id: itemGroupId,
+          tenantId: tenantId,
+          branchId: allBranchesMode ? null : selectedBranchId,
+          name: groupNameClean,
+          description: p['group_description']?.toString(),
+          defaultSellingPrice: defSelling,
+          defaultBuyingPrice: defBuying,
+          defaultCommissionType: commType,
+          defaultCommissionValue: commValue,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        await repo.createItemGroup(newGroup);
+        groupMap[groupKey] = itemGroupId;
+      }
+
       final product = Product(
         id: newProductId,
         tenantId: tenantId,
-        branchId: branchId,
-        itemGroupId:
-            null, // CSV batch imports don't link to groups by default yet
+        branchId: null,
+        itemGroupId: itemGroupId,
         categoryId: categoryId,
         name: p['name'].toString(),
         sku: p['sku']?.toString(),
@@ -105,18 +176,34 @@ class CsvImportService {
         updatedAt: DateTime.now(),
       );
 
-      await repo.createProduct(product);
+      await repo.createProduct(product, targetBranchIds: targetBranchIds);
 
       if (initialStock > 0) {
-        await repo.adjustStock(
-          tenantId: tenantId,
-          branchId: branchId,
-          productId: newProductId,
-          adjustmentType: 'initial',
-          quantityChange: initialStock,
-          createdBy: createdBy,
-          notes: 'Batch CSV import',
-        );
+        if (allBranchesMode) {
+          for (final branch in targetBranches) {
+            await repo.adjustStock(
+              tenantId: tenantId,
+              branchId: branch.id,
+              productId: newProductId,
+              adjustmentType: 'initial',
+              quantityChange: initialStock,
+              createdBy: createdBy,
+              notes: 'Batch CSV import (all branches)',
+              bundleId: bundleId,
+            );
+          }
+        } else {
+          await repo.adjustStock(
+            tenantId: tenantId,
+            branchId: selectedBranchId,
+            productId: newProductId,
+            adjustmentType: 'initial',
+            quantityChange: initialStock,
+            createdBy: createdBy,
+            notes: 'Batch CSV import',
+            bundleId: bundleId,
+          );
+        }
       }
     }
   }

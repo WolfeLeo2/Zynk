@@ -1,15 +1,16 @@
+import 'package:animations/animations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:zynk/core/models/sales_models.dart';
-import 'package:zynk/core/models/user_role.dart';
-import 'package:zynk/core/providers/app_providers.dart';
-import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
-import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/core/models/sales_models.dart';
+import 'package:zynk/features/sales/presentation/sales_search_screen.dart';
+import 'package:zynk/features/sales/presentation/widgets/sale_card.dart';
+import 'package:zynk/features/sales/providers/sales_providers.dart';
+import 'package:zynk/shared/widgets/branch_filter_chips.dart';
+import 'package:zynk/shared/widgets/date_range_filter.dart';
+
+import '../../../core/widgets/app_drawer.dart';
 
 class SalesListScreen extends ConsumerStatefulWidget {
   const SalesListScreen({super.key});
@@ -23,11 +24,35 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
   String?
   _branchFilter; // null = current branch selection, specific branchId = filter
 
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      ref.read(salesListLimitProvider.notifier).increment(50);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final salesAsync = ref.watch(salesListProvider);
+    final salesAsync = ref.watch(
+      filteredSalesListProvider((branchId: _branchFilter, status: _filter)),
+    );
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -43,12 +68,36 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
             return const SizedBox.shrink();
           },
         ),
-        title: const Text('Sales & Invoices'),
+        title: const Text('Invoices'),
         actions: [
-          IconButton(
-            icon: const PhosphorIcon(PhosphorIconsRegular.magnifyingGlass),
-            onPressed: () {}, // TODO: search
+          Center(
+            child: DateRangeFilter(
+              selectedRange: ref.watch(salesListDateRangeProvider),
+              onChanged: (range) {
+                ref.read(salesListLimitProvider.notifier).reset();
+                ref.read(salesListDateRangeProvider.notifier).setRange(range);
+              },
+            ),
           ),
+          const SizedBox(width: 8),
+          OpenContainer(
+            transitionType: ContainerTransitionType.fadeThrough,
+            closedElevation: 0,
+            openElevation: 0,
+            closedColor: Colors.transparent,
+            openColor: theme.colorScheme.surface,
+            middleColor: theme.colorScheme.surface,
+            closedBuilder: (context, action) {
+              return IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.magnifyingGlass),
+                onPressed: action,
+              );
+            },
+            openBuilder: (context, action) {
+              return const SalesSearchScreen();
+            },
+          ),
+          const SizedBox(width: 8),
         ],
       ),
       body: Column(
@@ -58,65 +107,69 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           const Divider(height: 1),
           // Sales list
           Expanded(
-            child: salesAsync.when(
-              data: (sales) {
-                // Apply branch filter client-side
-                var branchFiltered = _branchFilter == null
-                    ? sales
-                    : sales.where((s) => s.branchId == _branchFilter).toList();
+            child: Builder(
+              builder: (context) {
+                if (salesAsync.isLoading && !salesAsync.hasValue) {
+                  return _SalesListSkeleton();
+                }
+                if (salesAsync.hasError && !salesAsync.hasValue) {
+                  return Center(child: Text('Error: ${salesAsync.error}'));
+                }
 
-                final filtered = _filter == null
+                final sales = salesAsync.value ?? [];
+
+                // Branch filtering is handled server-side now by the provider
+                final branchFiltered = sales;
+
+                final filtered = _filter == null || _filter is InvoiceStatus
+                    // InvoiceStatus is handled server-side, everything else handled here
                     ? branchFiltered
                     : _filter == 'outstanding'
-                        ? branchFiltered
-                            .where(
-                              (s) =>
-                                  s.status != InvoiceStatus.voided &&
-                                  s.status != InvoiceStatus.completed &&
-                                  s.paymentStatus != PaymentStatus.paid,
-                            )
-                            .toList()
-                        : _filter is InvoiceStatus
-                            ? branchFiltered
-                                .where((s) => s.status == _filter)
-                                .toList()
-                            : _filter is PaymentStatus
-                                ? branchFiltered
-                                    .where((s) => s.paymentStatus == _filter)
-                                    .toList()
-                                : _filter is FulfillmentStatus
-                                    ? branchFiltered
-                                        .where((s) =>
-                                            s.fulfillmentStatus == _filter)
-                                        .toList()
-                                    : branchFiltered;
+                    ? branchFiltered
+                          .where(
+                            (s) =>
+                                s.status != InvoiceStatus.voided &&
+                                s.status != InvoiceStatus.rejected &&
+                                !s.isOperationallyCompleted,
+                          )
+                          .toList()
+                    : _filter is PaymentStatus
+                    ? branchFiltered
+                          .where((s) => s.paymentStatus == _filter)
+                          .toList()
+                    : _filter is FulfillmentStatus
+                    ? branchFiltered
+                          .where((s) => s.fulfillmentStatus == _filter)
+                          .toList()
+                    : branchFiltered;
 
                 if (filtered.isEmpty) {
                   return _buildEmpty(theme, cs);
                 }
 
                 return ListView.separated(
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(16),
-                  itemCount: filtered.length,
+                  itemCount: filtered.length + (salesAsync.isLoading ? 1 : 0),
                   separatorBuilder: (_, _) => const SizedBox(height: 10),
-                  itemBuilder: (_, i) => _SaleCard(sale: filtered[i]),
+                  itemBuilder: (_, i) {
+                    if (i == filtered.length) {
+                      return const Center(
+                        child: Padding(
+                          padding: EdgeInsets.all(16.0),
+                          child: CircularProgressIndicator(),
+                        ),
+                      );
+                    }
+                    return SaleCard(sale: filtered[i]);
+                  },
                 );
               },
-              loading: () => _SalesListSkeleton(),
-              error: (e, _) => Center(child: Text('Error: $e')),
             ),
           ),
         ],
       ),
-      // FAB for creating invoices (permission-gated)
-      floatingActionButton:
-          ref.watch(hasPermissionProvider(Permission.createInvoices))
-          ? FloatingActionButton.extended(
-              onPressed: () => context.go('/sales/create-invoice'),
-              icon: const PhosphorIcon(PhosphorIconsBold.fileText, size: 20),
-              label: const Text('Create Invoice'),
-            )
-          : null,
+      floatingActionButton: null,
     );
   }
 
@@ -125,13 +178,21 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
     final filters = [
       (null, 'All', PhosphorIconsRegular.listBullets),
       ('outstanding', 'Outstanding', PhosphorIconsRegular.warningCircle),
-      (InvoiceStatus.draft, 'Drafts', PhosphorIconsRegular.pencilSimple),
-      (InvoiceStatus.pendingApproval, 'Pending Approval', PhosphorIconsRegular.clock),
+      (
+        InvoiceStatus.pendingApproval,
+        'Pending Approval',
+        PhosphorIconsRegular.clock,
+      ),
       (InvoiceStatus.approved, 'Approved', PhosphorIconsRegular.sealCheck),
       (PaymentStatus.unpaid, 'Unpaid', PhosphorIconsRegular.money),
       (PaymentStatus.partiallyPaid, 'Partial', PhosphorIconsRegular.percent),
       (PaymentStatus.paid, 'Paid', PhosphorIconsRegular.currencyCircleDollar),
-      (InvoiceStatus.completed, 'Completed', PhosphorIconsRegular.checkCircle),
+      (
+        FulfillmentStatus.unreleased,
+        'Unreleased',
+        PhosphorIconsRegular.package,
+      ),
+      (FulfillmentStatus.released, 'Released', PhosphorIconsRegular.package),
       (InvoiceStatus.voided, 'Voided', PhosphorIconsRegular.prohibit),
     ];
 
@@ -139,49 +200,9 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Branch filter (only visible when "All Branches" is selected)
-        Consumer(
-          builder: (context, ref, _) {
-            final branchesAsync = ref.watch(branchesProvider);
-            final currentBranch = ref.watch(currentBranchIdProvider);
-            final isAllBranches =
-                currentBranch == null || currentBranch == 'all';
-
-            if (!isAllBranches) return const SizedBox.shrink();
-
-            return branchesAsync.when(
-              data: (branches) {
-                if (branches.length <= 1) return const SizedBox.shrink();
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: Row(
-                    children: [
-                      PhosphorIcon(
-                        PhosphorIconsRegular.storefront,
-                        size: 16,
-                        color: cs.onSurfaceVariant,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: SingleChildScrollView(
-                          scrollDirection: Axis.horizontal,
-                          child: Row(
-                            children: [
-                              _branchChip(theme, cs, null, 'All Branches'),
-                              ...branches.map(
-                                (b) => _branchChip(theme, cs, b.id, b.name),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-              loading: () => const SizedBox.shrink(),
-              error: (_, _) => const SizedBox.shrink(),
-            );
-          },
+        BranchFilterChips(
+          selectedBranchId: _branchFilter,
+          onSelected: (id) => setState(() => _branchFilter = id),
         ),
         // Status filter chips
         SingleChildScrollView(
@@ -206,11 +227,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
                     color: isActive ? cs.onPrimary : cs.onSurface,
                   ),
                   selectedColor: cs.primary,
-                  side: BorderSide(
-                    color: isActive
-                        ? cs.primary
-                        : cs.outline.withValues(alpha: 0.3),
-                  ),
+
                   onSelected: (_) => setState(() => _filter = f.$1),
                 ),
               );
@@ -218,35 +235,6 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           ),
         ),
       ],
-    );
-  }
-
-  Widget _branchChip(
-    ThemeData theme,
-    ColorScheme cs,
-    String? branchId,
-    String label,
-  ) {
-    final isActive = _branchFilter == branchId;
-    return Padding(
-      padding: const EdgeInsets.only(right: 6),
-      child: ChoiceChip(
-        selected: isActive,
-        showCheckmark: false,
-        label: Text(
-          label,
-          style: TextStyle(
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-            color: isActive ? cs.onSecondary : cs.onSurface,
-            fontSize: 12,
-          ),
-        ),
-        selectedColor: cs.secondary,
-        side: BorderSide(
-          color: isActive ? cs.secondary : cs.outline.withValues(alpha: 0.2),
-        ),
-        onSelected: (_) => setState(() => _branchFilter = branchId),
-      ),
     );
   }
 
@@ -269,7 +257,7 @@ class _SalesListScreenState extends ConsumerState<SalesListScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Complete a POS sale or create an invoice',
+            'Complete a POS sale to start seeing invoices',
             style: theme.textTheme.bodySmall?.copyWith(
               color: cs.onSurfaceVariant.withValues(alpha: 0.7),
             ),
@@ -306,205 +294,5 @@ class _SalesListSkeleton extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SALE CARD (Shopify-style)
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _SaleCard extends StatelessWidget {
-  final Sale sale;
-  const _SaleCard({required this.sale});
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
-
-    return InkWell(
-      onTap: () => context.push('/sales/${sale.id}'),
-      borderRadius: BorderRadius.circular(14),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          children: [
-            // Status icon
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: _statusColor(sale.status).withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Center(
-                child: PhosphorIcon(
-                  _statusIcon(sale.status),
-                  color: _statusColor(sale.status),
-                  size: 22,
-                ),
-              ),
-            ),
-            const SizedBox(width: 14),
-
-            // Info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Type label: Receipt or Invoice
-                  Text(
-                    sale.saleType == 'pos_sale' ? 'Receipt' : 'Invoice',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: sale.saleType == 'pos_sale'
-                          ? cs.onSurfaceVariant
-                          : cs.primary,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Flexible(
-                        child: Text(
-                          sale.invoiceNumber ?? '#—',
-                          style: theme.textTheme.titleSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      _StatusBadge(status: sale.status),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _formatDate(sale.createdAt),
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Amount
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  'Ksh ${sale.grandTotal.toStringAsFixed(0)}',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                if (sale.status == InvoiceStatus.partiallyPaid)
-                  Text(
-                    'Paid: ${sale.amountPaid.toStringAsFixed(0)}',
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: const Color(0xFFFFA726),
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-              ],
-            ),
-
-            const SizedBox(width: 4),
-            PhosphorIcon(
-              PhosphorIconsRegular.caretRight,
-              size: 18,
-              color: cs.onSurfaceVariant.withValues(alpha: 0.4),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatDate(DateTime? date) {
-    if (date == null) return '';
-    final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${date.day}/${date.month}/${date.year}';
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// STATUS BADGE
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _StatusBadge extends StatelessWidget {
-  final InvoiceStatus status;
-  const _StatusBadge({required this.status});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: _statusColor(status).withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Text(
-        status.displayName,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: _statusColor(status),
-        ),
-      ),
-    );
-  }
-}
-
-Color _statusColor(InvoiceStatus status) {
-  switch (status) {
-    case InvoiceStatus.draft:
-      return AppTokens.textMutedDark;
-    case InvoiceStatus.pendingApproval:
-      return const Color(0xFFFFA726);
-    case InvoiceStatus.approved:
-      return AppTokens.brandPrimary;
-    case InvoiceStatus.rejected:
-      return AppTokens.brandAccent;
-    case InvoiceStatus.partiallyPaid:
-      return const Color(0xFFFFA726);
-    case InvoiceStatus.paid:
-      return AppTokens.brandSecondary;
-    case InvoiceStatus.completed:
-      return const Color(0xFF66BB6A);
-    case InvoiceStatus.voided:
-      return const Color(0xFFEF5350);
-  }
-}
-
-IconData _statusIcon(InvoiceStatus status) {
-  switch (status) {
-    case InvoiceStatus.draft:
-      return PhosphorIconsRegular.pencilLine;
-    case InvoiceStatus.pendingApproval:
-      return PhosphorIconsRegular.clock;
-    case InvoiceStatus.approved:
-      return PhosphorIconsRegular.checkCircle;
-    case InvoiceStatus.rejected:
-      return PhosphorIconsRegular.xCircle;
-    case InvoiceStatus.partiallyPaid:
-      return PhosphorIconsRegular.percent;
-    case InvoiceStatus.paid:
-      return PhosphorIconsRegular.currencyCircleDollar;
-    case InvoiceStatus.completed:
-      return PhosphorIconsRegular.check;
-    case InvoiceStatus.voided:
-      return PhosphorIconsRegular.prohibit;
   }
 }
