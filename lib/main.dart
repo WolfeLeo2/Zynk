@@ -8,6 +8,7 @@ import 'core/config/supabase_config.dart';
 import 'core/config/powersync.dart'; // PowerSync config
 import 'core/providers/app_providers.dart';
 import 'core/routes.dart';
+import 'core/widgets/inactivity_detector.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -54,6 +55,8 @@ class _MyAppState extends ConsumerState<MyApp> {
       darkTheme: AppTheme.darkTheme,
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) =>
+          InactivityDetector(child: child ?? const SizedBox.shrink()),
     );
   }
 }

@@ -24,7 +24,6 @@ import 'package:shimmer/shimmer.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -208,42 +207,80 @@ class SaleDetailScreen extends ConsumerWidget {
             ],
           ),
           body: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: EdgeInsets.zero,
             children: [
-              // ── Status Hero ──
+              // ── Status Hero (edge-to-edge, no padding) ──
               _StatusHero(sale: sale),
               const SizedBox(height: 20),
 
               // ── Details Section ──
-              _DetailsSection(sale: sale),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _DetailsSection(sale: sale),
+              ),
               const SizedBox(height: 20),
 
               // ── Approval Timeline ──
-              _SectionTitle(title: 'Approval Timeline'),
-              const SizedBox(height: 8),
-              _ApprovalTimeline(sale: sale),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionTitle(title: 'Approval Timeline'),
+                    const SizedBox(height: 8),
+                    _ApprovalTimeline(sale: sale),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
 
               // ── Items Section ──
-              _SectionTitle(title: 'Items'),
-              const SizedBox(height: 8),
-              _ItemsList(saleId: sale.id),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionTitle(title: 'Items'),
+                    const SizedBox(height: 8),
+                    _ItemsList(saleId: sale.id),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
 
               // ── Totals ──
-              _TotalsCard(sale: sale),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _TotalsCard(sale: sale),
+              ),
               const SizedBox(height: 20),
 
               // ── Transaction History ──
-              _SectionTitle(title: 'Transaction History'),
-              const SizedBox(height: 8),
-              _PaymentsList(saleId: sale.id),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionTitle(title: 'Transaction History'),
+                    const SizedBox(height: 8),
+                    _PaymentsList(saleId: sale.id),
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
 
               // ── Credit Notes ──
-              _SectionTitle(title: 'Credit Notes'),
-              const SizedBox(height: 8),
-              _CreditNotesList(saleId: sale.id),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SectionTitle(title: 'Credit Notes'),
+                    const SizedBox(height: 8),
+                    _CreditNotesList(saleId: sale.id),
+                  ],
+                ),
+              ),
               const SizedBox(height: 100),
             ],
           ),
@@ -879,156 +916,554 @@ class SaleDetailScreen extends ConsumerWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STATUS HERO
+// STATUS HERO  (Banking-style, edge-to-edge)
 // ─────────────────────────────────────────────────────────────────────────────
 
-class _StatusHero extends StatelessWidget {
+class _StatusHero extends ConsumerWidget {
   final Sale sale;
   const _StatusHero({required this.sale});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final color = _colorForStatus(sale.status);
+    final statusColor = _colorForStatus(sale.status);
+
+    // Resolve branch name
+    final branchName = ref
+        .watch(branchesProvider)
+        .value
+        ?.where((b) => b.id == sale.branchId)
+        .firstOrNull
+        ?.name;
+
+    // Overdue detection
+    final now = DateTime.now();
+    final isOverdue =
+        sale.dueDate != null &&
+        sale.dueDate!.isBefore(now) &&
+        sale.paymentStatus != PaymentStatus.paid &&
+        sale.status != InvoiceStatus.voided &&
+        sale.status != InvoiceStatus.rejected;
+    final daysOverdue = sale.dueDate != null
+        ? now.difference(sale.dueDate!).inDays
+        : 0;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [color.withValues(alpha: 0.08), Colors.transparent],
+          colors: [
+            statusColor.withValues(alpha: 0.22),
+            statusColor.withValues(alpha: 0.06),
+            cs.surface.withValues(alpha: 0.0),
+          ],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
+          stops: const [0.0, 0.6, 1.0],
         ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
+        borderRadius: const BorderRadius.only(
+          bottomLeft: Radius.circular(28),
+          bottomRight: Radius.circular(28),
+        ),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            width: 56,
-            height: 56,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Center(
-              child: PhosphorIcon(
-                _iconForStatus(sale.status),
-                color: color,
-                size: 28,
-              ),
+          // ── Top metadata row ──────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+            child: Row(
+              children: [
+                // Invoice type label + number
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      sale.saleType == 'pos_sale' ? 'POS RECEIPT' : 'INVOICE',
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+                        letterSpacing: 1.2,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    if (sale.invoiceNumber != null)
+                      Text(
+                        sale.invoiceNumber!,
+                        style: theme.textTheme.labelMedium?.copyWith(
+                          color: cs.onSurface.withValues(alpha: 0.85),
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'monospace',
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                  ],
+                ),
+                const Spacer(),
+                // Branch chip
+                if (branchName != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(
+                        color: cs.outline.withValues(alpha: 0.35),
+                      ),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PhosphorIcon(
+                          PhosphorIconsRegular.buildings,
+                          size: 11,
+                          color: cs.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          branchName,
+                          style: theme.textTheme.labelSmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
           ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+
+          const SizedBox(height: 24),
+
+          // ── Giant centered amount ─────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Text(
+              CurrencyHelper.format(sale.grandTotal),
+              style: theme.textTheme.displaySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+                color: cs.onSurface,
+                letterSpacing: -1,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+
+          const SizedBox(height: 12),
+
+          // ── Status pill ──────────────────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+            decoration: BoxDecoration(
+              color: statusColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: statusColor.withValues(alpha: 0.4),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                PhosphorIcon(
+                  _iconForStatus(sale.status),
+                  size: 14,
+                  color: statusColor,
+                ),
+                const SizedBox(width: 6),
                 Text(
                   sale.status.displayName,
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    color: color,
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: statusColor,
                     fontWeight: FontWeight.bold,
+                    letterSpacing: 0.3,
                   ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  _formatFull(sale.createdAt),
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    // Release badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color:
-                            sale.fulfillmentStatus == FulfillmentStatus.released
-                            ? Colors.green.withValues(alpha: 0.1)
-                            : Colors.orange.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        sale.fulfillmentStatus.displayName.toUpperCase(),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color:
-                              sale.fulfillmentStatus ==
-                                  FulfillmentStatus.released
-                              ? Colors.green
-                              : Colors.orange,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-
-                    // Payment badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: _paymentBadgeColor(sale).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        sale.paymentStatus.displayName.toUpperCase(),
-                        style: theme.textTheme.labelSmall?.copyWith(
-                          color: _paymentBadgeColor(sale),
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 0.5,
-                        ),
-                      ),
-                    ),
-                  ],
                 ),
               ],
             ),
           ),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(
-                CurrencyHelper.format(sale.grandTotal),
-                style: theme.textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+
+          const SizedBox(height: 20),
+
+          // ── Divider ──────────────────────────────────────────────────────
+          Divider(
+            height: 1,
+            indent: 20,
+            endIndent: 20,
+            color: cs.outline.withValues(alpha: 0.15),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── 3-column stat row (Total / Paid / Due) ───────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: IntrinsicHeight(
+              child: Row(
+                children: [
+                  _StatColumn(
+                    label: 'Total',
+                    value: CurrencyHelper.format(sale.grandTotal),
+                    theme: theme,
+                    cs: cs,
+                  ),
+                  VerticalDivider(
+                    width: 1,
+                    color: cs.outline.withValues(alpha: 0.2),
+                  ),
+                  _StatColumn(
+                    label: 'Paid',
+                    value: CurrencyHelper.format(sale.amountPaid),
+                    theme: theme,
+                    cs: cs,
+                    valueColor: sale.amountPaid > 0 ? Colors.green : null,
+                  ),
+                  VerticalDivider(
+                    width: 1,
+                    color: cs.outline.withValues(alpha: 0.2),
+                  ),
+                  _StatColumn(
+                    label: 'Due',
+                    value: CurrencyHelper.format(sale.remainingBalance),
+                    theme: theme,
+                    cs: cs,
+                    valueColor:
+                        sale.remainingBalance > 0
+                        ? (isOverdue ? Colors.red : const Color(0xFFFFA726))
+                        : Colors.green,
+                  ),
+                ],
               ),
-              if (sale.remainingBalance > 0)
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Divider ──────────────────────────────────────────────────────
+          Divider(
+            height: 1,
+            indent: 20,
+            endIndent: 20,
+            color: cs.outline.withValues(alpha: 0.15),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Lifecycle stepper ────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: _LifecycleStepper(sale: sale, statusColor: statusColor),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Bottom row: badges + date ────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+            child: Row(
+              children: [
+                // Fulfillment badge
+                _StatusChip(
+                  label: sale.fulfillmentStatus.displayName,
+                  color:
+                      sale.fulfillmentStatus == FulfillmentStatus.released
+                      ? Colors.green
+                      : cs.onSurfaceVariant.withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: 6),
+                // Payment badge
+                _StatusChip(
+                  label: sale.paymentStatus.displayName,
+                  color: _paymentBadgeColorStatic(sale),
+                ),
+                // Overdue badge
+                if (isOverdue) ...[
+                  const SizedBox(width: 6),
+                  _StatusChip(
+                    label: daysOverdue > 0
+                        ? '$daysOverdue d overdue'
+                        : 'Overdue today',
+                    color: Colors.red,
+                    icon: PhosphorIconsFill.warning,
+                  ),
+                ],
+                const Spacer(),
+                // Date
                 Text(
-                  'Due: ${CurrencyHelper.format(sale.remainingBalance)}',
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: const Color(0xFFFFA726),
-                    fontWeight: FontWeight.w600,
+                  _formatFull(sale.createdAt),
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: cs.onSurfaceVariant.withValues(alpha: 0.6),
                   ),
                 ),
-            ],
+              ],
+            ),
           ),
         ],
       ),
     );
   }
 
-  Color _paymentBadgeColor(Sale sale) {
+  Color _paymentBadgeColorStatic(Sale sale) {
     switch (sale.paymentStatus) {
       case PaymentStatus.paid:
         return Colors.green;
       case PaymentStatus.partiallyPaid:
-        return const Color(0xFFFFA726); // Orange
+        return const Color(0xFFFFA726);
       case PaymentStatus.unpaid:
         return Colors.red;
     }
   }
+}
+
+// ── Stat column helper ────────────────────────────────────────────────────────
+
+class _StatColumn extends StatelessWidget {
+  final String label;
+  final String value;
+  final ThemeData theme;
+  final ColorScheme cs;
+  final Color? valueColor;
+
+  const _StatColumn({
+    required this.label,
+    required this.value,
+    required this.theme,
+    required this.cs,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Column(
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant.withValues(alpha: 0.7),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: theme.textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? cs.onSurface,
+            ),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Status chip helper ────────────────────────────────────────────────────────
+
+class _StatusChip extends StatelessWidget {
+  final String label;
+  final Color color;
+  final PhosphorIconData? icon;
+
+  const _StatusChip({required this.label, required this.color, this.icon});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[
+            PhosphorIcon(icon!, size: 10, color: color),
+            const SizedBox(width: 3),
+          ],
+          Text(
+            label.toUpperCase(),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.4,
+              fontSize: 10,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── Lifecycle stepper ─────────────────────────────────────────────────────────
+
+class _LifecycleStepper extends StatelessWidget {
+  final Sale sale;
+  final Color statusColor;
+
+  const _LifecycleStepper({
+    required this.sale,
+    required this.statusColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    // Steps: (label, isDone, isActive)
+    final isPending = sale.status == InvoiceStatus.pendingApproval;
+    final isApproved =
+        sale.status == InvoiceStatus.approved ||
+        sale.status == InvoiceStatus.completed;
+    final isReleased = sale.fulfillmentStatus == FulfillmentStatus.released;
+    final isPaid = sale.paymentStatus == PaymentStatus.paid;
+    final isVoided = sale.status == InvoiceStatus.voided;
+    final isRejected = sale.status == InvoiceStatus.rejected;
+
+    // Build step list
+    final steps = [
+      _Step(
+        label: 'Submitted',
+        isDone: true, // always done — invoice exists
+        isActive: isPending && !isVoided && !isRejected,
+      ),
+      _Step(
+        label: isRejected ? 'Rejected' : (isVoided ? 'Voided' : 'Approved'),
+        isDone: isApproved || isPaid || isRejected || isVoided,
+        isActive: isApproved && !isReleased && !isPaid,
+        isError: isRejected || isVoided,
+      ),
+      _Step(
+        label: 'Released',
+        isDone: isReleased,
+        isActive: isApproved && isReleased && !isPaid,
+        isSkipped: isRejected || isVoided,
+      ),
+      _Step(
+        label: 'Paid',
+        isDone: isPaid,
+        isActive: isPaid,
+        isSkipped: isRejected || isVoided,
+      ),
+    ];
+
+    return Row(
+      children: steps.asMap().entries.map((entry) {
+        final i = entry.key;
+        final step = entry.value;
+        final isFirst = i == 0;
+        final isLast = i == steps.length - 1;
+
+        final nodeColor = step.isError
+            ? Colors.red
+            : step.isDone
+            ? statusColor
+            : step.isSkipped
+            ? cs.outline.withValues(alpha: 0.3)
+            : cs.outline.withValues(alpha: 0.4);
+
+        return Expanded(
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  // Left line
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: isFirst
+                          ? Colors.transparent
+                          : (steps[i - 1].isDone && step.isDone
+                              ? statusColor.withValues(alpha: 0.6)
+                              : cs.outline.withValues(alpha: 0.2)),
+                    ),
+                  ),
+                  // Node
+                  Container(
+                    width: 20,
+                    height: 20,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: step.isDone || step.isError
+                          ? nodeColor
+                          : nodeColor.withValues(alpha: 0.15),
+                      border: Border.all(
+                        color: nodeColor,
+                        width: step.isActive ? 2 : 1.5,
+                      ),
+                    ),
+                    child: Center(
+                      child: step.isDone
+                          ? PhosphorIcon(
+                              step.isError
+                                  ? PhosphorIconsBold.x
+                                  : PhosphorIconsBold.check,
+                              size: 10,
+                              color: Colors.white,
+                            )
+                          : null,
+                    ),
+                  ),
+                  // Right line
+                  Expanded(
+                    child: Container(
+                      height: 2,
+                      color: isLast
+                          ? Colors.transparent
+                          : (step.isDone && steps[i + 1].isDone
+                              ? statusColor.withValues(alpha: 0.6)
+                              : cs.outline.withValues(alpha: 0.2)),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              // Label
+              Text(
+                step.label,
+                style: theme.textTheme.labelSmall?.copyWith(
+                  color: step.isDone
+                      ? (step.isError ? Colors.red : statusColor)
+                      : cs.onSurfaceVariant.withValues(alpha: 0.5),
+                  fontWeight:
+                      step.isActive ? FontWeight.bold : FontWeight.normal,
+                  fontSize: 9.5,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+class _Step {
+  final String label;
+  final bool isDone;
+  final bool isActive;
+  final bool isError;
+  final bool isSkipped;
+
+  const _Step({
+    required this.label,
+    required this.isDone,
+    required this.isActive,
+    this.isError = false,
+    this.isSkipped = false,
+  });
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1052,10 +1487,7 @@ class _ItemsList extends ConsumerWidget {
           return _emptyHint(theme, 'No items');
         }
         return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
-          ),
+          decoration: BoxDecoration(borderRadius: BorderRadius.circular(14)),
           child: Column(
             children: items.asMap().entries.map((e) {
               final i = e.key;
@@ -1286,7 +1718,6 @@ class _PaymentsList extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
               ),
               child: Row(
                 children: [
@@ -1438,7 +1869,6 @@ class _CreditNotesList extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
               ),
               child: Row(
                 children: [
@@ -1532,7 +1962,9 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
   @override
   void initState() {
     super.initState();
-    _amountController.text = widget.sale.remainingBalance.toStringAsFixed(0);
+    _amountController.text = CurrencyHelper.format(widget.sale.remainingBalance)
+        .replaceAll('KES ', '')
+        .trim();
   }
 
   @override
@@ -1568,7 +2000,8 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
   }
 
   Future<void> _submit() async {
-    final amount = double.tryParse(_amountController.text) ?? 0;
+    final amountText = _amountController.text.replaceAll(RegExp(r'[^\d.]'), '');
+    final amount = double.tryParse(amountText) ?? 0;
     if (amount <= 0) return;
 
     if (['cash', 'mpesa', 'card', 'bank_transfer'].contains(_method)) {
@@ -1592,8 +2025,10 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
     final overpaying = amount > widget.sale.remainingBalance + 0.01;
     if (overpaying) {
       final excess = amount - widget.sale.remainingBalance;
-      final proceed = await _confirmOverpayment(excess);
-      if (proceed != true) return;
+      if (excess > 0.01) {
+        final proceed = await _confirmOverpayment(excess);
+        if (proceed != true) return;
+      }
     }
 
     setState(() => _loading = true);
@@ -1664,9 +2099,10 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
             TextField(
               controller: _amountController,
               keyboardType: TextInputType.number,
+              inputFormatters: [CurrencyInputFormatter()],
               decoration: const InputDecoration(
-                labelText: 'Amount (Ksh)',
-                prefixText: 'Ksh ',
+                labelText: 'Amount (KES)',
+                prefixText: 'KES ',
               ),
             ),
             const SizedBox(height: 14),
@@ -1897,9 +2333,6 @@ class _CreateCreditNoteSheetState
                           Container(
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
-                              border: Border.all(
-                                color: cs.outline.withValues(alpha: 0.2),
-                              ),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -2221,7 +2654,6 @@ class _ApprovalTimeline extends ConsumerWidget {
           decoration: BoxDecoration(
             color: cs.surfaceContainerLow,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: cs.outline.withValues(alpha: 0.15)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2309,15 +2741,13 @@ class _ApprovalTimeline extends ConsumerWidget {
         ),
         label: Text('$approverName · $ts'),
         backgroundColor: cs.primaryContainer,
-        side: BorderSide.none,
       );
     }
 
-    final pendingDisplay = pendingName != null ? '$pendingName' : 'Pending';
+    final pendingDisplay = pendingName ?? 'Pending';
     return Chip(
       avatar: const PhosphorIcon(PhosphorIconsRegular.clock, size: 16),
       label: Text('$pendingDisplay · Pending'),
-      side: BorderSide(color: cs.outline.withValues(alpha: 0.8)),
     );
   }
 }

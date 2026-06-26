@@ -17,7 +17,6 @@ class AuthNavButton extends StatelessWidget {
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Theme.of(context).colorScheme.outline),
         ),
         child: PhosphorIcon(icon, size: 18),
       ),

@@ -1095,7 +1095,7 @@ class _KpiTile extends StatelessWidget {
       decoration: BoxDecoration(
         color: isDark ? colorScheme.surfaceContainerHigh : Colors.white,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(color: color.withValues(alpha: 0.15), width: 1.5),
+
         boxShadow: [
           BoxShadow(
             color: color.withValues(alpha: 0.05),
@@ -1186,9 +1186,6 @@ class _ReportCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.35),
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

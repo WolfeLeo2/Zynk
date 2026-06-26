@@ -197,7 +197,7 @@ class VariantGridEditor extends StatelessWidget {
               decoration: BoxDecoration(
                 color: cs.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: cs.outlineVariant),
+
                 image: _getImageProvider(variant),
               ),
               child: _getImageProvider(variant) == null

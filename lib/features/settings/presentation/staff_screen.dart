@@ -8,6 +8,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/shared/widgets/shimmer_skeletons.dart';
 import 'package:zynk/core/services/auth_service.dart';
+import 'package:zynk/shared/widgets/set_pin_dialog.dart';
 
 class StaffScreen extends ConsumerWidget {
   const StaffScreen({super.key});
@@ -142,12 +143,7 @@ class _StaffCard extends ConsumerWidget {
 
     return Card(
       elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-        ),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         onTap: () => context.push('/settings/add-staff', extra: member),
@@ -197,7 +193,6 @@ class _StaffCard extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: Colors.red.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: Colors.red.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   member.status == ProfileStatus.inactive
@@ -205,6 +200,24 @@ class _StaffCard extends ConsumerWidget {
                       : 'BLOCKED',
                   style: theme.textTheme.labelSmall?.copyWith(
                     color: Colors.red,
+                    fontSize: 8,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            if (ref.watch(profilesWithPinProvider).value?.contains(member.id) ??
+                false)
+              Container(
+                margin: const EdgeInsets.only(left: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: colorScheme.primary.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  'PIN',
+                  style: theme.textTheme.labelSmall?.copyWith(
+                    color: colorScheme.primary,
                     fontSize: 8,
                     fontWeight: FontWeight.bold,
                   ),
@@ -234,6 +247,11 @@ class _StaffCard extends ConsumerWidget {
               showDialog(
                 context: context,
                 builder: (ctx) => _ResetPasswordDialog(member: member),
+              );
+            } else if (value == 'set_pin') {
+              showDialog(
+                context: context,
+                builder: (ctx) => SetPinDialog(member: member),
               );
             } else if (value == 'block' || value == 'unblock') {
               final newStatus = value == 'block'
@@ -333,6 +351,14 @@ class _StaffCard extends ConsumerWidget {
               child: ListTile(
                 leading: PhosphorIcon(PhosphorIconsRegular.lockKey),
                 title: Text('Reset Password'),
+                contentPadding: EdgeInsets.zero,
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'set_pin',
+              child: ListTile(
+                leading: PhosphorIcon(PhosphorIconsRegular.password),
+                title: Text('Set Login PIN'),
                 contentPadding: EdgeInsets.zero,
               ),
             ),

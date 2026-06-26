@@ -1,9 +1,10 @@
-import 'package:powersync/powersync.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:path/path.dart';
-import '../services/app_logger.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:powersync/powersync.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+import '../services/app_logger.dart';
 
 final _log = AppLogger('PowerSync');
 
@@ -54,6 +55,9 @@ final schema = Schema([
     Column.text('phone'),
     Column.text('address'),
     Column.text('status'),
+    // Non-secret "has a PIN" timestamp (the hash/lookup are NOT synced — see
+    // sync_rules.yaml). Lets the UI confirm whether a login PIN is set.
+    Column.text('pin_set_at'),
     Column.text('created_at'),
     Column.text('updated_at'),
   ]),

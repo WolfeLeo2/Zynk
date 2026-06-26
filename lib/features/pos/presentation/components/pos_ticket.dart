@@ -9,6 +9,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
+import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/presentation/components/customer_lookup_field.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
@@ -98,7 +99,7 @@ class PosTicket extends ConsumerWidget {
           ),
         ),
 
-        Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.15)),
+        Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.2)),
 
         // ─── ITEMS LIST ───
         Expanded(
@@ -370,7 +371,7 @@ class _TicketItemRow extends ConsumerWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           color: cs.errorContainer,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: AppTokens.roundedCard,
         ),
         child: PhosphorIcon(
           PhosphorIconsBold.trash,
@@ -378,109 +379,109 @@ class _TicketItemRow extends ConsumerWidget {
           size: 20,
         ),
       ),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: cs.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.15)),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // Product name + details (Left side)
-            Expanded(
-              flex: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    item.product.name,
-                    style: tt.bodyMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: cs.onSurface,
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              // Product name + details (Left side)
+              Expanded(
+                flex: 2,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.product.name,
+                      style: tt.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Consumer(
-                    builder: (context, ref, child) {
-                      if (item.isSqmBased) {
+                    const SizedBox(height: 2),
+                    Consumer(
+                      builder: (context, ref, child) {
+                        if (item.isSqmBased) {
+                          return Text(
+                            '${item.totalSqm.toStringAsFixed(2)} sqm (${item.quantity} box${item.quantity != 1 ? 'es' : ''})',
+                            style: tt.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant.withValues(alpha: 0.8),
+                              fontSize: 12,
+                            ),
+                          );
+                        }
+                        final group = item.product.itemGroupId != null
+                            ? ref
+                                  .watch(
+                                    itemGroupProvider(
+                                      item.product.itemGroupId!,
+                                    ),
+                                  )
+                                  .value
+                            : null;
                         return Text(
-                          '${item.totalSqm.toStringAsFixed(2)} sqm (${item.quantity} box${item.quantity != 1 ? 'es' : ''})',
+                          group?.name ?? 'Unit',
                           style: tt.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant.withValues(alpha: 0.8),
+                            color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                             fontSize: 12,
                           ),
                         );
-                      }
-                      final group = item.product.itemGroupId != null
-                          ? ref
-                                .watch(
-                                  itemGroupProvider(item.product.itemGroupId!),
-                                )
-                                .value
-                          : null;
-                      return Text(
-                        group?.name ?? 'Unit',
-                        style: tt.bodySmall?.copyWith(
-                          color: cs.onSurfaceVariant.withValues(alpha: 0.7),
-                          fontSize: 12,
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
-            ),
-
-            // Quantity controls (Middle)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: QtyStepper(
-                value: item.quantity,
-                onChanged: (newVal) {
-                  if (newVal == 0) {
-                    onRemove();
-                  } else {
-                    if (!item.product.isService && newVal > item.quantity) {
-                      final availableStock = stockState?.quantity ?? 0;
-                      if (newVal > availableStock) {
-                        ScaffoldMessenger.of(context).clearSnackBars();
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              'Cannot add ${item.product.name}. Only $availableStock in stock.',
-                            ),
-                            backgroundColor: cs.error,
-                            behavior: SnackBarBehavior.floating,
-                          ),
-                        );
-                        return;
-                      }
-                    }
-                    ref
-                        .read(cartProvider.notifier)
-                        .setQuantity(item.product.id, newVal);
-                  }
-                },
-              ),
-            ),
-
-            // Line total (Right)
-            Expanded(
-              flex: 1,
-              child: Text(
-                CurrencyHelper.format(item.total),
-                style: tt.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: cs.primary,
+                      },
+                    ),
+                  ],
                 ),
-                textAlign: TextAlign.right,
               ),
-            ),
-          ],
+
+              // Quantity controls (Middle)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: QtyStepper(
+                  value: item.quantity,
+                  onChanged: (newVal) {
+                    if (newVal == 0) {
+                      onRemove();
+                    } else {
+                      if (!item.product.isService && newVal > item.quantity) {
+                        final availableStock = stockState?.quantity ?? 0;
+                        if (newVal > availableStock) {
+                          ScaffoldMessenger.of(context).clearSnackBars();
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Cannot add ${item.product.name}. Only $availableStock in stock.',
+                              ),
+                              backgroundColor: cs.error,
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                      }
+                      ref
+                          .read(cartProvider.notifier)
+                          .setQuantity(item.product.id, newVal);
+                    }
+                  },
+                ),
+              ),
+
+              // Line total (Right)
+              Expanded(
+                flex: 1,
+                child: Text(
+                  CurrencyHelper.format(item.total),
+                  style: tt.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: cs.primary,
+                  ),
+                  textAlign: TextAlign.right,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -242,7 +242,7 @@ void main() {
       final container = buildContainer(branchId: 'all');
       addTearDown(container.dispose);
 
-      final sub = container.listen(currentUserProfileProvider, (_, __) {});
+      final sub = container.listen(currentUserProfileProvider, (_, _) {});
       await container.read(currentUserProfileProvider.future);
       sub.close();
 

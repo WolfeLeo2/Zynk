@@ -174,10 +174,7 @@ class _CompositeItemCard extends ConsumerWidget {
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(color: cs.outlineVariant),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: InkWell(
           onTap: () => context.push('/products/composite/${product.id}'),
           child: Padding(
@@ -191,7 +188,6 @@ class _CompositeItemCard extends ConsumerWidget {
                   decoration: BoxDecoration(
                     color: cs.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: cs.outlineVariant),
                   ),
                   clipBehavior: Clip.antiAlias,
                   child: product.imageUrl != null

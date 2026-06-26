@@ -272,9 +272,7 @@ class _CompositeItemDetailsScreenState
                 decoration: BoxDecoration(
                   color: cs.surfaceContainerLowest,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: cs.outlineVariant.withValues(alpha: 0.5),
-                  ),
+
                   boxShadow: [
                     BoxShadow(
                       color: cs.shadow.withValues(alpha: 0.05),
@@ -417,7 +415,6 @@ class _CompositeItemDetailsScreenState
             decoration: BoxDecoration(
               color: cs.surfaceContainerLowest,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: cs.outlineVariant),
             ),
             child: filtered.isEmpty
                 ? const Padding(
@@ -508,7 +505,6 @@ class _CompositeItemDetailsScreenState
       decoration: BoxDecoration(
         color: cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Column(
         children: [
@@ -541,7 +537,6 @@ class _CompositeItemDetailsScreenState
       decoration: BoxDecoration(
         color: cs.surfaceContainerLowest,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: cs.outlineVariant.withValues(alpha: 0.5)),
       ),
       child: Row(
         children: [

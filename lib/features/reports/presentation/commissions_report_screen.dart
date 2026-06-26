@@ -9,7 +9,6 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/services/commission_service.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
 // ─────────────────────────────────────────────────────────────────────────────
@@ -384,7 +383,6 @@ class _SalespersonCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colorScheme.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant.withAlpha(50)),
       ),
       child: InkWell(
         onTap: () => _showDetail(context, ref),
@@ -791,9 +789,6 @@ class _MonthPill extends ConsumerWidget {
             decoration: BoxDecoration(
               color: colorScheme.secondaryContainer.withAlpha(150),
               borderRadius: BorderRadius.circular(32),
-              border: Border.all(
-                color: colorScheme.outlineVariant.withAlpha(100),
-              ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -886,11 +881,6 @@ class _MonthPickerSheet extends ConsumerWidget {
                         ? colorScheme.primary
                         : colorScheme.surfaceContainerHigh,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: isSelected
-                          ? colorScheme.primary
-                          : colorScheme.outlineVariant.withAlpha(100),
-                    ),
                   ),
                   alignment: Alignment.center,
                   child: Text(

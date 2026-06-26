@@ -371,10 +371,6 @@ class _StepOne extends StatelessWidget {
                               fit: BoxFit.cover,
                             )
                           : null,
-                      border: Border.all(
-                        color: theme.colorScheme.outlineVariant,
-                        width: 2,
-                      ),
                     ),
                     child: logoFile == null
                         ? PhosphorIcon(
@@ -392,10 +388,6 @@ class _StepOne extends StatelessWidget {
                       decoration: BoxDecoration(
                         color: theme.colorScheme.primary,
                         shape: BoxShape.circle,
-                        border: Border.all(
-                          color: theme.colorScheme.surface,
-                          width: 2,
-                        ),
                       ),
                       child: PhosphorIcon(
                         PhosphorIconsRegular.pencilSimple,

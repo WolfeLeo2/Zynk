@@ -1,14 +1,15 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 
 class ProductDetailsScreen extends ConsumerWidget {
   final Product product;
@@ -21,506 +22,454 @@ class ProductDetailsScreen extends ConsumerWidget {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
-      body: NestedScrollView(
-        headerSliverBuilder: (context, innerBoxIsScrolled) {
-          return [
-            SliverAppBar(
-              expandedHeight: 200,
-              pinned: true,
-              actions: [
-                IconButton(
-                  onPressed: () {
-                    context.push('/products/add', extra: product);
-                  },
-                  icon: const PhosphorIcon(PhosphorIconsDuotone.pencilSimple),
-                  tooltip: 'Edit Item',
-                ),
-                IconButton(
-                  onPressed: () {
-                    context.push(
-                      '/products/add',
-                      extra: {'product': product, 'clone': true},
-                    );
-                  },
-                  icon: const PhosphorIcon(PhosphorIconsDuotone.copy),
-                  tooltip: 'Clone Item',
-                ),
-              ],
-              flexibleSpace: FlexibleSpaceBar(
-                title: Text(
-                  product.name,
-                  style: TextStyle(
-                    color: innerBoxIsScrolled
-                        ? colorScheme.onSurface
-                        : Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                background: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (product.imageUrl != null)
-                      CachedNetworkImage(
-                        imageUrl: product.imageUrl!,
-                        fit: BoxFit.cover,
-                      )
-                    else
-                      Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [colorScheme.primary, colorScheme.tertiary],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: Center(
-                          child: PhosphorIcon(
-                            PhosphorIconsDuotone.package,
-                            size: 64,
-                            color: Colors.white.withValues(alpha: 0.5),
-                          ),
-                        ),
+      appBar: AppBar(
+        title: const Text('Item Details'),
+        actions: [
+          IconButton(
+            onPressed: () => context.push('/products/add', extra: product),
+            icon: const PhosphorIcon(PhosphorIconsDuotone.pencilSimple),
+            tooltip: 'Edit Item',
+          ),
+          IconButton(
+            onPressed: () => context.push(
+              '/products/add',
+              extra: {'product': product, 'clone': true},
+            ),
+            icon: const PhosphorIcon(PhosphorIconsDuotone.copy),
+            tooltip: 'Clone Item',
+          ),
+        ],
+      ),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
+        children: [
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // 64x64 rounded thumbnail
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: product.imageUrl != null
+                            ? CachedNetworkImage(
+                                imageUrl: product.imageUrl!,
+                                width: 64,
+                                height: 64,
+                                fit: BoxFit.cover,
+                                placeholder: (context, url) =>
+                                    _buildImagePlaceholder(colorScheme),
+                                errorWidget: (context, url, error) =>
+                                    _buildImagePlaceholder(colorScheme),
+                              )
+                            : _buildImagePlaceholder(colorScheme),
                       ),
-                    // Gradient overlay to ensure text readability
-                    DecoratedBox(
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                          colors: [
-                            Colors.transparent,
-                            Colors.black.withValues(alpha: 0.7),
+                      const SizedBox(width: 16),
+                      // Name + SKU + Barcode
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product.name,
+                              style: theme.textTheme.titleLarge?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                Chip(
+                                  label: Text(product.sku ?? 'NO-SKU'),
+                                  labelStyle: theme.textTheme.labelSmall
+                                      ?.copyWith(
+                                        fontFamily: 'monospace',
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                  visualDensity: VisualDensity.compact,
+                                  materialTapTargetSize:
+                                      MaterialTapTargetSize.shrinkWrap,
+                                ),
+                                if (product.isService)
+                                  Chip(
+                                    label: const Text('Service'),
+                                    visualDensity: VisualDensity.compact,
+                                    materialTapTargetSize:
+                                        MaterialTapTargetSize.shrinkWrap,
+                                    backgroundColor:
+                                        colorScheme.tertiaryContainer,
+                                  ),
+                              ],
+                            ),
+                            if (product.barcode != null) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                children: [
+                                  PhosphorIcon(
+                                    PhosphorIconsDuotone.barcode,
+                                    size: 16,
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    product.barcode!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ],
                         ),
                       ),
+                    ],
+                  ),
+                  // Description
+                  if (product.description?.isNotEmpty == true) ...[
+                    const SizedBox(height: 16),
+                    const Divider(height: 1),
+                    const SizedBox(height: 12),
+                    Text(
+                      product.description!,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
-                ),
+                ],
               ),
             ),
-          ];
-        },
-        body: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(vertical: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header Info
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 4,
-                      ),
-                      decoration: BoxDecoration(
-                        color: colorScheme.primaryContainer,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        product.sku ?? 'NO-SKU',
-                        style: theme.textTheme.labelMedium?.copyWith(
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.bold,
-                          color: colorScheme.onPrimaryContainer,
-                        ),
-                      ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                  child: Text(
+                    'Classification',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurfaceVariant,
                     ),
-                    if (product.barcode != null) ...[
-                      const SizedBox(height: 12),
-                      Row(
+                  ),
+                ),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final categories =
+                        ref.watch(allCategoriesProvider).value ?? [];
+                    final categoryName =
+                        categories
+                            .where((c) => c.id == product.categoryId)
+                            .map((c) => c.name)
+                            .firstOrNull ??
+                        'No Category';
+                    return ListTile(
+                      leading: PhosphorIcon(
+                        PhosphorIconsRegular.folder,
+                        color: colorScheme.primary,
+                      ),
+                      title: const Text('Category'),
+                      subtitle: Text(categoryName),
+                    );
+                  },
+                ),
+                const Divider(height: 1, indent: 16, endIndent: 16),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final groups = ref.watch(allItemGroupsProvider).value ?? [];
+                    final groupName =
+                        groups
+                            .where((g) => g.id == product.itemGroupId)
+                            .map((g) => g.name)
+                            .firstOrNull ??
+                        'No Group';
+                    return ListTile(
+                      leading: PhosphorIcon(
+                        PhosphorIconsRegular.package,
+                        color: colorScheme.primary,
+                      ),
+                      title: const Text('Item Group'),
+                      subtitle: Text(groupName),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pricing',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final group = product.itemGroupId != null
+                          ? ref
+                                .watch(itemGroupProvider(product.itemGroupId!))
+                                .value
+                          : null;
+                      final pricingService = ref.watch(
+                        productPricingServiceProvider,
+                      );
+                      final resolvedSelling = pricingService
+                          .resolveSellingPrice(product, group);
+                      final resolvedBuying = pricingService.resolveBuyingPrice(
+                        product,
+                        group,
+                      );
+
+                      return Row(
                         children: [
-                          PhosphorIcon(
-                            PhosphorIconsDuotone.barcode,
-                            size: 16,
-                            color: colorScheme.onSurfaceVariant,
+                          Expanded(
+                            child: _buildPriceBlock(
+                              theme,
+                              label: 'Cost Price',
+                              value: resolvedBuying > 0
+                                  ? CurrencyHelper.format(resolvedBuying)
+                                  : 'Not Set',
+                              colorScheme: colorScheme,
+                            ),
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            product.barcode!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: colorScheme.onSurfaceVariant,
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _buildPriceBlock(
+                              theme,
+                              label: 'Selling Price',
+                              value: resolvedSelling > 0
+                                  ? CurrencyHelper.format(resolvedSelling)
+                                  : 'Not Set',
+                              colorScheme: colorScheme,
+                              isPrimary: true,
                             ),
                           ),
                         ],
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Divider(height: 1),
-
-              // Category and Group Information
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Classification',
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurface,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final categories =
-                            ref.watch(allCategoriesProvider).value ?? [];
-                        final categoryName =
-                            categories
-                                .where((c) => c.id == product.categoryId)
-                                .map((c) => c.name)
-                                .firstOrNull ??
-                            'No Category';
-
-                        return Row(
-                          children: [
-                            PhosphorIcon(
-                              PhosphorIconsRegular.folder,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildInfoItem(
-                                theme,
-                                'Category',
-                                categoryName,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final groups =
-                            ref.watch(allItemGroupsProvider).value ?? [];
-                        final groupName =
-                            groups
-                                .where((g) => g.id == product.itemGroupId)
-                                .map((g) => g.name)
-                                .firstOrNull ??
-                            'No Group';
-
-                        return Row(
-                          children: [
-                            PhosphorIcon(
-                              PhosphorIconsRegular.package,
-                              color: colorScheme.primary,
-                              size: 20,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: _buildInfoItem(
-                                theme,
-                                'Item Group',
-                                groupName,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-
-              // Pricing & Margins
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        PhosphorIcon(
-                          PhosphorIconsDuotone.money,
-                          color: Theme.of(context).colorScheme.secondary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Pricing & Margin',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Consumer(
-                      builder: (context, ref, child) {
-                        final group = product.itemGroupId != null
-                            ? ref
-                                  .watch(
-                                    itemGroupProvider(product.itemGroupId!),
-                                  )
-                                  .value
-                            : null;
-                        final pricingService = ref.watch(
-                          productPricingServiceProvider,
-                        );
-                        final resolvedSelling = pricingService
-                            .resolveSellingPrice(product, group);
-                        final resolvedBuying = pricingService
-                            .resolveBuyingPrice(product, group);
-
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: _buildInfoItem(
-                                theme,
-                                'Cost Price',
-                                resolvedBuying > 0
-                                    ? CurrencyHelper.format(resolvedBuying)
-                                    : 'Not Set',
-                              ),
-                            ),
-                            Expanded(
-                              child: _buildInfoItem(
-                                theme,
-                                'Selling Price',
-                                resolvedSelling > 0
-                                    ? CurrencyHelper.format(resolvedSelling)
-                                    : 'Not Set',
-                                valueColor: Theme.of(
-                                  context,
-                                ).colorScheme.secondary,
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 24),
-                    _buildInfoItem(
-                      theme,
-                      'Tax Category',
-                      product.taxCategory?.toUpperCase() ?? 'STANDARD',
-                    ),
-                  ],
-                ),
-              ),
-              const Divider(height: 1),
-
-              // Inventory Status
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 24,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        PhosphorIcon(
-                          PhosphorIconsDuotone.stack,
-                          color: colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Inventory Status',
-                          style: theme.textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 24),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildInfoItem(
-                            theme,
-                            'Track Stock',
-                            product.isService ? 'No (Service)' : 'Yes',
-                          ),
-                        ),
-                        Expanded(
-                          child: Consumer(
-                            builder: (context, ref, child) {
-                              if (product.isService) {
-                                return _buildInfoItem(
-                                  theme,
-                                  'Current Stock',
-                                  'N/A',
-                                );
-                              }
-                              final stockAsync = ref.watch(
-                                stockProvider(product.id),
-                              );
-                              return stockAsync.when(
-                                data: (stock) => _buildInfoItem(
-                                  theme,
-                                  'Current Stock',
-                                  stock?.quantity.toString() ?? '0',
-                                ),
-                                loading: () => _buildInfoItem(
-                                  theme,
-                                  'Current Stock',
-                                  '...',
-                                ),
-                                error: (_, _) => _buildInfoItem(
-                                  theme,
-                                  'Current Stock',
-                                  'Err',
-                                ),
-                              );
-                            },
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-
-              if (!product.isService) ...[
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 24,
-                  ),
-                  child: Consumer(
-                    builder: (context, ref, _) {
-                      final branchesAsync = ref.watch(
-                        allTenantBranchesProvider,
-                      );
-                      final branchStocksAsync = ref.watch(
-                        branchStocksProvider(product.id),
-                      );
-
-                      return branchesAsync.when(
-                        data: (branches) {
-                          final realBranches = branches
-                              .where((b) => b.id != 'all')
-                              .toList();
-
-                          return branchStocksAsync.when(
-                            data: (stocks) {
-                              final qtyByBranch = <String, int>{};
-                              for (final stock in stocks) {
-                                final prev = qtyByBranch[stock.branchId] ?? 0;
-                                qtyByBranch[stock.branchId] =
-                                    prev + stock.quantity;
-                              }
-
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Row(
-                                    children: [
-                                      PhosphorIcon(
-                                        PhosphorIconsDuotone.storefront,
-                                        color: colorScheme.primary,
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        'Branch Stock Matrix',
-                                        style: theme.textTheme.titleMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 16),
-                                  if (realBranches.isEmpty)
-                                    Text(
-                                      'No branches available.',
-                                      style: theme.textTheme.bodyMedium,
-                                    )
-                                  else
-                                    SingleChildScrollView(
-                                      scrollDirection: Axis.horizontal,
-                                      child: DataTable(
-                                        headingTextStyle: theme
-                                            .textTheme
-                                            .labelMedium
-                                            ?.copyWith(
-                                              fontWeight: FontWeight.bold,
-                                              color:
-                                                  colorScheme.onSurfaceVariant,
-                                            ),
-                                        columns: const [
-                                          DataColumn(label: Text('Branch')),
-                                          DataColumn(label: Text('Quantity')),
-                                        ],
-                                        rows: realBranches
-                                            .map(
-                                              (branch) => DataRow(
-                                                cells: [
-                                                  DataCell(
-                                                    Text(
-                                                      branch.name,
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w500,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                  DataCell(
-                                                    Text(
-                                                      (qtyByBranch[branch.id] ??
-                                                              0)
-                                                          .toString(),
-                                                      style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
-                                                      ),
-                                                    ),
-                                                  ),
-                                                ],
-                                              ),
-                                            )
-                                            .toList(),
-                                      ),
-                                    ),
-                                ],
-                              );
-                            },
-                            loading: () => const LinearProgressIndicator(),
-                            error: (_, _) =>
-                                const Text('Failed to load branch stock.'),
-                          );
-                        },
-                        loading: () => const LinearProgressIndicator(),
-                        error: (_, _) => const Text('Failed to load branches.'),
                       );
                     },
                   ),
-                ),
-
-                // Transaction History (Flat list)
-                const Divider(height: 1),
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: 24,
-                    right: 24,
-                    top: 24,
-                    bottom: 8,
-                  ),
-                  child: Text(
-                    'Transaction History',
-                    style: theme.textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 4),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: PhosphorIcon(
+                      PhosphorIconsDuotone.receipt,
+                      color: colorScheme.onSurfaceVariant,
                     ),
+                    title: const Text('Tax Category'),
+                    trailing: Text(
+                      product.taxCategory?.toUpperCase() ?? 'STANDARD',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (!product.isService) ...[
+            const SizedBox(height: 12),
+            Card(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                    child: Text(
+                      'Inventory',
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final stockAsync = ref.watch(stockProvider(product.id));
+                      return stockAsync.when(
+                        data: (stock) => ListTile(
+                          leading: PhosphorIcon(
+                            PhosphorIconsDuotone.stack,
+                            color: colorScheme.primary,
+                          ),
+                          title: const Text('Total Stock'),
+                          trailing: Text(
+                            stock?.quantity.toString() ?? '0',
+                            style: theme.textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        loading: () => ListTile(
+                          leading: PhosphorIcon(
+                            PhosphorIconsDuotone.stack,
+                            color: colorScheme.primary,
+                          ),
+                          title: const Text('Total Stock'),
+                          trailing: Shimmer.fromColors(
+                            baseColor: colorScheme.surfaceContainerHighest,
+                            highlightColor: colorScheme.surface,
+                            child: Container(
+                              width: 48,
+                              height: 16,
+                              decoration: BoxDecoration(
+                                color: colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ),
+                          ),
+                        ),
+                        error: (e, st) => ListTile(
+                          leading: PhosphorIcon(
+                            PhosphorIconsDuotone.stack,
+                            color: colorScheme.error,
+                          ),
+                          title: const Text('Total Stock'),
+                          trailing: Text(
+                            'Error',
+                            style: TextStyle(color: colorScheme.error),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+            ),
+            Consumer(
+              builder: (context, ref, _) {
+                final branchesAsync = ref.watch(allTenantBranchesProvider);
+                final branchStocksAsync = ref.watch(
+                  branchStocksProvider(product.id),
+                );
+
+                return branchesAsync.when(
+                  data: (branches) {
+                    final realBranches = branches
+                        .where((b) => b.id != 'all')
+                        .toList();
+                    if (realBranches.isEmpty) return const SizedBox.shrink();
+
+                    return branchStocksAsync.when(
+                      data: (stocks) {
+                        final qtyByBranch = <String, int>{};
+                        for (final stock in stocks) {
+                          final prev = qtyByBranch[stock.branchId] ?? 0;
+                          qtyByBranch[stock.branchId] = prev + stock.quantity;
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(4, 24, 4, 12),
+                              child: Text(
+                                'Stock by Branch',
+                                style: theme.textTheme.titleSmall?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                            ...realBranches.map((branch) {
+                              final qty = qtyByBranch[branch.id] ?? 0;
+                              return Card(
+                                child: ListTile(
+                                  leading: PhosphorIcon(
+                                    PhosphorIconsDuotone.storefront,
+                                    color: colorScheme.primary,
+                                  ),
+                                  title: Text(branch.name),
+                                  trailing: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 12,
+                                      vertical: 4,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: colorScheme.tertiaryContainer,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      qty.toString(),
+                                      style: theme.textTheme.titleSmall
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                            color:
+                                                colorScheme.onTertiaryContainer,
+                                          ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            }),
+                          ],
+                        );
+                      },
+                      loading: () =>
+                          _buildBranchStockShimmer(theme, colorScheme),
+                      error: (e, st) => Card(
+                        child: ListTile(
+                          leading: PhosphorIcon(
+                            PhosphorIconsDuotone.warning,
+                            color: colorScheme.error,
+                          ),
+                          title: const Text('Failed to load branch stock'),
+                        ),
+                      ),
+                    );
+                  },
+                  loading: () => _buildBranchStockShimmer(theme, colorScheme),
+                  error: (e, st) => const SizedBox.shrink(),
+                );
+              },
+            ),
+          ],
+          if (!product.isService)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 24, 4, 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Recent Activity',
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => context.push(
+                          '/products/details/history',
+                          extra: {
+                            'productId': product.id,
+                            'productName': product.name,
+                          },
+                        ),
+                        child: const Text('View All'),
+                      ),
+                    ],
                   ),
                 ),
                 Consumer(
@@ -531,152 +480,283 @@ class ProductDetailsScreen extends ConsumerWidget {
                     return historyAsync.when(
                       data: (history) {
                         if (history.isEmpty) {
-                          return Center(
+                          return Card(
                             child: Padding(
-                              padding: const EdgeInsets.all(24.0),
-                              child: Text(
-                                'No transaction history recorded yet.',
-                                style: theme.textTheme.bodyMedium?.copyWith(
-                                  color: colorScheme.onSurfaceVariant,
+                              padding: const EdgeInsets.all(24),
+                              child: Center(
+                                child: Column(
+                                  children: [
+                                    PhosphorIcon(
+                                      PhosphorIconsDuotone
+                                          .clockCounterClockwise,
+                                      size: 32,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      'No activity yet',
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: colorScheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                  ],
                                 ),
                               ),
                             ),
                           );
                         }
-                        return ListView.separated(
-                          padding: EdgeInsets.zero,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          itemCount: history.length > 5
-                              ? 5
-                              : history.length, // Show latest 5
-                          separatorBuilder: (_, _) => const Divider(height: 1),
-                          itemBuilder: (context, index) {
-                            final tx = history[index];
-                            final isPositive = tx.quantityChange > 0;
-                            final isSale = tx.type == 'sale';
-
-                            final title =
-                                tx.referenceNumber ??
-                                (isSale ? 'Sale' : 'Adjustment');
-                            final actor = tx.actorName ?? 'Unknown';
-                            final timeStr = tx.createdAt != null
-                                ? tx.createdAt!.toLocal().toString().substring(
-                                    0,
-                                    16,
-                                  )
-                                : '—';
-
-                            Widget icon;
-                            if (isSale) {
-                              icon = PhosphorIcon(
-                                PhosphorIconsDuotone.receipt,
-                                color: colorScheme.onPrimaryContainer,
-                                size: 18,
-                              );
-                            } else {
-                              icon = PhosphorIcon(
-                                isPositive
-                                    ? PhosphorIconsRegular.trendUp
-                                    : PhosphorIconsRegular.trendDown,
-                                color: isPositive ? Colors.green : Colors.red,
-                                size: 18,
-                              );
-                            }
-
-                            final tile = ListTile(
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 24,
-                                vertical: 8,
-                              ),
-                              leading: CircleAvatar(
-                                backgroundColor: isSale
-                                    ? colorScheme.primaryContainer
-                                    : (isPositive
-                                          ? Colors.green.withValues(alpha: 0.1)
-                                          : Colors.red.withValues(alpha: 0.1)),
-                                child: icon,
-                              ),
-                              title: Text(
-                                title,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
+                        final visible = history.length > 5
+                            ? history.sublist(0, 5)
+                            : history;
+                        return Card(
+                          child: Column(
+                            children: [
+                              for (int i = 0; i < visible.length; i++) ...[
+                                _buildTransactionTile(
+                                  theme,
+                                  colorScheme,
+                                  visible[i],
+                                  context,
                                 ),
-                              ),
-                              subtitle: Text(
-                                '$actor · $timeStr',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: colorScheme.onSurfaceVariant,
-                                ),
-                              ),
-                              trailing: Text(
-                                '${isPositive ? '+' : ''}${tx.quantityChange}',
-                                style: TextStyle(
-                                  color: isPositive ? Colors.green : Colors.red,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 16,
-                                ),
-                              ),
-                              onTap: isSale && tx.referenceId != null
-                                  ? () =>
-                                        context.push('/sales/${tx.referenceId}')
-                                  : null,
-                            );
-
-                            return isSale
-                                ? Material(
-                                    color: Colors.transparent,
-                                    child: tile,
-                                  )
-                                : tile;
-                          },
+                                if (i < visible.length - 1)
+                                  const Divider(height: 1, indent: 72),
+                              ],
+                            ],
+                          ),
                         );
                       },
-                      loading: () => const Padding(
-                        padding: EdgeInsets.all(24.0),
-                        child: Center(child: CircularProgressIndicator()),
-                      ),
-                      error: (e, st) => Padding(
-                        padding: const EdgeInsets.all(24.0),
-                        child: Text('Failed to load history: $e'),
+                      loading: () =>
+                          _buildTransactionShimmer(theme, colorScheme),
+                      error: (e, st) => Card(
+                        child: ListTile(
+                          leading: PhosphorIcon(
+                            PhosphorIconsDuotone.warning,
+                            color: colorScheme.error,
+                          ),
+                          title: Text('Failed to load history: $e'),
+                        ),
                       ),
                     );
                   },
                 ),
               ],
-            ],
-          ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildImagePlaceholder(ColorScheme colorScheme) {
+    return Container(
+      width: 64,
+      height: 64,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        gradient: LinearGradient(
+          colors: [colorScheme.primary, colorScheme.tertiary],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Center(
+        child: PhosphorIcon(
+          PhosphorIconsDuotone.package,
+          size: 28,
+          color: Colors.white.withValues(alpha: 0.7),
         ),
       ),
     );
   }
 
-  Widget _buildInfoItem(
-    ThemeData theme,
-    String label,
-    String value, {
-    Color? valueColor,
+  Widget _buildPriceBlock(
+    ThemeData theme, {
+    required String label,
+    required String value,
+    required ColorScheme colorScheme,
+    bool isPrimary = false,
   }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isPrimary
+            ? colorScheme.primaryContainer
+            : colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: isPrimary
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: theme.textTheme.titleMedium?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: isPrimary
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurface,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildBranchStockShimmer(ThemeData theme, ColorScheme colorScheme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          label,
-          style: theme.textTheme.labelMedium?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w600,
+        Padding(
+          padding: const EdgeInsets.fromLTRB(4, 24, 4, 12),
+          child: Text(
+            'Stock by Branch',
+            style: theme.textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.bold,
+              color: colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: theme.textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.bold,
-            color: valueColor ?? theme.colorScheme.onSurface,
+        for (int i = 0; i < 3; i++)
+          Card(
+            child: ListTile(
+              leading: PhosphorIcon(
+                PhosphorIconsDuotone.storefront,
+                color: colorScheme.primary,
+              ),
+              title: Shimmer.fromColors(
+                baseColor: colorScheme.surfaceContainerHighest,
+                highlightColor: colorScheme.surface,
+                child: Container(
+                  width: 100,
+                  height: 16,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ),
+              ),
+              trailing: Shimmer.fromColors(
+                baseColor: colorScheme.surfaceContainerHighest,
+                highlightColor: colorScheme.surface,
+                child: Container(
+                  width: 48,
+                  height: 24,
+                  decoration: BoxDecoration(
+                    color: colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+              ),
+            ),
           ),
-        ),
       ],
+    );
+  }
+
+  Widget _buildTransactionTile(
+    ThemeData theme,
+    ColorScheme colorScheme,
+    ProductTransaction tx,
+    BuildContext context,
+  ) {
+    final isPositive = tx.quantityChange > 0;
+    final isSale = tx.type == 'sale';
+
+    return ListTile(
+      onTap: isSale && tx.referenceId != null
+          ? () => context.push('/sales/${tx.referenceId}')
+          : null,
+      leading: CircleAvatar(
+        backgroundColor: isSale
+            ? colorScheme.primaryContainer
+            : (isPositive
+                  ? colorScheme.tertiaryContainer
+                  : colorScheme.errorContainer),
+        child: PhosphorIcon(
+          isSale
+              ? PhosphorIconsDuotone.receipt
+              : (isPositive
+                    ? PhosphorIconsDuotone.trendUp
+                    : PhosphorIconsDuotone.trendDown),
+          color: isSale
+              ? colorScheme.onPrimaryContainer
+              : (isPositive
+                    ? colorScheme.onTertiaryContainer
+                    : colorScheme.onErrorContainer),
+        ),
+      ),
+      title: Text(tx.referenceNumber ?? (isSale ? 'Sale' : 'Adjustment')),
+      subtitle: Text(
+        '${tx.actorName ?? 'Unknown'} · ${tx.createdAt != null ? DateFormat('MMM d, y HH:mm').format(tx.createdAt!) : ''}',
+      ),
+      trailing: Text(
+        '${isPositive ? '+' : ''}${tx.quantityChange}',
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.bold,
+          color: isPositive ? colorScheme.tertiary : colorScheme.error,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTransactionShimmer(ThemeData theme, ColorScheme colorScheme) {
+    return Card(
+      child: Column(
+        children: List.generate(
+          3,
+          (i) => ListTile(
+            leading: Shimmer.fromColors(
+              baseColor: colorScheme.surfaceContainerHighest,
+              highlightColor: colorScheme.surface,
+              child: const CircleAvatar(),
+            ),
+            title: Shimmer.fromColors(
+              baseColor: colorScheme.surfaceContainerHighest,
+              highlightColor: colorScheme.surface,
+              child: Container(
+                width: 120,
+                height: 16,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            subtitle: Shimmer.fromColors(
+              baseColor: colorScheme.surfaceContainerHighest,
+              highlightColor: colorScheme.surface,
+              child: Container(
+                width: 80,
+                height: 12,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+            trailing: Shimmer.fromColors(
+              baseColor: colorScheme.surfaceContainerHighest,
+              highlightColor: colorScheme.surface,
+              child: Container(
+                width: 40,
+                height: 20,
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

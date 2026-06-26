@@ -53,11 +53,7 @@ class DateRangeFilter extends StatelessWidget {
       backgroundColor: selectedRange == null
           ? colorScheme.surface
           : colorScheme.primaryContainer.withValues(alpha: 0.3),
-      side: BorderSide(
-        color: selectedRange == null
-            ? colorScheme.outline.withValues(alpha: 0.3)
-            : colorScheme.primary,
-      ),
+
       onPressed: () async {
         final now = DateTime.now();
         final firstDate = DateTime(now.year - 5);

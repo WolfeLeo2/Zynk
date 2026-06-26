@@ -20,6 +20,7 @@ import 'package:zynk/features/products/presentation/products_screen.dart';
 import 'package:zynk/features/products/presentation/group_details_screen.dart';
 import 'package:zynk/features/products/presentation/inventory_adjustment_screen.dart';
 import 'package:zynk/features/products/presentation/product_details_screen.dart';
+import 'package:zynk/features/products/presentation/product_transaction_history_screen.dart';
 import 'package:zynk/features/products/presentation/item_groups_screen.dart';
 import 'package:zynk/features/products/presentation/composite_items_screen.dart';
 import 'package:zynk/features/products/presentation/add_item_group_screen.dart';
@@ -251,6 +252,23 @@ final routerProvider = Provider<GoRouter>((ref) {
                           final product = state.extra as Product;
                           return ProductDetailsScreen(product: product);
                         },
+                        routes: [
+                          GoRoute(
+                            path: 'history',
+                            builder: (context, state) {
+                              final extra =
+                                  state.extra as Map<String, dynamic>?;
+                              final productId =
+                                  extra?['productId'] as String? ?? '';
+                              final productName =
+                                  extra?['productName'] as String? ?? 'Product';
+                              return ProductTransactionHistoryScreen(
+                                productId: productId,
+                                productName: productName,
+                              );
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),

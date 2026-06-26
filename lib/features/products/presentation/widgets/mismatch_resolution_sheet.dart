@@ -3,7 +3,6 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 
-
 class MismatchResolutionSheet extends StatefulWidget {
   final ItemGroup targetGroup;
   final List<Product> mismatchedProducts;

@@ -25,6 +25,7 @@ class QtyStepper extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surfaceContainerHighest.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(24), // Pill shape
+        border: Border.all(color: cs.outline, width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

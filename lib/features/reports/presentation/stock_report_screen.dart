@@ -294,11 +294,7 @@ class _StockDataTable extends StatelessWidget {
             headingRowColor: WidgetStatePropertyAll(
               colorScheme.surfaceContainerHighest,
             ),
-            border: TableBorder.all(
-              color: colorScheme.outlineVariant,
-              width: 0.5,
-              borderRadius: BorderRadius.circular(8),
-            ),
+
             columns: [
               DataColumn(
                 label: Text(

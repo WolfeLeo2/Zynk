@@ -184,7 +184,6 @@ class _StatusBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: color.withAlpha(90),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withAlpha(50)),
       ),
       child: Text(
         label,
@@ -734,9 +733,6 @@ class _NotesSection extends StatelessWidget {
           decoration: BoxDecoration(
             color: colorScheme.surfaceContainerLow,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(
-              color: colorScheme.outlineVariant.withAlpha(100),
-            ),
           ),
           child: Text(notes, style: textTheme.bodyMedium),
         ),

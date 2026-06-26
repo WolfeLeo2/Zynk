@@ -77,8 +77,8 @@ class CommissionService {
 
     await _invoke('mark_all_paid', tenantId, {
       'salesperson_id': salespersonId,
-      if (branchId != null) 'branch_id': branchId,
-      if (monthStr != null) 'month': monthStr,
+      'branch_id': ?branchId,
+      'month': ?monthStr,
     });
   }
 }

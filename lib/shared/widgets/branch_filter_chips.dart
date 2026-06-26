@@ -73,9 +73,6 @@ class BranchFilterChips extends ConsumerWidget {
           ),
         ),
         selectedColor: cs.secondary,
-        side: BorderSide(
-          color: isActive ? cs.secondary : cs.outline.withValues(alpha: 0.2),
-        ),
         onSelected: (_) => onSelected(branchId),
       ),
     );

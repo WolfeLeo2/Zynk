@@ -4,30 +4,32 @@ import 'package:flutter/services.dart';
 import 'app_tokens.dart';
 import 'app_typography.dart';
 
-/// Zynk Design System — "Playful Precision" Implementation
+/// Zynk Design System — "Corporate Minimalism" Implementation
 class AppTheme {
   // ─────────────────────────────────────────────────────────────────────────
   // THEME FACTORIES
   // ─────────────────────────────────────────────────────────────────────────
 
   static ThemeData get darkTheme {
+    final colorScheme = const ColorScheme.dark(
+      primary: AppTokens.brandPrimary,
+      secondary: AppTokens.brandSecondary,
+      tertiary: AppTokens.brandTertiary,
+      surface: AppTokens.bgSurfaceDark,
+      error: Colors.redAccent, // Fallback
+      onPrimary: Colors.white,
+      onSecondary: Colors.white, // Teal needs white text
+      onSurface: AppTokens.textPrimaryDark,
+      outline: AppTokens.borderSubtleDark,
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       scaffoldBackgroundColor: AppTokens.bgCanvasDark,
 
       // COLORS
-      colorScheme: const ColorScheme.dark(
-        primary: AppTokens.brandPrimary,
-        secondary: AppTokens.brandSecondary,
-        tertiary: AppTokens.brandTertiary,
-        surface: AppTokens.bgSurfaceDark,
-        error: Colors.redAccent, // Fallback
-        onPrimary: Colors.white,
-        onSecondary: Colors.black, // Neon Lime needs black text
-        onSurface: AppTokens.textPrimaryDark,
-        outline: AppTokens.borderSubtleDark,
-      ),
+      colorScheme: colorScheme,
 
       // TYPOGRAPHY
       textTheme: AppTypography.darkTextTheme,
@@ -47,14 +49,19 @@ class AppTheme {
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.roundedCard,
-          side: BorderSide(color: AppTokens.borderSubtleDark, width: 1),
+          side: BorderSide(color: AppTokens.borderSubtleDark, width: 0.75),
         ),
         margin: EdgeInsets.zero,
       ),
 
       dividerTheme: const DividerThemeData(
         color: AppTokens.borderSubtleDark,
-        thickness: 1,
+        thickness: 0.5,
+      ),
+
+      chipTheme: const ChipThemeData(
+        side: BorderSide(color: AppTokens.borderSubtleDark, width: 0.5),
+        shape: RoundedRectangleBorder(borderRadius: AppTokens.roundedButton),
       ),
 
       // INPUTS (Active / Focused states)
@@ -67,11 +74,15 @@ class AppTheme {
         ),
         border: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: BorderSide(color: AppTokens.borderSubtleDark),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+          ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
-          borderSide: BorderSide(color: AppTokens.borderSubtleDark),
+          borderSide: BorderSide(
+            color: colorScheme.outlineVariant.withValues(alpha: 0.15),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
@@ -96,8 +107,8 @@ class AppTheme {
           minimumSize: const Size(0, 52), // Touch Target
           textStyle: AppTypography.darkTextTheme.labelLarge,
           shape: const RoundedRectangleBorder(
-            borderRadius: AppTokens.roundedPill,
-          ), // Pill Buttons
+            borderRadius: AppTokens.roundedButton,
+          ), // Rounded Rect Buttons
         ),
       ),
 
@@ -114,24 +125,26 @@ class AppTheme {
   }
 
   static ThemeData get lightTheme {
+    final colorScheme = const ColorScheme.light(
+      primary: AppTokens.brandPrimary,
+      secondary: AppTokens.brandSecondaryLight,
+      surface: AppTokens.bgSurfaceLight,
+      tertiary: AppTokens.brandTertiary,
+      onTertiary: Colors.black87,
+      error: Colors.redAccent,
+      onPrimary: Colors.white,
+      onSecondary: Colors.white,
+      onSurface: AppTokens.textPrimaryLight,
+      outline: AppTokens.borderSubtleLight,
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
       scaffoldBackgroundColor: AppTokens.bgCanvasLight,
 
       // COLORS
-      colorScheme: const ColorScheme.light(
-        primary: AppTokens.brandPrimary,
-        secondary: AppTokens.brandSecondaryLight,
-        surface: AppTokens.bgSurfaceLight,
-        tertiary: AppTokens.brandTertiary,
-        onTertiary: Colors.black87,
-        error: Colors.redAccent,
-        onPrimary: Colors.white,
-        onSecondary: Colors.black,
-        onSurface: AppTokens.textPrimaryLight,
-        outline: AppTokens.borderSubtleLight,
-      ),
+      colorScheme: colorScheme,
 
       // TYPOGRAPHY
       textTheme: AppTypography.lightTextTheme,
@@ -151,8 +164,18 @@ class AppTheme {
         elevation: 0, // Very soft minimal
         shape: RoundedRectangleBorder(
           borderRadius: AppTokens.roundedCard,
-          side: BorderSide(color: AppTokens.borderSubtleLight, width: 0.5),
+          side: BorderSide(color: AppTokens.borderSubtleLight, width: 0.75),
         ),
+      ),
+
+      dividerTheme: const DividerThemeData(
+        color: AppTokens.borderSubtleLight,
+        thickness: 0.5,
+      ),
+
+      chipTheme: const ChipThemeData(
+        side: BorderSide(color: AppTokens.borderSubtleLight, width: 0.5),
+        shape: RoundedRectangleBorder(borderRadius: AppTokens.roundedButton),
       ),
 
       inputDecorationTheme: InputDecorationTheme(
@@ -165,13 +188,13 @@ class AppTheme {
         border: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
           borderSide: BorderSide(
-            color: AppTokens.borderSubtleLight.withValues(alpha: 0.15),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.15),
           ),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: AppTokens.roundedCard,
           borderSide: BorderSide(
-            color: AppTokens.borderSubtleLight.withValues(alpha: 0.15),
+            color: colorScheme.outlineVariant.withValues(alpha: 0.15),
           ),
         ),
         focusedBorder: OutlineInputBorder(
@@ -191,7 +214,7 @@ class AppTheme {
           minimumSize: const Size(0, 52),
           textStyle: AppTypography.lightTextTheme.labelLarge,
           shape: const RoundedRectangleBorder(
-            borderRadius: AppTokens.roundedPill,
+            borderRadius: AppTokens.roundedButton,
           ),
         ),
       ),

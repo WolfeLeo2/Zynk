@@ -115,9 +115,7 @@ class _CustomerLookupFieldState extends ConsumerState<CustomerLookupField> {
                           },
                         )
                       : null,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  // Border is inherited from app_theme.dart inputDecorationTheme
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 12,
@@ -150,50 +148,49 @@ class _CustomerLookupFieldState extends ConsumerState<CustomerLookupField> {
         ),
         if (_showSuggestions && customersAsync.hasValue) ...[
           const SizedBox(height: 4),
-          Container(
-            constraints: const BoxConstraints(maxHeight: 200),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
-              border: Border.all(
-                color: cs.outlineVariant.withValues(alpha: 0.5),
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Material(
-              color: Colors.transparent,
-              child: Builder(
-                builder: (context) {
-                  final filtered = _filterCustomers(customersAsync.value ?? []);
-                  if (filtered.isEmpty) {
-                    return Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text(
-                        'No customers found',
-                        style: theme.textTheme.bodyMedium,
-                      ),
+          Card(
+            margin: EdgeInsets.zero,
+            color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              child: Material(
+                color: Colors.transparent,
+                child: Builder(
+                  builder: (context) {
+                    final filtered = _filterCustomers(
+                      customersAsync.value ?? [],
                     );
-                  }
-                  return ListView.builder(
-                    shrinkWrap: true,
-                    padding: EdgeInsets.zero,
-                    itemCount: filtered.length,
-                    itemBuilder: (context, index) {
-                      final c = filtered[index];
-                      return ListTile(
-                        title: Text(
-                          c.name,
-                          style: const TextStyle(fontWeight: FontWeight.bold),
+                    if (filtered.isEmpty) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text(
+                          'No customers found',
+                          style: theme.textTheme.bodyMedium,
                         ),
-                        subtitle: c.phone != null ? Text(c.phone!) : null,
-                        onTap: () {
-                          _searchCtrl.text = c.name;
-                          _focusNode.unfocus();
-                          widget.onSelected(c);
-                        },
                       );
-                    },
-                  );
-                },
+                    }
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      padding: EdgeInsets.zero,
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        final c = filtered[index];
+                        return ListTile(
+                          title: Text(
+                            c.name,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                          subtitle: c.phone != null ? Text(c.phone!) : null,
+                          onTap: () {
+                            _searchCtrl.text = c.name;
+                            _focusNode.unfocus();
+                            widget.onSelected(c);
+                          },
+                        );
+                      },
+                    );
+                  },
+                ),
               ),
             ),
           ),

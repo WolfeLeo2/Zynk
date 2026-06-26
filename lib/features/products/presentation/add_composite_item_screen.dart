@@ -247,10 +247,6 @@ class _AddCompositeItemScreenState
                             ? cs.primaryContainer
                             : cs.surfaceContainerLow,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: selected ? cs.primary : cs.outlineVariant,
-                          width: selected ? 2 : 1,
-                        ),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -419,7 +415,6 @@ class _AddCompositeItemScreenState
                     decoration: BoxDecoration(
                       color: cs.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: cs.outlineVariant),
                     ),
                     child: filtered.isEmpty
                         ? const Padding(
@@ -611,7 +606,6 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: cs.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: cs.outlineVariant),
       ),
       padding: const EdgeInsets.all(16),
       child: Column(

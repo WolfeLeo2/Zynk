@@ -6,16 +6,15 @@ import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
-import 'package:zynk/shared/widgets/shared_product_card.dart';
 import 'package:zynk/features/pos/presentation/components/pos_ticket.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/shared/widgets/product_card.dart';
 import 'package:zynk/shared/widgets/shimmer_skeletons.dart';
-import 'package:zynk/core/utils/responsive_modal.dart';
-
 
 class PosScreen extends ConsumerStatefulWidget {
   const PosScreen({super.key});
@@ -380,10 +379,6 @@ class _ProductGrid extends ConsumerWidget {
                 fillColor: colorScheme.surfaceContainerHighest.withValues(
                   alpha: 0.3,
                 ),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(14),
-                  borderSide: BorderSide.none,
-                ),
                 contentPadding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 12,
@@ -419,39 +414,108 @@ class _ProductGrid extends ConsumerWidget {
                   if (itemGroups.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(right: 8),
-                      child: FilterChip(
-                        avatar: PhosphorIcon(
-                          PhosphorIconsDuotone.folders,
-                          size: 18,
+                      child: Container(
+                        height: 32,
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        decoration: BoxDecoration(
                           color: selectedGroupId != null
-                              ? colorScheme.onPrimaryContainer
-                              : null,
-                        ),
-                        label: Text(
-                          selectedGroupId != null
-                              ? itemGroups
-                                    .firstWhere(
-                                      (g) => g.id == selectedGroupId,
-                                      orElse: () => itemGroups.first,
-                                    )
-                                    .name
-                              : 'Groups',
-                          style: TextStyle(
+                              ? colorScheme.primaryContainer
+                              : Colors.transparent,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
                             color: selectedGroupId != null
-                                ? colorScheme.onPrimaryContainer
-                                : null,
+                                ? Colors.transparent
+                                : colorScheme.outline,
+                            width: 0.5,
                           ),
                         ),
-                        showCheckmark: false,
-                        selected: selectedGroupId != null,
-                        selectedColor: colorScheme.primaryContainer,
-                        onSelected: (_) {
-                          _showGroupSelector(context, colorScheme);
-                        },
-                        onDeleted: selectedGroupId != null
-                            ? () => onGroupChanged(null)
-                            : null,
-                        deleteIconColor: colorScheme.onPrimaryContainer,
+                        alignment: Alignment.center,
+                        child: DropdownButtonHideUnderline(
+                          child: DropdownButton<String?>(
+                            value: selectedGroupId,
+                            hint: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                PhosphorIcon(
+                                  PhosphorIconsDuotone.folders,
+                                  size: 16,
+                                  color: colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Groups',
+                                  style: TextStyle(
+                                    color: colorScheme.onSurfaceVariant,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            icon: Padding(
+                              padding: const EdgeInsets.only(left: 4),
+                              child: PhosphorIcon(
+                                PhosphorIconsRegular.caretDown,
+                                size: 14,
+                                color: selectedGroupId != null
+                                    ? colorScheme.onPrimaryContainer
+                                    : colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            isDense: true,
+                            dropdownColor: colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(12),
+                            selectedItemBuilder: (BuildContext context) {
+                              return [
+                                const Text('All Groups'),
+                                ...itemGroups.map((g) {
+                                  return Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      PhosphorIcon(
+                                        PhosphorIconsDuotone.folders,
+                                        size: 16,
+                                        color: colorScheme.onPrimaryContainer,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        g.name,
+                                        style: TextStyle(
+                                          color: colorScheme.onPrimaryContainer,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  );
+                                }),
+                              ];
+                            },
+                            items: [
+                              const DropdownMenuItem<String?>(
+                                value: null,
+                                child: Text('All Groups'),
+                              ),
+                              ...itemGroups.map((g) {
+                                return DropdownMenuItem<String?>(
+                                  value: g.id,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      PhosphorIcon(
+                                        PhosphorIconsDuotone.folders,
+                                        size: 16,
+                                        color: colorScheme.onSurfaceVariant,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(g.name),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                            onChanged: (val) => onGroupChanged(val),
+                          ),
+                        ),
                       ),
                     ),
 
@@ -568,73 +632,6 @@ class _ProductGrid extends ConsumerWidget {
               SliverFillRemaining(child: Center(child: Text('Error: $err'))),
         ),
       ],
-    );
-  }
-
-  void _showGroupSelector(BuildContext context, ColorScheme colorScheme) {
-    showResponsiveModal(
-      context: context,
-      backgroundColor: colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      builder: (sheetContext) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Select Item Group',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
-              const Divider(height: 1),
-              Flexible(
-                child: ListView.builder(
-                  shrinkWrap: true,
-                  itemCount: itemGroups.length,
-                  itemBuilder: (context, index) {
-                    final group = itemGroups[index];
-                    final isSelected = selectedGroupId == group.id;
-                    return ListTile(
-                      leading: Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: isSelected
-                              ? colorScheme.primaryContainer
-                              : colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: PhosphorIcon(
-                          PhosphorIconsDuotone.folders,
-                          color: isSelected
-                              ? colorScheme.onPrimaryContainer
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      title: Text(group.name),
-                      trailing: isSelected
-                          ? PhosphorIcon(
-                              PhosphorIconsBold.check,
-                              color: colorScheme.primary,
-                            )
-                          : null,
-                      onTap: () {
-                        onGroupChanged(group.id);
-                        Navigator.pop(sheetContext);
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

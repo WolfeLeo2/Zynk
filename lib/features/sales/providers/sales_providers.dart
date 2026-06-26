@@ -250,18 +250,21 @@ class SalesSearchQueryNotifier extends Notifier<String> {
   }
 }
 
-final salesSearchQueryProvider = NotifierProvider<SalesSearchQueryNotifier, String>(() {
-  return SalesSearchQueryNotifier();
-});
+final salesSearchQueryProvider =
+    NotifierProvider<SalesSearchQueryNotifier, String>(() {
+      return SalesSearchQueryNotifier();
+    });
 
-final salesSearchResultsProvider = StreamProvider.autoDispose<List<Sale>>((ref) {
+final salesSearchResultsProvider = StreamProvider.autoDispose<List<Sale>>((
+  ref,
+) {
   final query = ref.watch(salesSearchQueryProvider);
   if (query.isEmpty) return Stream.value([]);
-  
+
   final repo = ref.watch(repositoryProvider);
   final tenantId = ref.watch(tenantIdProvider);
   final globalBranchId = ref.watch(currentBranchIdProvider);
-  
+
   return repo.watchSales(
     tenantId: tenantId,
     branchId: globalBranchId,

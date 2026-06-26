@@ -85,7 +85,6 @@ class _BatchPricingUpdateSheetState
                 decoration: BoxDecoration(
                   color: cs.secondaryContainer.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: cs.secondaryContainer),
                 ),
                 child: Row(
                   children: [

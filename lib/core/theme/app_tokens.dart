@@ -1,70 +1,77 @@
 import 'package:flutter/material.dart';
 
 /// Zynk Design Tokens - Source of Truth for Design System v2.0
-/// "Playful Precision"
+/// "Corporate Minimalism"
 class AppTokens {
   // ─────────────────────────────────────────────────────────────────────────
   // 1. PALETTE (Private Primitives)
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Brand
-  static const Color _electricBlue = Color(0xFF2E69FF); // Core Action
-  static const Color _neonLime = Color(0xFFD4FC45); // Success / Growth
-  static const Color _hotPink = Color(0xFFFF4D8F);
-  static const Color _basedGray = Color.fromARGB(255, 212, 208, 229);
-  static const Color _darkLime = Color(0xFF65A30D);
+  // Brand (Corporate Minimalism - Professional, Softer)
+  static const Color _primaryBlue = Color(0xFF2563EB); // Trustworthy blue
+  static const Color _secondaryTeal = Color(
+    0xFF0F766E,
+  ); // Muted teal for success/growth
+  static const Color _secondaryTealLight = Color(
+    0xFF0D9488,
+  ); // Slightly lighter teal
+  static const Color _accentCoral = Color(
+    0xFFE11D48,
+  ); // Soft red/coral for alerts
+  static const Color _slateGray = Color(0xFFCBD5E1); // Neutral tone
 
-  // Neutrals - Cool Blue Tints
-  static const Color _midnight = Color(0xFF0D1117); // Canvas Base
-  static const Color _surface = Color(0xFF161B22); // Card Base
-  static const Color _surfaceHighlight = Color(
-    0xFF1C2333,
-  ); // Card Hover / Input Fill
-  static const Color _borderSubtle = Color(0xFF30363D); // Dividers
-  static const Color _textPrimary = Color(0xFFE6EDF3); // Almost White
-  static const Color _textMuted = Color(0xFF8B949E); // Muted Grey-Blue
+  // Neutrals - Slate Tints (Dark Mode)
+  static const Color _slate900 = Color(0xFF0F172A); // Canvas Base
+  static const Color _slate800 = Color(0xFF1E293B); // Card Base
+  static const Color _slate700 = Color(0xFF334155); // Card Hover / Input Fill
+  static const Color _slate600 = Color(0xFF475569); // Dividers
+  static const Color _slate100 = Color(0xFFF1F5F9); // Text Primary
+  static const Color _slate400 = Color(0xFF94A3B8); // Text Muted
 
-  // Light Mode Equivalents (For future-proofing)
-  static const Color _lightCanvas = Color(0xFFF9FAFB); // Soft Minimal off-white
-  static const Color _lightSurface = Color(0xFFFFFFFF); // Pure white cards
-  static const Color _lightBorder = Color(0xFFE5E7EB);
-  static const Color _lightTextPrimary = Color(0xFF111827);
+  // Neutrals - Slate Tints (Light Mode)
+  static const Color _slate50 = Color(
+    0xFFF8FAFC,
+  ); // Soft Minimal off-white canvas
+  static const Color _white = Color(0xFFFFFFFF); // Pure white cards
+  static const Color _slate200 = Color(0xFFE2E8F0); // Borders
+  static const Color _slate950 = Color(0xFF020617); // Text Primary
+  static const Color _slate500 = Color(0xFF64748B); // Text Muted
 
   // ─────────────────────────────────────────────────────────────────────────
   // 2. SEMANTIC COLORS (Public Usage)
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const Color brandPrimary = _electricBlue;
-  static const Color brandSecondary = _neonLime;
-  static const Color brandSecondaryLight = _darkLime;
-  static const Color brandTertiary = _basedGray;
-  static const Color brandAccent = _hotPink;
+  static const Color brandPrimary = _primaryBlue;
+  static const Color brandSecondary = _secondaryTealLight;
+  static const Color brandSecondaryLight = _secondaryTeal;
+  static const Color brandTertiary = _slateGray;
+  static const Color brandAccent = _accentCoral;
 
   // Backgrounds
-  static const Color bgCanvasDark = _midnight;
-  static const Color bgSurfaceDark = _surface;
-  static const Color bgSurfaceHighlightDark = _surfaceHighlight;
+  static const Color bgCanvasDark = _slate900;
+  static const Color bgSurfaceDark = _slate800;
+  static const Color bgSurfaceHighlightDark = _slate700;
 
-  static const Color bgCanvasLight = _lightCanvas;
-  static const Color bgSurfaceLight = _lightSurface;
+  static const Color bgCanvasLight = _slate50;
+  static const Color bgSurfaceLight = _white;
 
-  static const Color textPrimaryDark = _textPrimary;
-  static const Color textMutedDark = _textMuted;
-  static const Color textPrimaryLight = _lightTextPrimary;
-  static const Color textMutedLight = Color(0xFF6B7280); // Muted gray
+  static const Color textPrimaryDark = _slate100;
+  static const Color textMutedDark = _slate400;
+  static const Color textPrimaryLight = _slate950;
+  static const Color textMutedLight = _slate500;
 
   // Borders
-  static const Color borderSubtleDark = _borderSubtle;
-  static const Color borderSubtleLight = _lightBorder;
-  static const Color borderFocus = _electricBlue;
+  static const Color borderSubtleDark = _slate600;
+  static const Color borderSubtleLight = _slate200;
+  static const Color borderFocus = _primaryBlue;
 
   // ─────────────────────────────────────────────────────────────────────────
   // 3. SHAPES (Radii)
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const double radiusSoft = 8.0;
-  static const double radiusCard = 16.0;
-  static const double radiusPill = 100.0;
+  static const double radiusSoft = 6.0;
+  static const double radiusCard = 12.0;
+  static const double radiusButton = 8.0;
 
   static const BorderRadius roundedSoft = BorderRadius.all(
     Radius.circular(radiusSoft),
@@ -72,8 +79,8 @@ class AppTokens {
   static const BorderRadius roundedCard = BorderRadius.all(
     Radius.circular(radiusCard),
   );
-  static const BorderRadius roundedPill = BorderRadius.all(
-    Radius.circular(radiusPill),
+  static const BorderRadius roundedButton = BorderRadius.all(
+    Radius.circular(radiusButton),
   );
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -82,14 +89,14 @@ class AppTokens {
 
   static const List<BoxShadow> shadowGlow = [
     BoxShadow(
-      color: Color(0x332E69FF), // brandBlue with ~20% opacity
-      blurRadius: 12,
-      offset: Offset(0, 4),
+      color: Color(0x1A2563EB), // brandBlue with ~10% opacity
+      blurRadius: 8,
+      offset: Offset(0, 2),
     ),
   ];
 
   static const List<BoxShadow> shadowSubtle = [
-    BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 2)),
+    BoxShadow(color: Colors.black12, blurRadius: 4, offset: Offset(0, 1)),
   ];
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -97,24 +104,24 @@ class AppTokens {
   // ─────────────────────────────────────────────────────────────────────────
 
   static const TextStyle heading1 = TextStyle(
-    fontSize: 32,
-    fontWeight: FontWeight.bold,
-    letterSpacing: -1.0,
-  );
-
-  static const TextStyle heading2 = TextStyle(
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: FontWeight.bold,
     letterSpacing: -0.5,
   );
 
-  static const TextStyle heading3 = TextStyle(
-    fontSize: 20,
+  static const TextStyle heading2 = TextStyle(
+    fontSize: 22,
     fontWeight: FontWeight.bold,
+    letterSpacing: -0.25,
+  );
+
+  static const TextStyle heading3 = TextStyle(
+    fontSize: 18,
+    fontWeight: FontWeight.w600,
   );
 
   static const TextStyle labelLarge = TextStyle(
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: FontWeight.w600,
   );
 
@@ -137,10 +144,12 @@ class AppTokens {
   // 6. ALIASES (Convenience)
   // ─────────────────────────────────────────────────────────────────────────
 
-  static const Color electricBlue = _electricBlue;
-  static const Color neonLime = _neonLime;
-  static const Color textPrimary = _lightTextPrimary;
-  static const Color textSecondary = Color(0xFF6B7280);
-  static const Color textTertiary = Color(0xFF9CA3AF);
-  static const Color surfaceSecondary = Color(0xFFF3F4F6);
+  static const Color electricBlue =
+      _primaryBlue; // Kept alias for compatibility
+  static const Color neonLime =
+      _secondaryTealLight; // Kept alias for compatibility
+  static const Color textPrimary = _slate950;
+  static const Color textSecondary = _slate500;
+  static const Color textTertiary = _slate400;
+  static const Color surfaceSecondary = _slate50;
 }

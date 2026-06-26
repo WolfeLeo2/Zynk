@@ -10,6 +10,8 @@ import 'package:zynk/core/services/auth_service.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/shared/widgets/branch_dropdown.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/features/auth/providers/lock_provider.dart';
+import 'package:zynk/shared/widgets/set_pin_dialog.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/user_role.dart';
 
@@ -183,7 +185,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     await ref.read(authServiceProvider).signOut();
   }
 
-
   @override
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
@@ -253,11 +254,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   decoration: BoxDecoration(
                                     shape: BoxShape.circle,
                                     color: cs.surfaceContainerHighest,
-                                    border: Border.all(
-                                      color: cs.outlineVariant.withValues(
-                                        alpha: 0.15,
-                                      ),
-                                    ),
                                   ),
                                   child: ClipOval(
                                     child: profile?.profilePictureUrl != null
@@ -561,6 +557,61 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ),
                         trailing: const BranchDropdown(),
                       ),
+                      SettingsTile(
+                        leading: const PhosphorIcon(
+                          PhosphorIconsDuotone.lockKey,
+                        ),
+                        title: Text(
+                          'Auto-lock',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        trailing: DropdownButton<int>(
+                          value: ref.watch(autoLockSecondsProvider),
+                          underline: const SizedBox(),
+                          borderRadius: BorderRadius.circular(12),
+                          dropdownColor:
+                              Theme.of(context).colorScheme.surfaceContainerHigh,
+                          onChanged: (seconds) {
+                            if (seconds != null) {
+                              ref
+                                  .read(autoLockSecondsProvider.notifier)
+                                  .setSeconds(seconds);
+                            }
+                          },
+                          items: const [
+                            DropdownMenuItem(value: 60, child: Text('1 min')),
+                            DropdownMenuItem(value: 120, child: Text('2 min')),
+                            DropdownMenuItem(value: 300, child: Text('5 min')),
+                            DropdownMenuItem(value: 600, child: Text('10 min')),
+                          ],
+                        ),
+                      ),
+                      // Owner's own login PIN — the owner is hidden from the
+                      // User Accounts list, so this is their path to set it.
+                      if (isOwner && profile != null)
+                        SettingsTile.navigation(
+                          leading: const PhosphorIcon(
+                            PhosphorIconsDuotone.password,
+                          ),
+                          title: Text(
+                            'My Login PIN',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          description: Text(
+                            (ref
+                                        .watch(profilesWithPinProvider)
+                                        .value
+                                        ?.contains(profile.id) ??
+                                    false)
+                                ? 'PIN set — tap to change'
+                                : 'Not set — tap to set a sign-in PIN',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                          onPressed: (_) => showDialog(
+                            context: context,
+                            builder: (_) => SetPinDialog(member: profile),
+                          ),
+                        ),
                     ],
                   ),
 

@@ -1,14 +1,13 @@
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_speed_dial/flutter_speed_dial.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/shared/widgets/shared_product_card.dart';
 import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/features/products/presentation/batch_upload_screen.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
-import 'package:zynk/features/pos/providers/cart_provider.dart';
+import 'package:zynk/features/products/presentation/batch_upload_screen.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/shared/widgets/product_card.dart';
 
 class ProductsScreen extends ConsumerStatefulWidget {
   final String? initialGroupId;
@@ -58,94 +57,7 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
             return const SizedBox.shrink();
           },
         ),
-        title: const Text('Items'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 16),
-            child: Theme(
-              data: theme.copyWith(
-                splashColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-              ),
-              child: PopupMenuButton<String>(
-                offset: const Offset(0, 48),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                tooltip: 'Add options',
-                onSelected: (value) {
-                  if (value == 'csv') {
-                    importCsv(context);
-                  } else if (value == 'item') {
-                    context.push('/products/add');
-                  } else if (value == 'adjust') {
-                    context.push('/products/adjustments');
-                  }
-                },
-                itemBuilder: (context) => [
-                  const PopupMenuItem(
-                    value: 'item',
-                    child: Row(
-                      children: [
-                        PhosphorIcon(PhosphorIconsBold.plus, size: 20),
-                        SizedBox(width: 12),
-                        Text('Add item'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'adjust',
-                    child: Row(
-                      children: [
-                        PhosphorIcon(PhosphorIconsDuotone.package, size: 20),
-                        SizedBox(width: 12),
-                        Text('Batch Adjust Stock'),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'csv',
-                    child: Row(
-                      children: [
-                        PhosphorIcon(PhosphorIconsDuotone.fileCsv, size: 20),
-                        SizedBox(width: 12),
-                        Text('Import CSV'),
-                      ],
-                    ),
-                  ),
-                ],
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 10,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.colorScheme.secondary,
-                    borderRadius: BorderRadius.circular(24),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      PhosphorIcon(
-                        PhosphorIconsBold.plus,
-                        size: 18,
-                        color: theme.colorScheme.onSecondary,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'Add',
-                        style: TextStyle(
-                          color: theme.colorScheme.onSecondary,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+        title: const Text('Products'),
       ),
       body: Column(
         children: [
@@ -156,25 +68,15 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               decoration: InputDecoration(
                 hintText: 'Search item by name...',
                 prefixIcon: const PhosphorIcon(
-                  PhosphorIconsDuotone.magnifyingGlass,
+                  PhosphorIconsRegular.magnifyingGlass,
                 ),
                 filled: true,
-                fillColor: theme.colorScheme.surface,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outlineVariant,
-                  ),
+                fillColor: theme.colorScheme.surfaceContainerHighest.withValues(
+                  alpha: 0.3,
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(
-                    color: theme.colorScheme.outlineVariant,
-                  ),
-                ),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(16),
-                  borderSide: BorderSide(color: theme.colorScheme.primary),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
                 ),
               ),
               onChanged: (val) => setState(() => _searchQuery = val),
@@ -274,6 +176,38 @@ class _ProductsScreenState extends ConsumerState<ProductsScreen> {
               loading: () => _buildShimmer(theme),
               error: (e, s) => Center(child: Text('Error: $e')),
             ),
+          ),
+        ],
+      ),
+      floatingActionButton: SpeedDial(
+        icon: Icons.add,
+        activeIcon: Icons.close,
+        label: const Text('Add item'),
+        spacing: 3,
+        childPadding: const EdgeInsets.all(5),
+        spaceBetweenChildren: 4,
+        tooltip: 'Add Item',
+        heroTag: 'add-item-speed-dial',
+        elevation: 3.0, // Standard M3 FAB elevation
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16), // Standard M3 FAB shape
+        ),
+        backgroundColor: theme.colorScheme.primary,
+        foregroundColor: theme.colorScheme.onPrimary,
+        children: [
+          SpeedDialChild(
+            child: const PhosphorIcon(PhosphorIconsBold.plus),
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            foregroundColor: theme.colorScheme.onSecondaryContainer,
+            label: 'Add item',
+            onTap: () => context.push('/products/add'),
+          ),
+          SpeedDialChild(
+            child: const PhosphorIcon(PhosphorIconsDuotone.fileCsv),
+            backgroundColor: theme.colorScheme.secondaryContainer,
+            foregroundColor: theme.colorScheme.onSecondaryContainer,
+            label: 'Import CSV',
+            onTap: () => importCsv(context),
           ),
         ],
       ),

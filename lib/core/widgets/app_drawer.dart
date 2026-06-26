@@ -7,6 +7,7 @@ import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/services/auth_service.dart';
+import 'package:zynk/features/auth/providers/lock_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/shared/widgets/branch_dropdown.dart';
 
@@ -280,9 +281,7 @@ class AppDrawer extends ConsumerWidget {
               decoration: BoxDecoration(
                 color: theme.colorScheme.surface,
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.5),
-                ),
+
                 boxShadow: [
                   BoxShadow(
                     color: Colors.black.withValues(alpha: 0.02),
@@ -328,6 +327,17 @@ class AppDrawer extends ConsumerWidget {
                         ),
                       ],
                     ),
+                  ),
+                  // Lock / switch user — shows the PIN pad without ending the
+                  // device session (sync keeps running).
+                  IconButton(
+                    tooltip: 'Lock / switch user',
+                    icon: PhosphorIcon(
+                      PhosphorIconsDuotone.lockKey,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                    onPressed: () =>
+                        ref.read(lockProvider.notifier).lock(),
                   ),
                 ],
               ),

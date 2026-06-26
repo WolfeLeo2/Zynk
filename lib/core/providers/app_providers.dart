@@ -1,17 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/config/powersync.dart'; // Import global 'db'
-import '../../data/local/repository.dart';
 import '../../core/models/schema_models.dart';
+import '../../data/local/repository.dart';
 import '../models/staff_model.dart';
-
-import '../services/auth_service.dart';
-import '../services/app_logger.dart';
 import '../models/user_role.dart';
+import '../services/app_logger.dart';
+import '../services/auth_service.dart';
 import 'user_provider.dart';
 
 final _log = AppLogger('AppProviders');
@@ -65,6 +62,15 @@ final staffProvider = StreamProvider<List<Profile>>((ref) {
 /// Provider to check if user is authenticated
 final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authStateProvider).value != null;
+});
+
+/// Set of profile ids (current tenant) that have a login PIN set — for showing
+/// "PIN set" confirmation in the UI.
+final profilesWithPinProvider = StreamProvider<Set<String>>((ref) {
+  final repo = ref.watch(repositoryProvider);
+  final tenantId = ref.watch(tenantIdProvider);
+  if (tenantId == null) return Stream.value(<String>{});
+  return repo.watchProfileIdsWithPin(tenantId);
 });
 
 /// Stream of all branches in the current tenant

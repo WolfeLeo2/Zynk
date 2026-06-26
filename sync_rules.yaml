@@ -7,7 +7,9 @@ bucket_definitions:
 
     data:
       - SELECT * FROM tenants WHERE id = bucket.tenant_id
-      - SELECT * FROM profiles WHERE tenant_id = bucket.tenant_id
+      # Explicit columns: pin_hash / pin_lookup are server-only and must NEVER
+      # reach devices. pin_set_at (a non-secret "has a PIN" timestamp) is synced.
+      - SELECT id, user_id, tenant_id, branch_id, role, permissions, display_name, profile_picture_url, phone, address, status, pin_set_at, created_at, updated_at FROM profiles WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM products WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM product_branches WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM customers WHERE tenant_id = bucket.tenant_id
@@ -30,6 +32,8 @@ bucket_definitions:
       - SELECT * FROM credit_note_items WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM commissions WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM profile_branches WHERE tenant_id = bucket.tenant_id
-      - SELECT * FROM daily_kpi_snapshots WHERE tenant_id = bucket.tenant_id
-      - SELECT * FROM daily_payment_method_snapshots WHERE tenant_id = bucket.tenant_id
-      - SELECT * FROM daily_product_sales_snapshots WHERE tenant_id = bucket.tenant_id
+      # These snapshot tables have no `id` column (composite keys), so synthesize
+      # a stable unique id from the key parts — PowerSync requires an `id`.
+      - SELECT *, (tenant_id || '|' || IFNULL(branch_id, 'all') || '|' || snapshot_date) AS id FROM daily_kpi_snapshots WHERE tenant_id = bucket.tenant_id
+      - SELECT *, (tenant_id || '|' || IFNULL(branch_id, 'all') || '|' || snapshot_date || '|' || IFNULL(payment_method, '')) AS id FROM daily_payment_method_snapshots WHERE tenant_id = bucket.tenant_id
+      - SELECT *, (tenant_id || '|' || IFNULL(branch_id, 'all') || '|' || snapshot_date || '|' || IFNULL(product_id, '')) AS id FROM daily_product_sales_snapshots WHERE tenant_id = bucket.tenant_id
