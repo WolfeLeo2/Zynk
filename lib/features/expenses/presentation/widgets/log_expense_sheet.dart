@@ -129,8 +129,13 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                 final selectable = branches
                     .where((b) => b.id != 'all')
                     .toList();
+                // Only pre-select a branch that's actually in the list.
+                final selectedValue =
+                    selectable.any((b) => b.id == _selectedBranch?.id)
+                    ? _selectedBranch
+                    : null;
                 return DropdownButtonFormField<Branch>(
-                  initialValue: _selectedBranch,
+                  initialValue: selectedValue,
                   decoration: const InputDecoration(
                     labelText: 'Branch',
                     border: OutlineInputBorder(),
@@ -155,31 +160,48 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
 
             // Category
             categoriesAsync.when(
-              data: (categories) => DropdownButtonFormField<ExpenseCategory>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: [
-                  ...categories.map(
-                    (c) => DropdownMenuItem(
-                      value: c,
-                      child: Text(c.name, overflow: TextOverflow.ellipsis),
-                    ),
+              data: (categories) {
+                // De-dup by id (a duplicate id would crash the dropdown), and
+                // only pre-select a value that's actually present (a freshly
+                // created category isn't in the synced list for a moment).
+                final seen = <String>{};
+                final uniqueCats = [
+                  for (final c in categories)
+                    if (seen.add(c.id)) c,
+                ];
+                final selectedValue =
+                    uniqueCats.any((c) => c.id == _selectedCategory?.id)
+                    ? _selectedCategory
+                    : null;
+                return DropdownButtonFormField<ExpenseCategory>(
+                  initialValue: selectedValue,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                    isDense: true,
                   ),
-                  const DropdownMenuItem(value: null, child: Text('+ Add New')),
-                ],
-                onChanged: (val) {
-                  if (val == null) {
-                    _showAddCategoryDialog();
-                  } else {
-                    setState(() => _selectedCategory = val);
-                  }
-                },
-                validator: (val) => val == null ? 'Required' : null,
-              ),
+                  items: [
+                    ...uniqueCats.map(
+                      (c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(c.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('+ Add New'),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    if (val == null) {
+                      _showAddCategoryDialog();
+                    } else {
+                      setState(() => _selectedCategory = val);
+                    }
+                  },
+                  validator: (val) => val == null ? 'Required' : null,
+                );
+              },
               loading: () => const LinearProgressIndicator(),
               error: (_, _) => const Text('Error'),
             ),
