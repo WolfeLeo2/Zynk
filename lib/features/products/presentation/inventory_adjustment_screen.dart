@@ -13,7 +13,6 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/core/models/staff_model.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
@@ -35,7 +34,6 @@ class _InventoryAdjustmentScreenState
   Set<String> _selectedBranchIds = {};
   bool _initializedBranches = false;
   String? _reasonId;
-  StaffMember? _selectedAdjuster;
 
   @override
   void dispose() {
@@ -62,16 +60,6 @@ class _InventoryAdjustmentScreenState
 
     final profile = ref.read(currentProfileProvider);
     if (profile == null) return;
-
-    if (_selectedAdjuster == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select an adjuster.'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
-      return;
-    }
 
     final adjusterId = profile.userId;
 
@@ -138,7 +126,7 @@ class _InventoryAdjustmentScreenState
             branchId: branch.id,
             items: adjustmentItems,
             createdBy: adjusterId,
-            salespersonId: _selectedAdjuster?.id,
+            salespersonId: profile.id,
             adjustmentType: 'auto',
             reasonId: _reasonId,
             referenceNumber: referenceNumber,
@@ -150,7 +138,7 @@ class _InventoryAdjustmentScreenState
           branchId: _selectedBranchIds.first,
           items: adjustmentItems,
           createdBy: adjusterId,
-          salespersonId: _selectedAdjuster?.id,
+          salespersonId: profile.id,
           adjustmentType: 'auto',
           reasonId: _reasonId,
           referenceNumber: referenceNumber,
@@ -505,52 +493,7 @@ class _InventoryAdjustmentScreenState
                                 error: (_, _) => const SizedBox.shrink(),
                               ),
                               const SizedBox(height: 16),
-                              // Adjuster Selection
-                              Consumer(
-                                builder: (context, ref, _) {
-                                  final staffAsync = ref.watch(
-                                    humanStaffProvider,
-                                  );
-                                  return staffAsync.when(
-                                    data: (staffList) =>
-                                        DropdownButtonFormField<StaffMember>(
-                                          initialValue: _selectedAdjuster,
-                                          decoration: InputDecoration(
-                                            labelText: 'Adjuster *',
-                                            prefixIcon: const PhosphorIcon(
-                                              PhosphorIconsRegular.user,
-                                            ),
-                                            border: OutlineInputBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(12),
-                                            ),
-                                            isDense: true,
-                                          ),
-                                          hint: const Text(
-                                            'Select an adjuster',
-                                          ),
-                                          items: staffList
-                                              .map(
-                                                (s) =>
-                                                    DropdownMenuItem<
-                                                      StaffMember
-                                                    >(
-                                                      value: s,
-                                                      child: Text(s.name),
-                                                    ),
-                                              )
-                                              .toList(),
-                                          onChanged: (v) => setState(
-                                            () => _selectedAdjuster = v,
-                                          ),
-                                        ),
-                                    loading: () => const _FormFieldShimmer(),
-                                    error: (e, _) =>
-                                        Text('Error loading staff: $e'),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 16),
+                              // Adjuster is the logged-in staffer (set on submit).
                               // Reason picker row
                               Consumer(
                                 builder: (context, ref, _) {

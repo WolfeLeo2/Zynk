@@ -11,8 +11,8 @@
 **Goal:** On a shared device, let staff switch users with a short **PIN** instead of typing email+password — and *without* the slow full re-sync that happens today. Each staffer remains their **own real Supabase account**, so identity, owner ops, and attribution all work natively.
 
 **Non-goals (this phase):**
-- **Changing salesperson attribution — DEFERRED (no go-ahead).** Keep the app's current `salesperson_id` handling exactly as-is. Do NOT auto-derive the salesperson from the signed-in staffer yet. (Model B makes this trivial later — `auth.uid()` is already the real staffer — but it is explicitly out of scope until approved. So "Phase 4 = attribution" is a no-op for now: verify nothing regressed, change nothing.)
-- Removing the `salesperson` table/field (separate, even later).
+- ✅ **Salesperson attribution — DONE (approved 2026-06-25, full migration).** Salesperson/adjuster/expense-staff now = the current logged-in `profile.id` (dropdowns removed). `staff_members` is retained server-side for historic rows only; its management page is removed; FKs to it dropped on `stock_adjustments.salesperson_id` and `expenses.staff_member_id`; name resolution everywhere now `COALESCE(staff_members.name, profiles.display_name)`. See migration `20260625000000`.
+- Removing the `staff_members` table itself (kept for history; never as an input).
 - Offline *user-switching* (see §7 — switching requires a quick auth call).
 - Biometric unlock (could layer on later via `local_auth`).
 
@@ -140,7 +140,7 @@ New deps: `flutter_secure_storage`, plus `cryptography` (Argon2id) **or** `point
 1. ✅ **Foundation** — `profiles` PIN migration; `set-staff-pin` + `pin-login` edge fns; `switchUser()` (no-wipe) + `loginWithPin()`. (Enrollment/session-caching dropped — `pin-login` mints sessions server-side.)
 2. ✅ **Owner Set-PIN UI** — `setStaffPin()` + "Set Login PIN" on the User Accounts screen (owner sets staff *and* their own PIN; re-setting = reset).
 3. ✅ **Lock flow + auto-lock** — LockScreen + PIN pad → `loginWithPin` → welcome screen; `lockProvider` gate in AppShell; drawer Lock button; `InactivityDetector` idle auto-lock; Settings auto-lock tile (1/2/5/10 min).
-4. ⏸️ **Attribution — DEFERRED (no go-ahead).** Keep current `salesperson_id` handling; change nothing. No-op until approved (see §1).
+4. ✅ **Attribution — DONE (full migration).** Salesperson/adjuster/expense-staff = current `profile.id`; pickers removed; `staff_members` history-only + page removed + FKs dropped; names resolved from both tables. Migration `20260625000000`.
 5. ✅ **Lockout** — `pin-login` throttles per (tenant_id, client ip): 5 fails → exponential lockout (30s→…→15 min cap), reset on success/stale window (`pin_login_attempts` table, service-role only). Forgot-PIN = owner re-sets via Set-PIN (overwrites). Also: `sync_rules` switched to explicit columns so `pin_hash`/`pin_lookup` no longer travel to devices; `pin_set_at` is synced to drive a "PIN set" indicator. **Requires deploying the updated `sync_rules.yaml` to PowerSync.**
 6. ⬜ **Hardening + tests** (§11). Optional: lock-on-cold-start (currently resumes unlocked as the last session's user).
 

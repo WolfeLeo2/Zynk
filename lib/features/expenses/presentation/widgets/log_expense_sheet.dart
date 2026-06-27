@@ -2,12 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/features/expenses/models/expense.dart';
 import 'package:zynk/features/expenses/models/expense_category.dart';
 import 'package:zynk/features/expenses/providers/expenses_provider.dart';
-import 'package:zynk/core/models/staff_model.dart';
-import 'package:zynk/core/models/schema_models.dart';
+
+import '../../../../core/providers/user_provider.dart';
 
 class LogExpenseSheet extends ConsumerStatefulWidget {
   const LogExpenseSheet({super.key});
@@ -22,7 +23,6 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
   final _descriptionController = TextEditingController();
 
   ExpenseCategory? _selectedCategory;
-  StaffMember? _selectedStaff;
   Branch? _selectedBranch;
   String _paymentMethod = 'cash';
   final DateTime _expenseDate = DateTime.now();
@@ -39,7 +39,6 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final categoriesAsync = ref.watch(expenseCategoriesProvider);
-    final staffAsync = ref.watch(humanStaffProvider);
     final branchesAsync = ref.watch(branchesProvider);
     final currentBranchId = ref.watch(currentBranchIdProvider);
 
@@ -186,29 +185,17 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
             ),
             const SizedBox(height: 16),
 
-            // Logged By
-            staffAsync.when(
-              data: (staff) => DropdownButtonFormField<StaffMember>(
-                initialValue: _selectedStaff,
-                decoration: const InputDecoration(
-                  labelText: 'Logged By',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: staff
-                    .map(
-                      (s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s.name, overflow: TextOverflow.ellipsis),
-                      ),
-                    )
-                    .toList(),
-                validator: (val) =>
-                    val == null ? 'Please select who is logging this' : null,
-                onChanged: (val) => setState(() => _selectedStaff = val),
+            // Logged By — the current logged-in staffer.
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Logged By',
+                border: OutlineInputBorder(),
+                isDense: true,
               ),
-              loading: () => const LinearProgressIndicator(),
-              error: (_, _) => const Text('Error'),
+              child: Text(
+                ref.watch(currentProfileProvider)?.displayName ?? 'You',
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -312,7 +299,7 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
       tenantId: tenantId,
       branchId: _selectedBranch!.id,
       categoryId: _selectedCategory!.id,
-      staffMemberId: _selectedStaff?.id,
+      staffMemberId: ref.read(currentProfileProvider)?.id,
       amount: double.parse(_amountController.text),
       description: _descriptionController.text.isEmpty
           ? null

@@ -406,23 +406,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             true)
                           SettingsTile.navigation(
                             leading: const PhosphorIcon(
-                              PhosphorIconsDuotone.userList,
-                            ),
-                            title: Text(
-                              'Salespersons',
-                              style: Theme.of(context).textTheme.titleMedium,
-                            ),
-                            description: Text(
-                              'Manage actual employees',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            onPressed: (_) =>
-                                context.push('/settings/staff-members'),
-                          ),
-                        if (profile?.hasPermission(Permission.manageStaff) ==
-                            true)
-                          SettingsTile.navigation(
-                            leading: const PhosphorIcon(
                               PhosphorIconsDuotone.users,
                             ),
                             title: Text(

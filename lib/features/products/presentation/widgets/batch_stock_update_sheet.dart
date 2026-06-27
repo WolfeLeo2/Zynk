@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
@@ -29,7 +28,6 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
   final _referenceController = TextEditingController();
   String _mode = 'add'; // 'set' | 'add' | 'subtract'
 
-  StaffMember? _selectedAdjuster;
   AdjustmentReason? _selectedReason;
   Branch? _selectedBranch;
 
@@ -44,7 +42,6 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final staffAsync = ref.watch(humanStaffProvider);
     final reasonsAsync = ref.watch(adjustmentReasonsProvider);
     final branchesAsync = ref.watch(branchesProvider);
     final currentBranchId = ref.watch(currentBranchIdProvider);
@@ -123,57 +120,24 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
               loading: () => const LinearProgressIndicator(),
               error: (_, __) => const Text('Error loading branches'),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: staffAsync.when(
-                    data: (staffList) => DropdownButtonFormField<StaffMember>(
-                      decoration: const InputDecoration(
-                        labelText: 'Adjuster',
-                        border: OutlineInputBorder(),
-                        isDense: true,
-                      ),
-                      initialValue: _selectedAdjuster,
-                      items: staffList
-                          .map(
-                            (s) =>
-                                DropdownMenuItem(value: s, child: Text(s.name)),
-                          )
-                          .toList(),
-                      onChanged: (val) =>
-                          setState(() => _selectedAdjuster = val),
-                    ),
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Error loading staff'),
-                  ),
+            // Adjuster is the logged-in staffer (set on submit); no picker.
+            reasonsAsync.when(
+              data: (reasons) => DropdownButtonFormField<AdjustmentReason>(
+                decoration: const InputDecoration(
+                  labelText: 'Reason',
+                  border: OutlineInputBorder(),
+                  isDense: true,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: reasonsAsync.when(
-                    data: (reasons) =>
-                        DropdownButtonFormField<AdjustmentReason>(
-                          decoration: const InputDecoration(
-                            labelText: 'Reason',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                          ),
-                          initialValue: _selectedReason,
-                          items: reasons
-                              .map(
-                                (r) => DropdownMenuItem(
-                                  value: r,
-                                  child: Text(r.label),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (val) =>
-                              setState(() => _selectedReason = val),
-                        ),
-                    loading: () => const LinearProgressIndicator(),
-                    error: (_, _) => const Text('Error loading reasons'),
-                  ),
-                ),
-              ],
+                initialValue: _selectedReason,
+                items: reasons
+                    .map(
+                      (r) => DropdownMenuItem(value: r, child: Text(r.label)),
+                    )
+                    .toList(),
+                onChanged: (val) => setState(() => _selectedReason = val),
+              ),
+              loading: () => const LinearProgressIndicator(),
+              error: (_, _) => const Text('Error loading reasons'),
             ),
             const SizedBox(height: 16),
             SegmentedButton<String>(
@@ -288,10 +252,6 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
         );
       },
       onConfirm: (selectedIds) async {
-        if (_selectedAdjuster == null) {
-          throw 'Please select an adjuster';
-        }
-
         if (_selectedReason == null) {
           throw 'Please select a reason for adjustment';
         }
@@ -339,7 +299,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           branchId: branchId,
           items: items,
           createdBy: profile?.userId ?? '',
-          salespersonId: _selectedAdjuster?.id,
+          salespersonId: profile?.id,
           adjustmentType: 'auto',
           reasonId: _selectedReason?.id,
           referenceNumber: _referenceController.text.trim().isEmpty

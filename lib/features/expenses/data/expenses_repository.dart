@@ -24,14 +24,15 @@ class ExpensesRepository {
     DateTime? month,
   }) {
     String sql = '''
-      SELECT 
-        e.*, 
-        b.name as branch_name, 
-        s.name as staff_name, 
+      SELECT
+        e.*,
+        b.name as branch_name,
+        COALESCE(s.name, sp.display_name) as staff_name,
         ec.name as category_name
       FROM expenses e
       LEFT JOIN branches b ON e.branch_id = b.id
       LEFT JOIN staff_members s ON e.staff_member_id = s.id
+      LEFT JOIN profiles sp ON sp.id = e.staff_member_id
       LEFT JOIN expense_categories ec ON e.category_id = ec.id
       WHERE e.tenant_id = ?
     ''';

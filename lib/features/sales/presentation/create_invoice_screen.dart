@@ -8,6 +8,8 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/shared/widgets/stock_availability_label.dart';
+import 'package:zynk/shared/widgets/current_salesperson_tile.dart';
+import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:zynk/core/services/sales_service.dart';
@@ -48,12 +50,9 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   // Editable items in memory
   List<_EditableInvoiceItem> _items = [];
 
-  String? _salespersonId;
-
   @override
   void initState() {
     super.initState();
-    _salespersonId = widget.salespersonId;
     _customerNameCtrl = TextEditingController(text: widget.customer.name);
     _customerPhoneCtrl = TextEditingController(
       text: widget.customer.phone ?? '',
@@ -121,10 +120,12 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
-    if (_salespersonId == null) {
+    // Salesperson is the current logged-in staffer (their profile id).
+    final salespersonId = ref.read(currentProfileProvider)?.id;
+    if (salespersonId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please select a salesperson before submitting.'),
+          content: const Text('Could not determine the current user.'),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -216,7 +217,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             branchId: branchId,
             customerId: widget.customer.id,
             cartItems: editedItems,
-            salespersonId: _salespersonId,
+            salespersonId: salespersonId,
             notes: _notesController.text.isEmpty ? null : _notesController.text,
             dueDate: _dueDate?.toIso8601String(),
           );
@@ -329,55 +330,10 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         child: ListView(
           padding: const EdgeInsets.all(24),
           children: [
-            // ── Salesperson ──
-            _SectionLabel('Salesperson (Required)'),
+            // ── Salesperson (the current logged-in staffer) ──
+            _SectionLabel('Salesperson'),
             const SizedBox(height: 8),
-            Consumer(
-              builder: (context, ref, child) {
-                final currentBranchId =
-                    widget.branchId ?? ref.watch(currentBranchIdProvider);
-                final staffAsync = ref.watch(
-                  humanStaffByBranchProvider(currentBranchId),
-                );
-                return staffAsync.when(
-                  data: (staffList) {
-                    if (staffList.isEmpty) return const SizedBox.shrink();
-                    return DropdownButtonFormField<String>(
-                      initialValue: _salespersonId,
-                      decoration: InputDecoration(
-                        prefixIcon: const PhosphorIcon(
-                          PhosphorIconsRegular.user,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        isDense: true,
-                        filled: true,
-                        fillColor: cs.surfaceContainerHighest.withValues(
-                          alpha: 0.2,
-                        ),
-                      ),
-                      hint: const Text('Select Salesperson (Required)'),
-                      items: [
-                        const DropdownMenuItem<String>(
-                          value: null,
-                          child: Text('None'),
-                        ),
-                        ...staffList.map(
-                          (s) => DropdownMenuItem<String>(
-                            value: s.id,
-                            child: Text(s.name),
-                          ),
-                        ),
-                      ],
-                      onChanged: (v) => setState(() => _salespersonId = v),
-                    );
-                  },
-                  loading: () => const LinearProgressIndicator(),
-                  error: (_, _) => const SizedBox.shrink(),
-                );
-              },
-            ),
+            const CurrentSalespersonTile(),
             const SizedBox(height: 24),
 
             // ── Customer Details (Editable) ──

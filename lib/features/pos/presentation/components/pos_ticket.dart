@@ -5,10 +5,8 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/user_role.dart';
-import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/utils/currency.dart';
-import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/presentation/components/customer_lookup_field.dart';
@@ -53,7 +51,6 @@ class PosTicket extends ConsumerWidget {
     final tt = theme.textTheme;
     final itemCount = items.fold<int>(0, (sum, i) => sum + i.quantity);
     final branch = ref.watch(selectedPosBranchProvider);
-    final staffAsync = ref.watch(humanStaffByBranchProvider(branch?.id));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -179,35 +176,7 @@ class PosTicket extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           child: Column(
             children: [
-              // SalesPerson
-              staffAsync.when(
-                data: (staffList) {
-                  return DropdownButtonFormField<String>(
-                    initialValue: salespersonId,
-                    decoration: const InputDecoration(
-                      labelText: 'Salesperson',
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(12)),
-                      ),
-                      contentPadding: EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 12,
-                      ),
-                    ),
-                    items: staffList.map((s) {
-                      return DropdownMenuItem<String>(
-                        value: s.id,
-                        child: Text(s.name),
-                      );
-                    }).toList(),
-                    onChanged: onSalespersonIdChanged,
-                  );
-                },
-                loading: () =>
-                    const SkeletonText(width: double.infinity, height: 56),
-                error: (err, stack) => const Text('Error loading staff'),
-              ),
-              const SizedBox(height: 12),
+              // Salesperson is now the logged-in staffer (set on submit); no picker.
 
               // Customer Selection
               if (onSelectCustomer != null &&
@@ -280,26 +249,11 @@ class PosTicket extends ConsumerWidget {
                               !canCreateInvoice
                           ? null
                           : () {
-                              if (salespersonId == null) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: const Text(
-                                      'Please select a salesperson before creating an invoice.',
-                                    ),
-                                    backgroundColor: Theme.of(
-                                      context,
-                                    ).colorScheme.error,
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                                return;
-                              }
                               GoRouter.of(context).push(
                                 '/sales/create-invoice',
                                 extra: {
                                   'cartItems': items,
                                   'customer': selectedCustomer,
-                                  'salespersonId': salespersonId,
                                   'branchId': branch?.id,
                                 },
                               );

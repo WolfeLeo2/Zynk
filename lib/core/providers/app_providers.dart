@@ -64,6 +64,21 @@ final isAuthenticatedProvider = Provider<bool>((ref) {
   return ref.watch(authStateProvider).value != null;
 });
 
+/// Resolves a salesperson/staff id to a display name, merging the historic
+/// `staff_members` directory with current `profiles` (the new salesperson model).
+/// New records store a profile id; historic ones store a staff_members id.
+final salespersonNamesProvider = Provider<Map<String, String>>((ref) {
+  final map = <String, String>{};
+  for (final s in ref.watch(humanStaffProvider).value ?? const <StaffMember>[]) {
+    map[s.id] = s.name;
+  }
+  for (final p in ref.watch(staffProvider).value ?? const <Profile>[]) {
+    final name = p.displayName;
+    if (name != null && name.isNotEmpty) map[p.id] = name;
+  }
+  return map;
+});
+
 /// Set of profile ids (current tenant) that have a login PIN set — for showing
 /// "PIN set" confirmation in the UI.
 final profilesWithPinProvider = StreamProvider<Set<String>>((ref) {
