@@ -14,6 +14,7 @@ import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/shared/widgets/qty_stepper.dart';
+import 'package:zynk/shared/widgets/current_salesperson_tile.dart';
 
 class PosTicket extends ConsumerWidget {
   final List<PosCartItem> items;
@@ -176,7 +177,9 @@ class PosTicket extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
           child: Column(
             children: [
-              // Salesperson is now the logged-in staffer (set on submit); no picker.
+              // Salesperson — the logged-in staffer (no picker; set on submit).
+              const CurrentSalespersonTile(),
+              const SizedBox(height: 12),
 
               // Customer Selection
               if (onSelectCustomer != null &&
