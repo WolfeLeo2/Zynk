@@ -7,6 +7,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class BranchesScreen extends ConsumerWidget {
   const BranchesScreen({super.key});
@@ -224,106 +225,108 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
   showResponsiveModal(
     context: context,
     isScrollControlled: true,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
     builder: (context) {
-      final theme = Theme.of(context);
       return Padding(
         padding: EdgeInsets.only(
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: Form(
-          key: formKey,
-          child: ListView(
-            shrinkWrap: true,
-            padding: const EdgeInsets.all(24),
-            children: [
-              Text(
-                'Edit Branch',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
-              TextFormField(
-                controller: nameController,
-                textCapitalization: TextCapitalization.words,
-                decoration: InputDecoration(
-                  labelText: 'Branch Name',
-                  prefixIcon: const PhosphorIcon(
-                    PhosphorIconsRegular.storefront,
+        child: AppBottomSheet(
+          title: 'Edit Branch',
+          icon: PhosphorIconsDuotone.storefront,
+          maxHeightFactor: 0.85,
+          child: Form(
+            key: formKey,
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  textCapitalization: TextCapitalization.words,
+                  decoration: InputDecoration(
+                    labelText: 'Branch Name',
+                    prefixIcon: const PhosphorIcon(
+                      PhosphorIconsRegular.storefront,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                  ),
+                  validator: (value) => (value == null || value.trim().isEmpty)
+                      ? 'Required'
+                      : null,
                 ),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: addressController,
-                textCapitalization: TextCapitalization.sentences,
-                decoration: InputDecoration(
-                  labelText: 'Address',
-                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.mapPin),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: addressController,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    labelText: 'Address',
+                    prefixIcon: const PhosphorIcon(
+                      PhosphorIconsRegular.mapPin,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
+                  validator: (value) => (value == null || value.trim().isEmpty)
+                      ? 'Required'
+                      : null,
                 ),
-                validator: (value) =>
-                    (value == null || value.trim().isEmpty) ? 'Required' : null,
-              ),
-              const SizedBox(height: 16),
-              IntlPhoneField(
-                initialValue: phone.startsWith('+254')
-                    ? phone.substring(4)
-                    : phone,
-                decoration: InputDecoration(
-                  labelText: 'Phone',
-                  prefixIcon: const PhosphorIcon(PhosphorIconsRegular.phone),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
+                const SizedBox(height: 16),
+                IntlPhoneField(
+                  initialValue: phone.startsWith('+254')
+                      ? phone.substring(4)
+                      : phone,
+                  decoration: InputDecoration(
+                    labelText: 'Phone',
+                    prefixIcon: const PhosphorIcon(
+                      PhosphorIconsRegular.phone,
+                    ),
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
+                  initialCountryCode: 'KE',
+                  onChanged: (p) => phone = p.completeNumber,
                 ),
-                initialCountryCode: 'KE',
-                onChanged: (p) => phone = p.completeNumber,
-              ),
-              const SizedBox(height: 24),
-              FilledButton(
-                onPressed: () async {
-                  if (!formKey.currentState!.validate()) return;
-                  try {
-                    await ref.read(repositoryProvider).updateBranch(branch.id, {
-                      'name': nameController.text.trim(),
-                      'address': addressController.text.trim(),
-                      'phone': phone,
-                    });
-                    if (context.mounted) {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Branch updated')),
-                      );
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () async {
+                    if (!formKey.currentState!.validate()) return;
+                    try {
+                      await ref
+                          .read(repositoryProvider)
+                          .updateBranch(branch.id, {
+                            'name': nameController.text.trim(),
+                            'address': addressController.text.trim(),
+                            'phone': phone,
+                          });
+                      if (context.mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Branch updated')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Failed to update branch: $e'),
+                          ),
+                        );
+                      }
                     }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Failed to update branch: $e')),
-                      );
-                    }
-                  }
-                },
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  },
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
                   ),
+                  child: const Text('Save Changes'),
                 ),
-                child: const Text('Save Changes'),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       );

@@ -15,6 +15,7 @@ import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/shared/widgets/qty_stepper.dart';
 import 'package:zynk/shared/widgets/current_salesperson_tile.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class PosTicket extends ConsumerWidget {
   final List<PosCartItem> items;
@@ -31,6 +32,12 @@ class PosTicket extends ConsumerWidget {
   onCreateCustomer;
   final ValueChanged<String?>? onSalespersonIdChanged;
 
+  /// True when presented inside a modal bottom sheet (mobile), which needs a
+  /// screen-relative height cap. False (default) when docked full-height in
+  /// the desktop split-view panel, which must fill whatever height its
+  /// parent `Expanded` gives it instead.
+  final bool isSheet;
+
   const PosTicket({
     super.key,
     required this.items,
@@ -43,6 +50,7 @@ class PosTicket extends ConsumerWidget {
     this.onClearCustomer,
     this.onCreateCustomer,
     this.onSalespersonIdChanged,
+    this.isSheet = false,
   });
 
   @override
@@ -53,237 +61,268 @@ class PosTicket extends ConsumerWidget {
     final itemCount = items.fold<int>(0, (sum, i) => sum + i.quantity);
     final branch = ref.watch(selectedPosBranchProvider);
 
-    return Column(
+    final body = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ─── HEADER ───
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
-          child: Row(
-            children: [
-              Text(
-                'Cart',
-                style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
-              if (itemCount > 0)
-                Badge(
-                  label: Text(
-                    '$itemCount items',
-                    style: tt.labelSmall?.copyWith(color: cs.onPrimary),
-                  ),
-                  backgroundColor: cs.primary,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  largeSize: 22,
-                ),
-              const Spacer(),
-              if (items.isNotEmpty)
-                TextButton.icon(
-                  onPressed: onClearTicket,
-                  style: TextButton.styleFrom(
-                    foregroundColor: cs.error,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+        // ─── SUB-HEADER (item count + clear) ───
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Row(
+              children: [
+                if (itemCount > 0)
+                  Badge(
+                    label: Text(
+                      '$itemCount items',
+                      style: tt.labelSmall?.copyWith(color: cs.onPrimary),
                     ),
+                    backgroundColor: cs.primary,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    largeSize: 22,
                   ),
-                  icon: const PhosphorIcon(
-                    PhosphorIconsRegular.trash,
-                    size: 18,
+                const Spacer(),
+                if (items.isNotEmpty)
+                  TextButton.icon(
+                    onPressed: onClearTicket,
+                    style: TextButton.styleFrom(
+                      foregroundColor: cs.error,
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                    ),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.trash,
+                      size: 18,
+                    ),
+                    label: const Text('Clear'),
                   ),
-                  label: const Text('Clear'),
-                ),
-            ],
+              ],
+            ),
           ),
-        ),
 
-        Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.2)),
+          Divider(height: 1, color: cs.outlineVariant.withValues(alpha: 0.2)),
 
-        // ─── ITEMS LIST ───
-        Expanded(
-          child: items.isEmpty
-              ? Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(32),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            color: cs.surfaceContainerHighest.withValues(
-                              alpha: 0.3,
+          // ─── ITEMS LIST ───
+          Expanded(
+            child: items.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: cs.surfaceContainerHighest.withValues(
+                                alpha: 0.3,
+                              ),
+                              shape: BoxShape.circle,
                             ),
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: PhosphorIcon(
-                              PhosphorIconsDuotone.shoppingCartSimple,
-                              size: 32,
-                              color: cs.onSurfaceVariant.withValues(
-                                alpha: 0.35,
+                            child: Center(
+                              child: PhosphorIcon(
+                                PhosphorIconsDuotone.shoppingCartSimple,
+                                size: 32,
+                                color: cs.onSurfaceVariant.withValues(
+                                  alpha: 0.35,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'No items yet',
-                          style: tt.titleSmall?.copyWith(
-                            color: cs.onSurfaceVariant,
-                            fontWeight: FontWeight.w600,
+                          const SizedBox(height: 16),
+                          Text(
+                            'No items yet',
+                            style: tt.titleSmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          'Tap items to add them to this ticket',
-                          style: tt.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Tap items to add them to this ticket',
+                            style: tt.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant.withValues(alpha: 0.6),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    itemCount: items.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 6),
+                    itemBuilder: (context, index) {
+                      final item = items[index];
+                      return _TicketItemRow(
+                        item: item,
+                        cs: cs,
+                        tt: tt,
+                        onRemove: () => onRemoveItem(item),
+                      );
+                    },
                   ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
-                  itemCount: items.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 6),
-                  itemBuilder: (context, index) {
-                    final item = items[index];
-                    return _TicketItemRow(
-                      item: item,
-                      cs: cs,
-                      tt: tt,
-                      onRemove: () => onRemoveItem(item),
-                    );
-                  },
-                ),
-        ),
-
-        // ─── FOOTER (STAFF, CUSTOMER, TOTALS, INVOICE) ───
-        Container(
-          decoration: BoxDecoration(
-            color: cs.surfaceContainerLow,
-            border: Border(
-              top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.15)),
-            ),
           ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-          child: Column(
-            children: [
-              // Salesperson — the logged-in staffer (no picker; set on submit).
-              const CurrentSalespersonTile(),
-              const SizedBox(height: 12),
 
-              // Customer Selection
-              if (onSelectCustomer != null &&
-                  onClearCustomer != null &&
-                  onCreateCustomer != null)
-                CustomerLookupField(
-                  selectedCustomer: selectedCustomer,
-                  onSelected: onSelectCustomer!,
-                  onClear: onClearCustomer!,
-                  onCreateNew: onCreateCustomer!,
+          // ─── FOOTER (STAFF, CUSTOMER, TOTALS, INVOICE) ───
+          Container(
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerLow,
+              border: Border(
+                top: BorderSide(
+                  color: cs.outlineVariant.withValues(alpha: 0.15),
                 ),
-
-              const SizedBox(height: 20),
-
-              // Subtotal row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Subtotal',
-                    style: tt.bodyMedium?.copyWith(color: cs.onSurfaceVariant),
-                  ),
-                  Text(
-                    CurrencyHelper.format(total),
-                    style: tt.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      color: cs.primary,
-                    ),
-                  ),
-                ],
               ),
-              const SizedBox(height: 8),
+            ),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            child: Column(
+              children: [
+                // Salesperson — the logged-in staffer (no picker; set on submit).
+                const CurrentSalespersonTile(),
+                const SizedBox(height: 12),
 
-              // Grand Total row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Grand Total',
-                    style: tt.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: cs.onSurface,
-                    ),
+                // Customer Selection
+                if (onSelectCustomer != null &&
+                    onClearCustomer != null &&
+                    onCreateCustomer != null)
+                  CustomerLookupField(
+                    selectedCustomer: selectedCustomer,
+                    onSelected: onSelectCustomer!,
+                    onClear: onClearCustomer!,
+                    onCreateNew: onCreateCustomer!,
                   ),
-                  Text(
-                    CurrencyHelper.format(total),
-                    style: GoogleFonts.googleSansFlex(
-                      textStyle: tt.titleLarge?.copyWith(
+
+                const SizedBox(height: 20),
+
+                // Subtotal row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Subtotal',
+                      style: tt.bodyMedium?.copyWith(
+                        color: cs.onSurfaceVariant,
+                      ),
+                    ),
+                    Text(
+                      CurrencyHelper.format(total),
+                      style: tt.titleMedium?.copyWith(
                         fontWeight: FontWeight.w900,
                         color: cs.primary,
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              Consumer(
-                builder: (context, ref, child) {
-                  final canCreateInvoice = ref.watch(
-                    hasPermissionProvider(Permission.createInvoices),
-                  );
+                  ],
+                ),
+                const SizedBox(height: 8),
 
-                  return SizedBox(
-                    width: double.infinity,
-                    height: 52,
-                    child: FilledButton.icon(
-                      onPressed:
-                          items.isEmpty ||
-                              selectedCustomer == null ||
-                              !canCreateInvoice
-                          ? null
-                          : () {
-                              GoRouter.of(context).push(
-                                '/sales/create-invoice',
-                                extra: {
-                                  'cartItems': items,
-                                  'customer': selectedCustomer,
-                                  'branchId': branch?.id,
-                                },
-                              );
-                            },
-                      style: FilledButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        backgroundColor: cs.primary,
-                        foregroundColor: cs.onPrimary,
-                        textStyle: tt.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w700,
-                        ),
+                // Grand Total row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Grand Total',
+                      style: tt.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: cs.onSurface,
                       ),
-                      icon: const PhosphorIcon(
-                        PhosphorIconsBold.fileText,
-                        size: 20,
-                      ),
-                      label: const Text('Create Invoice'),
                     ),
-                  );
-                },
+                    Text(
+                      CurrencyHelper.format(total),
+                      style: GoogleFonts.googleSansFlex(
+                        textStyle: tt.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                          color: cs.primary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                Consumer(
+                  builder: (context, ref, child) {
+                    final canCreateInvoice = ref.watch(
+                      hasPermissionProvider(Permission.createInvoices),
+                    );
+
+                    return SizedBox(
+                      width: double.infinity,
+                      height: 52,
+                      child: FilledButton.icon(
+                        onPressed:
+                            items.isEmpty ||
+                                selectedCustomer == null ||
+                                !canCreateInvoice
+                            ? null
+                            : () {
+                                GoRouter.of(context).push(
+                                  '/sales/create-invoice',
+                                  extra: {
+                                    'cartItems': items,
+                                    'customer': selectedCustomer,
+                                    'branchId': branch?.id,
+                                  },
+                                );
+                              },
+                        style: FilledButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          backgroundColor: cs.primary,
+                          foregroundColor: cs.onPrimary,
+                          textStyle: tt.labelLarge?.copyWith(
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
+                        icon: const PhosphorIcon(
+                          PhosphorIconsBold.fileText,
+                          size: 20,
+                        ),
+                        label: const Text('Create Invoice'),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+
+    if (isSheet) {
+      return AppBottomSheet(
+        title: 'Cart',
+        icon: PhosphorIconsDuotone.shoppingCartSimple,
+        maxHeightFactor: 0.9,
+        child: body,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+          child: Row(
+            children: [
+              PhosphorIcon(
+                PhosphorIconsDuotone.shoppingCartSimple,
+                color: cs.primary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Cart',
+                style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
             ],
           ),
         ),
+        Expanded(child: body),
       ],
     );
   }

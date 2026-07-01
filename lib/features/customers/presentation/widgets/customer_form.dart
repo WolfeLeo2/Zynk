@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class CustomerForm extends ConsumerStatefulWidget {
   final Customer? existing;
@@ -90,42 +91,19 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
     final isEdit = widget.existing != null;
 
     return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      child: DraggableScrollableSheet(
-        expand: false,
-        initialChildSize: 0.85,
-        maxChildSize: 0.95,
-        builder: (context, scrollController) => Form(
+      child: AppBottomSheet(
+        title: isEdit ? 'Edit Customer' : 'New Customer',
+        maxHeightFactor: 0.85,
+        child: Form(
           key: _formKey,
           child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.all(24),
             children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: cs.onSurfaceVariant.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                isEdit ? 'Edit Customer' : 'New Customer',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 24),
               TextFormField(
                 controller: _nameCtrl,
                 decoration: InputDecoration(

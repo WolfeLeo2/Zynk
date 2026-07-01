@@ -22,6 +22,7 @@ import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
@@ -891,7 +892,6 @@ class SaleDetailScreen extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _RecordPaymentSheet(sale: sale),
     );
   }
@@ -901,7 +901,6 @@ class SaleDetailScreen extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      backgroundColor: Colors.transparent,
       builder: (_) => _CreateCreditNoteSheet(saleId: sale.id),
     );
   }
@@ -2059,28 +2058,17 @@ class _RecordPaymentSheetState extends ConsumerState<_RecordPaymentSheet> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
 
-    return Container(
+    return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      child: AppBottomSheet(
+        title: 'Record Payment',
+        icon: PhosphorIconsDuotone.money,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 8),
-            Text(
-              'Record Payment',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
             Text(
               'Balance: ${CurrencyHelper.format(widget.sale.remainingBalance)}',
               style: theme.textTheme.bodyMedium?.copyWith(
@@ -2255,31 +2243,18 @@ class _CreateCreditNoteSheetState
     final cs = theme.colorScheme;
     final itemsAsync = ref.watch(saleItemsProvider(widget.saleId));
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.8,
-      ),
+    return Padding(
       padding: EdgeInsets.only(
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
-      decoration: BoxDecoration(
-        color: cs.surface,
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      child: AppBottomSheet(
+        title: 'Create Credit Note',
+        icon: PhosphorIconsDuotone.receipt,
+        maxHeightFactor: 0.8,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 8),
-            Text(
-              'Create Credit Note',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 4),
             Text(
               'Select items being returned',
               style: theme.textTheme.bodyMedium?.copyWith(

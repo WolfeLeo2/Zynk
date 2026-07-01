@@ -16,6 +16,7 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
@@ -1119,80 +1120,51 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colorScheme = Theme.of(context).colorScheme;
     // Live-watch so additions/deletions reflect immediately
     final liveReasons = ref.watch(adjustmentReasonsProvider);
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.55,
-      minChildSize: 0.4,
-      maxChildSize: 0.9,
-      builder: (_, scrollController) => Padding(
-        padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom,
-        ),
+    return AppBottomSheet(
+      title: 'Manage Adjustment Reasons',
+      icon: PhosphorIconsDuotone.tagSimple,
+      maxHeightFactor: 0.7,
+      child: Padding(
+        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle
-            const SizedBox(height: 8),
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Text(
-                'Manage Adjustment Reasons',
-                style: theme.textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
             // Add row
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _addController,
-                      decoration: InputDecoration(
-                        hintText: 'New reason label...',
-                        isDense: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _addController,
+                    decoration: InputDecoration(
+                      hintText: 'New reason label...',
+                      isDense: true,
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      onSubmitted: (_) => _addReason(),
                     ),
+                    onSubmitted: (_) => _addReason(),
                   ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _isAdding ? null : _addReason,
-                    child: _isAdding
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text('Add'),
-                  ),
-                ],
-              ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  onPressed: _isAdding ? null : _addReason,
+                  child: _isAdding
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Add'),
+                ),
+              ],
             ),
             const SizedBox(height: 12),
             const Divider(height: 1),
-            Expanded(
+            Flexible(
               child: liveReasons.when(
                 data: (reasons) => reasons.isEmpty
                     ? Center(
@@ -1202,7 +1174,7 @@ class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
                         ),
                       )
                     : ListView.separated(
-                        controller: scrollController,
+                        shrinkWrap: true,
                         padding: const EdgeInsets.symmetric(vertical: 8),
                         itemCount: reasons.length,
                         separatorBuilder: (_, _) =>

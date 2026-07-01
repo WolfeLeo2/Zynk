@@ -272,41 +272,40 @@ class _PosScreenState extends ConsumerState<PosScreen>
                   context: context,
                   isScrollControlled: true,
                   useSafeArea: true,
+                  showDragHandle: true,
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   builder: (sheetContext) => StatefulBuilder(
                     builder: (context, setSheetState) {
                       return Consumer(
                         builder: (context, ref, child) {
                           final currentCart = ref.watch(cartProvider);
-                          return FractionallySizedBox(
-                            heightFactor: 0.9,
-                            child: PosTicket(
-                              items: currentCart.items,
-                              total: currentCart.total,
-                              onRemoveItem: _removeFromCart,
-                              onClearTicket: () {
-                                _clearCart();
-                                Navigator.pop(sheetContext);
-                              },
-                              selectedCustomer: _selectedCustomer,
-                              salespersonId: _salespersonId,
-                              onSelectCustomer: (c) {
-                                setState(() => _selectedCustomer = c);
-                                setSheetState(() {});
-                              },
-                              onClearCustomer: () {
-                                setState(() => _selectedCustomer = null);
-                                setSheetState(() {});
-                              },
-                              onCreateCustomer: (n, p, e) async {
-                                await _createNewCustomer(n, p, e);
-                                setSheetState(() {});
-                              },
-                              onSalespersonIdChanged: (id) {
-                                setState(() => _salespersonId = id);
-                                setSheetState(() {});
-                              },
-                            ),
+                          return PosTicket(
+                            isSheet: true,
+                            items: currentCart.items,
+                            total: currentCart.total,
+                            onRemoveItem: _removeFromCart,
+                            onClearTicket: () {
+                              _clearCart();
+                              Navigator.pop(sheetContext);
+                            },
+                            selectedCustomer: _selectedCustomer,
+                            salespersonId: _salespersonId,
+                            onSelectCustomer: (c) {
+                              setState(() => _selectedCustomer = c);
+                              setSheetState(() {});
+                            },
+                            onClearCustomer: () {
+                              setState(() => _selectedCustomer = null);
+                              setSheetState(() {});
+                            },
+                            onCreateCustomer: (n, p, e) async {
+                              await _createNewCustomer(n, p, e);
+                              setSheetState(() {});
+                            },
+                            onSalespersonIdChanged: (id) {
+                              setState(() => _salespersonId = id);
+                              setSheetState(() {});
+                            },
                           );
                         },
                       );

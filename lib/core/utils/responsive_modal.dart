@@ -13,7 +13,7 @@ Future<T?> showResponsiveModal<T>({
   required WidgetBuilder builder,
   bool isScrollControlled = true,
   bool useSafeArea = true,
-  bool? showDragHandle,
+  bool showDragHandle = true,
   Color? backgroundColor,
   ShapeBorder? shape,
 }) {

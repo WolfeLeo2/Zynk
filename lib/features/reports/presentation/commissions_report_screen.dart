@@ -8,6 +8,7 @@ import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/services/commission_service.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
@@ -446,9 +447,7 @@ class _SalespersonCard extends ConsumerWidget {
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      showDragHandle: true,
       builder: (ctx) => _CommissionDetailSheet(
         tenantId: tenantId,
         branchId: branchId,
@@ -521,57 +520,44 @@ class _CommissionDetailSheet extends ConsumerWidget {
       )),
     );
 
-    return DraggableScrollableSheet(
-      initialChildSize: 0.6,
-      minChildSize: 0.4,
-      maxChildSize: 0.95,
-      expand: false,
-      builder: (_, scrollController) => Column(
+    return AppBottomSheet(
+      maxHeightFactor: 0.85,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Handle
-          Container(
-            margin: const EdgeInsets.only(top: 12),
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: colorScheme.outlineVariant,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: colorScheme.primaryContainer,
-                  child: Text(
-                    summary.salespersonName[0].toUpperCase(),
-                    style: TextStyle(color: colorScheme.onPrimaryContainer),
+          Row(
+            children: [
+              CircleAvatar(
+                backgroundColor: colorScheme.primaryContainer,
+                child: Text(
+                  summary.salespersonName[0].toUpperCase(),
+                  style: TextStyle(color: colorScheme.onPrimaryContainer),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    summary.salespersonName,
+                    style: textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      summary.salespersonName,
-                      style: textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold,
-                      ),
+                  Text(
+                    'Total: ${fmt.format(summary.totalEarned)}',
+                    style: textTheme.bodySmall?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
                     ),
-                    Text(
-                      'Total: ${fmt.format(summary.totalEarned)}',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+                  ),
+                ],
+              ),
+            ],
           ),
+          const SizedBox(height: 8),
           const Divider(),
-          Expanded(
+          Flexible(
             child: commissionsAsync.when(
               loading: () => const Center(child: _ShimmerList()),
               error: (e, _) => Center(child: Text(e.toString())),
@@ -580,7 +566,7 @@ class _CommissionDetailSheet extends ConsumerWidget {
                   return const Center(child: Text('No commissions found'));
                 }
                 return ListView.builder(
-                  controller: scrollController,
+                  shrinkWrap: true,
                   itemCount: commissions.length,
                   itemBuilder: (_, i) {
                     final c = commissions[i];
@@ -823,10 +809,10 @@ class _MonthPill extends ConsumerWidget {
   void _showMonthPicker(BuildContext context, WidgetRef ref) {
     showResponsiveModal(
       context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
       builder: (context) => const _MonthPickerSheet(),
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
     );
   }
 }
@@ -840,16 +826,12 @@ class _MonthPickerSheet extends ConsumerWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      padding: const EdgeInsets.all(24),
+    return AppBottomSheet(
+      title: 'Select Month',
+      maxHeightFactor: 0.7,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(
-            'Select Month',
-            style: textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 24),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
