@@ -14,32 +14,102 @@ import 'features/auth/providers/lock_provider.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. Initialize Supabase
-  await Supabase.initialize(
-    url: SupabaseConfig.url,
-    anonKey: SupabaseConfig.anonKey,
-  );
+  try {
+    // 1. Initialize Supabase (throws if SUPABASE_URL/ANON_KEY weren't compiled in)
+    await Supabase.initialize(
+      url: SupabaseConfig.url,
+      anonKey: SupabaseConfig.anonKey,
+    );
 
-  // 3. Initialize PowerSync
-  // This sets up the local SQLite db and connects to Supabase for auth
-  await openPowerSyncDatabase();
+    // 2. Initialize PowerSync (local SQLite + backend connection)
+    await openPowerSyncDatabase();
 
-  // 4. Initialize SharedPreferences
-  final prefs = await SharedPreferences.getInstance();
+    // 3. SharedPreferences
+    final prefs = await SharedPreferences.getInstance();
 
-  // Cold start with a restored session → open locked (PIN required), rather
-  // than resuming as the last signed-in user.
-  final restoredSession = Supabase.instance.client.auth.currentSession != null;
+    // Cold start with a restored session → open locked (PIN required).
+    final restoredSession =
+        Supabase.instance.client.auth.currentSession != null;
 
-  runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        appStartedWithSessionProvider.overrideWithValue(restoredSession),
-      ],
-      child: const MyApp(),
-    ),
-  );
+    runApp(
+      ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          appStartedWithSessionProvider.overrideWithValue(restoredSession),
+        ],
+        child: const MyApp(),
+      ),
+    );
+  } catch (e, st) {
+    // Never fail to a blank screen: show what went wrong + which build-time
+    // config values are missing (values are never printed, only present/absent).
+    debugPrint('Zynk startup failed: $e\n$st');
+    runApp(_StartupErrorApp(error: e.toString()));
+  }
+}
+
+/// Shown when `main()` init throws — usually missing `--dart-define` build config.
+class _StartupErrorApp extends StatelessWidget {
+  final String error;
+  const _StartupErrorApp({required this.error});
+
+  @override
+  Widget build(BuildContext context) {
+    // Compile-time presence check (does NOT expose the secret values).
+    const hasSupabaseUrl = String.fromEnvironment('SUPABASE_URL') != '';
+    const hasSupabaseKey = String.fromEnvironment('SUPABASE_ANON_KEY') != '';
+    const hasPowerSyncUrl = String.fromEnvironment('POWERSYNC_URL') != '';
+
+    Widget row(String name, bool present) => Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Text(
+        '${present ? '✓' : '✗'}  $name',
+        style: TextStyle(
+          color: present ? Colors.green : Colors.red,
+          fontFamily: 'monospace',
+        ),
+      ),
+    );
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    "Couldn't start Zynk",
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(error),
+                  const SizedBox(height: 20),
+                  const Text('Build configuration:'),
+                  const SizedBox(height: 6),
+                  row('SUPABASE_URL', hasSupabaseUrl),
+                  row('SUPABASE_ANON_KEY', hasSupabaseKey),
+                  row('POWERSYNC_URL', hasPowerSyncUrl),
+                  if (!hasSupabaseUrl || !hasSupabaseKey || !hasPowerSyncUrl) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      'A ✗ means that value was not compiled into this build '
+                      '(--dart-define). Check the CI build step / dart_defines.json.',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends ConsumerStatefulWidget {
