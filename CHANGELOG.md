@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.6](https://github.com/WolfeLeo2/Zynk/compare/v1.3.5...v1.3.6) (2026-07-01)
+
+
+### Bug Fixes
+
+* random commit ([5017d05](https://github.com/WolfeLeo2/Zynk/commit/5017d05ebacc88b09e47db6ff93d538c4ed1d530))
+
 ## [1.3.5](https://github.com/WolfeLeo2/Zynk/compare/v1.3.4...v1.3.5) (2026-07-01)
 
 
