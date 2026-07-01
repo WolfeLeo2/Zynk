@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.3.2](https://github.com/WolfeLeo2/Zynk/compare/v1.3.1...v1.3.2) (2026-07-01)
+
+
+### Bug Fixes
+
+* bump desugaring to 2.1.5 ([5ac0fab](https://github.com/WolfeLeo2/Zynk/commit/5ac0fabb81f41b12e522cf89d388a04fc589d489))
+* random commit ([48c3b2f](https://github.com/WolfeLeo2/Zynk/commit/48c3b2f25e21a6aa179efd4ac89b072798876db2))
+* random commit ([a78d951](https://github.com/WolfeLeo2/Zynk/commit/a78d951e5face63f531171d6f8d39556d58cc66a))
+* random commit ([b8f8c87](https://github.com/WolfeLeo2/Zynk/commit/b8f8c87d5a937173cfa8dd2c251778f96ea9a6c8))
+
 ## [1.3.1](https://github.com/WolfeLeo2/Zynk/compare/v1.3.0...v1.3.1) (2026-07-01)
 
 
