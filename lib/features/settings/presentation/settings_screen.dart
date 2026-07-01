@@ -623,11 +623,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           ),
                         ),
                       SettingsTile(
-                        leading: PhosphorIcon(
+                        leading: const PhosphorIcon(
                           PhosphorIconsDuotone.downloadSimple,
-                          color: ref.watch(appUpdateProvider).value != null 
-                              ? Theme.of(context).colorScheme.primary 
-                              : Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         title: Text(
                           'App Updates',
