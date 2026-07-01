@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.1](https://github.com/WolfeLeo2/Zynk/compare/v1.3.0...v1.3.1) (2026-07-01)
+
+
+### Bug Fixes
+
+* enabled desugaring. ([232bcd1](https://github.com/WolfeLeo2/Zynk/commit/232bcd1fecafd8ffe69235cec7b58e82dab7d4d2))
+
 ## [1.3.0](https://github.com/WolfeLeo2/Zynk/compare/v1.2.0...v1.3.0) (2026-07-01)
 
 
