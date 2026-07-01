@@ -21,6 +21,11 @@ void main() {
         'Please select a branch');
   });
 
+  test('maps invalid-credentials AuthException to a friendly message', () {
+    final e = AuthException('Invalid login credentials');
+    expect(friendlyError(e), 'Incorrect email or password.');
+  });
+
   test('detects network errors', () {
     expect(friendlyError('SocketException: Failed host lookup'),
         contains('internet'));

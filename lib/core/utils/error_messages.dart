@@ -25,7 +25,16 @@ String friendlyError(Object error) {
         return 'Something went wrong. Please try again.';
     }
   }
-  if (error is AuthException) return error.message;
+  if (error is AuthException) {
+    final m = error.message.toLowerCase();
+    if (m.contains('invalid login') || m.contains('invalid credentials')) {
+      return 'Incorrect email or password.';
+    }
+    if (m.contains('email not confirmed')) {
+      return 'Please confirm your email before signing in.';
+    }
+    return error.message;
+  }
   if (error is PostgrestException) return error.message;
 
   final text = error.toString();
