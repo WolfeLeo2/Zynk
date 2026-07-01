@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5](https://github.com/WolfeLeo2/Zynk/compare/v1.3.4...v1.3.5) (2026-07-01)
+
+
+### Bug Fixes
+
+* **update bug:** added persistent progress for updates, fix app crash from installing intent ([d8e825b](https://github.com/WolfeLeo2/Zynk/commit/d8e825bdf8cac3552a33c21350d6357dd2e22980))
+
 ## [1.3.4](https://github.com/WolfeLeo2/Zynk/compare/v1.3.3...v1.3.4) (2026-07-01)
 
 
