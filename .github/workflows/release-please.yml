@@ -63,14 +63,47 @@ jobs:
       - name: Get Flutter dependencies
         run: flutter pub get
 
+      - name: Validate Secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          POWERSYNC_URL: ${{ secrets.POWERSYNC_URL }}
+        run: |
+          missing=()
+          [ -z "$SUPABASE_URL" ]     && missing+=("SUPABASE_URL")
+          [ -z "$SUPABASE_ANON_KEY" ] && missing+=("SUPABASE_ANON_KEY")
+          [ -z "$POWERSYNC_URL" ]    && missing+=("POWERSYNC_URL")
+          if [ ${#missing[@]} -ne 0 ]; then
+            echo "❌ Missing required secrets: ${missing[*]}"
+            echo "Add them under Settings → Secrets and Variables → Actions"
+            exit 1
+          fi
+          echo "✅ All required secrets are present"
+
       - name: Build Android Release
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           POWERSYNC_URL: ${{ secrets.POWERSYNC_URL }}
         run: |
-          printf '{\n  "SUPABASE_URL": "%s",\n  "SUPABASE_ANON_KEY": "%s",\n  "POWERSYNC_URL": "%s"\n}\n' \
-            "$SUPABASE_URL" "$SUPABASE_ANON_KEY" "$POWERSYNC_URL" > dart_defines.json
+          # Use python to safely write JSON — avoids shell escaping issues
+          # with special characters in secret values (dots, slashes, = signs, etc.)
+          python3 -c "
+          import json, os, sys
+          data = {
+            'SUPABASE_URL':     os.environ['SUPABASE_URL'],
+            'SUPABASE_ANON_KEY': os.environ['SUPABASE_ANON_KEY'],
+            'POWERSYNC_URL':    os.environ['POWERSYNC_URL'],
+          }
+          # Sanity-check: no value should be empty after the validation step
+          for k, v in data.items():
+            if not v:
+              print(f'ERROR: {k} is empty after injection', file=sys.stderr)
+              sys.exit(1)
+          with open('dart_defines.json', 'w') as f:
+            json.dump(data, f, indent=2)
+          print('dart_defines.json written successfully')
+          "
           flutter build apk --release --dart-define-from-file=dart_defines.json
 
       - name: Upload to Release
