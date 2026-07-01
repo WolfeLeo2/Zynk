@@ -14,6 +14,8 @@ import 'package:zynk/features/auth/providers/lock_provider.dart';
 import 'package:zynk/shared/widgets/set_pin_dialog.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/core/services/app_update_service.dart';
+import 'package:zynk/features/settings/presentation/update_prompt.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -26,6 +28,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _nameController;
   bool _isLoading = false;
+  bool _isCheckingUpdate = false;
+
+  Future<void> _checkForUpdates() async {
+    setState(() => _isCheckingUpdate = true);
+    try {
+      ref.invalidate(appUpdateProvider);
+      final info = await ref.read(appUpdateProvider.future);
+      if (!mounted) return;
+      if (info != null) {
+        showUpdatePrompt(context, info);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Zynk is up to date.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Failed to check for updates.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isCheckingUpdate = false);
+    }
+  }
 
   @override
   void initState() {
@@ -595,6 +622,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             builder: (_) => SetPinDialog(member: profile),
                           ),
                         ),
+                      SettingsTile(
+                        leading: PhosphorIcon(
+                          PhosphorIconsDuotone.downloadSimple,
+                          color: ref.watch(appUpdateProvider).value != null 
+                              ? Theme.of(context).colorScheme.primary 
+                              : Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
+                        title: Text(
+                          'App Updates',
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        description: Text(
+                          ref.watch(packageInfoProvider).when(
+                            data: (info) {
+                              final updateInfo = ref.watch(appUpdateProvider).value;
+                              return updateInfo != null
+                                  ? 'Version ${info.version} • Update to ${updateInfo.version} available!'
+                                  : 'Version ${info.version} • Up to date';
+                            },
+                            loading: () => 'Checking version...',
+                            error: (err, stack) => 'Version info unavailable ($err)',
+                          ),
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: ref.watch(appUpdateProvider).value != null 
+                                ? Theme.of(context).colorScheme.primary 
+                                : Theme.of(context).colorScheme.onSurfaceVariant,
+                            fontWeight: ref.watch(appUpdateProvider).value != null 
+                                ? FontWeight.bold
+                                : null,
+                          ),
+                        ),
+                        trailing: _isCheckingUpdate
+                            ? Text('Checking...', style: Theme.of(context).textTheme.labelSmall)
+                            : null,
+                        enabled: !_isCheckingUpdate,
+                        onPressed: (_) {
+                          final info = ref.read(appUpdateProvider).value;
+                          if (info != null) {
+                            showUpdatePrompt(context, info);
+                          } else {
+                            _checkForUpdates();
+                          }
+                        },
+                      ),
                     ],
                   ),
 

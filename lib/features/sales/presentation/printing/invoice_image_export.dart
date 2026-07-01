@@ -24,7 +24,12 @@ class InvoiceImageExport {
     await file.writeAsBytes(pngBytes, flush: true);
 
     if (share) {
-      await Share.shareXFiles([XFile(file.path)], text: 'Invoice');
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [XFile(file.path)],
+          text: 'Invoice',
+        ),
+      );
     }
 
     return file.path;

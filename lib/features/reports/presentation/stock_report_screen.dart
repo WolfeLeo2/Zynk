@@ -249,7 +249,7 @@ Future<void> _exportPdf(
     final ts = DateTime.now().millisecondsSinceEpoch;
     final bytes = await pdf.save();
 
-    final path = await FilePicker.platform.saveFile(
+    final path = await FilePicker.saveFile(
       dialogTitle: 'Save Stock Report',
       fileName: 'stock_report_${safeName}_$ts.pdf',
       bytes: bytes,

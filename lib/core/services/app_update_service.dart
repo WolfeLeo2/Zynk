@@ -96,3 +96,8 @@ final appUpdateProvider = FutureProvider.autoDispose<AppUpdateInfo?>(
 /// Whether the "update available" prompt has already been shown this launch
 /// (so it doesn't reappear on every rebuild).
 bool updatePromptShown = false;
+
+/// Provides the current app's package information (e.g. version).
+final packageInfoProvider = FutureProvider<PackageInfo>(
+  (ref) => PackageInfo.fromPlatform(),
+);

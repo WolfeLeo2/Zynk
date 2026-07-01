@@ -17,21 +17,22 @@ class CsvImportService {
 
   Future<List<List<dynamic>>?> pickAndParseCsv() async {
     try {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
+      FilePickerResult? result = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
-        withData: true, // required to get bytes on some platforms/web
       );
 
       if (result != null) {
-        final bytes = result.files.single.bytes;
-        if (bytes != null) {
+        try {
+          final bytes = await result.files.single.readAsBytes();
           final input = utf8.decode(bytes);
           return csv.decode(input);
-        } else if (result.files.single.path != null) {
-          final File file = File(result.files.single.path!);
-          final input = await file.readAsString();
-          return csv.decode(input);
+        } catch (_) {
+          if (result.files.single.path != null) {
+            final File file = File(result.files.single.path!);
+            final input = await file.readAsString();
+            return csv.decode(input);
+          }
         }
       }
       return null;
