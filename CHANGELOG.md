@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.3.0](https://github.com/WolfeLeo2/Zynk/compare/v1.2.0...v1.3.0) (2026-07-01)
+
+
+### Features
+
+* added a self updating check to close sharing gap ([c3a3ca8](https://github.com/WolfeLeo2/Zynk/commit/c3a3ca82edc0d39fb8a0c468122a82e20dd9f67e))
+* **auth:** lock on cold start + password-login escape; refresh plan ([dac05be](https://github.com/WolfeLeo2/Zynk/commit/dac05be30e3bf23a37a1290cc331d07a524b548d))
+* **auth:** owner self-PIN tile + shared SetPinDialog ([5ac1d77](https://github.com/WolfeLeo2/Zynk/commit/5ac1d7767adeea4827d730723d2532f5f449644d))
+* **auth:** PIN-based staff session — Phase 1 foundation ([22107b1](https://github.com/WolfeLeo2/Zynk/commit/22107b154295d61144e0f98ca7af81a5c89bfe93))
+* **auth:** PIN-based staff session — Phase 2 (owner set-PIN UI) ([5b7b91c](https://github.com/WolfeLeo2/Zynk/commit/5b7b91c3c804421c0562c00a5a74399d0b9175b7))
+* **auth:** PIN-based staff session — Phase 3 (lock screen + auto-lock) ([9aae167](https://github.com/WolfeLeo2/Zynk/commit/9aae1671fae54ac2b4b4d12bddf306331901d1c3))
+* **auth:** PIN-based staff session — Phase 5 (login lockout + has-PIN flag) ([5cb1b71](https://github.com/WolfeLeo2/Zynk/commit/5cb1b7197ea236049cc0874c025aca59555e5427))
+* **pos:** show salesperson tile on the ticket + add stock_review.md ([847e758](https://github.com/WolfeLeo2/Zynk/commit/847e758cab460fed61cab780addb464b2159f1a0))
+* **sales:** salesperson = current logged-in profile (retire staff_members input) ([cbd792e](https://github.com/WolfeLeo2/Zynk/commit/cbd792ee39c0e432952b4438912a239f7d65fb59))
+* **update:** in-app auto-update from GitHub Releases (Android) ([37964c0](https://github.com/WolfeLeo2/Zynk/commit/37964c0f4a09cdc7b86d7dbe99b608a6ca4f52ba))
+
+
+### Bug Fixes
+
+* **errors:** surface user-facing messages, not raw HTTP codes ([6d3fc77](https://github.com/WolfeLeo2/Zynk/commit/6d3fc77930ccc512e03b6745e93ae5bb3343fb9f))
+* **expenses:** crash in Log Expense category dropdown (value count != 1) ([4f425f6](https://github.com/WolfeLeo2/Zynk/commit/4f425f69250831fdc26093e904d52d3af95795be))
+* new invoice UI and better edit/clone invoice with ability to add products and see stock ([ca80f68](https://github.com/WolfeLeo2/Zynk/commit/ca80f68424851f5f18e4a97ad95a92e0e19a53d1))
+* **sync:** add expenses + expense_categories to sync rules ([45292c9](https://github.com/WolfeLeo2/Zynk/commit/45292c9c5cafbe1878f6df0106ae6b9d559868fd))
+* **sync:** synthesize id for snapshot tables in sync rules ([74c028c](https://github.com/WolfeLeo2/Zynk/commit/74c028c47be6498b534e9935fc863b4af3f0e108))
+
 ## [1.2.0](https://github.com/WolfeLeo2/Zynk/compare/v1.1.5...v1.2.0) (2026-06-24)
 
 
