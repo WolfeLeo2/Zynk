@@ -1,13 +1,18 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 
+/// True at cold start iff a Supabase session was restored — overridden in
+/// main(). Lets the app open to the PIN pad instead of resuming as the last
+/// user. An interactive (password) login sets it false for that run.
+final appStartedWithSessionProvider = Provider<bool>((ref) => false);
+
 /// Whether the app is currently PIN-locked (the lock screen is shown over the
 /// app while the device session stays active so sync keeps running).
-/// Defaults to unlocked on a cold start; locking happens via the drawer action
-/// or the idle timer. (Lock-on-cold-start can be added later if desired.)
+/// Starts locked on a cold start that restored a session (see
+/// [appStartedWithSessionProvider]); otherwise unlocked.
 class LockNotifier extends Notifier<bool> {
   @override
-  bool build() => false;
+  bool build() => ref.read(appStartedWithSessionProvider);
 
   void lock() => state = true;
   void unlock() => state = false;

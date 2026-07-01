@@ -2,6 +2,7 @@ import 'package:powersync/powersync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/adjustment_reason.dart';
+import 'package:zynk/core/utils/error_messages.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/customer_model.dart';
@@ -109,15 +110,13 @@ class PowerSyncRepository {
   }) async {
     final statusStr = status.name;
     // 1. Invoke Edge Function for Auth-level ban/unban
-    final response = await Supabase.instance.client.functions.invoke(
-      'manage-user-status',
-      body: {'userId': userId, 'status': statusStr},
-    );
-
-    if (response.status != 200) {
-      throw Exception(
-        response.data?['error'] ?? 'Failed to update user auth status',
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'manage-user-status',
+        body: {'userId': userId, 'status': statusStr},
       );
+    } on FunctionException catch (e) {
+      throw Exception(friendlyError(e));
     }
 
     // 2. Update local DB status (PowerSync will sync this)
@@ -227,24 +226,22 @@ class PowerSyncRepository {
     String? phone,
     String? address,
   }) async {
-    final response = await Supabase.instance.client.functions.invoke(
-      'update-staff-user',
-      body: {
-        'user_id': userId,
-        'name': name,
-        'role': role,
-        'branch_id': primaryBranchId,
-        'branch_ids': branchIds,
-        'permissions': permissions,
-        'phone': phone,
-        'address': address,
-      },
-    );
-
-    if (response.status != 200) {
-      throw Exception(
-        response.data?['error'] ?? 'Failed to update staff auth metadata',
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'update-staff-user',
+        body: {
+          'user_id': userId,
+          'name': name,
+          'role': role,
+          'branch_id': primaryBranchId,
+          'branch_ids': branchIds,
+          'permissions': permissions,
+          'phone': phone,
+          'address': address,
+        },
       );
+    } on FunctionException catch (e) {
+      throw Exception(friendlyError(e));
     }
   }
 
@@ -2621,13 +2618,14 @@ class PowerSyncRepository {
       SELECT 
         sa.*,
         p.display_name AS adjuster_display_name,
-        sm.name AS staff_name,
+        COALESCE(sm.name, sp.display_name) AS staff_name,
         r.label AS reason_label,
         prod.name AS product_name,
         uom.abbreviation AS uom_abbreviation
       FROM stock_adjustments sa
       LEFT JOIN profiles p ON p.user_id = sa.created_by
       LEFT JOIN staff_members sm ON sm.id = sa.salesperson_id
+      LEFT JOIN profiles sp ON sp.id = sa.salesperson_id
       LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
       LEFT JOIN products prod ON prod.id = sa.product_id
       LEFT JOIN units_of_measurement uom ON uom.id = prod.uom_id
@@ -2723,13 +2721,14 @@ class PowerSyncRepository {
       SELECT 
         sa.*,
         p.display_name AS adjuster_display_name,
-        sm.name AS staff_name,
+        COALESCE(sm.name, sp.display_name) AS staff_name,
         r.label AS reason_label,
         prod.name AS product_name,
         uom.abbreviation AS uom_abbreviation
       FROM stock_adjustments sa
       LEFT JOIN profiles p ON p.user_id = sa.created_by
       LEFT JOIN staff_members sm ON sm.id = sa.salesperson_id
+      LEFT JOIN profiles sp ON sp.id = sa.salesperson_id
       LEFT JOIN stock_adjustment_reasons r ON r.id = sa.reason_id
       LEFT JOIN products prod ON prod.id = sa.product_id
       LEFT JOIN units_of_measurement uom ON uom.id = prod.uom_id
@@ -2903,34 +2902,45 @@ class PowerSyncRepository {
 
     final params = [...paramsComm, ...paramsSales];
 
+    // Anchor on the set of salesperson ids that actually have commissions/sales
+    // (not on staff_members), so the new profile-based salespeople appear too.
+    // Names resolve from staff_members (historic ids) OR profiles (new ids).
     return _db.watch('''
-      SELECT 
-        sm.id AS salesperson_id,
-        sm.name AS salesperson_name,
-        COALESCE(c.total_pending, 0) AS total_pending,
-        COALESCE(c.total_paid, 0) AS total_paid,
-        COALESCE(c.transaction_count, 0) AS transaction_count,
-        COALESCE(s.total_sales, 0) AS total_sales_amount,
-        COALESCE(s.sales_count, 0) AS sales_count
-      FROM staff_members sm
-      LEFT JOIN (
+      WITH comm AS (
         SELECT salesperson_id,
                SUM(CASE WHEN status = 'pending' THEN amount ELSE 0 END) AS total_pending,
                SUM(CASE WHEN status = 'paid' THEN amount ELSE 0 END) AS total_paid,
                COUNT(id) AS transaction_count
         FROM commissions
-        WHERE tenant_id = ? $dateFilterComm $branchFilterComm
+        WHERE tenant_id = ? AND salesperson_id IS NOT NULL $dateFilterComm $branchFilterComm
         GROUP BY salesperson_id
-      ) c ON sm.id = c.salesperson_id
-      LEFT JOIN (
+      ),
+      sal AS (
         SELECT salesperson_id,
                SUM(grand_total) AS total_sales,
                COUNT(id) AS sales_count
         FROM sales
         WHERE tenant_id = ? AND status != 'voided' AND salesperson_id IS NOT NULL $dateFilterSales $branchFilterSales
         GROUP BY salesperson_id
-      ) s ON sm.id = s.salesperson_id
-      WHERE (c.salesperson_id IS NOT NULL OR s.salesperson_id IS NOT NULL)
+      ),
+      ids AS (
+        SELECT salesperson_id FROM comm
+        UNION
+        SELECT salesperson_id FROM sal
+      )
+      SELECT
+        ids.salesperson_id AS salesperson_id,
+        COALESCE(sm.name, pr.display_name, 'Unknown') AS salesperson_name,
+        COALESCE(comm.total_pending, 0) AS total_pending,
+        COALESCE(comm.total_paid, 0) AS total_paid,
+        COALESCE(comm.transaction_count, 0) AS transaction_count,
+        COALESCE(sal.total_sales, 0) AS total_sales_amount,
+        COALESCE(sal.sales_count, 0) AS sales_count
+      FROM ids
+      LEFT JOIN comm ON comm.salesperson_id = ids.salesperson_id
+      LEFT JOIN sal ON sal.salesperson_id = ids.salesperson_id
+      LEFT JOIN staff_members sm ON sm.id = ids.salesperson_id
+      LEFT JOIN profiles pr ON pr.id = ids.salesperson_id
       ORDER BY total_sales_amount DESC, total_pending DESC
     ''', parameters: params);
   }

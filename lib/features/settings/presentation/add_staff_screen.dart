@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zynk/core/utils/error_messages.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
@@ -76,7 +77,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
 
     setState(() => _isLoading = true);
     try {
-      final response = await Supabase.instance.client.functions.invoke(
+      await Supabase.instance.client.functions.invoke(
         'create-staff-user',
         body: {
           'email': _emailController.text.trim(),
@@ -90,10 +91,6 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
         },
       );
 
-      if (response.status != 200) {
-        throw Exception(response.data?['error'] ?? 'Failed to create staff');
-      }
-
       if (mounted) {
         context.pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -101,7 +98,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
         );
       }
     } catch (e) {
-      if (mounted) _showError('Error creating staff: $e');
+      if (mounted) _showError(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -159,7 +156,7 @@ class _AddStaffScreenState extends ConsumerState<AddStaffScreen> {
         ).showSnackBar(const SnackBar(content: Text('Staff member updated!')));
       }
     } catch (e) {
-      if (mounted) _showError('Error updating staff: $e');
+      if (mounted) _showError(friendlyError(e));
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

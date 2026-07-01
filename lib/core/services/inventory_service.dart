@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zynk/core/utils/error_messages.dart';
 
 class InventoryService {
   final SupabaseClient _supabase;
@@ -23,14 +24,15 @@ class InventoryService {
     Map<String, dynamic> body,
   ) async {
     await _ensureSession();
-    final response = await _supabase.functions.invoke(functionName, body: body);
-    if (response.status != 200) {
-      final error = response.data is Map
-          ? response.data['error']
-          : response.data;
-      throw Exception(error ?? 'Failed to invoke $functionName');
+    try {
+      final response = await _supabase.functions.invoke(
+        functionName,
+        body: body,
+      );
+      return response.data;
+    } on FunctionException catch (e) {
+      throw Exception(friendlyError(e));
     }
-    return response.data;
   }
 
   Future<void> approveAdjustment({

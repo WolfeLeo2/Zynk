@@ -8,7 +8,6 @@ import 'package:printing/printing.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
-import 'package:zynk/core/models/staff_model.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
@@ -495,7 +494,7 @@ class SaleDetailScreen extends ConsumerWidget {
     final paymentsAsync = ref.read(salePaymentsProvider(sale.id));
     final tenantAsync = ref.read(currentTenantProvider);
     final customersAsync = ref.read(allCustomersProvider);
-    final staffAsync = ref.read(humanStaffProvider);
+    final salespersonNames = ref.read(salespersonNamesProvider);
 
     final items = itemsAsync.value ?? [];
     final payments = paymentsAsync.value ?? [];
@@ -524,16 +523,9 @@ class SaleDetailScreen extends ConsumerWidget {
       } catch (_) {}
     }
 
-    String? salespersonName;
-    if (sale.salespersonId != null && staffAsync.hasValue) {
-      try {
-        salespersonName = staffAsync.value
-            ?.firstWhere((s) => s.id == sale.salespersonId)
-            .name;
-      } catch (_) {
-        salespersonName = null;
-      }
-    }
+    final salespersonName = sale.salespersonId != null
+        ? salespersonNames[sale.salespersonId]
+        : null;
 
     Branch? branch;
     final branchesAsync = ref.read(branchesProvider);
@@ -2502,20 +2494,11 @@ class _DetailsSection extends ConsumerWidget {
 
     final customersAsync = ref.watch(allCustomersProvider);
 
-    final staffAsync = ref.watch(humanStaffProvider);
-    // Look up the staff name by salespersonId
+    // Resolve salesperson name from historic staff_members OR current profiles.
+    final salespersonNames = ref.watch(salespersonNamesProvider);
     final String staffName = sale.salespersonId == null
         ? 'Not Assigned'
-        : staffAsync.whenOrNull(
-                data: (staff) => staff
-                    .firstWhere(
-                      (s) => s.id == sale.salespersonId,
-                      orElse: () =>
-                          StaffMember(id: '', tenantId: '', name: 'Unknown'),
-                    )
-                    .name,
-              ) ??
-              'Loading...';
+        : (salespersonNames[sale.salespersonId] ?? 'Unknown');
 
     String customerName = 'Walk-in Customer';
     String? customerPhone;

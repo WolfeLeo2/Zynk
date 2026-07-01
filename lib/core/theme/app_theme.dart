@@ -64,6 +64,10 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: AppTokens.roundedButton),
       ),
 
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+      ),
+
       // INPUTS (Active / Focused states)
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
@@ -176,6 +180,10 @@ class AppTheme {
       chipTheme: const ChipThemeData(
         side: BorderSide(color: AppTokens.borderSubtleLight, width: 0.5),
         shape: RoundedRectangleBorder(borderRadius: AppTokens.roundedButton),
+      ),
+
+      snackBarTheme: const SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
       ),
 
       inputDecorationTheme: InputDecorationTheme(

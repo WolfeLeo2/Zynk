@@ -1,3 +1,4 @@
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
@@ -5,7 +6,6 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
@@ -249,8 +249,8 @@ Future<void> _exportPdf(
     final ts = DateTime.now().millisecondsSinceEpoch;
     final bytes = await pdf.save();
 
-    final path = await FilePicker.platform.saveFile(
-      dialogTitle: 'Save Stock Report',
+    final path = await FilePicker.saveFile(
+      dialogTitle: 'Save Report',
       fileName: 'stock_report_${safeName}_$ts.pdf',
       bytes: bytes,
       type: FileType.custom,

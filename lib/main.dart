@@ -9,6 +9,7 @@ import 'core/config/powersync.dart'; // PowerSync config
 import 'core/providers/app_providers.dart';
 import 'core/routes.dart';
 import 'core/widgets/inactivity_detector.dart';
+import 'features/auth/providers/lock_provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,9 +27,16 @@ void main() async {
   // 4. Initialize SharedPreferences
   final prefs = await SharedPreferences.getInstance();
 
+  // Cold start with a restored session → open locked (PIN required), rather
+  // than resuming as the last signed-in user.
+  final restoredSession = Supabase.instance.client.auth.currentSession != null;
+
   runApp(
     ProviderScope(
-      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+      overrides: [
+        sharedPreferencesProvider.overrideWithValue(prefs),
+        appStartedWithSessionProvider.overrideWithValue(restoredSession),
+      ],
       child: const MyApp(),
     ),
   );

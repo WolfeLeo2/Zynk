@@ -1,18 +1,21 @@
 import 'dart:io';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:zynk/core/services/auth_service.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:path/path.dart' as path;
-import 'package:supabase_flutter/supabase_flutter.dart';
-
-import '../../core/theme/app_tokens.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:path/path.dart' as path;
+import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zynk/core/services/auth_service.dart';
+import 'package:zynk/core/utils/error_messages.dart';
+import 'package:zynk/features/auth/providers/lock_provider.dart';
 import 'package:zynk/features/auth/widgets/auth_nav_button.dart';
 import 'package:zynk/features/auth/widgets/auth_progress_bar.dart';
+
+import '../../core/theme/app_tokens.dart';
 
 class SignUpScreen extends ConsumerStatefulWidget {
   const SignUpScreen({super.key});
@@ -110,12 +113,13 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         businessPhone: _businessPhone,
         logoUrl: logoUrl,
       );
+      ref.read(lockProvider.notifier).unlock();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Shop created! Check your email to confirm!',
+              'Shop created! Check your email to confirm.',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSecondary,
               ),
@@ -134,7 +138,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sign up failed: $e'),
+            content: Text(friendlyError(e)),
             backgroundColor: AppTokens.brandAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(

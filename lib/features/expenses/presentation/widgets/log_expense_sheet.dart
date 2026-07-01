@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/features/expenses/models/expense.dart';
 import 'package:zynk/features/expenses/models/expense_category.dart';
 import 'package:zynk/features/expenses/providers/expenses_provider.dart';
-import 'package:zynk/core/models/staff_model.dart';
-import 'package:zynk/core/models/schema_models.dart';
+
+import '../../../../core/providers/user_provider.dart';
 
 class LogExpenseSheet extends ConsumerStatefulWidget {
   const LogExpenseSheet({super.key});
@@ -22,7 +24,6 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
   final _descriptionController = TextEditingController();
 
   ExpenseCategory? _selectedCategory;
-  StaffMember? _selectedStaff;
   Branch? _selectedBranch;
   String _paymentMethod = 'cash';
   final DateTime _expenseDate = DateTime.now();
@@ -39,7 +40,6 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final categoriesAsync = ref.watch(expenseCategoriesProvider);
-    final staffAsync = ref.watch(humanStaffProvider);
     final branchesAsync = ref.watch(branchesProvider);
     final currentBranchId = ref.watch(currentBranchIdProvider);
 
@@ -100,16 +100,15 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
             // Amount Field
             TextFormField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [CurrencyInputFormatter()],
               style: theme.textTheme.headlineMedium?.copyWith(
                 color: cs.primary,
                 fontWeight: FontWeight.bold,
               ),
               decoration: InputDecoration(
                 labelText: 'Amount',
-                prefixText: 'Ksh ',
+                prefixText: 'KES ',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -118,7 +117,8 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
               ),
               validator: (val) {
                 if (val == null || val.isEmpty) return 'Required';
-                if (double.tryParse(val) == null) return 'Invalid number';
+                final raw = val.replaceAll(RegExp(r'[^\d.]'), '');
+                if (double.tryParse(raw) == null) return 'Invalid number';
                 return null;
               },
             ),
@@ -130,8 +130,13 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
                 final selectable = branches
                     .where((b) => b.id != 'all')
                     .toList();
+                // Only pre-select a branch that's actually in the list.
+                final selectedValue =
+                    selectable.any((b) => b.id == _selectedBranch?.id)
+                    ? _selectedBranch
+                    : null;
                 return DropdownButtonFormField<Branch>(
-                  initialValue: _selectedBranch,
+                  initialValue: selectedValue,
                   decoration: const InputDecoration(
                     labelText: 'Branch',
                     border: OutlineInputBorder(),
@@ -156,59 +161,64 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
 
             // Category
             categoriesAsync.when(
-              data: (categories) => DropdownButtonFormField<ExpenseCategory>(
-                initialValue: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Category',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: [
-                  ...categories.map(
-                    (c) => DropdownMenuItem(
-                      value: c,
-                      child: Text(c.name, overflow: TextOverflow.ellipsis),
-                    ),
+              data: (categories) {
+                // De-dup by id (a duplicate id would crash the dropdown), and
+                // only pre-select a value that's actually present (a freshly
+                // created category isn't in the synced list for a moment).
+                final seen = <String>{};
+                final uniqueCats = [
+                  for (final c in categories)
+                    if (seen.add(c.id)) c,
+                ];
+                final selectedValue =
+                    uniqueCats.any((c) => c.id == _selectedCategory?.id)
+                    ? _selectedCategory
+                    : null;
+                return DropdownButtonFormField<ExpenseCategory>(
+                  initialValue: selectedValue,
+                  decoration: const InputDecoration(
+                    labelText: 'Category',
+                    border: OutlineInputBorder(),
+                    isDense: true,
                   ),
-                  const DropdownMenuItem(value: null, child: Text('+ Add New')),
-                ],
-                onChanged: (val) {
-                  if (val == null) {
-                    _showAddCategoryDialog();
-                  } else {
-                    setState(() => _selectedCategory = val);
-                  }
-                },
-                validator: (val) => val == null ? 'Required' : null,
-              ),
+                  items: [
+                    ...uniqueCats.map(
+                      (c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(c.name, overflow: TextOverflow.ellipsis),
+                      ),
+                    ),
+                    const DropdownMenuItem(
+                      value: null,
+                      child: Text('+ Add New'),
+                    ),
+                  ],
+                  onChanged: (val) {
+                    if (val == null) {
+                      _showAddCategoryDialog();
+                    } else {
+                      setState(() => _selectedCategory = val);
+                    }
+                  },
+                  validator: (val) => val == null ? 'Required' : null,
+                );
+              },
               loading: () => const LinearProgressIndicator(),
               error: (_, _) => const Text('Error'),
             ),
             const SizedBox(height: 16),
 
-            // Logged By
-            staffAsync.when(
-              data: (staff) => DropdownButtonFormField<StaffMember>(
-                initialValue: _selectedStaff,
-                decoration: const InputDecoration(
-                  labelText: 'Logged By',
-                  border: OutlineInputBorder(),
-                  isDense: true,
-                ),
-                items: staff
-                    .map(
-                      (s) => DropdownMenuItem(
-                        value: s,
-                        child: Text(s.name, overflow: TextOverflow.ellipsis),
-                      ),
-                    )
-                    .toList(),
-                validator: (val) =>
-                    val == null ? 'Please select who is logging this' : null,
-                onChanged: (val) => setState(() => _selectedStaff = val),
+            // Logged By — the current logged-in staffer.
+            InputDecorator(
+              decoration: const InputDecoration(
+                labelText: 'Logged By',
+                border: OutlineInputBorder(),
+                isDense: true,
               ),
-              loading: () => const LinearProgressIndicator(),
-              error: (_, _) => const Text('Error'),
+              child: Text(
+                ref.watch(currentProfileProvider)?.displayName ?? 'You',
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
             const SizedBox(height: 16),
 
@@ -312,8 +322,9 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
       tenantId: tenantId,
       branchId: _selectedBranch!.id,
       categoryId: _selectedCategory!.id,
-      staffMemberId: _selectedStaff?.id,
-      amount: double.parse(_amountController.text),
+      staffMemberId: ref.read(currentProfileProvider)?.id,
+      amount: double.parse(
+          _amountController.text.replaceAll(RegExp(r'[^\d.]'), '')),
       description: _descriptionController.text.isEmpty
           ? null
           : _descriptionController.text,
