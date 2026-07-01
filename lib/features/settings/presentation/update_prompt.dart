@@ -65,6 +65,7 @@ class _UpdateSheet extends ConsumerWidget {
           const SizedBox(height: 20),
           if (downloading) ...[
             LinearProgressIndicator(
+              year2023: false,
               value: download.progress == 0 ? null : download.progress,
             ),
             const SizedBox(height: 8),
