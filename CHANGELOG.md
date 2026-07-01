@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.3](https://github.com/WolfeLeo2/Zynk/compare/v1.3.2...v1.3.3) (2026-07-01)
+
+
+### Bug Fixes
+
+* **release bug:** update github actions to see which env vars fail ([4b90661](https://github.com/WolfeLeo2/Zynk/commit/4b90661213f64484a73a8dd4147a9c2fde368f3b))
+
 ## [1.3.2](https://github.com/WolfeLeo2/Zynk/compare/v1.3.1...v1.3.2) (2026-07-01)
 
 
