@@ -32,8 +32,9 @@ class PosCartItem {
 
   double get pricePerSqm {
     if (overridePrice != null) return overridePrice!;
-    if (product.basePrice != null && product.basePrice! > 0)
+    if (product.basePrice != null && product.basePrice! > 0) {
       return product.basePrice!;
+    }
     return itemGroup?.defaultSellingPrice ?? 0.0;
   }
 

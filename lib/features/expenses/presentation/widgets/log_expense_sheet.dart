@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/features/expenses/models/expense.dart';
 import 'package:zynk/features/expenses/models/expense_category.dart';
 import 'package:zynk/features/expenses/providers/expenses_provider.dart';
@@ -99,16 +100,15 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
             // Amount Field
             TextFormField(
               controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
-              ),
+              keyboardType: TextInputType.number,
+              inputFormatters: [CurrencyInputFormatter()],
               style: theme.textTheme.headlineMedium?.copyWith(
                 color: cs.primary,
                 fontWeight: FontWeight.bold,
               ),
               decoration: InputDecoration(
                 labelText: 'Amount',
-                prefixText: 'Ksh ',
+                prefixText: 'KES ',
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -117,7 +117,8 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
               ),
               validator: (val) {
                 if (val == null || val.isEmpty) return 'Required';
-                if (double.tryParse(val) == null) return 'Invalid number';
+                final raw = val.replaceAll(RegExp(r'[^\d.]'), '');
+                if (double.tryParse(raw) == null) return 'Invalid number';
                 return null;
               },
             ),
@@ -322,7 +323,8 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
       branchId: _selectedBranch!.id,
       categoryId: _selectedCategory!.id,
       staffMemberId: ref.read(currentProfileProvider)?.id,
-      amount: double.parse(_amountController.text),
+      amount: double.parse(
+          _amountController.text.replaceAll(RegExp(r'[^\d.]'), '')),
       description: _descriptionController.text.isEmpty
           ? null
           : _descriptionController.text,
