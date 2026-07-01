@@ -44,6 +44,8 @@ dependencies:
   m3e_card_list: ^0.0.1
   animations: ^2.2.0
   flutter_speed_dial: ^7.0.0
+  package_info_plus: ^9.0.1
+  ota_update: ^7.1.0
 
 dependency_overrides:
   phosphor_flutter:
