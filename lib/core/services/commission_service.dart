@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:zynk/core/utils/error_messages.dart';
 import 'package:zynk/core/services/app_logger.dart';
 
 final _log = AppLogger('CommissionService');
@@ -37,18 +38,16 @@ class CommissionService {
   ) async {
     await _ensureSession();
 
-    final response = await _supabase.functions.invoke(
-      'manage-commissions',
-      body: {'action': action, 'tenant_id': tenantId, ...params},
-    );
-
-    if (response.status != 200) {
-      final error = response.data?['error'] ?? 'Unknown error occurred';
-      _log.e('Commission action "$action" failed: $error');
-      throw Exception(error);
+    try {
+      final response = await _supabase.functions.invoke(
+        'manage-commissions',
+        body: {'action': action, 'tenant_id': tenantId, ...params},
+      );
+      return response.data;
+    } on FunctionException catch (e) {
+      _log.e('Commission action "$action" failed: ${e.status}');
+      throw Exception(friendlyError(e));
     }
-
-    return response.data;
   }
 
   /// Marks a specific commission as paid.

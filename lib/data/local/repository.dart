@@ -2,6 +2,7 @@ import 'package:powersync/powersync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/adjustment_reason.dart';
+import 'package:zynk/core/utils/error_messages.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/customer_model.dart';
@@ -109,15 +110,13 @@ class PowerSyncRepository {
   }) async {
     final statusStr = status.name;
     // 1. Invoke Edge Function for Auth-level ban/unban
-    final response = await Supabase.instance.client.functions.invoke(
-      'manage-user-status',
-      body: {'userId': userId, 'status': statusStr},
-    );
-
-    if (response.status != 200) {
-      throw Exception(
-        response.data?['error'] ?? 'Failed to update user auth status',
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'manage-user-status',
+        body: {'userId': userId, 'status': statusStr},
       );
+    } on FunctionException catch (e) {
+      throw Exception(friendlyError(e));
     }
 
     // 2. Update local DB status (PowerSync will sync this)
@@ -227,24 +226,22 @@ class PowerSyncRepository {
     String? phone,
     String? address,
   }) async {
-    final response = await Supabase.instance.client.functions.invoke(
-      'update-staff-user',
-      body: {
-        'user_id': userId,
-        'name': name,
-        'role': role,
-        'branch_id': primaryBranchId,
-        'branch_ids': branchIds,
-        'permissions': permissions,
-        'phone': phone,
-        'address': address,
-      },
-    );
-
-    if (response.status != 200) {
-      throw Exception(
-        response.data?['error'] ?? 'Failed to update staff auth metadata',
+    try {
+      await Supabase.instance.client.functions.invoke(
+        'update-staff-user',
+        body: {
+          'user_id': userId,
+          'name': name,
+          'role': role,
+          'branch_id': primaryBranchId,
+          'branch_ids': branchIds,
+          'permissions': permissions,
+          'phone': phone,
+          'address': address,
+        },
       );
+    } on FunctionException catch (e) {
+      throw Exception(friendlyError(e));
     }
   }
 
