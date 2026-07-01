@@ -37,7 +37,6 @@ import 'package:zynk/features/settings/presentation/branches_screen.dart';
 import 'package:zynk/features/settings/presentation/add_branch_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_screen.dart';
 import 'package:zynk/features/settings/presentation/add_staff_screen.dart';
-import 'package:zynk/features/settings/presentation/staff_members_screen.dart';
 import 'package:zynk/features/products/presentation/adjustments_screen.dart';
 import 'package:zynk/features/reports/presentation/reports_screen.dart';
 import 'package:zynk/features/reports/presentation/commissions_report_screen.dart';
@@ -363,10 +362,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                       final existing = state.extra as Profile?;
                       return AddStaffScreen(existingProfile: existing);
                     },
-                  ),
-                  GoRoute(
-                    path: 'staff-members',
-                    builder: (context, state) => const StaffMembersScreen(),
                   ),
                   GoRoute(
                     path: 'adjustments-review',

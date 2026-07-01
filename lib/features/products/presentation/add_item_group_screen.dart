@@ -7,8 +7,8 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
 import 'package:zynk/features/products/presentation/widgets/mismatch_resolution_sheet.dart';
+import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
 
 class AddItemGroupScreen extends ConsumerStatefulWidget {
   const AddItemGroupScreen({super.key});
@@ -267,7 +267,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
       icon: PhosphorIconsDuotone.currencyCircleDollar,
       children: [
         DropdownButtonFormField<String>(
-          value: _pricingUnit,
+          initialValue: _pricingUnit,
           decoration: const InputDecoration(
             labelText: 'Pricing Unit',
             border: OutlineInputBorder(),
@@ -337,7 +337,7 @@ class _AddItemGroupScreenState extends ConsumerState<AddItemGroupScreen> {
         ),
         const SizedBox(height: 16),
         DropdownButtonFormField<String>(
-          value: _commissionType,
+          initialValue: _commissionType,
           decoration: const InputDecoration(
             labelText: 'Commission Type',
             border: OutlineInputBorder(),

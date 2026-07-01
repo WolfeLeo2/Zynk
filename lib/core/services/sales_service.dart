@@ -1,5 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
+import 'package:zynk/core/utils/error_messages.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/services/app_logger.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
@@ -103,20 +104,22 @@ class SalesService {
   }) async {
     await _ensureSession();
 
-    Future<dynamic> invokeOnce() async {
-      return _supabase.functions.invoke(functionName, body: body);
+    // functions.invoke throws FunctionException on any non-2xx. On a 401 we
+    // refresh the session and retry once; otherwise surface a friendly message.
+    try {
+      return await _supabase.functions.invoke(functionName, body: body);
+    } on FunctionException catch (e) {
+      if (e.status == 401) {
+        _log.i('$functionName returned 401, refreshing session and retrying');
+        await _refreshAndValidateSession();
+        try {
+          return await _supabase.functions.invoke(functionName, body: body);
+        } on FunctionException catch (e2) {
+          throw Exception(friendlyError(e2));
+        }
+      }
+      throw Exception(friendlyError(e));
     }
-
-    var response = await invokeOnce();
-    if (response.status == 401) {
-      _log.i(
-        '$functionName returned 401, refreshing session and retrying once',
-      );
-      await _refreshAndValidateSession();
-      response = await invokeOnce();
-    }
-
-    return response;
   }
 
   void _throwAuthAwareError({

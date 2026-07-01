@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zynk/core/services/auth_service.dart';
+import 'package:zynk/core/utils/error_messages.dart';
+import 'package:zynk/features/auth/providers/lock_provider.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:lottie/lottie.dart';
@@ -39,11 +41,14 @@ class _SignInScreenState extends ConsumerState<SignInScreen> {
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
+      // An interactive password login is not locked (covers the no-PIN /
+      // forgotten-PIN escape from the lock screen).
+      ref.read(lockProvider.notifier).unlock();
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sign in failed: $e'),
+            content: Text(friendlyError(e)),
             backgroundColor: AppTokens.brandAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(

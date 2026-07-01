@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zynk/core/services/auth_service.dart';
+import 'package:zynk/core/utils/error_messages.dart';
+import 'package:zynk/features/auth/providers/lock_provider.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:path/path.dart' as path;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -110,6 +112,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
         businessPhone: _businessPhone,
         logoUrl: logoUrl,
       );
+      ref.read(lockProvider.notifier).unlock();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -134,7 +137,7 @@ class _SignUpScreenState extends ConsumerState<SignUpScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Sign up failed: $e'),
+            content: Text(friendlyError(e)),
             backgroundColor: AppTokens.brandAccent,
             behavior: SnackBarBehavior.floating,
             shape: RoundedRectangleBorder(

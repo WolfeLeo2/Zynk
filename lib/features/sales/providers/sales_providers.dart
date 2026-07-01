@@ -44,13 +44,7 @@ final salesListLimitProvider =
 
 class _SalesListDateRangeNotifier extends Notifier<DateTimeRange?> {
   @override
-  DateTimeRange? build() {
-    final now = DateTime.now();
-    return DateTimeRange(
-      start: DateTime(now.year, now.month, 1),
-      end: DateTime(now.year, now.month + 1, 0, 23, 59, 59),
-    );
-  }
+  DateTimeRange? build() => null; // no default filter — show all time
 
   void setRange(DateTimeRange? range) => state = range;
 }

@@ -133,6 +133,15 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                     canSubmit: _pin.length >= _minPinLength && !_loading,
                     loading: _loading,
                   ),
+                  const SizedBox(height: 8),
+                  // Escape hatch: switch the device account / recover a forgotten
+                  // PIN by signing in with a password again.
+                  TextButton(
+                    onPressed: _loading
+                        ? null
+                        : () => ref.read(authServiceProvider).signOut(),
+                    child: const Text('Sign out & use password'),
+                  ),
                 ],
               ),
             ),

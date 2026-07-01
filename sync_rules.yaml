@@ -32,6 +32,8 @@ bucket_definitions:
       - SELECT * FROM credit_note_items WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM commissions WHERE tenant_id = bucket.tenant_id
       - SELECT * FROM profile_branches WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM expense_categories WHERE tenant_id = bucket.tenant_id
+      - SELECT * FROM expenses WHERE tenant_id = bucket.tenant_id
       # These snapshot tables have no `id` column (composite keys), so synthesize
       # a stable unique id from the key parts — PowerSync requires an `id`.
       - SELECT *, (tenant_id || '|' || IFNULL(branch_id, 'all') || '|' || snapshot_date) AS id FROM daily_kpi_snapshots WHERE tenant_id = bucket.tenant_id

@@ -6,15 +6,17 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/sales_models.dart';
+import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-import 'package:zynk/features/customers/providers/customer_providers.dart';
-import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:zynk/core/services/sales_service.dart';
+import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
+import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:zynk/shared/widgets/stock_availability_label.dart';
-import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/core/utils/currency.dart';
+
+import '../../../core/providers/user_provider.dart';
 
 class EditInvoiceScreen extends ConsumerStatefulWidget {
   final String saleId;
@@ -164,10 +166,14 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     final sale = _sale;
     if (sale == null) return;
 
-    if (_salespersonId == null) {
+    // Preserve the invoice's original salesperson on edit; only fall back to the
+    // current staffer if the original was somehow unset.
+    final salespersonId =
+        _salespersonId ?? ref.read(currentProfileProvider)?.id;
+    if (salespersonId == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Text('Please select a salesperson before saving.'),
+          content: const Text('Could not determine the salesperson.'),
           backgroundColor: Theme.of(context).colorScheme.error,
           behavior: SnackBarBehavior.floating,
         ),
@@ -268,7 +274,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
             tenantId: tenantId,
             customerId: sale.customerId ?? customer?.id ?? '',
             items: updatedItems,
-            salespersonId: _salespersonId,
+            salespersonId: salespersonId,
             notes: _notesCtrl.text.isEmpty ? null : _notesCtrl.text,
             dueDate: _dueDate?.toIso8601String(),
           );
@@ -523,61 +529,41 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                         ),
                         const SizedBox(height: 24),
 
-                        // ── Salesperson ──
+                        // ── Salesperson (preserved from the original invoice) ──
                         Text(
-                          'Salesperson (Required)',
+                          'Salesperson',
                           style: theme.textTheme.titleSmall?.copyWith(
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                         const SizedBox(height: 8),
-                        Consumer(
-                          builder: (context, ref, child) {
-                            final staffAsync = ref.watch(
-                              humanStaffByBranchProvider(sale.branchId),
-                            );
-                            return staffAsync.when(
-                              data: (staffList) {
-                                if (staffList.isEmpty) {
-                                  return const SizedBox.shrink();
-                                }
-                                return DropdownButtonFormField<String>(
-                                  initialValue: _salespersonId,
-                                  decoration: InputDecoration(
-                                    prefixIcon: const PhosphorIcon(
-                                      PhosphorIconsRegular.user,
-                                    ),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(10),
-                                    ),
-                                    isDense: true,
-                                    filled: true,
-                                    fillColor: cs.surfaceContainerHighest
-                                        .withValues(alpha: 0.2),
-                                  ),
-                                  hint: const Text(
-                                    'Select Salesperson (Required)',
-                                  ),
-                                  items: [
-                                    const DropdownMenuItem<String>(
-                                      value: null,
-                                      child: Text('None'),
-                                    ),
-                                    ...staffList.map(
-                                      (s) => DropdownMenuItem<String>(
-                                        value: s.id,
-                                        child: Text(s.name),
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged: (v) =>
-                                      setState(() => _salespersonId = v),
-                                );
-                              },
-                              loading: () => const LinearProgressIndicator(),
-                              error: (_, _) => const SizedBox.shrink(),
-                            );
-                          },
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
+                          decoration: BoxDecoration(
+                            color: cs.surfaceContainerHighest.withValues(
+                              alpha: 0.2,
+                            ),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Row(
+                            children: [
+                              const PhosphorIcon(PhosphorIconsRegular.user),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  ref.watch(
+                                        salespersonNamesProvider,
+                                      )[_salespersonId] ??
+                                      'Unknown',
+                                  style: theme.textTheme.bodyLarge,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                         const SizedBox(height: 24),
 

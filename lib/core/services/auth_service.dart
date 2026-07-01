@@ -2,6 +2,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:zynk/data/local/repository.dart';
 import 'package:zynk/core/config/powersync.dart';
+import 'package:zynk/core/utils/error_messages.dart';
 
 import '../../core/providers/app_providers.dart';
 
@@ -72,17 +73,10 @@ class AuthService {
     required String tenantId,
     required String pin,
   }) async {
-    final res = await _supabase.functions.invoke(
+    final res = await _invokeFriendly(
       'pin-login',
-      body: {'tenant_id': tenantId, 'pin': pin},
+      {'tenant_id': tenantId, 'pin': pin},
     );
-    if (res.status != 200) {
-      final data = res.data;
-      final msg = data is Map
-          ? (data['error'] ?? 'Invalid PIN')
-          : 'Invalid PIN';
-      throw Exception(msg.toString());
-    }
     final tokenHash = (res.data as Map)['token_hash'] as String;
     await _supabase.auth.verifyOTP(
       type: OtpType.magiclink,
@@ -124,19 +118,29 @@ class AuthService {
     String role = 'Cashier',
     List<String>? permissions,
   }) async {
-    await _supabase.functions.invoke(
-      'create-staff-user',
-      body: {
-        'email': email,
-        'password': password,
-        'name': name,
-        'phone': phone,
-        'address': address,
-        'branch_ids': branchIds,
-        'role': role,
-        'permissions': permissions,
-      },
-    );
+    await _invokeFriendly('create-staff-user', {
+      'email': email,
+      'password': password,
+      'name': name,
+      'phone': phone,
+      'address': address,
+      'branch_ids': branchIds,
+      'role': role,
+      'permissions': permissions,
+    });
+  }
+
+  /// Invoke an Edge Function, converting any failure into a user-facing message
+  /// (functions.invoke throws FunctionException with a raw status otherwise).
+  Future<FunctionResponse> _invokeFriendly(
+    String name,
+    Map<String, dynamic> body,
+  ) async {
+    try {
+      return await _supabase.functions.invoke(name, body: body);
+    } on FunctionException catch (e) {
+      throw Exception(friendlyError(e));
+    }
   }
 
   // 5. Reset Staff Password (Owner Only)
@@ -144,9 +148,9 @@ class AuthService {
     required String userId,
     required String newPassword,
   }) async {
-    await _supabase.functions.invoke(
+    await _invokeFriendly(
       'reset-staff-password',
-      body: {'user_id_to_reset': userId, 'new_password': newPassword},
+      {'user_id_to_reset': userId, 'new_password': newPassword},
     );
   }
 
@@ -156,15 +160,10 @@ class AuthService {
     required String targetProfileId,
     required String pin,
   }) async {
-    final res = await _supabase.functions.invoke(
+    await _invokeFriendly(
       'set-staff-pin',
-      body: {'target_profile_id': targetProfileId, 'pin': pin},
+      {'target_profile_id': targetProfileId, 'pin': pin},
     );
-    if (res.status != 200) {
-      final data = res.data;
-      final msg = data is Map ? (data['error'] ?? 'Failed to set PIN') : 'Failed to set PIN';
-      throw Exception(msg.toString());
-    }
   }
 
   /// Send a 6-digit OTP to the given email for password reset.

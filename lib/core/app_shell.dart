@@ -8,6 +8,8 @@ import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/features/auth/presentation/lock_screen.dart';
 import 'package:zynk/features/auth/providers/lock_provider.dart';
+import 'package:zynk/core/services/app_update_service.dart';
+import 'package:zynk/features/settings/presentation/update_prompt.dart';
 
 class AppShell extends ConsumerWidget {
   final StatefulNavigationShell navigationShell;
@@ -24,6 +26,20 @@ class AppShell extends ConsumerWidget {
     ref.watch(profileBranchSyncProvider);
     // Enforce account status (logout if blocked)
     ref.watch(statusEnforcerProvider);
+
+    // Offer an in-app update once per launch (Android; best-effort). Not while
+    // locked or before the profile has loaded.
+    ref.listen(appUpdateProvider, (_, next) {
+      final info = next.value;
+      if (info == null || updatePromptShown) return;
+      if (ref.read(lockProvider) || ref.read(currentProfileProvider) == null) {
+        return;
+      }
+      updatePromptShown = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) showUpdatePrompt(context, info);
+      });
+    });
 
     // PIN lock gate — covers the whole app (incl. drawer). The device session
     // stays active underneath, so sync keeps running while locked.

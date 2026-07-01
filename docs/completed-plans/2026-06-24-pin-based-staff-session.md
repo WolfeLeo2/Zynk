@@ -11,8 +11,8 @@
 **Goal:** On a shared device, let staff switch users with a short **PIN** instead of typing email+password — and *without* the slow full re-sync that happens today. Each staffer remains their **own real Supabase account**, so identity, owner ops, and attribution all work natively.
 
 **Non-goals (this phase):**
-- **Changing salesperson attribution — DEFERRED (no go-ahead).** Keep the app's current `salesperson_id` handling exactly as-is. Do NOT auto-derive the salesperson from the signed-in staffer yet. (Model B makes this trivial later — `auth.uid()` is already the real staffer — but it is explicitly out of scope until approved. So "Phase 4 = attribution" is a no-op for now: verify nothing regressed, change nothing.)
-- Removing the `salesperson` table/field (separate, even later).
+- ✅ **Salesperson attribution — DONE (approved 2026-06-25, full migration).** Salesperson/adjuster/expense-staff now = the current logged-in `profile.id` (dropdowns removed). `staff_members` is retained server-side for historic rows only; its management page is removed; FKs to it dropped on `stock_adjustments.salesperson_id` and `expenses.staff_member_id`; name resolution everywhere now `COALESCE(staff_members.name, profiles.display_name)`. See migration `20260625000000`.
+- Removing the `staff_members` table itself (kept for history; never as an input).
 - Offline *user-switching* (see §7 — switching requires a quick auth call).
 - Biometric unlock (could layer on later via `local_auth`).
 
@@ -113,10 +113,11 @@ New deps: `flutter_secure_storage`, plus `cryptography` (Argon2id) **or** `point
 
 - **PIN pad / lock screen** — the screen with the number dial where a user taps their PIN. Shown when no one is "unlocked".
 - **PIN verification** — just: *check the typed PIN is correct* (matches a staffer's `pin_hash`) before letting them in. Nothing fancier.
-- **Drawer "Lock" / "Switch user" action** — a button in the side navigation drawer. Tapping it ends the current person's session and returns to the PIN pad so the next person can enter their PIN. ("Drawer" = the existing slide-out menu; "lock" = the button that re-shows the PIN pad.)
-- **Flow (exactly as you described):** PIN pad → enter PIN → (session swap happens) → the **`AppShell` welcome/loading screen we built** shows while the profile loads → app ready.
-- **Idle auto-lock** — after the idle timeout, auto-show the PIN pad. **Required** so sales don't get attributed to whoever last unlocked. **Default 120s**, owner-configurable via a Settings tile with options **1 / 2 / 5 / 10 min** (persist per device, or per tenant if synced).
-- **Set PIN** — owner-scoped only (lives on the staff/user management page). **No "forgot PIN" UI on the lock screen** (per your Q4); the owner resets a staffer's PIN from the user page.
+- **Drawer "Lock / switch user" action** — an icon on the drawer's profile card. Tapping it **locks** (shows the PIN pad) — the device session stays active so sync keeps running; the next person PINs in.
+- **Flow:** PIN pad → enter PIN → (session swap via `loginWithPin`) → the **`AppShell` welcome/loading screen** shows while the profile loads → app ready.
+- **Idle auto-lock** — after the idle timeout, auto-show the PIN pad. **Default 120s (2 min)**, owner-configurable via a Settings tile: **1 / 2 / 5 / 10 min** (persisted per device).
+- **Lock on cold start** — a relaunch that restored a session opens to the PIN pad (not the last user). An interactive password login is exempt.
+- **Set PIN** — owner sets a staffer's PIN from **User Accounts** (staff card → "Set Login PIN"); the owner sets their **own** PIN from a **Settings → "My Login PIN"** tile (owners are hidden from User Accounts). **No "forgot PIN" UI on the lock screen**, but a **"Sign out & use password"** escape is there for the no-PIN / forgotten-PIN / switch-device-account case.
 
 ---
 
@@ -128,10 +129,10 @@ New deps: `flutter_secure_storage`, plus `cryptography` (Argon2id) **or** `point
 - **Offline switching not required — online-first** ✓
 - **Auto-lock: 120s default, owner-configurable (1 / 2 / 5 / 10 min) via a Settings tile** ✓
 - Switch path keeps local data (`disconnect`+`connect`, no clear); full sign-out keeps `disconnectAndClear` ✓
-
-**Still open:**
-1. **Credential mechanism** (§4) — cached session/refresh token (recommended) vs `pin-login` edge function. Since we're online-first, the edge-function option is now more viable and avoids caching tokens on device; weigh in Phase 1.
-2. **PIN length** — 6 recommended (confirm).
+- **Credential mechanism = `pin-login` edge function** (mints a session server-side; no tokens cached on device) ✓
+- **PIN length = 6+ digits** ✓
+- **Lock on cold start = yes** (with a password-login escape) ✓
+- **Salesperson = current signed-in profile** (old staff_members selection UI retired) ✓
 
 ---
 
@@ -140,9 +141,9 @@ New deps: `flutter_secure_storage`, plus `cryptography` (Argon2id) **or** `point
 1. ✅ **Foundation** — `profiles` PIN migration; `set-staff-pin` + `pin-login` edge fns; `switchUser()` (no-wipe) + `loginWithPin()`. (Enrollment/session-caching dropped — `pin-login` mints sessions server-side.)
 2. ✅ **Owner Set-PIN UI** — `setStaffPin()` + "Set Login PIN" on the User Accounts screen (owner sets staff *and* their own PIN; re-setting = reset).
 3. ✅ **Lock flow + auto-lock** — LockScreen + PIN pad → `loginWithPin` → welcome screen; `lockProvider` gate in AppShell; drawer Lock button; `InactivityDetector` idle auto-lock; Settings auto-lock tile (1/2/5/10 min).
-4. ⏸️ **Attribution — DEFERRED (no go-ahead).** Keep current `salesperson_id` handling; change nothing. No-op until approved (see §1).
+4. ✅ **Attribution — DONE (full migration).** Salesperson/adjuster/expense-staff = current `profile.id`; pickers removed; `staff_members` history-only + page removed + FKs dropped; names resolved from both tables. Migration `20260625000000`.
 5. ✅ **Lockout** — `pin-login` throttles per (tenant_id, client ip): 5 fails → exponential lockout (30s→…→15 min cap), reset on success/stale window (`pin_login_attempts` table, service-role only). Forgot-PIN = owner re-sets via Set-PIN (overwrites). Also: `sync_rules` switched to explicit columns so `pin_hash`/`pin_lookup` no longer travel to devices; `pin_set_at` is synced to drive a "PIN set" indicator. **Requires deploying the updated `sync_rules.yaml` to PowerSync.**
-6. ⬜ **Hardening + tests** (§11). Optional: lock-on-cold-start (currently resumes unlocked as the last session's user).
+6. 🔶 **Hardening + tests** — ✅ lock-on-cold-start (relaunch → PIN pad; password-login escape on the lock screen). ⬜ automated tests for the lock/switch flow still to write (§11).
 
 ---
 
