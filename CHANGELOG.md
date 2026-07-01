@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.4](https://github.com/WolfeLeo2/Zynk/compare/v1.3.3...v1.3.4) (2026-07-01)
+
+
+### Bug Fixes
+
+* **startup:** show a diagnostic error screen instead of a blank screen ([5ed5c2d](https://github.com/WolfeLeo2/Zynk/commit/5ed5c2d551d95810030afca2a3d9e603d84e8c18))
+
 ## [1.3.3](https://github.com/WolfeLeo2/Zynk/compare/v1.3.2...v1.3.3) (2026-07-01)
 
 
