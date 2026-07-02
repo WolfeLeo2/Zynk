@@ -2681,23 +2681,27 @@ class PowerSyncRepository {
         GROUP BY si.product_id
       ),
       available AS (
-        SELECT product_id, SUM(quantity) AS total_available
+        SELECT product_id, SUM(quantity) AS total_available, MAX(reorder_level) AS reorder_level
         FROM stock
         WHERE tenant_id = ?
           AND branch_id = ?
         GROUP BY product_id
       )
       SELECT
-        p.id   AS product_id,
-        p.name AS product_name,
+        p.id           AS product_id,
+        p.name         AS product_name,
         p.sku,
+        p.item_group_id,
+        ig.name        AS item_group_name,
         COALESCE(r.total_received,   0) AS received,
         COALESCE(so.total_sold,      0) AS sold,
-        COALESCE(av.total_available, 0) AS available
+        COALESCE(av.total_available, 0) AS available,
+        av.reorder_level
       FROM products p
-      LEFT JOIN received  r  ON r.product_id  = p.id
-      LEFT JOIN sold      so ON so.product_id = p.id
-      LEFT JOIN available av ON av.product_id = p.id
+      LEFT JOIN received    r  ON r.product_id  = p.id
+      LEFT JOIN sold        so ON so.product_id = p.id
+      LEFT JOIN available   av ON av.product_id = p.id
+      LEFT JOIN item_groups ig ON ig.id = p.item_group_id
       WHERE p.tenant_id = ?
         AND (p.is_service IS NULL OR p.is_service = 0)
       ORDER BY p.name ASC

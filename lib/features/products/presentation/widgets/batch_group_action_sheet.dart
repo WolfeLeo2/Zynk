@@ -178,15 +178,15 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                               }
                             });
                           },
-                          shape: isSelected
-                              ? RoundedRectangleBorder(
-                                  borderRadius: AppTokens.roundedCard,
-                                  side: BorderSide(
-                                    color: cs.primary,
-                                    width: 1.5,
-                                  ),
-                                )
-                              : null,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: AppTokens.roundedCard,
+                            side: BorderSide(
+                              color: isSelected
+                                  ? cs.primary
+                                  : cs.outlineVariant.withValues(alpha: 0.3),
+                              width: isSelected ? 1.5 : 0.5,
+                            ),
+                          ),
                           tileColor: cs.surfaceContainerLow,
                           selectedTileColor: cs.primaryContainer.withValues(
                             alpha: 0.3,

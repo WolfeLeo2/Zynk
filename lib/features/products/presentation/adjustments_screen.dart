@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
-import 'package:zynk/core/widgets/app_drawer.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/widgets/app_drawr_flutter.dart';
 import 'package:go_router/go_router.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -85,7 +86,7 @@ class AdjustmentsScreen extends ConsumerWidget {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
+          preferredSize: const Size.fromHeight(52),
           child: _StatusFilterBar(
             selected: statusFilter,
             onSelected: (v) =>
@@ -153,34 +154,25 @@ class _StatusFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return SizedBox(
-      height: 48,
-      child: ListView(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: _options.map((opt) {
-          final isSelected = selected == opt.value;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(opt.label),
-              selected: isSelected,
-              onSelected: (_) => onSelected(opt.value),
-              showCheckmark: false,
-              selectedColor: colorScheme.primary,
-              backgroundColor: Colors.transparent,
-
-              labelStyle: TextStyle(
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurface,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          );
-        }).toList(),
+        child: Row(
+          children: _options
+              .map(
+                (opt) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(opt.label),
+                    selected: selected == opt.value,
+                    showCheckmark: false,
+                    onSelected: (_) => onSelected(opt.value),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
@@ -219,12 +211,9 @@ class _BundleTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Card(
-        elevation: 0,
-        color: colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: InkWell(
           onTap: () => context.push('/settings/adjustments-review/$bundleId'),
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: AppTokens.roundedCard,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(
