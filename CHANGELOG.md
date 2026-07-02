@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/WolfeLeo2/Zynk/compare/v1.3.7...v1.4.0) (2026-07-02)
+
+
+### Features
+
+* **ui:** replaced segmentedbuttons with m3e buton segment, changed item group card ([6375b72](https://github.com/WolfeLeo2/Zynk/commit/6375b727a4b97fc42aca760289f1d2af1b2df8e1))
+
+
+### Bug Fixes
+
+* **ui:** updated apptheme with listtile data, fixed double padding for POS ticket modal, fixed customer form, changed dropdown to use row ([6375b72](https://github.com/WolfeLeo2/Zynk/commit/6375b727a4b97fc42aca760289f1d2af1b2df8e1))
+
 ## [1.3.7](https://github.com/WolfeLeo2/Zynk/compare/v1.3.6...v1.3.7) (2026-07-02)
 
 
