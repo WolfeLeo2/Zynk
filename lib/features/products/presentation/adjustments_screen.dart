@@ -7,8 +7,9 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
-import 'package:zynk/core/widgets/app_drawr_flutter.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
+
+import '../../../core/theme/app_tokens.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
