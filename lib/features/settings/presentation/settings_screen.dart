@@ -216,6 +216,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget build(BuildContext context) {
     final user = ref.watch(authStateProvider).value;
     final profileAsync = ref.watch(currentUserProfileProvider);
+    final tenant = ref.watch(currentTenantProvider).value;
     final canSwitch = ref.watch(canSwitchBranchProvider);
     final cs = Theme.of(context).colorScheme;
 
@@ -390,9 +391,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       tiles: [
                         if (isOwner)
                           SettingsTile.navigation(
-                            leading: const PhosphorIcon(
-                              PhosphorIconsDuotone.image,
-                            ),
+                            leading: tenant?.logoUrl != null && tenant!.logoUrl!.isNotEmpty
+                                ? ClipRRect(
+                                    borderRadius: BorderRadius.circular(8),
+                                    child: CachedNetworkImage(
+                                      imageUrl: tenant.logoUrl!,
+                                      width: 28,
+                                      height: 28,
+                                      fit: BoxFit.cover,
+                                      errorWidget: (context, url, error) => const PhosphorIcon(PhosphorIconsDuotone.image),
+                                    ),
+                                  )
+                                : const PhosphorIcon(PhosphorIconsDuotone.image),
                             title: Text(
                               'Business Logo',
                               style: Theme.of(context).textTheme.titleMedium,

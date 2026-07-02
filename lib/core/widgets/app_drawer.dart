@@ -52,18 +52,41 @@ class AppDrawer extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(24, 64, 24, 12),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
+                if (tenant?.logoUrl != null && tenant!.logoUrl!.isNotEmpty)
+                  ClipRRect(
                     borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: tenant.logoUrl!,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) => Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const PhosphorIcon(
+                          PhosphorIconsDuotone.storefront,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const PhosphorIcon(
+                      PhosphorIconsDuotone.storefront,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
-                  child: const PhosphorIcon(
-                    PhosphorIconsDuotone.storefront,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
