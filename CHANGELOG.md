@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.7](https://github.com/WolfeLeo2/Zynk/compare/v1.3.6...v1.3.7) (2026-07-02)
+
+
+### Bug Fixes
+
+* **ui:** shows logo on app drawer and setting tile ([0877f95](https://github.com/WolfeLeo2/Zynk/commit/0877f9532e7d2b27d4336c02b6474cc65447a496))
+
 ## [1.3.6](https://github.com/WolfeLeo2/Zynk/compare/v1.3.5...v1.3.6) (2026-07-01)
 
 
