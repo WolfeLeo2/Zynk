@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.5.0](https://github.com/WolfeLeo2/Zynk/compare/v1.4.1...v1.5.0) (2026-07-02)
+
+
+### Features
+
+* added more filtering choices for the stock report ([c72b1e9](https://github.com/WolfeLeo2/Zynk/commit/c72b1e9b301ae6ecb5fd77c47536dcf13c9e9d19))
+
+
+### Bug Fixes
+
+* updated powersync dependencies for the web ([c72b1e9](https://github.com/WolfeLeo2/Zynk/commit/c72b1e9b301ae6ecb5fd77c47536dcf13c9e9d19))
+
 ## [1.4.1](https://github.com/WolfeLeo2/Zynk/compare/v1.4.0...v1.4.1) (2026-07-02)
 
 
