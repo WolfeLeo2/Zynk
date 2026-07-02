@@ -2,13 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/widgets/batch_pricing_update_sheet.dart';
 import 'package:zynk/features/products/presentation/widgets/batch_stock_update_sheet.dart';
-import 'package:zynk/core/utils/responsive_modal.dart';
 
 class ItemGroupsScreen extends ConsumerWidget {
   const ItemGroupsScreen({super.key});
@@ -189,130 +189,159 @@ class _ItemGroupCard extends ConsumerWidget {
 
     return RepaintBoundary(
       child: Card(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 12),
         clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        child: ListTile(
+        child: InkWell(
           onTap: () =>
               context.push('/products/groups/${group.id}', extra: group),
-          leading: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: cs.primaryContainer,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: PhosphorIcon(
-              PhosphorIconsDuotone.folder,
-              color: cs.onPrimaryContainer,
-              size: 22,
-            ),
-          ),
-          title: Text(
-            group.name,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (group.description != null && group.description!.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    group.description!,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: cs.primaryContainer,
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: PhosphorIcon(
+                    PhosphorIconsDuotone.folder,
+                    color: cs.onPrimaryContainer,
+                    size: 24,
                   ),
                 ),
-              Wrap(
-                spacing: 12,
-                runSpacing: 4,
-                children: [
-                  _buildStat(
-                    theme,
-                    PhosphorIconsRegular.package,
-                    '$productCount Items',
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        group.name,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      if (group.description != null &&
+                          group.description!.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          group.description!,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: cs.onSurfaceVariant,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          _buildStatChip(
+                            cs,
+                            theme,
+                            PhosphorIconsRegular.package,
+                            '$productCount Items',
+                          ),
+                          _buildStatChip(
+                            cs,
+                            theme,
+                            PhosphorIconsRegular.tag,
+                            'KES ${group.defaultSellingPrice?.toStringAsFixed(0) ?? "0"}',
+                          ),
+                          if (group.defaultCommissionValue != null &&
+                              group.defaultCommissionValue! > 0)
+                            _buildStatChip(
+                              cs,
+                              theme,
+                              PhosphorIconsRegular.handCoins,
+                              group.defaultCommissionType == 'percentage'
+                                  ? '${group.defaultCommissionValue}%'
+                                  : 'KES ${group.defaultCommissionValue}',
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
-                  _buildStat(
-                    theme,
-                    PhosphorIconsRegular.tag,
-                    'KES ${group.defaultSellingPrice?.toStringAsFixed(0) ?? "0"}',
-                  ),
-                  if (group.defaultCommissionValue != null &&
-                      group.defaultCommissionValue! > 0)
-                    _buildStat(
-                      theme,
-                      PhosphorIconsRegular.handCoins,
-                      group.defaultCommissionType == 'percentage'
-                          ? '${group.defaultCommissionValue}%'
-                          : 'KES ${group.defaultCommissionValue}',
-                    ),
-                ],
-              ),
-            ],
-          ),
-          trailing: PopupMenuButton<String>(
-            icon: const PhosphorIcon(PhosphorIconsRegular.dotsThreeVertical),
-            tooltip: 'Batch Actions',
-            onSelected: (value) {
-              switch (value) {
-                case 'view':
-                  context.push('/products?groupId=${group.id}');
-                case 'price':
-                  _showBatchPriceSheet(context, ref, group);
-                case 'stock':
-                  _showBatchStockSheet(context, ref, group);
-                case 'delete':
-                  _showDeleteDialog(context, ref, group);
-              }
-            },
-            itemBuilder: (context) => [
-              const PopupMenuItem(value: 'view', child: Text('View Items')),
-              const PopupMenuItem(
-                value: 'price',
-                child: Text('Batch Update Price'),
-              ),
-              const PopupMenuItem(
-                value: 'stock',
-                child: Text('Batch Update Stock'),
-              ),
-              const PopupMenuDivider(),
-              PopupMenuItem(
-                value: 'delete',
-                child: Text(
-                  'Delete Group',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
                 ),
-              ),
-            ],
+                PopupMenuButton<String>(
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.dotsThreeVertical,
+                  ),
+                  tooltip: 'Batch Actions',
+                  onSelected: (value) {
+                    switch (value) {
+                      case 'view':
+                        context.push('/products?groupId=${group.id}');
+                      case 'price':
+                        _showBatchPriceSheet(context, ref, group);
+                      case 'stock':
+                        _showBatchStockSheet(context, ref, group);
+                      case 'delete':
+                        _showDeleteDialog(context, ref, group);
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'view',
+                      child: Text('View Items'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'price',
+                      child: Text('Batch Update Price'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'stock',
+                      child: Text('Batch Update Stock'),
+                    ),
+                    const PopupMenuDivider(),
+                    PopupMenuItem(
+                      value: 'delete',
+                      child: Text(
+                        'Delete Group',
+                        style: TextStyle(color: cs.error),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildStat(ThemeData theme, PhosphorIconData icon, String label) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        PhosphorIcon(
-          icon,
-          size: 14,
-          color: theme.colorScheme.onSurfaceVariant.withValues(alpha: 0.7),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          label,
-          style: theme.textTheme.labelSmall?.copyWith(
-            color: theme.colorScheme.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
+  Widget _buildStatChip(
+    ColorScheme cs,
+    ThemeData theme,
+    PhosphorIconData icon,
+    String label,
+  ) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHighest.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PhosphorIcon(icon, size: 13, color: cs.onSurfaceVariant),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

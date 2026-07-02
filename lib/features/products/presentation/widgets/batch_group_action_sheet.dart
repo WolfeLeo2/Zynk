@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:m3e_card_list/m3e_card_list.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
@@ -63,8 +63,9 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
     final productsAsync = ref.watch(productsByGroupProvider(widget.group.id));
 
     return AppBottomSheet(
+      maxHeightFactor: 0.7,
+      icon: PhosphorIconsDuotone.bookmarkSimple,
       title: widget.title,
-      maxHeightFactor: 0.9,
       child: productsAsync.when(
         data: (items) {
           if (items.isEmpty) {
@@ -107,21 +108,17 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                     Row(
                       children: [
                         Expanded(
-                          child: SearchBar(
+                          child: TextField(
                             controller: _searchController,
-                            hintText: 'Search items...',
                             onChanged: (val) =>
                                 setState(() => _searchQuery = val),
-                            elevation: const WidgetStatePropertyAll(0),
-                            backgroundColor: WidgetStatePropertyAll(
-                              cs.surfaceContainerHighest.withAlpha(100),
-                            ),
-                            leading: const PhosphorIcon(
-                              PhosphorIconsRegular.magnifyingGlass,
-                              size: 18,
-                            ),
-                            padding: const WidgetStatePropertyAll(
-                              EdgeInsets.symmetric(horizontal: 16),
+                            decoration: const InputDecoration(
+                              hintText: 'Search items...',
+                              prefixIcon: PhosphorIcon(
+                                PhosphorIconsRegular.magnifyingGlass,
+                                size: 18,
+                              ),
+                              isDense: true,
                             ),
                           ),
                         ),
@@ -158,11 +155,14 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                     const SizedBox(height: 8),
 
                     // 4. Items List
-                    M3ECardList(
-                      color: cs.surface,
-                      elevation: 0.5,
-                      padding: const EdgeInsets.symmetric(vertical: 8),
+                    // 4. Items List
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      padding: const EdgeInsets.only(top: 8, bottom: 24),
                       itemCount: filtered.length,
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 8),
                       itemBuilder: (context, index) {
                         final item = filtered[index];
                         final isSelected = _selectedIds.contains(item.id);
@@ -178,6 +178,19 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                               }
                             });
                           },
+                          shape: isSelected
+                              ? RoundedRectangleBorder(
+                                  borderRadius: AppTokens.roundedCard,
+                                  side: BorderSide(
+                                    color: cs.primary,
+                                    width: 1.5,
+                                  ),
+                                )
+                              : null,
+                          tileColor: cs.surfaceContainerLow,
+                          selectedTileColor: cs.primaryContainer.withValues(
+                            alpha: 0.3,
+                          ),
                           title: Text(
                             item.name,
                             style: theme.textTheme.titleSmall?.copyWith(
@@ -193,12 +206,17 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
                             width: 40,
                             height: 40,
                             decoration: BoxDecoration(
-                              color: cs.surfaceContainer,
+                              color: isSelected
+                                  ? cs.primary.withValues(alpha: 0.1)
+                                  : cs.surfaceContainerHigh,
                               borderRadius: BorderRadius.circular(8),
                             ),
-                            child: const PhosphorIcon(
+                            child: PhosphorIcon(
                               PhosphorIconsRegular.package,
                               size: 20,
+                              color: isSelected
+                                  ? cs.primary
+                                  : cs.onSurfaceVariant,
                             ),
                           ),
                         );

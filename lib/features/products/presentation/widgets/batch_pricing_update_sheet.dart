@@ -1,10 +1,13 @@
+import 'package:button_group_m3e/button_group_m3e.dart';
+import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
-import 'batch_group_action_sheet.dart';
 import 'package:zynk/core/utils/currency.dart';
+
+import 'batch_group_action_sheet.dart';
 
 class BatchPricingUpdateSheet extends ConsumerStatefulWidget {
   final ItemGroup group;
@@ -59,67 +62,106 @@ class _BatchPricingUpdateSheetState
       configBuilder: (context, setSheetState) {
         return Column(
           children: [
-            SegmentedButton<bool>(
-              segments: const [
-                ButtonSegment(
-                  value: true,
-                  label: Text('Adopt Group Price'),
-                  icon: PhosphorIcon(PhosphorIconsRegular.treeStructure),
+            ButtonGroupM3E(
+              selection: true,
+              overflow: ButtonGroupM3EOverflow.none,
+              type: ButtonGroupM3EType.connected,
+              style: ButtonM3EStyle.filled,
+              expanded: true,
+              size: ButtonGroupM3ESize.md,
+              selectedIndex: _useInheritance ? 0 : 1,
+              actions: [
+                ButtonGroupM3EAction(
+                  label: const Text('Adopt Price'),
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.treeStructure,
+                    size: 18,
+                  ),
+                  style: _useInheritance ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _useInheritance = true);
+                    setSheetState(() {});
+                  },
                 ),
-                ButtonSegment(
-                  value: false,
-                  label: Text('Set Manual Price'),
-                  icon: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
+                ButtonGroupM3EAction(
+                  label: const Text('Manual Price'),
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.pencilSimple,
+                    size: 18,
+                  ),
+                  style: !_useInheritance ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _useInheritance = false);
+                    setSheetState(() {});
+                  },
                 ),
               ],
-              selected: {_useInheritance},
-              onSelectionChanged: (set) {
-                setState(() => _useInheritance = set.first);
-                setSheetState(() {}); // Trigger sheet rebuild
-              },
             ),
             const SizedBox(height: 24),
-            if (_useInheritance)
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: cs.secondaryContainer.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Row(
-                  children: [
-                    PhosphorIcon(
-                      PhosphorIconsDuotone.info,
-                      color: cs.onSecondaryContainer,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Items will use the group price (${CurrencyHelper.format(inheritedPrice)}) and react to future group updates.',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: cs.onSecondaryContainer,
-                        ),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) {
+                // Slide from right to left if switching to manual (false), else left to right
+                final isManual = child.key == const ValueKey(false);
+                final offsetAnimation =
+                    Tween<Offset>(
+                      begin: Offset(isManual ? 1.0 : -1.0, 0.0),
+                      end: Offset.zero,
+                    ).animate(
+                      CurvedAnimation(
+                        parent: animation,
+                        curve: Curves.easeInOut,
+                      ),
+                    );
+
+                return SlideTransition(
+                  position: offsetAnimation,
+                  child: FadeTransition(opacity: animation, child: child),
+                );
+              },
+              child: _useInheritance
+                  ? Container(
+                      key: const ValueKey(true),
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: cs.secondaryContainer.withValues(alpha: 0.4),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        children: [
+                          PhosphorIcon(
+                            PhosphorIconsDuotone.info,
+                            color: cs.onSecondaryContainer,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Items will use the group price (${CurrencyHelper.format(inheritedPrice)}) and react to future group updates.',
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: cs.onSecondaryContainer,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  : TextField(
+                      key: const ValueKey(false),
+                      controller: _manualPriceController,
+                      autofocus: true,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      onChanged: (_) => setSheetState(() {}),
+                      decoration: const InputDecoration(
+                        labelText: 'New Fixed Price',
+                        prefixText: 'KES ',
+                        helperText:
+                            'This will override the group default for selected items.',
+                        border: OutlineInputBorder(),
                       ),
                     ),
-                  ],
-                ),
-              )
-            else
-              TextField(
-                controller: _manualPriceController,
-                autofocus: true,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                onChanged: (_) => setSheetState(() {}),
-                decoration: const InputDecoration(
-                  labelText: 'New Fixed Price',
-                  prefixText: 'KES ',
-                  helperText:
-                      'This will override the group default for selected items.',
-                  border: OutlineInputBorder(),
-                ),
-              ),
+            ),
           ],
         );
       },

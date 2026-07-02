@@ -228,24 +228,28 @@ class _CustomerCard extends StatelessWidget {
                 itemBuilder: (_) => [
                   const PopupMenuItem(
                     value: 'edit',
-                    child: ListTile(
-                      leading: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
-                      title: Text('Edit'),
-                      contentPadding: EdgeInsets.zero,
+                    child: Row(
+                      children: [
+                        PhosphorIcon(PhosphorIconsRegular.pencilSimple),
+                        SizedBox(width: 12),
+                        Text('Edit'),
+                      ],
                     ),
                   ),
                   const PopupMenuItem(
                     value: 'delete',
-                    child: ListTile(
-                      leading: PhosphorIcon(
-                        PhosphorIconsRegular.trash,
-                        color: Colors.red,
-                      ),
-                      title: Text(
-                        'Delete',
-                        style: TextStyle(color: Colors.red),
-                      ),
-                      contentPadding: EdgeInsets.zero,
+                    child: Row(
+                      children: [
+                        PhosphorIcon(
+                          PhosphorIconsRegular.trash,
+                          color: Colors.red,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Delete',
+                          style: TextStyle(color: Colors.red),
+                        ),
+                      ],
                     ),
                   ),
                 ],

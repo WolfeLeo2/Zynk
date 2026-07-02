@@ -151,10 +151,7 @@ class PosTicket extends ConsumerWidget {
                     ),
                   )
                 : ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
                     itemCount: items.length,
                     separatorBuilder: (_, _) => const SizedBox(height: 6),
                     itemBuilder: (context, index) {
@@ -172,14 +169,13 @@ class PosTicket extends ConsumerWidget {
           // ─── FOOTER (STAFF, CUSTOMER, TOTALS, INVOICE) ───
           Container(
             decoration: BoxDecoration(
-              color: cs.surfaceContainerLow,
               border: Border(
                 top: BorderSide(
                   color: cs.outlineVariant.withValues(alpha: 0.15),
                 ),
               ),
             ),
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+            padding: const EdgeInsets.only(top: 16),
             child: Column(
               children: [
                 // Salesperson — the logged-in staffer (no picker; set on submit).

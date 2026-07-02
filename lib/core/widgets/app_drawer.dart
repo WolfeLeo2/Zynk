@@ -193,12 +193,6 @@ class AppDrawer extends ConsumerWidget {
                       currentPath: currentPath,
                     ),
                     _DrawerItem(
-                      icon: PhosphorIconsDuotone.stack,
-                      label: 'Composite Items',
-                      path: '/products/composite',
-                      currentPath: currentPath,
-                    ),
-                    _DrawerItem(
                       icon: PhosphorIconsDuotone.slidersHorizontal,
                       label: 'Batch Adjust Stock',
                       path: '/adjustments',

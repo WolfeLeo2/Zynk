@@ -59,6 +59,13 @@ class AppTheme {
         thickness: 0.5,
       ),
 
+      listTileTheme: const ListTileThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: AppTokens.roundedCard,
+          side: BorderSide(color: AppTokens.borderSubtleDark, width: 0.5),
+        ),
+      ),
+
       chipTheme: const ChipThemeData(
         side: BorderSide(color: AppTokens.borderSubtleDark, width: 0.5),
         shape: RoundedRectangleBorder(borderRadius: AppTokens.roundedButton),
@@ -175,6 +182,13 @@ class AppTheme {
       dividerTheme: const DividerThemeData(
         color: AppTokens.borderSubtleLight,
         thickness: 0.5,
+      ),
+
+      listTileTheme: const ListTileThemeData(
+        shape: RoundedRectangleBorder(
+          borderRadius: AppTokens.roundedCard,
+          side: BorderSide(color: AppTokens.borderSubtleLight, width: 0.5),
+        ),
       ),
 
       chipTheme: const ChipThemeData(

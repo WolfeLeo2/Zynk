@@ -1,6 +1,8 @@
+import 'package:button_group_m3e/button_group_m3e.dart';
+import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter/material.dart';
-import 'package:zynk/core/models/schema_models.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
@@ -140,27 +142,32 @@ class _MismatchResolutionSheetState extends State<MismatchResolutionSheet> {
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SegmentedButton<bool>(
-                              segments: const [
-                                ButtonSegment(
-                                  value: false,
-                                  label: Text('Preserve'),
-                                ),
-                                ButtonSegment(
-                                  value: true,
-                                  label: Text('Normalize'),
-                                ),
-                              ],
-                              selected: {normalize},
-                              onSelectionChanged: (set) {
-                                setState(() {
-                                  _decisions[p.id] = set.first;
-                                });
-                              },
-                            ),
+                      ButtonGroupM3E(
+                        selection: true,
+                        overflow: ButtonGroupM3EOverflow.none,
+                        type: ButtonGroupM3EType.connected,
+                        style: ButtonM3EStyle.filled,
+                        expanded: true,
+                        size: ButtonGroupM3ESize.md,
+                        selectedIndex: normalize ? 1 : 0,
+                        actions: [
+                          ButtonGroupM3EAction(
+                            label: const Text('Preserve'),
+                            style: !normalize ? ButtonM3EStyle.tonal : null,
+                            onPressed: () {
+                              setState(() {
+                                _decisions[p.id] = false;
+                              });
+                            },
+                          ),
+                          ButtonGroupM3EAction(
+                            label: const Text('Normalize'),
+                            style: normalize ? ButtonM3EStyle.tonal : null,
+                            onPressed: () {
+                              setState(() {
+                                _decisions[p.id] = true;
+                              });
+                            },
                           ),
                         ],
                       ),

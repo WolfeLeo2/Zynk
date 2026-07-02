@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:intl_phone_field/intl_phone_field.dart';
+import 'package:uuid/uuid.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
@@ -62,7 +62,7 @@ class BranchesScreen extends ConsumerWidget {
         error: (err, stack) => Center(child: Text('Error: $err')),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push('/settings/add-branch'),
+        onPressed: () => _showBranchFormSheet(context, ref, null),
         elevation: 0,
         backgroundColor: colorScheme.primary,
         foregroundColor: colorScheme.onPrimary,
@@ -145,7 +145,7 @@ class _BranchCard extends ConsumerWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: () {
-            _showEditBranchDialog(context, ref, branch);
+            _showBranchFormSheet(context, ref, branch);
           },
           borderRadius: BorderRadius.circular(20),
           child: Padding(
@@ -216,11 +216,12 @@ class _BranchCard extends ConsumerWidget {
   }
 }
 
-void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
+void _showBranchFormSheet(BuildContext context, WidgetRef ref, Branch? branch) {
+  final isEdit = branch != null;
   final formKey = GlobalKey<FormState>();
-  final nameController = TextEditingController(text: branch.name);
-  final addressController = TextEditingController(text: branch.address);
-  String phone = branch.phone ?? '';
+  final nameController = TextEditingController(text: branch?.name);
+  final addressController = TextEditingController(text: branch?.address);
+  String phone = branch?.phone ?? '';
 
   showResponsiveModal(
     context: context,
@@ -231,7 +232,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
           bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
         child: AppBottomSheet(
-          title: 'Edit Branch',
+          title: isEdit ? 'Edit Branch' : 'New Branch',
           icon: PhosphorIconsDuotone.storefront,
           maxHeightFactor: 0.85,
           child: Form(
@@ -294,24 +295,47 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                   onPressed: () async {
                     if (!formKey.currentState!.validate()) return;
                     try {
-                      await ref
-                          .read(repositoryProvider)
-                          .updateBranch(branch.id, {
-                            'name': nameController.text.trim(),
-                            'address': addressController.text.trim(),
-                            'phone': phone,
-                          });
+                      final repo = ref.read(repositoryProvider);
+                      if (isEdit) {
+                        await repo.updateBranch(branch.id, {
+                          'name': nameController.text.trim(),
+                          'address': addressController.text.trim(),
+                          'phone': phone,
+                        });
+                      } else {
+                        final tenantId = ref.read(tenantIdProvider);
+                        if (tenantId == null) {
+                          throw Exception('No tenant ID found');
+                        }
+                        await repo.createBranch(
+                          Branch(
+                            id: const Uuid().v4(),
+                            tenantId: tenantId,
+                            name: nameController.text.trim(),
+                            address: addressController.text.trim().isEmpty
+                                ? null
+                                : addressController.text.trim(),
+                            phone: phone.trim().isEmpty ? null : phone.trim(),
+                          ),
+                        );
+                      }
                       if (context.mounted) {
                         Navigator.pop(context);
                         ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Branch updated')),
+                          SnackBar(
+                            content: Text(
+                              isEdit ? 'Branch updated' : 'Branch added',
+                            ),
+                          ),
                         );
                       }
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(
                           SnackBar(
-                            content: Text('Failed to update branch: $e'),
+                            content: Text(
+                              'Failed to ${isEdit ? 'update' : 'add'} branch: $e',
+                            ),
                           ),
                         );
                       }
@@ -323,7 +347,7 @@ void _showEditBranchDialog(BuildContext context, WidgetRef ref, Branch branch) {
                       borderRadius: BorderRadius.circular(16),
                     ),
                   ),
-                  child: const Text('Save Changes'),
+                  child: Text(isEdit ? 'Save Changes' : 'Add Branch'),
                 ),
               ],
             ),

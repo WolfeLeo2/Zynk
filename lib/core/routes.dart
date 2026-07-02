@@ -22,10 +22,7 @@ import 'package:zynk/features/products/presentation/inventory_adjustment_screen.
 import 'package:zynk/features/products/presentation/product_details_screen.dart';
 import 'package:zynk/features/products/presentation/product_transaction_history_screen.dart';
 import 'package:zynk/features/products/presentation/item_groups_screen.dart';
-import 'package:zynk/features/products/presentation/composite_items_screen.dart';
 import 'package:zynk/features/products/presentation/add_item_group_screen.dart';
-import 'package:zynk/features/products/presentation/add_composite_item_screen.dart';
-import 'package:zynk/features/products/presentation/composite_item_details_screen.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/features/sales/presentation/sales_list_screen.dart';
@@ -34,7 +31,6 @@ import 'package:zynk/features/sales/presentation/edit_invoice_screen.dart';
 import 'package:zynk/features/sales/presentation/sale_detail_screen.dart';
 import 'package:zynk/features/settings/presentation/settings_screen.dart';
 import 'package:zynk/features/settings/presentation/branches_screen.dart';
-import 'package:zynk/features/settings/presentation/add_branch_screen.dart';
 import 'package:zynk/features/settings/presentation/staff_screen.dart';
 import 'package:zynk/features/settings/presentation/add_staff_screen.dart';
 import 'package:zynk/features/products/presentation/adjustments_screen.dart';
@@ -227,25 +223,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                         ],
                       ),
                       GoRoute(
-                        path: 'composite',
-                        builder: (context, state) =>
-                            const CompositeItemsScreen(),
-                        routes: [
-                          GoRoute(
-                            path: 'add',
-                            builder: (context, state) =>
-                                const AddCompositeItemScreen(),
-                          ),
-                          GoRoute(
-                            path: ':id',
-                            builder: (context, state) {
-                              final id = state.pathParameters['id']!;
-                              return CompositeItemDetailsScreen(productId: id);
-                            },
-                          ),
-                        ],
-                      ),
-                      GoRoute(
                         path: 'details',
                         builder: (context, state) {
                           final product = state.extra as Product;
@@ -347,10 +324,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'branches',
                     builder: (context, state) => const BranchesScreen(),
-                  ),
-                  GoRoute(
-                    path: 'add-branch',
-                    builder: (context, state) => const AddBranchScreen(),
                   ),
                   GoRoute(
                     path: 'staff',

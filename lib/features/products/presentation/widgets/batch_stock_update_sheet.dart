@@ -1,3 +1,5 @@
+import 'package:button_group_m3e/button_group_m3e.dart';
+import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -6,6 +8,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+
 import 'batch_group_action_sheet.dart';
 
 class BatchStockUpdateSheet extends ConsumerStatefulWidget {
@@ -88,8 +91,9 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                     .toList();
 
                 // If only one branch, don't show the selector (it's auto-selected anyway)
-                if (selectableBranches.length <= 1)
+                if (selectableBranches.length <= 1) {
                   return const SizedBox.shrink();
+                }
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -118,7 +122,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 );
               },
               loading: () => const LinearProgressIndicator(),
-              error: (_, __) => const Text('Error loading branches'),
+              error: (_, _) => const Text('Error loading branches'),
             ),
             // Adjuster is the logged-in staffer (set on submit); no picker.
             reasonsAsync.when(
@@ -140,17 +144,45 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
               error: (_, _) => const Text('Error loading reasons'),
             ),
             const SizedBox(height: 16),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'add', label: Text('Add')),
-                ButtonSegment(value: 'subtract', label: Text('Subtract')),
-                ButtonSegment(value: 'set', label: Text('Set to')),
+            ButtonGroupM3E(
+              selection: true,
+              overflow: ButtonGroupM3EOverflow.none,
+              type: ButtonGroupM3EType.connected,
+              style: ButtonM3EStyle.filled,
+              expanded: true,
+              size: ButtonGroupM3ESize.md,
+              shape: ButtonGroupM3EShape.round,
+              selectedIndex: _mode == 'add'
+                  ? 0
+                  : _mode == 'subtract'
+                  ? 1
+                  : 2,
+              actions: [
+                ButtonGroupM3EAction(
+                  label: const Text('Add'),
+                  style: _mode == 'add' ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _mode = 'add');
+                    setSheetState(() {});
+                  },
+                ),
+                ButtonGroupM3EAction(
+                  label: const Text('Subtract'),
+                  style: _mode == 'subtract' ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _mode = 'subtract');
+                    setSheetState(() {});
+                  },
+                ),
+                ButtonGroupM3EAction(
+                  label: const Text('Set to'),
+                  style: _mode == 'set' ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _mode = 'set');
+                    setSheetState(() {});
+                  },
+                ),
               ],
-              selected: {_mode},
-              onSelectionChanged: (val) {
-                setState(() => _mode = val.first);
-                setSheetState(() {});
-              },
             ),
             const SizedBox(height: 16),
             Row(

@@ -99,10 +99,11 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
       ),
       child: AppBottomSheet(
         title: isEdit ? 'Edit Customer' : 'New Customer',
-        maxHeightFactor: 0.85,
+        icon: PhosphorIconsDuotone.userCirclePlus,
         child: Form(
           key: _formKey,
-          child: ListView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               TextFormField(
                 controller: _nameCtrl,
@@ -175,6 +176,7 @@ class _CustomerFormState extends ConsumerState<CustomerForm> {
               const SizedBox(height: 32),
               SizedBox(
                 height: 52,
+                width: double.infinity,
                 child: FilledButton(
                   onPressed: _isLoading ? null : _submit,
                   style: FilledButton.styleFrom(
