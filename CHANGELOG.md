@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.4.1](https://github.com/WolfeLeo2/Zynk/compare/v1.4.0...v1.4.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **bug:** edit invoice also adds price field ([900a4eb](https://github.com/WolfeLeo2/Zynk/commit/900a4eb4623406f87fed1dca0feb134e404c4ac8))
+* **ui:** using markdown to render update details, product_selection_sheet now shows item price ([900a4eb](https://github.com/WolfeLeo2/Zynk/commit/900a4eb4623406f87fed1dca0feb134e404c4ac8))
+
 ## [1.4.0](https://github.com/WolfeLeo2/Zynk/compare/v1.3.7...v1.4.0) (2026-07-02)
 
 
