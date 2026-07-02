@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/WolfeLeo2/Zynk/compare/v1.5.0...v1.5.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* bamboozled the bugs ([5419aab](https://github.com/WolfeLeo2/Zynk/commit/5419aabd642ef5274653c3b300fedacbdd3f71b9))
+
 ## [1.5.0](https://github.com/WolfeLeo2/Zynk/compare/v1.4.1...v1.5.0) (2026-07-02)
 
 
