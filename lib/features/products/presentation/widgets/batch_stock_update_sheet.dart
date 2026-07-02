@@ -149,8 +149,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
               overflow: ButtonGroupM3EOverflow.none,
               type: ButtonGroupM3EType.connected,
               style: ButtonM3EStyle.filled,
-              expanded: true,
-              size: ButtonGroupM3ESize.md,
+              size: ButtonGroupM3ESize.sm,
               shape: ButtonGroupM3EShape.round,
               selectedIndex: _mode == 'add'
                   ? 0

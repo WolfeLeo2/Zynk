@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/services/app_update_service.dart';
@@ -55,9 +56,12 @@ class _UpdateSheet extends ConsumerWidget {
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 160),
               child: SingleChildScrollView(
-                child: Text(
-                  info.notes!.trim(),
-                  style: theme.textTheme.bodySmall,
+                child: MarkdownBody(
+                  data: info.notes!.trim(),
+                  styleSheet: MarkdownStyleSheet.fromTheme(theme).copyWith(
+                    p: theme.textTheme.bodySmall,
+                    listBullet: theme.textTheme.bodySmall,
+                  ),
                 ),
               ),
             ),

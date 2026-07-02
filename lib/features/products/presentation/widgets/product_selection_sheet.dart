@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class ProductSelectionSheet extends ConsumerStatefulWidget {
@@ -42,8 +42,7 @@ class ProductSelectionSheet extends ConsumerStatefulWidget {
       _ProductSelectionSheetState();
 }
 
-class _ProductSelectionSheetState
-    extends ConsumerState<ProductSelectionSheet> {
+class _ProductSelectionSheetState extends ConsumerState<ProductSelectionSheet> {
   late final Set<String> _selectedIds;
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -83,7 +82,7 @@ class _ProductSelectionSheetState
     return AppBottomSheet(
       title: 'Add Items',
       icon: PhosphorIconsDuotone.package,
-      maxHeightFactor: 0.85,
+      maxHeightFactor: 0.5,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -244,6 +243,8 @@ class _ProductSelectionTile extends ConsumerWidget {
         : null;
     final pricingService = ref.watch(productPricingServiceProvider);
     final resolvedPrice = pricingService.resolveSellingPrice(product, group);
+    final pricingUnit =
+        product.pricingUnit ?? group?.defaultPricingUnit ?? 'piece';
 
     return stockAsync.when(
       loading: () => _buildTile(
@@ -253,6 +254,7 @@ class _ProductSelectionTile extends ConsumerWidget {
         stock: null,
         isLoading: true,
         resolvedPrice: resolvedPrice,
+        pricingUnit: pricingUnit,
       ),
       error: (_, _) => _buildTile(
         context: context,
@@ -260,6 +262,7 @@ class _ProductSelectionTile extends ConsumerWidget {
         theme: theme,
         stock: null,
         resolvedPrice: resolvedPrice,
+        pricingUnit: pricingUnit,
       ),
       data: (stock) => _buildTile(
         context: context,
@@ -267,6 +270,7 @@ class _ProductSelectionTile extends ConsumerWidget {
         theme: theme,
         stock: stock?.quantity,
         resolvedPrice: resolvedPrice,
+        pricingUnit: pricingUnit,
       ),
     );
   }
@@ -276,11 +280,13 @@ class _ProductSelectionTile extends ConsumerWidget {
     required ColorScheme cs,
     required ThemeData theme,
     required double resolvedPrice,
+    required String pricingUnit,
     int? stock,
     bool isLoading = false,
   }) {
     final isOutOfStock = !product.isService && (stock ?? 0) <= 0;
-    final isLowStock = !product.isService && (stock ?? 0) > 0 && (stock ?? 0) <= 5;
+    final isLowStock =
+        !product.isService && (stock ?? 0) > 0 && (stock ?? 0) <= 5;
 
     Color? tileColor;
     if (isSelected) {
@@ -290,9 +296,7 @@ class _ProductSelectionTile extends ConsumerWidget {
     }
 
     return InkWell(
-      onTap: isOutOfStock
-          ? null
-          : () => onToggle(!isSelected, stock),
+      onTap: isOutOfStock ? null : () => onToggle(!isSelected, stock),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         color: tileColor,
@@ -347,7 +351,7 @@ class _ProductSelectionTile extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          CurrencyHelper.format(resolvedPrice),
+                          '${CurrencyHelper.format(resolvedPrice)}/$pricingUnit',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: cs.primary,
                             fontWeight: FontWeight.bold,

@@ -48,6 +48,7 @@ dependencies:
   flutter_speed_dial: ^7.0.0
   package_info_plus: ^10.2.0
   ota_update: ^7.1.0
+  flutter_markdown_plus: ^1.0.7
 
 dependency_overrides:
   phosphor_flutter:

@@ -62,40 +62,41 @@ class _BatchPricingUpdateSheetState
       configBuilder: (context, setSheetState) {
         return Column(
           children: [
-            ButtonGroupM3E(
-              selection: true,
-              overflow: ButtonGroupM3EOverflow.none,
-              type: ButtonGroupM3EType.connected,
-              style: ButtonM3EStyle.filled,
-              expanded: true,
-              size: ButtonGroupM3ESize.md,
-              selectedIndex: _useInheritance ? 0 : 1,
-              actions: [
-                ButtonGroupM3EAction(
-                  label: const Text('Adopt Price'),
-                  icon: const PhosphorIcon(
-                    PhosphorIconsRegular.treeStructure,
-                    size: 18,
+            Center(
+              child: ButtonGroupM3E(
+                selection: true,
+                overflow: ButtonGroupM3EOverflow.none,
+                type: ButtonGroupM3EType.connected,
+                style: ButtonM3EStyle.filled,
+                size: ButtonGroupM3ESize.sm,
+                selectedIndex: _useInheritance ? 0 : 1,
+                actions: [
+                  ButtonGroupM3EAction(
+                    label: const Text('Adopt Price'),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.treeStructure,
+                      size: 18,
+                    ),
+                    style: _useInheritance ? ButtonM3EStyle.tonal : null,
+                    onPressed: () {
+                      setState(() => _useInheritance = true);
+                      setSheetState(() {});
+                    },
                   ),
-                  style: _useInheritance ? ButtonM3EStyle.tonal : null,
-                  onPressed: () {
-                    setState(() => _useInheritance = true);
-                    setSheetState(() {});
-                  },
-                ),
-                ButtonGroupM3EAction(
-                  label: const Text('Manual Price'),
-                  icon: const PhosphorIcon(
-                    PhosphorIconsRegular.pencilSimple,
-                    size: 18,
+                  ButtonGroupM3EAction(
+                    label: const Text('Manual Price'),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.pencilSimple,
+                      size: 18,
+                    ),
+                    style: !_useInheritance ? ButtonM3EStyle.tonal : null,
+                    onPressed: () {
+                      setState(() => _useInheritance = false);
+                      setSheetState(() {});
+                    },
                   ),
-                  style: !_useInheritance ? ButtonM3EStyle.tonal : null,
-                  onPressed: () {
-                    setState(() => _useInheritance = false);
-                    setSheetState(() {});
-                  },
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             AnimatedSwitcher(

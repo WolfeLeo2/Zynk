@@ -8,6 +8,7 @@ import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/services/sales_service.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
@@ -124,7 +125,9 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       taxAmount: 0,
       initialName: product.name,
       initialQty: 1,
-      initialPrice: product.basePrice ?? 0,
+      initialPrice: ref
+          .read(productPricingServiceProvider)
+          .resolveSellingPrice(product, itemGroup),
       isSqmBased: isSqmBased,
       coveragePerBox: coverage,
     );
