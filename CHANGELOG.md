@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2](https://github.com/WolfeLeo2/Zynk/compare/v1.5.1...v1.5.2) (2026-07-04)
+
+
+### Bug Fixes
+
+* **bug:** enforced stricter item group for sales from a lazy loader ([0f616c5](https://github.com/WolfeLeo2/Zynk/commit/0f616c59f449e68c53ba282fc9047588b411c5ad))
+* **schema:** changed stock from int to num to account for both doubles and int ([0f616c5](https://github.com/WolfeLeo2/Zynk/commit/0f616c59f449e68c53ba282fc9047588b411c5ad))
+
 ## [1.5.1](https://github.com/WolfeLeo2/Zynk/compare/v1.5.0...v1.5.1) (2026-07-02)
 
 
