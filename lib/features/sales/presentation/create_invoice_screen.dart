@@ -14,6 +14,7 @@ import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:zynk/core/services/sales_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
@@ -84,6 +85,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     final resolvedPrice = pricingService.resolveSellingPrice(product, itemGroup);
     final cartItem = PosCartItem(
       product: product,
+      itemGroup: itemGroup,
       quantity: 1,
       overridePrice: resolvedPrice,
     );
@@ -166,7 +168,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Insufficient stock for "$name". Available: $availableStock',
+                    'Insufficient stock for "$name". Available: ${formatQty(availableStock)}',
                   ),
                   backgroundColor: Theme.of(context).colorScheme.error,
                   behavior: SnackBarBehavior.floating,
@@ -181,6 +183,7 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
         editedItems.add(
           PosCartItem(
             product: item.originalItem.product,
+            itemGroup: item.originalItem.itemGroup,
             quantity: qty,
             overrideName: name != item.originalItem.product.name ? name : null,
             overridePrice: item.originalItem.isSqmBased

@@ -9,7 +9,7 @@ final inventoryServiceProvider = Provider<InventoryService>((ref) {
 
 /// Key format: "branchId:prod1,prod2,prod3"
 final adjustmentStockLevelsProvider = StreamProvider.autoDispose
-    .family<Map<String, int>, String>((ref, key) {
+    .family<Map<String, num>, String>((ref, key) {
       final repo = ref.watch(repositoryProvider);
 
       final parts = key.split(':');
@@ -26,7 +26,7 @@ final adjustmentStockLevelsProvider = StreamProvider.autoDispose
       return repo.watchStockByProductIds(productIds, branchId: branchId).map((
         stockList,
       ) {
-        final result = <String, int>{};
+        final result = <String, num>{};
         for (final id in productIds) {
           final stock = stockList.where((s) => s.productId == id).firstOrNull;
           result[id] = stock?.quantity ?? 0;

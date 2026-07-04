@@ -667,11 +667,26 @@ class SaleDetailScreen extends ConsumerWidget {
                 );
               }
 
+              final itemGroup = product.itemGroupId != null
+                  ? ref.read(itemGroupProvider(product.itemGroupId!)).value
+                  : null;
+              final isSqmBased =
+                  product.pricingUnit == 'sqm' ||
+                  itemGroup?.defaultPricingUnit == 'sqm';
+              final coverage =
+                  (product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ??
+                  1.0;
+
+              // item.unitPrice is persisted per-box; PosCartItem.overridePrice
+              // is per-sqm for sqm-based items, so convert back.
               return PosCartItem(
                 product: product,
+                itemGroup: itemGroup,
                 quantity: item.quantity,
                 overrideName: item.productName,
-                overridePrice: item.unitPrice,
+                overridePrice: isSqmBased
+                    ? item.unitPrice / coverage
+                    : item.unitPrice,
               );
             }).toList();
 

@@ -10,6 +10,7 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class SharedProductCard extends ConsumerWidget {
@@ -120,7 +121,9 @@ class SharedProductCard extends ConsumerWidget {
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
-                                    qty > 0 ? '$qty in stock' : 'Out of stock',
+                                    qty > 0
+                                        ? '${formatQty(qty)} in stock'
+                                        : 'Out of stock',
                                     style: textTheme.labelSmall?.copyWith(
                                       color: isLowStock
                                           ? colorScheme.error

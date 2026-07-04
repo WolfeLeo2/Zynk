@@ -1,23 +1,22 @@
+import 'package:button_group_m3e/button_group_m3e.dart';
+import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
-import 'package:zynk/core/models/adjustment_reason.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/features/products/domain/stock_adjustment_math.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
-import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:shimmer/shimmer.dart';
-import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
-import 'package:zynk/core/utils/responsive_modal.dart';
-import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
+import 'package:zynk/features/products/presentation/widgets/adjustment_basket_view.dart';
+import 'package:zynk/features/products/presentation/widgets/adjustment_catalog_list.dart';
+import 'package:zynk/features/products/presentation/widgets/adjustment_config_bar.dart';
 
+/// Two-zone stock-adjustment screen. Desktop shows catalog + basket side by
+/// side; mobile shows a persistent config bar + a Catalog/Basket toggle, with
+/// the mode-aware confirm CTA always pinned to the bottom on both.
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
 
@@ -28,117 +27,143 @@ class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
 
 class _InventoryAdjustmentScreenState
     extends ConsumerState<InventoryAdjustmentScreen> {
-  final TextEditingController _searchController = TextEditingController();
   final TextEditingController _referenceController = TextEditingController();
-  String _searchQuery = '';
   bool _isLoading = false;
   Set<String> _selectedBranchIds = {};
   bool _initializedBranches = false;
   String? _reasonId;
+  String _mode = 'add'; // 'add' | 'subtract' | 'set'
+  String _view = 'catalog'; // mobile only: 'catalog' | 'basket'
 
   @override
   void dispose() {
-    _searchController.dispose();
     _referenceController.dispose();
     super.dispose();
   }
 
+  /// Seed the branch selection once branches load: a locked user gets their
+  /// single branch; "all" fans out to every branch; otherwise the active one.
+  void _maybeInitBranches(List<Branch> branches, String? selectedBranchId) {
+    if (_initializedBranches || branches.isEmpty) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final branchState = ref.read(branchSelectionProvider);
+      setState(() {
+        if (branchState.isLocked && branchState.selectedBranchId != null) {
+          _selectedBranchIds = {branchState.selectedBranchId!};
+        } else if (selectedBranchId == 'all') {
+          _selectedBranchIds = branches.map((b) => b.id).toSet();
+        } else if (selectedBranchId != null) {
+          _selectedBranchIds = {selectedBranchId};
+        }
+        _initializedBranches = true;
+      });
+    });
+  }
+
+  void _toggleBranch(String branchId, bool selected) {
+    setState(() {
+      if (selected) {
+        _selectedBranchIds.add(branchId);
+      } else if (_selectedBranchIds.length > 1) {
+        _selectedBranchIds.remove(branchId); // never drop the last branch
+      }
+    });
+  }
+
+  void _snack(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: Theme.of(context).colorScheme.error,
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   Future<void> _submitBatch() async {
     final items = ref.read(batchStockProvider);
+    if (items.isEmpty) return;
 
     if (_reasonId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select a reason for this adjustment.'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      _snack('Please select a reason for this adjustment.');
       return;
     }
-
-    if (items.isEmpty) return;
 
     final profile = ref.read(currentProfileProvider);
     if (profile == null) return;
 
-    final adjusterId = profile.userId;
-
-    final selectedBranchId = ref.read(currentBranchIdProvider);
-    if (selectedBranchId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Please select a branch first.'),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+    if (ref.read(currentBranchIdProvider) == null) {
+      _snack('Please select a branch first.');
       return;
     }
 
     final allBranchesMode = _selectedBranchIds.length > 1;
-
-    final adjustmentItems = items
-        .where((item) => item.quantityChange != 0)
-        .map(
-          (item) => BatchAdjustmentItem(
-            productId: item.product.id,
-            quantityChange: item.quantityChange,
-            notes: item.notes,
-          ),
-        )
+    // In 'set' mode every row has an absolute target (0 is valid); otherwise
+    // skip rows the user left at zero.
+    final enteredItems = items
+        .where((item) => item.quantityChange != 0 || _mode == 'set')
         .toList();
-
-    if (adjustmentItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Please enter a non-zero quantity for at least one item.',
-          ),
-          backgroundColor: Theme.of(context).colorScheme.error,
-        ),
-      );
+    if (enteredItems.isEmpty) {
+      _snack('Please enter a quantity for at least one item.');
       return;
     }
 
-    // Removed restriction: All Branches mode now supports both additions and reductions.
-
     setState(() => _isLoading = true);
-
     try {
       final repo = ref.read(repositoryProvider);
       final referenceNumber = _referenceController.text.isNotEmpty
           ? _referenceController.text
           : null;
 
-      if (_selectedBranchIds.length > 1) {
-        final visibleBranches = ref.read(branchesProvider).value;
-        final branches =
-            (visibleBranches ?? await repo.getBranches(profile.tenantId))
+      final branchIds = allBranchesMode
+          ? (ref.read(branchesProvider).value ??
+                    await repo.getBranches(profile.tenantId))
                 .where((b) => _selectedBranchIds.contains(b.id))
-                .toList();
+                .map((b) => b.id)
+                .toList()
+          : _selectedBranchIds.toList();
 
-        if (branches.isEmpty) {
-          throw Exception('No branches found to apply stock changes.');
-        }
+      if (branchIds.isEmpty) {
+        throw Exception('No branches found to apply stock changes.');
+      }
 
-        for (final branch in branches) {
-          await repo.batchAdjustStock(
-            tenantId: profile.tenantId,
-            branchId: branch.id,
-            items: adjustmentItems,
-            createdBy: adjusterId,
-            salespersonId: profile.id,
-            adjustmentType: 'auto',
-            reasonId: _reasonId,
-            referenceNumber: referenceNumber,
+      int adjustedCount = 0;
+      for (final branchId in branchIds) {
+        // 'set' target → delta depends on each branch's own current stock, so
+        // resolve per branch (one batched read); add/subtract deltas don't.
+        final currentById = _mode == 'set'
+            ? await repo.getProductStockValues(
+                enteredItems.map((i) => i.product.id).toList(),
+                branchId,
+              )
+            : const <String, num>{};
+
+        final adjustmentItems = <BatchAdjustmentItem>[];
+        for (final item in enteredItems) {
+          final quantityChange = resolveStockDelta(
+            _mode,
+            currentById[item.product.id] ?? 0,
+            item.quantityChange,
           );
+          if (quantityChange != 0) {
+            adjustmentItems.add(
+              BatchAdjustmentItem(
+                productId: item.product.id,
+                quantityChange: quantityChange,
+                notes: item.notes,
+              ),
+            );
+          }
         }
-      } else if (_selectedBranchIds.isNotEmpty) {
+        if (adjustmentItems.isEmpty) continue;
+        adjustedCount = adjustmentItems.length;
+
         await repo.batchAdjustStock(
           tenantId: profile.tenantId,
-          branchId: _selectedBranchIds.first,
+          branchId: branchId,
           items: adjustmentItems,
-          createdBy: adjusterId,
+          createdBy: profile.userId,
           salespersonId: profile.id,
           adjustmentType: 'auto',
           reasonId: _reasonId,
@@ -153,576 +178,210 @@ class _InventoryAdjustmentScreenState
           SnackBar(
             content: Text(
               allBranchesMode
-                  ? 'Added stock for ${adjustmentItems.length} item(s) across all branches.'
-                  : 'Adjustment confirmed for ${adjustmentItems.length} item(s)!',
+                  ? 'Updated stock for $adjustedCount item(s) across all branches.'
+                  : 'Adjustment confirmed for $adjustedCount item(s)!',
             ),
           ),
         );
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $e'),
-            backgroundColor: Theme.of(context).colorScheme.error,
-          ),
-        );
-      }
+      if (mounted) _snack('Error: $e');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
 
-  void _showManageReasons(
-    BuildContext context,
-    List<AdjustmentReason> reasons,
-    String tenantId,
-  ) {
-    showResponsiveModal(
-      context: context,
-      isScrollControlled: true,
-      builder: (ctx) =>
-          _ManageReasonsSheet(reasons: reasons, tenantId: tenantId),
-    );
+  /// CTA text that reflects the current mode (Add/Remove/Set) instead of
+  /// always saying "Add", and notes when it fans out to every branch.
+  String _confirmLabel(int count, bool allBranches) {
+    final verb = switch (_mode) {
+      'subtract' => 'Remove',
+      'set' => 'Set',
+      _ => 'Add',
+    };
+    final items = '$count item${count == 1 ? '' : 's'}';
+    return allBranches
+        ? '$verb · all branches ($items)'
+        : '$verb stock ($items)';
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
-    final productsAsync = ref.watch(allProductsProvider);
-    final branchesAsync = ref.watch(branchesProvider);
+    final colorScheme = Theme.of(context).colorScheme;
     final batchItems = ref.watch(batchStockProvider);
     final selectedBranchId = ref.watch(currentBranchIdProvider);
-    final effectiveAllBranchesMode = _selectedBranchIds.length > 1;
+    final allBranchesMode = _selectedBranchIds.length > 1;
 
-    final isInvalidBranch = selectedBranchId == null;
+    if (selectedBranchId == null) {
+      return Scaffold(
+        drawer: const AppDrawer(),
+        appBar: AppBar(title: const Text('Adjustments')),
+        body: _buildInvalidBranchState(context, colorScheme),
+      );
+    }
+
+    ref
+        .watch(branchesProvider)
+        .whenData(
+          (branches) => _maybeInitBranches(
+            branches.where((b) => b.id != 'all').toList(),
+            selectedBranchId,
+          ),
+        );
+
+    final configBar = AdjustmentConfigBar(
+      selectedBranchIds: _selectedBranchIds,
+      mode: _mode,
+      reasonId: _reasonId,
+      referenceController: _referenceController,
+      onBranchToggle: _toggleBranch,
+      onModeChanged: (m) => setState(() => _mode = m),
+      onReasonChanged: (r) => setState(() => _reasonId = r),
+    );
+    final basket = AdjustmentBasketView(
+      selectedBranchIds: _selectedBranchIds,
+      mode: _mode,
+    );
 
     return Scaffold(
       drawer: const AppDrawer(),
       appBar: AppBar(
         leading: Builder(
-          builder: (context) {
-            if (MediaQuery.of(context).size.width < 840) {
-              return IconButton(
-                icon: const PhosphorIcon(PhosphorIconsRegular.list),
-                onPressed: () => Scaffold.of(context).openDrawer(),
-              );
-            }
-            return const SizedBox.shrink();
-          },
+          builder: (context) => MediaQuery.of(context).size.width < 840
+              ? IconButton(
+                  icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                  onPressed: () => Scaffold.of(context).openDrawer(),
+                )
+              : const SizedBox.shrink(),
         ),
         title: const Text('Adjustments'),
         actions: [
           if (batchItems.isNotEmpty)
             TextButton.icon(
-              onPressed: () {
-                ref.read(batchStockProvider.notifier).clear();
-              },
+              onPressed: () => ref.read(batchStockProvider.notifier).clear(),
               icon: const PhosphorIcon(PhosphorIconsRegular.trash),
               label: const Text('Clear All'),
               style: TextButton.styleFrom(foregroundColor: colorScheme.error),
             ),
         ],
       ),
-      body: isInvalidBranch
-          ? _buildInvalidBranchState(context, colorScheme)
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final leftPanel = Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: SearchBar(
-                        controller: _searchController,
-                        hintText: 'Search items by name or SKU...',
-                        leading: const PhosphorIcon(
-                          PhosphorIconsRegular.magnifyingGlass,
-                        ),
-                        onChanged: (val) => setState(() => _searchQuery = val),
-                        padding: const WidgetStatePropertyAll(
-                          EdgeInsets.symmetric(horizontal: 16),
-                        ),
-                        elevation: const WidgetStatePropertyAll(0),
-                        backgroundColor: WidgetStatePropertyAll(
-                          colorScheme.surfaceContainerHighest,
-                        ),
-                      ),
-                    ),
-                    Expanded(
-                      child: productsAsync.when(
-                        data: (products) {
-                          var filtered = products
-                              .where((p) => !p.isService) // Only physical goods
-                              .toList();
-
-                          if (_searchQuery.isNotEmpty) {
-                            filtered = filtered.where((p) {
-                              final nameMatch = p.name.toLowerCase().contains(
-                                _searchQuery.toLowerCase(),
-                              );
-                              final skuMatch =
-                                  p.sku?.toLowerCase().contains(
-                                    _searchQuery.toLowerCase(),
-                                  ) ??
-                                  false;
-                              return nameMatch || skuMatch;
-                            }).toList();
-                          }
-
-                          if (filtered.isEmpty) {
-                            return const Center(child: Text('No items found'));
-                          }
-
-                          return ListView.builder(
-                            itemCount: filtered.length,
-                            itemBuilder: (context, index) {
-                              final product = filtered[index];
-                              final isAdded = batchItems.any(
-                                (item) => item.product.id == product.id,
-                              );
-
-                              return ListTile(
-                                leading: Container(
-                                  width: 48,
-                                  height: 48,
-                                  decoration: BoxDecoration(
-                                    color: colorScheme.primaryContainer,
-                                    borderRadius: BorderRadius.circular(8),
-                                    image: product.imageUrl != null
-                                        ? DecorationImage(
-                                            image: CachedNetworkImageProvider(
-                                              product.imageUrl!,
-                                            ),
-                                            fit: BoxFit.cover,
-                                          )
-                                        : null,
-                                  ),
-                                  child: product.imageUrl == null
-                                      ? PhosphorIcon(
-                                          PhosphorIconsRegular.package,
-                                          color: colorScheme.onPrimaryContainer,
-                                        )
-                                      : null,
-                                ),
-                                title: Text(product.name),
-                                subtitle: Text(
-                                  product.sku ?? 'No SKU',
-                                  style: TextStyle(
-                                    color: colorScheme.onSurfaceVariant,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                trailing: isAdded
-                                    ? PhosphorIcon(
-                                        PhosphorIconsRegular.checkCircle,
-                                        color: colorScheme.primary,
-                                      )
-                                    : IconButton(
-                                        onPressed: () {
-                                          ref
-                                              .read(batchStockProvider.notifier)
-                                              .addItem(product);
-                                        },
-                                        icon: const PhosphorIcon(
-                                          PhosphorIconsRegular.plus,
-                                        ),
-                                        style: IconButton.styleFrom(
-                                          backgroundColor:
-                                              colorScheme.primaryContainer,
-                                          foregroundColor:
-                                              colorScheme.onPrimaryContainer,
-                                        ),
-                                      ),
-                                onTap: isAdded
-                                    ? null
-                                    : () {
-                                        ref
-                                            .read(batchStockProvider.notifier)
-                                            .addItem(product);
-                                      },
-                              );
-                            },
-                          );
-                        },
-                        loading: () => const _InventoryItemsShimmer(),
-                        error: (err, stack) =>
-                            Center(child: Text('Error loading items: $err')),
-                      ),
-                    ),
-                  ],
-                );
-                final rightPanel = Container(
-                  color: colorScheme.surface,
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth > 800) {
+            return Row(
+              children: [
+                const Expanded(flex: 4, child: AdjustmentCatalogList()),
+                const VerticalDivider(width: 1),
+                Expanded(
+                  flex: 6,
                   child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Batch Settings Header
-                      Flexible(
-                        fit: FlexFit.loose,
-                        child: SingleChildScrollView(
-                          padding: const EdgeInsets.all(24.0),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Text(
-                                'Batch Settings',
-                                style: theme.textTheme.titleMedium?.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                              const SizedBox(height: 12),
-                              branchesAsync.when(
-                                data: (branches) {
-                                  final branchesList = branches
-                                      .where((b) => b.id != 'all')
-                                      .toList();
-
-                                  if (!_initializedBranches &&
-                                      branchesList.isNotEmpty) {
-                                    WidgetsBinding.instance
-                                        .addPostFrameCallback((_) {
-                                          if (mounted) {
-                                            final branchState = ref.read(
-                                              branchSelectionProvider,
-                                            );
-                                            setState(() {
-                                              if (branchState.isLocked &&
-                                                  branchState
-                                                          .selectedBranchId !=
-                                                      null) {
-                                                _selectedBranchIds = {
-                                                  branchState.selectedBranchId!,
-                                                };
-                                              } else if (selectedBranchId ==
-                                                  'all') {
-                                                _selectedBranchIds =
-                                                    branchesList
-                                                        .map((b) => b.id)
-                                                        .toSet();
-                                              } else {
-                                                _selectedBranchIds = {
-                                                  selectedBranchId,
-                                                };
-                                              }
-                                              _initializedBranches = true;
-                                            });
-                                          }
-                                        });
-                                  }
-
-                                  return Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.surfaceContainerHighest
-                                          .withValues(alpha: 0.45),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              'Apply to branches:',
-                                              style: theme.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                    color: colorScheme
-                                                        .onSurfaceVariant,
-                                                    fontWeight: FontWeight.bold,
-                                                  ),
-                                            ),
-                                            const SizedBox(width: 8),
-                                            if (ref
-                                                .watch(branchSelectionProvider)
-                                                .isLoading)
-                                              const SkeletonText(
-                                                width: 60,
-                                                height: 12,
-                                              ),
-                                          ],
-                                        ),
-                                        const SizedBox(height: 12),
-                                        Wrap(
-                                          spacing: 8,
-                                          runSpacing: 8,
-                                          children: branchesList
-                                              .map(
-                                                (b) => FilterChip(
-                                                  label: Text(b.name),
-                                                  selected: _selectedBranchIds
-                                                      .contains(b.id),
-                                                  onSelected:
-                                                      ref
-                                                          .watch(
-                                                            branchSelectionProvider,
-                                                          )
-                                                          .isLocked
-                                                      ? null
-                                                      : (selected) {
-                                                          setState(() {
-                                                            if (selected) {
-                                                              _selectedBranchIds
-                                                                  .add(b.id);
-                                                            } else {
-                                                              if (_selectedBranchIds
-                                                                      .length >
-                                                                  1) {
-                                                                _selectedBranchIds
-                                                                    .remove(
-                                                                      b.id,
-                                                                    );
-                                                              }
-                                                            }
-                                                          });
-                                                        },
-                                                  avatar: const PhosphorIcon(
-                                                    PhosphorIconsRegular
-                                                        .storefront,
-                                                    size: 14,
-                                                  ),
-                                                ),
-                                              )
-                                              .toList(),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                },
-                                loading: () => const SizedBox.shrink(),
-                                error: (_, _) => const SizedBox.shrink(),
-                              ),
-                              const SizedBox(height: 16),
-                              // Adjuster is the logged-in staffer (set on submit).
-                              // Reason picker row
-                              Consumer(
-                                builder: (context, ref, _) {
-                                  final tenantId =
-                                      ref.watch(tenantIdProvider) ?? '';
-                                  final profile = ref.watch(
-                                    currentProfileProvider,
-                                  );
-                                  final canManage =
-                                      profile != null &&
-                                      (profile.role.isOwner ||
-                                          profile.role.isManager ||
-                                          profile.permissions.contains(
-                                            Permission.manageBusiness,
-                                          ) ||
-                                          profile.permissions.contains(
-                                            Permission.manageStock,
-                                          ));
-                                  final reasonsAsync = ref.watch(
-                                    adjustmentReasonsProvider,
-                                  );
-                                  return reasonsAsync.when(
-                                    data: (reasons) => Row(
-                                      children: [
-                                        Expanded(
-                                          child:
-                                              DropdownButtonFormField<String>(
-                                                initialValue: _reasonId,
-                                                decoration: InputDecoration(
-                                                  labelText: 'Reason *',
-                                                  prefixIcon:
-                                                      const PhosphorIcon(
-                                                        PhosphorIconsRegular
-                                                            .question,
-                                                      ),
-                                                  border: OutlineInputBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  isDense: true,
-                                                ),
-                                                hint: const Text(
-                                                  'Select a reason',
-                                                ),
-                                                items: reasons
-                                                    .map(
-                                                      (r) =>
-                                                          DropdownMenuItem<
-                                                            String
-                                                          >(
-                                                            value: r.id,
-                                                            child: Text(
-                                                              r.label,
-                                                            ),
-                                                          ),
-                                                    )
-                                                    .toList(),
-                                                onChanged: (v) => setState(
-                                                  () => _reasonId = v,
-                                                ),
-                                              ),
-                                        ),
-                                        if (canManage) ...[
-                                          const SizedBox(width: 8),
-                                          IconButton(
-                                            tooltip: 'Manage reasons',
-                                            onPressed: () => _showManageReasons(
-                                              context,
-                                              reasons,
-                                              tenantId,
-                                            ),
-                                            icon: const PhosphorIcon(
-                                              PhosphorIconsRegular.pencilSimple,
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                    loading: () => const _FormFieldShimmer(),
-                                    error: (e, _) =>
-                                        Text('Could not load reasons: $e'),
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              // Reference number
-                              TextField(
-                                controller: _referenceController,
-                                decoration: InputDecoration(
-                                  labelText: 'Reference Number (Optional)',
-                                  hintText:
-                                      'e.g., PO-2023-001 or Delivery Note',
-                                  prefixIcon: const PhosphorIcon(
-                                    PhosphorIconsRegular.receipt,
-                                  ),
-                                  border: OutlineInputBorder(
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                        child: configBar,
                       ),
-                      const Divider(height: 1),
-                      // Selected Items List
-                      Expanded(
-                        child: batchItems.isEmpty
-                            ? Center(
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    PhosphorIcon(
-                                      PhosphorIconsRegular.magnifyingGlassPlus,
-                                      size: 64,
-                                      color: colorScheme.onSurfaceVariant
-                                          .withValues(alpha: 0.5),
-                                    ),
-                                    const SizedBox(height: 16),
-                                    Text(
-                                      'No items selected\nSearch and add items from the left',
-                                      textAlign: TextAlign.center,
-                                      style: TextStyle(
-                                        color: colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              )
-                            : ListView.separated(
-                                padding: const EdgeInsets.all(24),
-                                itemCount: batchItems.length,
-                                separatorBuilder: (context, index) =>
-                                    const SizedBox(height: 16),
-                                itemBuilder: (context, index) {
-                                  final item = batchItems[index];
-                                  return _BatchItemCard(
-                                    item: item,
-                                    selectedBranchIds: _selectedBranchIds,
-                                  );
-                                },
-                              ),
-                      ),
-                      // Bottom Actions
-                      Container(
-                        padding: const EdgeInsets.all(24),
-                        decoration: BoxDecoration(
-                          color: colorScheme.surface,
-                          boxShadow: [
-                            BoxShadow(
-                              color: colorScheme.shadow.withValues(alpha: 0.05),
-                              blurRadius: 10,
-                              offset: const Offset(0, -5),
-                            ),
-                          ],
-                        ),
-                        child: FilledButton.icon(
-                          onPressed: batchItems.isEmpty || _isLoading
-                              ? null
-                              : _submitBatch,
-                          style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 20),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
-                            ),
-                          ),
-                          icon: _isLoading
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.white,
-                                  ),
-                                )
-                              : const PhosphorIcon(
-                                  PhosphorIconsRegular.checkCircle,
-                                ),
-                          label: Text(
-                            _isLoading
-                                ? 'Processing...'
-                                : effectiveAllBranchesMode
-                                ? 'Add to All Branches (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})'
-                                : 'Confirm Adjustment (${batchItems.length} item${batchItems.length == 1 ? '' : 's'})',
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        ),
+                      Expanded(child: basket),
+                      _buildFooter(
+                        colorScheme,
+                        batchItems.length,
+                        allBranchesMode,
                       ),
                     ],
                   ),
-                );
+                ),
+              ],
+            );
+          }
 
-                if (constraints.maxWidth > 800) {
-                  return Row(
-                    children: [
-                      Expanded(flex: 4, child: leftPanel),
-                      const VerticalDivider(width: 1),
-                      Expanded(flex: 6, child: rightPanel),
-                    ],
-                  );
-                }
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: configBar,
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: _buildViewToggle(batchItems.length),
+              ),
+              const SizedBox(height: 8),
+              Expanded(
+                child: _view == 'catalog'
+                    ? const AdjustmentCatalogList()
+                    : basket,
+              ),
+              _buildFooter(colorScheme, batchItems.length, allBranchesMode),
+            ],
+          );
+        },
+      ),
+    );
+  }
 
-                return DefaultTabController(
-                  length: 2,
-                  child: Column(
-                    children: [
-                      TabBar(
-                        tabs: [
-                          const Tab(text: 'Select items'),
-                          Tab(text: 'Review & Adjust (${batchItems.length})'),
-                        ],
-                        labelColor: colorScheme.primary,
-                        unselectedLabelColor: colorScheme.onSurfaceVariant,
-                        indicatorColor: colorScheme.primary,
-                      ),
-                      Expanded(
-                        child: TabBarView(children: [leftPanel, rightPanel]),
-                      ),
-                    ],
-                  ),
-                );
-              },
+  Widget _buildViewToggle(int count) {
+    return ButtonGroupM3E(
+      selection: true,
+      overflow: ButtonGroupM3EOverflow.none,
+      type: ButtonGroupM3EType.connected,
+      style: ButtonM3EStyle.filled,
+      size: ButtonGroupM3ESize.sm,
+      shape: ButtonGroupM3EShape.round,
+      selectedIndex: _view == 'catalog' ? 0 : 1,
+      actions: [
+        ButtonGroupM3EAction(
+          label: const Text('Catalog'),
+          icon: const PhosphorIcon(PhosphorIconsRegular.squaresFour, size: 18),
+          style: _view == 'catalog' ? ButtonM3EStyle.tonal : null,
+          onPressed: () => setState(() => _view = 'catalog'),
+        ),
+        ButtonGroupM3EAction(
+          label: Text('Basket · $count'),
+          icon: const PhosphorIcon(PhosphorIconsRegular.stack, size: 18),
+          style: _view == 'basket' ? ButtonM3EStyle.tonal : null,
+          onPressed: () => setState(() => _view = 'basket'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFooter(ColorScheme colorScheme, int count, bool allBranches) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        boxShadow: [
+          BoxShadow(
+            color: colorScheme.shadow.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, -5),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: FilledButton.icon(
+          onPressed: count == 0 || _isLoading ? null : _submitBatch,
+          style: FilledButton.styleFrom(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
             ),
+          ),
+          icon: _isLoading
+              ? SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colorScheme.onPrimary,
+                  ),
+                )
+              : const PhosphorIcon(PhosphorIconsRegular.checkCircle),
+          label: Text(
+            _isLoading ? 'Processing...' : _confirmLabel(count, allBranches),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+        ),
+      ),
     );
   }
 
@@ -733,6 +392,7 @@ class _InventoryAdjustmentScreenState
     return Center(
       child: Container(
         constraints: const BoxConstraints(maxWidth: 400),
+        margin: const EdgeInsets.all(24),
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
           color: colorScheme.errorContainer,
@@ -780,505 +440,6 @@ class _InventoryAdjustmentScreenState
               label: const Text('Go Back'),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BatchItemCard extends ConsumerStatefulWidget {
-  final BatchItemState item;
-  final Set<String> selectedBranchIds;
-
-  const _BatchItemCard({required this.item, required this.selectedBranchIds});
-
-  @override
-  ConsumerState<_BatchItemCard> createState() => _BatchItemCardState();
-}
-
-class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
-  late TextEditingController _notesController;
-  late TextEditingController _qtyController;
-
-  @override
-  void initState() {
-    super.initState();
-    _notesController = TextEditingController(text: widget.item.notes);
-    _qtyController = TextEditingController(
-      text: widget.item.quantityChange == 0
-          ? ''
-          : widget.item.quantityChange.toString(),
-    );
-  }
-
-  @override
-  void didUpdateWidget(_BatchItemCard oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.item.quantityChange != widget.item.quantityChange) {
-      if (_qtyController.text != widget.item.quantityChange.toString() &&
-          widget.item.quantityChange != 0) {
-        _qtyController.text = widget.item.quantityChange.toString();
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _notesController.dispose();
-    _qtyController.dispose();
-    super.dispose();
-  }
-
-  void _updateQuantity(String val) {
-    // Allow empty field (treat as 0) and negative numbers
-    final qty = int.tryParse(val) ?? 0;
-    ref
-        .read(batchStockProvider.notifier)
-        .updateQuantity(widget.item.product.id, qty);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final product = widget.item.product;
-    final branchStocksAsync = ref.watch(branchStocksProvider(product.id));
-
-    final currentStock =
-        branchStocksAsync.value
-            ?.where((s) => widget.selectedBranchIds.contains(s.branchId))
-            .fold<int>(0, (sum, s) => sum + s.quantity) ??
-        0;
-
-    final newStock = currentStock + widget.item.quantityChange;
-
-    return Container(
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerLowest,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                  image: product.imageUrl != null
-                      ? DecorationImage(
-                          image: CachedNetworkImageProvider(product.imageUrl!),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: product.imageUrl == null
-                    ? PhosphorIcon(
-                        PhosphorIconsRegular.package,
-                        color: colorScheme.onPrimaryContainer,
-                      )
-                    : null,
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      product.name,
-                      style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
-                    ),
-                    if (product.sku != null)
-                      Text(
-                        'SKU: ${product.sku}',
-                        style: TextStyle(
-                          color: colorScheme.onSurfaceVariant,
-                          fontSize: 12,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              IconButton(
-                onPressed: () {
-                  ref.read(batchStockProvider.notifier).removeItem(product.id);
-                },
-                icon: const PhosphorIcon(PhosphorIconsRegular.x),
-                color: colorScheme.error,
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Stock calculation
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest.withValues(
-                    alpha: 0.5,
-                  ),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      'Current Stock: $currentStock',
-                      style: TextStyle(
-                        color: colorScheme.onSurfaceVariant,
-                        fontSize: 13,
-                      ),
-                    ),
-                    PhosphorIcon(
-                      PhosphorIconsRegular.arrowRight,
-                      size: 14,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    Text(
-                      'New Stock: $newStock',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: widget.item.quantityChange < 0
-                            ? colorScheme.error
-                            : widget.item.quantityChange > 0
-                            ? Colors.green
-                            : colorScheme.onSurface,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Quantity Stepper/Input
-              Row(
-                children: [
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      ref
-                          .read(batchStockProvider.notifier)
-                          .updateQuantity(
-                            product.id,
-                            widget.item.quantityChange - 1,
-                          );
-                    },
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.minus,
-                      size: 16,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                    padding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _qtyController,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        signed: true,
-                        decimal: false,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
-                      ],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: widget.item.quantityChange < 0
-                            ? Colors.red
-                            : widget.item.quantityChange > 0
-                            ? Colors.green
-                            : null,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: '0',
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                        isDense: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onChanged: _updateQuantity,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      ref
-                          .read(batchStockProvider.notifier)
-                          .updateQuantity(
-                            product.id,
-                            widget.item.quantityChange + 1,
-                          );
-                    },
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.plus,
-                      size: 16,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                    padding: EdgeInsets.zero,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              // Notes Input
-              TextField(
-                controller: _notesController,
-                decoration: InputDecoration(
-                  hintText: 'Item notes (optional)',
-                  isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 10,
-                  ),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                onChanged: (val) {
-                  ref
-                      .read(batchStockProvider.notifier)
-                      .updateNotes(product.id, val);
-                },
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MANAGE REASONS BOTTOM SHEET
-// ─────────────────────────────────────────────────────────────────────────────
-
-class _ManageReasonsSheet extends ConsumerStatefulWidget {
-  final List<AdjustmentReason> reasons;
-  final String tenantId;
-
-  const _ManageReasonsSheet({required this.reasons, required this.tenantId});
-
-  @override
-  ConsumerState<_ManageReasonsSheet> createState() =>
-      _ManageReasonsSheetState();
-}
-
-class _ManageReasonsSheetState extends ConsumerState<_ManageReasonsSheet> {
-  final _addController = TextEditingController();
-  bool _isAdding = false;
-
-  @override
-  void dispose() {
-    _addController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _addReason() async {
-    final label = _addController.text.trim();
-    if (label.isEmpty) return;
-    setState(() => _isAdding = true);
-    try {
-      final repo = ref.read(repositoryProvider);
-      final reason = AdjustmentReason(
-        id: const Uuid().v4(),
-        tenantId: widget.tenantId,
-        label: label,
-        createdAt: DateTime.now().toUtc(),
-      );
-      await repo.createAdjustmentReason(reason);
-      _addController.clear();
-    } finally {
-      if (mounted) setState(() => _isAdding = false);
-    }
-  }
-
-  Future<void> _deleteReason(String id) async {
-    final repo = ref.read(repositoryProvider);
-    await repo.deleteAdjustmentReason(id);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    // Live-watch so additions/deletions reflect immediately
-    final liveReasons = ref.watch(adjustmentReasonsProvider);
-
-    return AppBottomSheet(
-      title: 'Manage Adjustment Reasons',
-      icon: PhosphorIconsDuotone.tagSimple,
-      maxHeightFactor: 0.7,
-      child: Padding(
-        padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Add row
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _addController,
-                    decoration: InputDecoration(
-                      hintText: 'New reason label...',
-                      isDense: true,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                    onSubmitted: (_) => _addReason(),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                FilledButton(
-                  onPressed: _isAdding ? null : _addReason,
-                  child: _isAdding
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Add'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            const Divider(height: 1),
-            Flexible(
-              child: liveReasons.when(
-                data: (reasons) => reasons.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No reasons yet. Add one above.',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
-                      )
-                    : ListView.separated(
-                        shrinkWrap: true,
-                        padding: const EdgeInsets.symmetric(vertical: 8),
-                        itemCount: reasons.length,
-                        separatorBuilder: (_, _) =>
-                            const Divider(height: 1, indent: 56),
-                        itemBuilder: (_, i) {
-                          final r = reasons[i];
-                          return ListTile(
-                            leading: const PhosphorIcon(
-                              PhosphorIconsRegular.tagSimple,
-                            ),
-                            title: Text(r.label),
-                            trailing: IconButton(
-                              icon: PhosphorIcon(
-                                PhosphorIconsRegular.trash,
-                                color: colorScheme.error,
-                              ),
-                              onPressed: () => _deleteReason(r.id),
-                              tooltip: 'Delete',
-                            ),
-                          );
-                        },
-                      ),
-                loading: () => const _ReasonsListShimmer(),
-                error: (e, _) => Center(child: Text('Error: $e')),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _InventoryItemsShimmer extends StatelessWidget {
-  const _InventoryItemsShimmer();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Shimmer.fromColors(
-      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-      highlightColor: colorScheme.surfaceContainerHighest.withValues(
-        alpha: 0.7,
-      ),
-      child: ListView.builder(
-        itemCount: 8,
-        itemBuilder: (_, __) => ListTile(
-          leading: Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: colorScheme.surface,
-              borderRadius: BorderRadius.circular(8),
-            ),
-          ),
-          title: Container(height: 12, color: colorScheme.surface),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Container(height: 10, color: colorScheme.surface),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FormFieldShimmer extends StatelessWidget {
-  const _FormFieldShimmer();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Shimmer.fromColors(
-      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-      highlightColor: colorScheme.surfaceContainerHighest.withValues(
-        alpha: 0.7,
-      ),
-      child: Container(
-        height: 52,
-        decoration: BoxDecoration(
-          color: colorScheme.surface,
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReasonsListShimmer extends StatelessWidget {
-  const _ReasonsListShimmer();
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Shimmer.fromColors(
-      baseColor: colorScheme.surfaceContainerHighest.withValues(alpha: 0.35),
-      highlightColor: colorScheme.surfaceContainerHighest.withValues(
-        alpha: 0.7,
-      ),
-      child: ListView.builder(
-        itemCount: 6,
-        itemBuilder: (_, __) => const ListTile(
-          leading: CircleAvatar(radius: 12),
-          title: SizedBox(height: 12),
         ),
       ),
     );

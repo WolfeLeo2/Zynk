@@ -414,7 +414,7 @@ class Stock {
   final String tenantId;
   final String branchId;
   final String productId;
-  final int quantity;
+  final num quantity;
   final int? reorderLevel;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? lastUpdated;
@@ -441,7 +441,7 @@ class StockAdjustment {
   final String branchId;
   final String productId;
   final String? adjustmentType;
-  final int quantity;
+  final num quantity;
   final String? referenceNumber;
   final String? notes;
   final String? createdBy;
@@ -455,7 +455,7 @@ class StockAdjustment {
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? approvedAt;
   final String? rejectionReason;
-  final int? previousQuantity;
+  final num? previousQuantity;
 
   // Populated from JOIN queries — not stored:
   @JsonKey(name: 'adjuster_display_name', includeToJson: false)
@@ -503,7 +503,7 @@ class StockAdjustment {
 
 class BatchAdjustmentItem {
   final String productId;
-  final int quantityChange;
+  final num quantityChange;
   final String? notes;
 
   BatchAdjustmentItem({

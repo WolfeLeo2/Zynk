@@ -3,7 +3,7 @@ import 'package:zynk/core/models/schema_models.dart';
 
 class BatchItemState {
   final Product product;
-  final int quantityChange;
+  final num quantityChange;
   final String? notes;
 
   BatchItemState({
@@ -14,7 +14,7 @@ class BatchItemState {
 
   BatchItemState copyWith({
     Product? product,
-    int? quantityChange,
+    num? quantityChange,
     String? notes,
   }) {
     return BatchItemState(
@@ -36,7 +36,7 @@ class BatchStockNotifier extends Notifier<List<BatchItemState>> {
     state = [...state, BatchItemState(product: product, quantityChange: 0)];
   }
 
-  void updateQuantity(String productId, int newQuantity) {
+  void updateQuantity(String productId, num newQuantity) {
     state = state.map((item) {
       if (item.product.id == productId) {
         return item.copyWith(quantityChange: newQuantity);

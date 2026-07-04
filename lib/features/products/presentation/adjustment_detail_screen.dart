@@ -5,6 +5,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/inventory_providers.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -277,7 +278,7 @@ class _MetaItem extends StatelessWidget {
 
 class _ItemsSection extends StatelessWidget {
   final List<StockAdjustment> items;
-  final Map<String, int>? stockLevels;
+  final Map<String, num>? stockLevels;
   final bool isLoadingStock;
   final bool canEdit;
 
@@ -320,8 +321,8 @@ class _ItemsSection extends StatelessWidget {
 
             final isApproved = item.status == StockAdjustmentStatus.approved;
 
-            final int previousStock;
-            final int newStock;
+            final num previousStock;
+            final num newStock;
 
             if (isApproved && item.previousQuantity != null) {
               previousStock = item.previousQuantity!;
@@ -351,8 +352,8 @@ class _ItemsSection extends StatelessWidget {
 
 class _AdjustmentItemRow extends StatelessWidget {
   final StockAdjustment item;
-  final int previousStock;
-  final int newStock;
+  final num previousStock;
+  final num newStock;
   final bool canEdit;
   final bool isLoading;
 
@@ -446,7 +447,7 @@ class _AdjustmentItemRow extends StatelessWidget {
                     Row(
                       children: [
                         Text(
-                          '$previousStock → $newStock',
+                          '${formatQty(previousStock)} → ${formatQty(newStock)}',
                           style: textTheme.titleMedium?.copyWith(
                             fontWeight: FontWeight.bold,
                           ),
@@ -458,7 +459,7 @@ class _AdjustmentItemRow extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      '${item.quantity > 0 ? '+' : ''}${item.quantity}',
+                      '${item.quantity > 0 ? '+' : ''}${formatQty(item.quantity)}',
                       style: textTheme.bodySmall?.copyWith(
                         color: item.quantity > 0 ? Colors.green : Colors.red,
                         fontWeight: FontWeight.bold,
@@ -489,16 +490,19 @@ class _EditQuantityButton extends ConsumerWidget {
 
   Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController(
-      text: adjustment.quantity.toString(),
+      text: formatQtyInput(adjustment.quantity),
     );
 
-    final newQty = await showDialog<int>(
+    final newQty = await showDialog<num>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edit Quantity'),
         content: TextField(
           controller: controller,
-          keyboardType: TextInputType.number,
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
+            signed: true,
+          ),
           decoration: const InputDecoration(
             labelText: 'New Adjustment Quantity',
             helperText: 'Positive for addition, negative for reduction',
@@ -512,7 +516,7 @@ class _EditQuantityButton extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () =>
-                Navigator.pop(context, int.tryParse(controller.text)),
+                Navigator.pop(context, double.tryParse(controller.text)),
             child: const Text('Save'),
           ),
         ],

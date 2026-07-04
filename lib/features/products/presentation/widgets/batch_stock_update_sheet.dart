@@ -1,13 +1,19 @@
 import 'package:button_group_m3e/button_group_m3e.dart';
 import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_item_card.dart'
+    show stockDeltaColor;
+
+import 'package:zynk/features/products/domain/stock_adjustment_math.dart';
 
 import 'batch_group_action_sheet.dart';
 
@@ -189,7 +195,12 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 Expanded(
                   child: TextField(
                     controller: _qtyController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
                     decoration: InputDecoration(
                       labelText: _mode == 'set' ? 'New Quantity' : 'Amount',
                       border: const OutlineInputBorder(),
@@ -234,30 +245,17 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           )),
         );
         final currentStock = stockAsync.value?.quantity ?? 0;
-        final amount = int.tryParse(_qtyController.text) ?? 0;
-
-        int newStock;
-        if (_mode == 'add') {
-          newStock = currentStock + amount;
-        } else if (_mode == 'subtract') {
-          newStock = currentStock - amount;
-        } else {
-          newStock = amount;
-        }
-
+        final amount = num.tryParse(_qtyController.text) ?? 0;
+        final newStock = resolveStockTarget(_mode, currentStock, amount);
         final delta = newStock - currentStock;
-        final color = delta > 0
-            ? Colors.green
-            : delta < 0
-            ? theme.colorScheme.error
-            : theme.colorScheme.onSurface;
+        final color = stockDeltaColor(cs, delta);
 
         return Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Row(
             children: [
               Text(
-                '$currentStock',
+                formatQty(currentStock),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: isSelected ? cs.onSurfaceVariant : cs.onSurface,
                 ),
@@ -271,7 +269,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '$newStock',
+                  formatQty(newStock),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -291,28 +289,25 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
         final tenantId = ref.read(tenantIdProvider) ?? '';
         final branchId = _selectedBranch?.id ?? '';
         final profile = ref.read(currentProfileProvider);
-        final amount = int.tryParse(_qtyController.text) ?? 0;
+        final amount = num.tryParse(_qtyController.text) ?? 0;
 
         if (branchId.isEmpty) {
           throw 'Please select a branch first';
         }
 
+        // 'set' needs each product's current stock to compute the delta;
+        // fetch them all in one query rather than one round-trip per item.
+        final currentById = _mode == 'set'
+            ? await repo.getProductStockValues(selectedIds.toList(), branchId)
+            : const <String, num>{};
+
         final items = <BatchAdjustmentItem>[];
         for (final id in selectedIds) {
-          int quantityChange;
-          if (_mode == 'set') {
-            // We need current stock to calculate delta for 'set'
-            // In a batch update, it's safer to let the repo handle the delta calculation
-            // but the current batchAdjustStock expects quantityChange.
-            // For now, we'll fetch current stock for each.
-            final current = await repo.getProductStockValue(id, branchId);
-            quantityChange = amount - current;
-          } else if (_mode == 'add') {
-            quantityChange = amount;
-          } else {
-            quantityChange = -amount;
-          }
-
+          final quantityChange = resolveStockDelta(
+            _mode,
+            currentById[id] ?? 0,
+            amount,
+          );
           if (quantityChange != 0) {
             items.add(
               BatchAdjustmentItem(
