@@ -15,6 +15,7 @@ import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/features/dashboard/presentation/widgets/skeleton_widgets.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
@@ -846,7 +847,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
     final currentStock =
         branchStocksAsync.value
             ?.where((s) => widget.selectedBranchIds.contains(s.branchId))
-            .fold<int>(0, (sum, s) => sum + s.quantity) ??
+            .fold<num>(0, (sum, s) => sum + s.quantity) ??
         0;
 
     final newStock = currentStock + widget.item.quantityChange;
@@ -935,7 +936,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Current Stock: $currentStock',
+                      'Current Stock: ${formatQty(currentStock)}',
                       style: TextStyle(
                         color: colorScheme.onSurfaceVariant,
                         fontSize: 13,
@@ -947,7 +948,7 @@ class _BatchItemCardState extends ConsumerState<_BatchItemCard> {
                       color: colorScheme.onSurfaceVariant,
                     ),
                     Text(
-                      'New Stock: $newStock',
+                      'New Stock: ${formatQty(newStock)}',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,

@@ -9,6 +9,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 
 class ProductDetailsScreen extends ConsumerWidget {
@@ -313,7 +314,7 @@ class ProductDetailsScreen extends ConsumerWidget {
                           ),
                           title: const Text('Total Stock'),
                           trailing: Text(
-                            stock?.quantity.toString() ?? '0',
+                            formatQty(stock?.quantity ?? 0),
                             style: theme.textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -371,7 +372,7 @@ class ProductDetailsScreen extends ConsumerWidget {
 
                     return branchStocksAsync.when(
                       data: (stocks) {
-                        final qtyByBranch = <String, int>{};
+                        final qtyByBranch = <String, num>{};
                         for (final stock in stocks) {
                           final prev = qtyByBranch[stock.branchId] ?? 0;
                           qtyByBranch[stock.branchId] = prev + stock.quantity;
@@ -409,7 +410,7 @@ class ProductDetailsScreen extends ConsumerWidget {
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                     child: Text(
-                                      qty.toString(),
+                                      formatQty(qty),
                                       style: theme.textTheme.titleSmall
                                           ?.copyWith(
                                             fontWeight: FontWeight.bold,

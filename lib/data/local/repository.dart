@@ -643,9 +643,9 @@ class PowerSyncRepository {
           if (rows.isEmpty) return null;
 
           final first = rows.first;
-          final quantity = rows.fold<int>(
+          final quantity = rows.fold<num>(
             0,
-            (sum, row) => sum + ((row['quantity'] as num?)?.toInt() ?? 0),
+            (sum, row) => sum + ((row['quantity'] as num?) ?? 0),
           );
 
           DateTime? latestUpdatedAt;
@@ -671,22 +671,22 @@ class PowerSyncRepository {
         });
   }
 
-  Future<int> getProductStockValue(String productId, String branchId) async {
+  Future<num> getProductStockValue(String productId, String branchId) async {
     final rows = await _db.getAll(
       'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
       [productId, branchId],
     );
-    return rows.isNotEmpty ? (rows.first['quantity'] as num?)?.toInt() ?? 0 : 0;
+    return rows.isNotEmpty ? (rows.first['quantity'] as num?) ?? 0 : 0;
   }
 
   /// Like [getProductStockValue] but returns null when no stock row exists,
   /// so callers can distinguish "0 in stock" from "not stock-tracked".
-  Future<int?> getProductStockOrNull(String productId, String branchId) async {
+  Future<num?> getProductStockOrNull(String productId, String branchId) async {
     final row = await _db.getOptional(
       'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
       [productId, branchId],
     );
-    return row == null ? null : (row['quantity'] as num?)?.toInt() ?? 0;
+    return row == null ? null : (row['quantity'] as num?) ?? 0;
   }
 
   Stream<List<Map<String, dynamic>>> watchLowStockProducts({
@@ -798,7 +798,7 @@ class PowerSyncRepository {
     required String productId,
     required String
     adjustmentType, // 'addition', 'reduction', 'initial', 'damage'
-    required int quantityChange,
+    required num quantityChange,
     required String createdBy,
     String? referenceNumber,
     String? notes,
@@ -830,7 +830,7 @@ class PowerSyncRepository {
     required String branchId,
     required String productId,
     required String adjustmentType,
-    required int quantityChange,
+    required num quantityChange,
     required String createdBy,
     String? referenceNumber,
     String? notes,
@@ -918,7 +918,7 @@ class PowerSyncRepository {
     });
   }
 
-  String _resolveStockAdjustmentType(String rawType, int quantityChange) {
+  String _resolveStockAdjustmentType(String rawType, num quantityChange) {
     final normalized = rawType.trim().toLowerCase();
 
     if (_allowedStockAdjustmentTypes.contains(normalized)) {
@@ -1244,7 +1244,7 @@ class PowerSyncRepository {
     required String groupId,
     required String tenantId,
     required String branchId,
-    required int quantity,
+    required num quantity,
     required String mode,
     required String createdBy,
     String? salespersonId,
@@ -1265,7 +1265,7 @@ class PowerSyncRepository {
 
     for (final row in rows) {
       final productId = row['id'] as String;
-      int quantityChange;
+      num quantityChange;
 
       if (mode == 'set') {
         // Compute delta: desired - current
@@ -1274,7 +1274,7 @@ class PowerSyncRepository {
           [productId, branchId],
         );
         final current = stockRows.isNotEmpty
-            ? (stockRows.first['quantity'] as num?)?.toInt() ?? 0
+            ? (stockRows.first['quantity'] as num?) ?? 0
             : 0;
         quantityChange = quantity - current;
       } else if (mode == 'add') {
@@ -2975,7 +2975,7 @@ class PowerSyncRepository {
 
   Future<void> updateStockAdjustmentQuantity({
     required String adjustmentId,
-    required int newQuantity,
+    required num newQuantity,
   }) async {
     await _db.execute(
       'UPDATE stock_adjustments SET quantity = ? WHERE id = ?',

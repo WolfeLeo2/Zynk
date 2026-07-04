@@ -4,6 +4,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
@@ -220,7 +221,7 @@ class _ProductSelectionTile extends ConsumerWidget {
   final Product product;
   final bool isSelected;
   final String? branchId;
-  final void Function(bool selected, int? stock) onToggle;
+  final void Function(bool selected, num? stock) onToggle;
 
   const _ProductSelectionTile({
     required this.product,
@@ -281,7 +282,7 @@ class _ProductSelectionTile extends ConsumerWidget {
     required ThemeData theme,
     required double resolvedPrice,
     required String pricingUnit,
-    int? stock,
+    num? stock,
     bool isLoading = false,
   }) {
     final isOutOfStock = !product.isService && (stock ?? 0) <= 0;
@@ -409,7 +410,7 @@ class _ProductSelectionTile extends ConsumerWidget {
 }
 
 class _StockBadge extends StatelessWidget {
-  final int stock;
+  final num stock;
   final bool isOutOfStock;
   final bool isLowStock;
   final ColorScheme cs;
@@ -438,12 +439,12 @@ class _StockBadge extends StatelessWidget {
     } else if (isLowStock) {
       bgColor = cs.tertiaryContainer;
       textColor = cs.onTertiaryContainer;
-      label = '$stock left';
+      label = '${formatQty(stock)} left';
       icon = PhosphorIconsFill.warningCircle;
     } else {
       bgColor = cs.secondaryContainer.withValues(alpha: 0.5);
       textColor = cs.onSecondaryContainer;
-      label = '$stock in stock';
+      label = '${formatQty(stock)} in stock';
       icon = PhosphorIconsFill.circle;
     }
 

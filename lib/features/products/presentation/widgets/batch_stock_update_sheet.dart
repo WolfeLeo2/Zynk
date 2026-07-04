@@ -7,6 +7,7 @@ import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 
 import 'batch_group_action_sheet.dart';
@@ -236,7 +237,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
         final currentStock = stockAsync.value?.quantity ?? 0;
         final amount = int.tryParse(_qtyController.text) ?? 0;
 
-        int newStock;
+        num newStock;
         if (_mode == 'add') {
           newStock = currentStock + amount;
         } else if (_mode == 'subtract') {
@@ -257,7 +258,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           child: Row(
             children: [
               Text(
-                '$currentStock',
+                formatQty(currentStock),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: isSelected ? cs.onSurfaceVariant : cs.onSurface,
                 ),
@@ -271,7 +272,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '$newStock',
+                  formatQty(newStock),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -299,7 +300,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
 
         final items = <BatchAdjustmentItem>[];
         for (final id in selectedIds) {
-          int quantityChange;
+          num quantityChange;
           if (_mode == 'set') {
             // We need current stock to calculate delta for 'set'
             // In a batch update, it's safer to let the repo handle the delta calculation

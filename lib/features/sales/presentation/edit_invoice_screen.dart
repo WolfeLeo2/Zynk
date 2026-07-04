@@ -11,6 +11,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/services/sales_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
@@ -218,7 +219,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Not enough stock for "$name". Available: $available',
+                    'Not enough stock for "$name". Available: ${formatQty(available)}',
                   ),
                   backgroundColor: Theme.of(context).colorScheme.error,
                   behavior: SnackBarBehavior.floating,
