@@ -132,54 +132,59 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Import from CSV'), centerTitle: true),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _FormatCard(onCopyTemplate: _copyTemplate),
-              const SizedBox(height: 16),
-              _ModeSelector(
-                mode: _mode,
-                onChanged: (m) => setState(() => _mode = m),
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : SafeArea(
+              child: ListView(
+                padding: const EdgeInsets.all(20),
+                children: [
+                  _FormatCard(onCopyTemplate: _copyTemplate),
+                  const SizedBox(height: 16),
+                  _ModeSelector(
+                    mode: _mode,
+                    onChanged: (m) => setState(() => _mode = m),
+                  ),
+                  const SizedBox(height: 16),
+                  _ReasonPicker(
+                    reasonId: _reasonId,
+                    onChanged: (r) => setState(() => _reasonId = r),
+                  ),
+                  if (selectableBranches.length > 1) ...[
+                    const SizedBox(height: 16),
+                    _BranchSelector(
+                      branches: selectableBranches,
+                      selected: _branchIds ?? const {},
+                      onToggle: (id, on) => setState(() {
+                        final next = {...?_branchIds};
+                        if (on) {
+                          next.add(id);
+                        } else if (next.length > 1) {
+                          next.remove(id);
+                        }
+                        _branchIds = next;
+                      }),
+                    ),
+                  ],
+                  const SizedBox(height: 16),
+                  if (analysis == null)
+                    _pickPrompt(cs)
+                  else if (!analysis.ok)
+                    _headerErrors(analysis, cs, theme)
+                  else
+                    _preview(analysis, cs, theme),
+                ],
               ),
-              const SizedBox(height: 16),
-              _ReasonPicker(
-                reasonId: _reasonId,
-                onChanged: (r) => setState(() => _reasonId = r),
-              ),
-              if (selectableBranches.length > 1) ...[
-                const SizedBox(height: 16),
-                _BranchSelector(
-                  branches: selectableBranches,
-                  selected: _branchIds ?? const {},
-                  onToggle: (id, on) => setState(() {
-                    final next = {...?_branchIds};
-                    if (on) {
-                      next.add(id);
-                    } else if (next.length > 1) {
-                      next.remove(id);
-                    }
-                    _branchIds = next;
-                  }),
-                ),
-              ],
-              const SizedBox(height: 16),
-              if (_isLoading)
-                const Expanded(child: Center(child: CircularProgressIndicator()))
-              else if (analysis == null)
-                Expanded(child: _pickPrompt(cs))
-              else if (!analysis.ok)
-                Expanded(child: _headerErrors(analysis, cs, theme))
-              else
-                Expanded(child: _preview(analysis, cs, theme)),
-            ],
-          ),
-        ),
-      ),
+            ),
+      bottomNavigationBar: (analysis != null && analysis.ok && !_isLoading)
+          ? _actionBar(analysis, cs, theme)
+          : null,
     );
   }
+
+  void _discard() => setState(() {
+    _analysis = null;
+    _error = null;
+  });
 
   Widget _pickPrompt(ColorScheme cs) {
     return Center(
@@ -260,7 +265,7 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
             ],
           ),
         ),
-        const Spacer(),
+        const SizedBox(height: 16),
         OutlinedButton.icon(
           onPressed: _pickFile,
           icon: const PhosphorIcon(PhosphorIconsRegular.arrowClockwise),
@@ -274,7 +279,10 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Row(
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
             _summaryChip(
               cs,
@@ -282,65 +290,101 @@ class _BatchUploadScreenState extends ConsumerState<BatchUploadScreen> {
               '${analysis.importableCount} to import',
               cs.primary,
             ),
-            if (analysis.fixCount > 0) ...[
-              const SizedBox(width: 8),
+            if (analysis.fixCount > 0)
               _summaryChip(
                 cs,
                 PhosphorIconsRegular.wrench,
                 '${analysis.fixCount} auto-fixed',
                 cs.tertiary,
               ),
-            ],
-            if (analysis.skippedCount > 0) ...[
-              const SizedBox(width: 8),
+            if (analysis.skippedCount > 0)
               _summaryChip(
                 cs,
                 PhosphorIconsRegular.prohibit,
                 '${analysis.skippedCount} skipped',
                 cs.error,
               ),
-            ],
-            const Spacer(),
-            TextButton(onPressed: _pickFile, child: const Text('Change')),
           ],
         ),
-        const SizedBox(height: 12),
-        Expanded(
-          child: ListView.separated(
-            itemCount: analysis.rows.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (_, i) =>
-                _RowTile(row: analysis.rows[i], mode: _mode),
-          ),
-        ),
-        const SizedBox(height: 16),
-        if (_reasonId == null)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Text(
-              'Select a reason above to enable import.',
-              style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
-            ),
-          ),
-        FilledButton.icon(
-          onPressed: analysis.importableCount == 0 || _reasonId == null
-              ? null
-              : _import,
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(14),
-            ),
-          ),
-          icon: const PhosphorIcon(PhosphorIconsRegular.downloadSimple),
-          label: Text(
-            analysis.fixCount > 0
-                ? 'Apply ${analysis.fixCount} fixes & import ${analysis.importableCount} rows'
-                : 'Import ${analysis.importableCount} rows',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-        ),
+        const SizedBox(height: 8),
+        // Rendered inline (not a nested scroll) so the whole page scrolls and
+        // every row is reachable; the actions live in the sticky bottom bar.
+        for (var i = 0; i < analysis.rows.length; i++) ...[
+          if (i > 0) const Divider(height: 1),
+          _RowTile(row: analysis.rows[i], mode: _mode),
+        ],
       ],
+    );
+  }
+
+  Widget _actionBar(CsvAnalysis analysis, ColorScheme cs, ThemeData theme) {
+    final canImport = analysis.importableCount > 0 && _reasonId != null;
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+      decoration: BoxDecoration(
+        color: cs.surface,
+        border: Border(
+          top: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_reasonId == null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Select a reason above to enable import.',
+                  style: theme.textTheme.bodySmall?.copyWith(color: cs.error),
+                ),
+              ),
+            Row(
+              children: [
+                SizedBox(
+                  height: 52,
+                  child: OutlinedButton.icon(
+                    onPressed: _discard,
+                    icon: const PhosphorIcon(PhosphorIconsRegular.trash, size: 18),
+                    label: const Text('Discard'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: cs.error,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: SizedBox(
+                    height: 52,
+                    child: FilledButton.icon(
+                      onPressed: canImport ? _import : null,
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                      ),
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.downloadSimple,
+                      ),
+                      label: Text(
+                        analysis.fixCount > 0
+                            ? 'Apply ${analysis.fixCount} fixes & import ${analysis.importableCount}'
+                            : 'Import ${analysis.importableCount} rows',
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 

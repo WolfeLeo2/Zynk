@@ -12,6 +12,7 @@ import 'package:zynk/features/products/presentation/widgets/adjustment_basket_vi
 import 'package:zynk/features/products/presentation/widgets/adjustment_catalog_list.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_config_bar.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 /// POS-style stock-adjustment screen: the catalog (with live stock) is always
 /// visible. On mobile a FAB opens a bottom sheet holding the configuration +
@@ -227,75 +228,103 @@ class _InventoryAdjustmentScreenState
   }
 
   /// Mobile: the config + basket + confirm live in a bottom sheet behind a FAB,
-  /// so the catalog underneath stays fully visible (POS pattern).
+  /// so the catalog underneath stays fully visible (POS pattern). Uses the
+  /// shared [AppBottomSheet] frame + house footer buttons for consistency.
   void _openAdjustSheet() {
     showResponsiveModal(
       context: context,
       builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) {
-          final colorScheme = Theme.of(sheetContext).colorScheme;
-          return Consumer(
-            builder: (context, ref, _) {
-              final count = ref.watch(batchStockProvider).length;
-              final allBranches = _selectedBranchIds.length > 1;
-              return SizedBox(
-                height: MediaQuery.of(sheetContext).size.height * 0.85,
-                child: Column(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
-                      child: Row(
-                        children: [
-                          Text(
-                            'Adjust stock',
-                            style: Theme.of(sheetContext).textTheme.titleLarge
-                                ?.copyWith(fontWeight: FontWeight.bold),
-                          ),
-                          const Spacer(),
-                          if (count > 0)
-                            TextButton.icon(
-                              onPressed: () {
-                                ref.read(batchStockProvider.notifier).clear();
-                                setSheetState(() {});
-                              },
+        builder: (sheetContext, setSheetState) => Consumer(
+          builder: (context, ref, _) {
+            final cs = Theme.of(sheetContext).colorScheme;
+            final count = ref.watch(batchStockProvider).length;
+            final allBranches = _selectedBranchIds.length > 1;
+            return AppBottomSheet(
+              maxHeightFactor: 0.85,
+              icon: PhosphorIconsDuotone.slidersHorizontal,
+              title: 'Adjust stock',
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        if (count > 0)
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: TextButton.icon(
+                              onPressed: _isLoading
+                                  ? null
+                                  : () {
+                                      ref
+                                          .read(batchStockProvider.notifier)
+                                          .clear();
+                                      setSheetState(() {});
+                                    },
                               icon: const PhosphorIcon(
                                 PhosphorIconsRegular.trash,
                                 size: 16,
                               ),
-                              label: const Text('Clear'),
+                              label: const Text('Clear all'),
                               style: TextButton.styleFrom(
-                                foregroundColor: colorScheme.error,
+                                foregroundColor: cs.error,
                               ),
                             ),
-                        ],
+                          ),
+                        _configBar(onChanged: () => setSheetState(() {})),
+                        const SizedBox(height: 16),
+                        AdjustmentBasketView(
+                          selectedBranchIds: _selectedBranchIds,
+                          mode: _mode,
+                          shrinkWrap: true,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 56,
+                    child: FilledButton(
+                      onPressed: count == 0 || _isLoading
+                          ? null
+                          : () async {
+                              final ok = await _submitBatch();
+                              setSheetState(() {});
+                              if (ok && sheetContext.mounted) {
+                                Navigator.pop(sheetContext);
+                              }
+                            },
+                      style: FilledButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                       ),
+                      child: _isLoading
+                          ? SizedBox(
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: cs.onPrimary,
+                              ),
+                            )
+                          : Text(
+                              _confirmLabel(count, allBranches),
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: _configBar(onChanged: () => setSheetState(() {})),
-                    ),
-                    const SizedBox(height: 8),
-                    Expanded(
-                      child: AdjustmentBasketView(
-                        selectedBranchIds: _selectedBranchIds,
-                        mode: _mode,
-                      ),
-                    ),
-                    _buildConfirmBar(
-                      colorScheme,
-                      count,
-                      allBranches,
-                      onDone: () {
-                        if (sheetContext.mounted) Navigator.pop(sheetContext);
-                      },
-                      onProgress: () => setSheetState(() {}),
-                    ),
-                  ],
-                ),
-              );
-            },
-          );
-        },
+                  ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -395,16 +424,8 @@ class _InventoryAdjustmentScreenState
     );
   }
 
-  /// The confirm CTA, shared by the desktop pane and the mobile sheet.
-  /// [onDone] fires after a successful submit (used to close the sheet);
-  /// [onProgress] lets the sheet rebuild to reflect the loading state.
-  Widget _buildConfirmBar(
-    ColorScheme colorScheme,
-    int count,
-    bool allBranches, {
-    VoidCallback? onDone,
-    VoidCallback? onProgress,
-  }) {
+  /// The confirm CTA for the desktop pane (the mobile sheet has its own footer).
+  Widget _buildConfirmBar(ColorScheme colorScheme, int count, bool allBranches) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -420,14 +441,7 @@ class _InventoryAdjustmentScreenState
       child: SafeArea(
         top: false,
         child: FilledButton.icon(
-          onPressed: count == 0 || _isLoading
-              ? null
-              : () async {
-                  onProgress?.call();
-                  final ok = await _submitBatch();
-                  onProgress?.call();
-                  if (ok) onDone?.call();
-                },
+          onPressed: count == 0 || _isLoading ? null : () => _submitBatch(),
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 18),
             shape: RoundedRectangleBorder(
