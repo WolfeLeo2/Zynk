@@ -7,8 +7,16 @@ import 'package:uuid/uuid.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/features/products/domain/csv_import_analysis.dart';
 
 final csvImportServiceProvider = Provider((ref) => CsvImportService(ref));
+
+/// Outcome of an import, for the confirmation message.
+class CsvImportResult {
+  final int created;
+  final int updated;
+  const CsvImportResult({required this.created, required this.updated});
+}
 
 class CsvImportService {
   final Ref ref;
@@ -41,171 +49,189 @@ class CsvImportService {
     }
   }
 
-  Future<void> importProducts(List<Map<String, dynamic>> parsedProducts) async {
+  /// Import the analysed, non-skipped rows. Products are matched to existing
+  /// ones by trimmed, case-insensitive name (SKU is optional in this app, so
+  /// name is the key); unmatched rows create a new product. Stock is applied
+  /// per target branch according to [mode]: `add` posts the quantity as a
+  /// positive delta; `set` posts whatever delta lands each branch on the
+  /// target quantity. Removal is never possible — the analyzer rejects
+  /// negative quantities upstream.
+  Future<CsvImportResult> importRows(
+    List<ImportRow> rows,
+    ImportStockMode mode, {
+    required List<String> branchIds,
+    String? reasonId,
+  }) async {
+    if (rows.isEmpty) return const CsvImportResult(created: 0, updated: 0);
+    if (branchIds.isEmpty) {
+      throw Exception('Select at least one branch to import into.');
+    }
+
     final repo = ref.read(repositoryProvider);
     final profile = ref.read(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? 'tenant_1';
-    final selectedBranchId = ref.read(currentBranchIdProvider);
-    if (selectedBranchId == null) {
-      throw Exception('No branch selected. Please select a branch first.');
-    }
-    final allBranchesMode = selectedBranchId == 'all';
-    final targetBranches = allBranchesMode
-        ? (await repo.getBranches(
-            tenantId,
-          )).where((b) => b.id != 'all').toList()
-        : const <Branch>[];
-    final targetBranchIds = allBranchesMode
-        ? targetBranches.map((b) => b.id).toList()
-        : <String>[selectedBranchId];
 
-    if (allBranchesMode && targetBranches.isEmpty) {
-      throw Exception(
-        'All Branches selected but no target branches were found for this tenant.',
-      );
-    }
+    final targetBranchIds = branchIds;
+    // New products/categories/groups are tenant-wide when fanning out to more
+    // than one branch, otherwise scoped to the single target branch.
+    final catalogBranchId = targetBranchIds.length == 1
+        ? targetBranchIds.first
+        : null;
+    final allBranchesMode = targetBranchIds.length > 1;
+
     final createdBy = profile?.userId ?? 'system';
     final bundleId = const Uuid().v4();
 
-    final categoriesSnapshot = await repo.watchCategories().first;
-    final Map<String, String> categoryMap = {
-      for (final cat in categoriesSnapshot)
-        cat.name.trim().toLowerCase(): cat.id,
+    // Snapshot existing catalog to resolve matches and avoid duplicate
+    // categories/groups across the batch.
+    final categoryMap = {
+      for (final c in await repo.watchCategories().first)
+        c.name.trim().toLowerCase(): c.id,
+    };
+    final groupMap = {
+      for (final g in await repo.watchItemGroups().first)
+        g.name.trim().toLowerCase(): g.id,
+    };
+    final productByName = {
+      for (final p in await repo.watchProducts().first)
+        p.name.trim().toLowerCase(): p,
     };
 
-    final groupsSnapshot = await repo.watchItemGroups().first;
-    final Map<String, String> groupMap = {
-      for (final group in groupsSnapshot)
-        group.name.trim().toLowerCase(): group.id,
-    };
-
-    for (final p in parsedProducts) {
-      final newProductId = const Uuid().v4();
-
-      // Pricing
-      final sellingPriceRaw = p['selling_price']?.toString() ?? '';
-      final double? basePrice = sellingPriceRaw.isEmpty
-          ? null
-          : double.tryParse(sellingPriceRaw);
-
-      final costPriceRaw = p['cost_price']?.toString() ?? '';
-      final double? costPrice = costPriceRaw.isEmpty
-          ? null
-          : double.tryParse(costPriceRaw);
-
-      final int initialStock = int.tryParse(p['initial_stock'].toString()) ?? 0;
-
-      // Category Resolution
-      final String categoryNameRaw =
-          p['category']?.toString() ?? 'Uncategorized';
-      final String categoryNameClean = categoryNameRaw.trim();
-      final String categoryKey = categoryNameClean.toLowerCase();
-
-      String categoryId;
-      if (categoryMap.containsKey(categoryKey)) {
-        categoryId = categoryMap[categoryKey]!;
-      } else {
-        categoryId = const Uuid().v4();
-        final newCategory = Category(
-          id: categoryId,
-          tenantId: tenantId,
-          branchId: allBranchesMode ? null : selectedBranchId,
-          name: categoryNameClean,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-        await repo.createCategory(newCategory);
-        categoryMap[categoryKey] = categoryId;
-      }
-
-      // Item Group Resolution
-      final String groupNameRaw = p['item_group']?.toString() ?? 'Default';
-      final String groupNameClean = groupNameRaw.trim();
-      final String groupKey = groupNameClean.toLowerCase();
-
-      String? itemGroupId;
-      if (groupMap.containsKey(groupKey)) {
-        itemGroupId = groupMap[groupKey]!;
-      } else {
-        itemGroupId = const Uuid().v4();
-
-        // Parse optional group defaults from CSV row if present
-        final defSelling = double.tryParse(
-          p['group_selling_price']?.toString() ?? '',
-        );
-        final defBuying = double.tryParse(
-          p['group_buying_price']?.toString() ?? '',
-        );
-        final commType = p['group_commission_type']?.toString();
-        final commValue = double.tryParse(
-          p['group_commission_value']?.toString() ?? '',
-        );
-
-        final newGroup = ItemGroup(
-          id: itemGroupId,
-          tenantId: tenantId,
-          branchId: allBranchesMode ? null : selectedBranchId,
-          name: groupNameClean,
-          description: p['group_description']?.toString(),
-          defaultSellingPrice: defSelling,
-          defaultBuyingPrice: defBuying,
-          defaultCommissionType: commType,
-          defaultCommissionValue: commValue,
-          createdAt: DateTime.now(),
-          updatedAt: DateTime.now(),
-        );
-        await repo.createItemGroup(newGroup);
-        groupMap[groupKey] = itemGroupId;
-      }
-
-      final product = Product(
-        id: newProductId,
-        tenantId: tenantId,
-        branchId: null,
-        itemGroupId: itemGroupId,
-        categoryId: categoryId,
-        name: p['name'].toString(),
-        sku: p['sku']?.toString(),
-        barcode: p['barcode']?.toString(),
-        description: p['description']?.toString(),
-        imageUrl: p['image_url']?.toString(),
-        basePrice: basePrice,
-        costPrice: costPrice,
-        taxCategory: 'standard',
-        isService: false,
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      );
-
-      await repo.createProduct(product, targetBranchIds: targetBranchIds);
-
-      if (initialStock > 0) {
-        if (allBranchesMode) {
-          for (final branch in targetBranches) {
-            await repo.adjustStock(
-              tenantId: tenantId,
-              branchId: branch.id,
-              productId: newProductId,
-              adjustmentType: 'initial',
-              quantityChange: initialStock,
-              createdBy: createdBy,
-              notes: 'Batch CSV import (all branches)',
-              bundleId: bundleId,
-            );
-          }
-        } else {
-          await repo.adjustStock(
-            tenantId: tenantId,
-            branchId: selectedBranchId,
-            productId: newProductId,
-            adjustmentType: 'initial',
-            quantityChange: initialStock,
-            createdBy: createdBy,
-            notes: 'Batch CSV import',
-            bundleId: bundleId,
-          );
-        }
+    // For 'set' mode we need each existing product's current stock per branch;
+    // fetch it once per branch (new products start at 0).
+    final existingIds = rows
+        .map((r) => productByName[r.name.toLowerCase()]?.id)
+        .whereType<String>()
+        .toList();
+    final Map<String, Map<String, num>> currentByBranch = {};
+    if (mode == ImportStockMode.set) {
+      for (final branchId in targetBranchIds) {
+        currentByBranch[branchId] =
+            await repo.getProductStockValues(existingIds, branchId);
       }
     }
+
+    Future<String> resolveCategory(String? rawName) async {
+      final name = (rawName ?? 'Uncategorized').trim();
+      final key = name.toLowerCase();
+      final existing = categoryMap[key];
+      if (existing != null) return existing;
+      final id = const Uuid().v4();
+      await repo.createCategory(
+        Category(
+          id: id,
+          tenantId: tenantId,
+          branchId: catalogBranchId,
+          name: name,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      categoryMap[key] = id;
+      return id;
+    }
+
+    Future<String> resolveGroup(String? rawName) async {
+      final name = (rawName ?? 'Default').trim();
+      final key = name.toLowerCase();
+      final existing = groupMap[key];
+      if (existing != null) return existing;
+      final id = const Uuid().v4();
+      await repo.createItemGroup(
+        ItemGroup(
+          id: id,
+          tenantId: tenantId,
+          branchId: catalogBranchId,
+          name: name,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        ),
+      );
+      groupMap[key] = id;
+      return id;
+    }
+
+    var created = 0;
+    var updated = 0;
+
+    for (final row in rows) {
+      final match = productByName[row.name.toLowerCase()];
+      String productId;
+
+      if (match != null) {
+        productId = match.id;
+        updated++;
+        // Price override: only when the CSV actually supplies a price and it
+        // differs. Applies immediately (price isn't stock, so it doesn't go
+        // through the pending stock-adjustment review).
+        final newBase = row.sellingPrice?.toDouble();
+        final newCost = row.costPrice?.toDouble();
+        final changeBase = newBase != null && newBase != match.basePrice;
+        final changeCost = newCost != null && newCost != match.costPrice;
+        if (changeBase || changeCost) {
+          await repo.updateProduct(
+            match.copyWith(
+              basePrice: changeBase ? newBase : match.basePrice,
+              costPrice: changeCost ? newCost : match.costPrice,
+              updatedAt: DateTime.now(),
+            ),
+          );
+        }
+      } else {
+        productId = const Uuid().v4();
+        final categoryId = await resolveCategory(row.category);
+        final itemGroupId = await resolveGroup(row.itemGroup);
+        final product = Product(
+          id: productId,
+          tenantId: tenantId,
+          branchId: null,
+          itemGroupId: itemGroupId,
+          categoryId: categoryId,
+          name: row.name,
+          sku: row.sku,
+          barcode: row.barcode,
+          description: row.description,
+          imageUrl: row.imageUrl,
+          basePrice: row.sellingPrice?.toDouble(),
+          costPrice: row.costPrice?.toDouble(),
+          taxCategory: 'standard',
+          isService: false,
+          createdAt: DateTime.now(),
+          updatedAt: DateTime.now(),
+        );
+        await repo.createProduct(product, targetBranchIds: targetBranchIds);
+        // Cache so a later row with the same name updates instead of duplicating.
+        productByName[row.name.toLowerCase()] = product;
+        created++;
+      }
+
+      for (final branchId in targetBranchIds) {
+        final num delta;
+        if (mode == ImportStockMode.set) {
+          final current = currentByBranch[branchId]?[productId] ?? 0;
+          delta = row.quantity - current;
+        } else {
+          delta = row.quantity;
+        }
+        if (delta == 0) continue;
+        await repo.adjustStock(
+          tenantId: tenantId,
+          branchId: branchId,
+          productId: productId,
+          adjustmentType: mode == ImportStockMode.set
+              ? 'set'
+              : (match != null ? 'addition' : 'initial'),
+          quantityChange: delta,
+          createdBy: createdBy,
+          reasonId: reasonId,
+          notes: allBranchesMode
+              ? 'CSV import (all branches)'
+              : 'CSV import',
+          bundleId: bundleId,
+        );
+      }
+    }
+
+    return CsvImportResult(created: created, updated: updated);
   }
 }

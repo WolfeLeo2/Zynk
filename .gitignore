@@ -32,6 +32,7 @@ dart_defines.json
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
+.tokensave
 /build/
 /coverage/
 
@@ -57,3 +58,4 @@ build_log.txt
 fix_styles.py
 migrate_icons.py
 test_products.csv
+/sample_data

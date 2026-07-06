@@ -9,6 +9,7 @@ import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/data/local/repository.dart';
 import 'package:zynk/features/products/data/csv_import_service.dart';
+import 'package:zynk/features/products/domain/csv_import_analysis.dart';
 
 class MockPowerSyncRepository extends Mock implements PowerSyncRepository {}
 
@@ -16,37 +17,18 @@ void main() {
   late MockPowerSyncRepository mockRepo;
 
   setUpAll(() {
+    registerFallbackValue(Category(id: 'fc', tenantId: 'ft', name: 'Fallback'));
     registerFallbackValue(
-      Category(
-        id: 'fallback-category',
-        tenantId: 'fallback-tenant',
-        name: 'Fallback',
-      ),
+      Product(id: 'fp', tenantId: 'ft', name: 'Fallback', basePrice: 1),
     );
-    registerFallbackValue(
-      Product(
-        id: 'fallback-product',
-        tenantId: 'fallback-tenant',
-        name: 'Fallback Product',
-        basePrice: 1,
-      ),
-    );
-    registerFallbackValue(
-      ItemGroup(
-        id: 'fallback-group',
-        tenantId: 'fallback-tenant',
-        name: 'Fallback Group',
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-    );
+    registerFallbackValue(ItemGroup(id: 'fg', tenantId: 'ft', name: 'Group'));
   });
 
   setUp(() {
     mockRepo = MockPowerSyncRepository();
-
     when(() => mockRepo.watchCategories()).thenAnswer((_) => Stream.value([]));
     when(() => mockRepo.watchItemGroups()).thenAnswer((_) => Stream.value([]));
+    when(() => mockRepo.watchProducts()).thenAnswer((_) => Stream.value([]));
     when(() => mockRepo.createCategory(any())).thenAnswer((_) async {});
     when(() => mockRepo.createItemGroup(any())).thenAnswer((_) async {});
     when(
@@ -55,6 +37,10 @@ void main() {
         targetBranchIds: any(named: 'targetBranchIds'),
       ),
     ).thenAnswer((_) async {});
+    when(() => mockRepo.updateProduct(any())).thenAnswer((_) async {});
+    when(
+      () => mockRepo.getProductStockValues(any(), any()),
+    ).thenAnswer((_) async => {});
     when(
       () => mockRepo.adjustStock(
         tenantId: any(named: 'tenantId'),
@@ -65,206 +51,275 @@ void main() {
         createdBy: any(named: 'createdBy'),
         referenceNumber: any(named: 'referenceNumber'),
         notes: any(named: 'notes'),
+        reasonId: any(named: 'reasonId'),
+        bundleId: any(named: 'bundleId'),
       ),
     ).thenAnswer((_) async {});
-    when(() => mockRepo.getBranches(any())).thenAnswer((_) async => []);
   });
 
-  Profile buildProfile() {
-    return Profile(
-      id: 'profile-1',
-      userId: 'user-1',
-      tenantId: 'tenant-1',
-      role: UserRole.owner,
-      permissions: Permission.values.toSet(),
-    );
-  }
+  Profile profile() => Profile(
+    id: 'profile-1',
+    userId: 'user-1',
+    tenantId: 'tenant-1',
+    role: UserRole.owner,
+    permissions: Permission.values.toSet(),
+  );
 
-  ProviderContainer buildContainer({
-    required String? branchId,
-    Profile? profile,
-  }) {
-    return ProviderContainer(
+  Future<CsvImportService> service() async {
+    final c = ProviderContainer(
       overrides: [
         repositoryProvider.overrideWithValue(mockRepo),
-        currentBranchIdProvider.overrideWithValue(branchId),
-        currentUserProfileProvider.overrideWith(
-          (ref) => Stream.value(profile ?? buildProfile()),
-        ),
+        currentUserProfileProvider.overrideWith((ref) => Stream.value(profile())),
       ],
     );
+    addTearDown(c.dispose);
+    await c.read(currentUserProfileProvider.future);
+    return c.read(csvImportServiceProvider);
   }
 
-  List<Map<String, dynamic>> parsedProducts() {
-    return [
-      {
-        'name': 'Tile Premium',
-        'category': 'Tiles',
-        'selling_price': '1200',
-        'initial_stock': '5',
-      },
-    ];
-  }
+  List<ImportRow> oneRow({num qty = 5, String name = 'Tile Premium'}) => [
+    ImportRow(
+      lineNumber: 2,
+      name: name,
+      quantity: qty,
+      category: 'Tiles',
+      sellingPrice: 1200,
+      issues: const [],
+      skip: false,
+    ),
+  ];
 
-  group('CsvImportService.importProducts', () {
-    test('throws when no branch is selected', () async {
-      final container = buildContainer(branchId: null);
-      addTearDown(container.dispose);
+  test('throws when no branches are given', () async {
+    final s = await service();
+    await expectLater(
+      s.importRows(oneRow(), ImportStockMode.add, branchIds: const []),
+      throwsA(isA<Exception>()),
+    );
+    verifyNever(
+      () => mockRepo.createProduct(
+        any(),
+        targetBranchIds: any(named: 'targetBranchIds'),
+      ),
+    );
+  });
 
-      final sub = container.listen(currentUserProfileProvider, (_, __) {});
-      await container.read(currentUserProfileProvider.future);
-      sub.close();
+  test('fans a new product out to every selected branch (add mode)', () async {
+    final s = await service();
+    final result = await s.importRows(
+      oneRow(),
+      ImportStockMode.add,
+      branchIds: const ['branch-a', 'branch-b'],
+    );
+    expect(result.created, 1);
 
-      final service = container.read(csvImportServiceProvider);
-
-      await expectLater(
-        service.importProducts(parsedProducts()),
-        throwsA(isA<Exception>()),
-      );
-
-      verifyNever(() => mockRepo.createProduct(any()));
-      verifyNever(
-        () => mockRepo.adjustStock(
-          tenantId: any(named: 'tenantId'),
-          branchId: any(named: 'branchId'),
-          productId: any(named: 'productId'),
-          adjustmentType: any(named: 'adjustmentType'),
-          quantityChange: any(named: 'quantityChange'),
-          createdBy: any(named: 'createdBy'),
-          notes: any(named: 'notes'),
-        ),
-      );
-    });
-
-    test('imports to selected branch in single-branch mode', () async {
-      final container = buildContainer(branchId: 'branch-a');
-      addTearDown(container.dispose);
-
-      final sub = container.listen(currentUserProfileProvider, (_, __) {});
-      await container.read(currentUserProfileProvider.future);
-      sub.close();
-
-      final service = container.read(csvImportServiceProvider);
-
-      await service.importProducts(parsedProducts());
-
-      final createdCategory =
-          verify(() => mockRepo.createCategory(captureAny())).captured.single
-              as Category;
-      expect(createdCategory.branchId, 'branch-a');
-
-      final createdProduct =
-          verify(() => mockRepo.createProduct(captureAny())).captured.single
-              as Product;
-      expect(createdProduct.branchId, 'branch-a');
-
+    for (final b in ['branch-a', 'branch-b']) {
       verify(
         () => mockRepo.adjustStock(
           tenantId: 'tenant-1',
-          branchId: 'branch-a',
+          branchId: b,
           productId: any(named: 'productId'),
           adjustmentType: 'initial',
           quantityChange: 5,
           createdBy: 'user-1',
-          notes: 'Batch CSV import',
+          notes: 'CSV import (all branches)',
+          bundleId: any(named: 'bundleId'),
         ),
       ).called(1);
-      verifyNever(
-        () => mockRepo.adjustStock(
-          tenantId: any(named: 'tenantId'),
-          branchId: 'all',
-          productId: any(named: 'productId'),
-          adjustmentType: any(named: 'adjustmentType'),
-          quantityChange: any(named: 'quantityChange'),
-          createdBy: any(named: 'createdBy'),
-          notes: any(named: 'notes'),
-        ),
-      );
-    });
+    }
+  });
 
-    test('fans out stock to every branch in all-branches mode', () async {
-      when(() => mockRepo.getBranches('tenant-1')).thenAnswer(
-        (_) async => [
-          Branch(id: 'branch-a', tenantId: 'tenant-1', name: 'Branch A'),
-          Branch(id: 'branch-b', tenantId: 'tenant-1', name: 'Branch B'),
-        ],
-      );
+  test('new product, single branch, add mode posts the quantity', () async {
+    final s = await service();
+    final result = await s.importRows(
+      oneRow(),
+      ImportStockMode.add,
+      branchIds: const ['branch-a'],
+    );
+    expect(result.created, 1);
+    expect(result.updated, 0);
+    verify(
+      () => mockRepo.adjustStock(
+        tenantId: 'tenant-1',
+        branchId: 'branch-a',
+        productId: any(named: 'productId'),
+        adjustmentType: 'initial',
+        quantityChange: 5,
+        createdBy: 'user-1',
+        notes: 'CSV import',
+        bundleId: any(named: 'bundleId'),
+      ),
+    ).called(1);
+  });
 
-      final container = buildContainer(branchId: 'all');
-      addTearDown(container.dispose);
+  test('existing product is updated, not duplicated', () async {
+    when(() => mockRepo.watchProducts()).thenAnswer(
+      (_) => Stream.value([
+        Product(id: 'p1', tenantId: 'tenant-1', name: 'Tile Premium'),
+      ]),
+    );
+    final s = await service();
+    final result = await s.importRows(
+      oneRow(),
+      ImportStockMode.add,
+      branchIds: const ['branch-a'],
+    );
+    expect(result.created, 0);
+    expect(result.updated, 1);
+    verifyNever(
+      () => mockRepo.createProduct(
+        any(),
+        targetBranchIds: any(named: 'targetBranchIds'),
+      ),
+    );
+    verify(
+      () => mockRepo.adjustStock(
+        tenantId: 'tenant-1',
+        branchId: 'branch-a',
+        productId: 'p1',
+        adjustmentType: 'addition',
+        quantityChange: 5,
+        createdBy: 'user-1',
+        notes: 'CSV import',
+        bundleId: any(named: 'bundleId'),
+      ),
+    ).called(1);
+  });
 
-      final sub = container.listen(currentUserProfileProvider, (_, __) {});
-      await container.read(currentUserProfileProvider.future);
-      sub.close();
+  test('set mode posts the delta to reach the target (30 → 20 = -10)', () async {
+    when(() => mockRepo.watchProducts()).thenAnswer(
+      (_) => Stream.value([
+        Product(id: 'p1', tenantId: 'tenant-1', name: 'Tile Premium'),
+      ]),
+    );
+    when(
+      () => mockRepo.getProductStockValues(['p1'], 'branch-a'),
+    ).thenAnswer((_) async => {'p1': 30});
 
-      final service = container.read(csvImportServiceProvider);
+    final s = await service();
+    await s.importRows(
+      oneRow(qty: 20),
+      ImportStockMode.set,
+      branchIds: const ['branch-a'],
+    );
+    verify(
+      () => mockRepo.adjustStock(
+        tenantId: 'tenant-1',
+        branchId: 'branch-a',
+        productId: 'p1',
+        adjustmentType: 'set',
+        quantityChange: -10,
+        createdBy: 'user-1',
+        notes: 'CSV import',
+        bundleId: any(named: 'bundleId'),
+      ),
+    ).called(1);
+  });
 
-      await service.importProducts(parsedProducts());
+  test('forwards the reason to the pending stock adjustment', () async {
+    final s = await service();
+    await s.importRows(
+      oneRow(),
+      ImportStockMode.add,
+      branchIds: const ['branch-a'],
+      reasonId: 'reason-9',
+    );
+    verify(
+      () => mockRepo.adjustStock(
+        tenantId: 'tenant-1',
+        branchId: 'branch-a',
+        productId: any(named: 'productId'),
+        adjustmentType: 'initial',
+        quantityChange: 5,
+        createdBy: 'user-1',
+        reasonId: 'reason-9',
+        notes: 'CSV import',
+        bundleId: any(named: 'bundleId'),
+      ),
+    ).called(1);
+  });
 
-      final createdCategory =
-          verify(() => mockRepo.createCategory(captureAny())).captured.single
-              as Category;
-      expect(createdCategory.branchId, isNull);
-
-      final createdProduct =
-          verify(() => mockRepo.createProduct(captureAny())).captured.single
-              as Product;
-      expect(createdProduct.branchId, isNull);
-
-      verify(
-        () => mockRepo.adjustStock(
+  test('overrides an existing product price when the CSV supplies a new one', () async {
+    when(() => mockRepo.watchProducts()).thenAnswer(
+      (_) => Stream.value([
+        Product(
+          id: 'p1',
           tenantId: 'tenant-1',
-          branchId: 'branch-a',
-          productId: any(named: 'productId'),
-          adjustmentType: 'initial',
-          quantityChange: 5,
-          createdBy: 'user-1',
-          notes: 'Batch CSV import (all branches)',
+          name: 'Tile Premium',
+          basePrice: 1000,
         ),
-      ).called(1);
+      ]),
+    );
+    final s = await service();
+    // oneRow() carries sellingPrice: 1200, which differs from 1000.
+    await s.importRows(
+      oneRow(),
+      ImportStockMode.add,
+      branchIds: const ['branch-a'],
+    );
+    verify(
+      () => mockRepo.updateProduct(
+        any(
+          that: isA<Product>().having((p) => p.basePrice, 'basePrice', 1200),
+        ),
+      ),
+    ).called(1);
+  });
 
-      verify(
-        () => mockRepo.adjustStock(
+  test('does not touch price when the CSV omits it', () async {
+    when(() => mockRepo.watchProducts()).thenAnswer(
+      (_) => Stream.value([
+        Product(
+          id: 'p1',
           tenantId: 'tenant-1',
-          branchId: 'branch-b',
-          productId: any(named: 'productId'),
-          adjustmentType: 'initial',
-          quantityChange: 5,
-          createdBy: 'user-1',
-          notes: 'Batch CSV import (all branches)',
+          name: 'NoPrice',
+          basePrice: 1000,
         ),
-      ).called(1);
-    });
-
-    test('throws when all-branches mode has no branch targets', () async {
-      when(() => mockRepo.getBranches('tenant-1')).thenAnswer((_) async => []);
-
-      final container = buildContainer(branchId: 'all');
-      addTearDown(container.dispose);
-
-      final sub = container.listen(currentUserProfileProvider, (_, _) {});
-      await container.read(currentUserProfileProvider.future);
-      sub.close();
-
-      final service = container.read(csvImportServiceProvider);
-
-      await expectLater(
-        service.importProducts(parsedProducts()),
-        throwsA(isA<Exception>()),
-      );
-
-      verifyNever(() => mockRepo.createProduct(any()));
-      verifyNever(
-        () => mockRepo.adjustStock(
-          tenantId: any(named: 'tenantId'),
-          branchId: any(named: 'branchId'),
-          productId: any(named: 'productId'),
-          adjustmentType: any(named: 'adjustmentType'),
-          quantityChange: any(named: 'quantityChange'),
-          createdBy: any(named: 'createdBy'),
-          notes: any(named: 'notes'),
+      ]),
+    );
+    final s = await service();
+    await s.importRows(
+      [
+        ImportRow(
+          lineNumber: 2,
+          name: 'NoPrice',
+          quantity: 5,
+          issues: const [],
+          skip: false,
         ),
-      );
-    });
+      ],
+      ImportStockMode.add,
+      branchIds: const ['branch-a'],
+    );
+    verifyNever(() => mockRepo.updateProduct(any()));
+  });
+
+  test('set mode with target == current writes nothing', () async {
+    when(() => mockRepo.watchProducts()).thenAnswer(
+      (_) => Stream.value([
+        Product(id: 'p1', tenantId: 'tenant-1', name: 'Tile Premium'),
+      ]),
+    );
+    when(
+      () => mockRepo.getProductStockValues(['p1'], 'branch-a'),
+    ).thenAnswer((_) async => {'p1': 20});
+
+    final s = await service();
+    await s.importRows(
+      oneRow(qty: 20),
+      ImportStockMode.set,
+      branchIds: const ['branch-a'],
+    );
+    verifyNever(
+      () => mockRepo.adjustStock(
+        tenantId: any(named: 'tenantId'),
+        branchId: any(named: 'branchId'),
+        productId: any(named: 'productId'),
+        adjustmentType: any(named: 'adjustmentType'),
+        quantityChange: any(named: 'quantityChange'),
+        createdBy: any(named: 'createdBy'),
+        notes: any(named: 'notes'),
+        bundleId: any(named: 'bundleId'),
+      ),
+    );
   });
 }
