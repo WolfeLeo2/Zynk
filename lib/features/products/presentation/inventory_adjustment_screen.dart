@@ -1,17 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:go_router/go_router.dart';
-import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/features/products/domain/stock_adjustment_math.dart';
-import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_basket_view.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_catalog_list.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_config_bar.dart';
+import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 
 /// POS-style stock-adjustment screen: the catalog (with live stock) is always
 /// visible. On mobile a FAB opens a bottom sheet holding the configuration +
@@ -324,7 +324,9 @@ class _InventoryAdjustmentScreenState
           ),
         );
 
-    final catalog = AdjustmentCatalogList(selectedBranchIds: _selectedBranchIds);
+    final catalog = AdjustmentCatalogList(
+      selectedBranchIds: _selectedBranchIds,
+    );
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -337,7 +339,7 @@ class _InventoryAdjustmentScreenState
                 )
               : const SizedBox.shrink(),
         ),
-        title: const Text('Adjustments'),
+        title: const Text('Stock Adjustments'),
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
@@ -384,7 +386,9 @@ class _InventoryAdjustmentScreenState
                 label: Text('${batchItems.length}'),
                 isLabelVisible: batchItems.isNotEmpty,
                 backgroundColor: colorScheme.error,
-                child: const PhosphorIcon(PhosphorIconsRegular.slidersHorizontal),
+                child: const PhosphorIcon(
+                  PhosphorIconsRegular.slidersHorizontal,
+                ),
               ),
               label: const Text('Adjust'),
             ),
