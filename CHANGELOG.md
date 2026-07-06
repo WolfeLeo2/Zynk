@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.7.0](https://github.com/WolfeLeo2/Zynk/compare/v1.6.3...v1.7.0) (2026-07-06)
+
+
+### Features
+
+* show affected branches on Stock Adjustment screen ([1029b8c](https://github.com/WolfeLeo2/Zynk/commit/1029b8c9ce6ec213a14276bd0ea62ea2da58c184))
+
 ## [1.6.3](https://github.com/WolfeLeo2/Zynk/compare/v1.6.2...v1.6.3) (2026-07-06)
 
 
