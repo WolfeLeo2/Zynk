@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/WolfeLeo2/Zynk/compare/v1.5.3...v1.6.0) (2026-07-06)
+
+
+### Features
+
+* updated csv import service ([d1a298a](https://github.com/WolfeLeo2/Zynk/commit/d1a298a64b66a6bc2712bff8052fa4c98d78a6be))
+
+
+### Bug Fixes
+
+* changed up the adjustment screen UI ([d1a298a](https://github.com/WolfeLeo2/Zynk/commit/d1a298a64b66a6bc2712bff8052fa4c98d78a6be))
+
 ## [1.5.3](https://github.com/WolfeLeo2/Zynk/compare/v1.5.2...v1.5.3) (2026-07-04)
 
 
