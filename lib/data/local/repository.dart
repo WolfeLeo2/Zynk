@@ -472,6 +472,7 @@ class PowerSyncRepository {
         ],
       );
 
+      final now = DateTime.now().toIso8601String();
       for (final branchId in effectiveBranchIds) {
         final deterministicId = const Uuid().v5(
           _productBranchNamespace,
@@ -481,14 +482,26 @@ class PowerSyncRepository {
           '''INSERT INTO product_branches (
                id, tenant_id, product_id, branch_id, created_at
              ) VALUES (?, ?, ?, ?, ?)''',
-          [
-            deterministicId,
-            product.tenantId,
-            product.id,
-            branchId,
-            DateTime.now().toIso8601String(),
-          ],
+          [deterministicId, product.tenantId, product.id, branchId, now],
         );
+
+        // Seed a zero stock row per branch so later adjustments (which use an
+        // UPDATE-based increment) have a row to accumulate into. Without this,
+        // approving a new product's initial stock silently no-ops against a
+        // missing row and stock stays at 0. Services aren't stock-tracked.
+        if (!product.isService) {
+          final stockId = const Uuid().v5(
+            _productBranchNamespace,
+            'stock:${product.id}:$branchId',
+          );
+          await tx.execute(
+            '''INSERT INTO stock (
+                 id, tenant_id, branch_id, product_id, quantity, reorder_level,
+                 last_updated
+               ) VALUES (?, ?, ?, ?, 0, 0, ?)''',
+            [stockId, product.tenantId, branchId, product.id, now],
+          );
+        }
       }
     });
   }
