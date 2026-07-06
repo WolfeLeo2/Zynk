@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/WolfeLeo2/Zynk/compare/v1.6.0...v1.6.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* changed up the adjustment screen UI ([6e43784](https://github.com/WolfeLeo2/Zynk/commit/6e43784b8a435f7396ef89330b3de3e1532d3642))
+* random commit to instantiate a build ([d870a3d](https://github.com/WolfeLeo2/Zynk/commit/d870a3dfb4329c08eac959653a1f5f3bf66265b9))
+
 ## [1.6.0](https://github.com/WolfeLeo2/Zynk/compare/v1.5.3...v1.6.0) (2026-07-06)
 
 
