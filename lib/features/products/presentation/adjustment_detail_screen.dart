@@ -67,9 +67,16 @@ class AdjustmentDetailScreen extends ConsumerWidget {
           StockAdjustmentStatus.rejected => ('Rejected', colorScheme.error),
         };
         final productIds = items.map((i) => i.productId).toList()..sort();
-        final branchId = first.branchId;
-        final stockKey = '$branchId:${productIds.join(',')}';
+        final stockKey = productIds.join(',');
         final stockAsync = ref.watch(adjustmentStockLevelsProvider(stockKey));
+
+        // When a bundle fanned out across branches, label each row with its
+        // branch (the same product appears once per branch, with its own
+        // before/after). Single-branch bundles show no label.
+        final branches = ref.watch(branchesProvider).value ?? const [];
+        final branchNames = {for (final b in branches) b.id: b.name};
+        final isMultiBranch =
+            items.map((i) => i.branchId).toSet().length > 1;
 
         final profile = ref.watch(currentUserProfileProvider).value;
         final canApprove =
@@ -148,6 +155,7 @@ class AdjustmentDetailScreen extends ConsumerWidget {
                   stockLevels: stockAsync.value,
                   isLoadingStock:
                       stockAsync.isLoading && stockAsync.value == null,
+                  branchNames: isMultiBranch ? branchNames : const {},
                   // Any user may edit a pending adjustment's quantities (a local,
                   // tenant-scoped write). Approve/unapprove/reject/delete stay
                   // gated by `canApprove` via the popup menu above.
@@ -282,11 +290,15 @@ class _ItemsSection extends StatelessWidget {
   final bool isLoadingStock;
   final bool canEdit;
 
+  /// branchId → branch name; empty when the bundle is single-branch (no label).
+  final Map<String, String> branchNames;
+
   const _ItemsSection({
     required this.items,
     required this.stockLevels,
     required this.isLoadingStock,
     required this.canEdit,
+    this.branchNames = const {},
   });
 
   @override
@@ -317,7 +329,8 @@ class _ItemsSection extends StatelessWidget {
               );
             }
 
-            final currentStock = stockLevels![item.productId] ?? 0;
+            final currentStock =
+                stockLevels!['${item.branchId}:${item.productId}'] ?? 0;
 
             final isApproved = item.status == StockAdjustmentStatus.approved;
 
@@ -342,6 +355,7 @@ class _ItemsSection extends StatelessWidget {
               newStock: newStock,
               canEdit: canEdit,
               isLoading: false,
+              branchName: branchNames[item.branchId],
             );
           },
         ),
@@ -356,6 +370,7 @@ class _AdjustmentItemRow extends StatelessWidget {
   final num newStock;
   final bool canEdit;
   final bool isLoading;
+  final String? branchName;
 
   const _AdjustmentItemRow({
     required this.item,
@@ -363,6 +378,7 @@ class _AdjustmentItemRow extends StatelessWidget {
     required this.newStock,
     required this.canEdit,
     this.isLoading = false,
+    this.branchName,
   });
 
   @override
@@ -405,6 +421,37 @@ class _AdjustmentItemRow extends StatelessWidget {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (branchName != null) ...[
+                  const SizedBox(height: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 3,
+                    ),
+                    decoration: BoxDecoration(
+                      color: colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        PhosphorIcon(
+                          PhosphorIconsRegular.storefront,
+                          size: 12,
+                          color: colorScheme.onSecondaryContainer,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          branchName!,
+                          style: textTheme.labelSmall?.copyWith(
+                            color: colorScheme.onSecondaryContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

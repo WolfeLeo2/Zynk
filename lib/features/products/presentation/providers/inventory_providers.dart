@@ -7,29 +7,21 @@ final inventoryServiceProvider = Provider<InventoryService>((ref) {
   return InventoryService(Supabase.instance.client);
 });
 
-/// Key format: "branchId:prod1,prod2,prod3"
+/// Key format: comma-joined product ids ("prod1,prod2,prod3").
+/// Returns current stock for every branch keyed by "branchId:productId", so a
+/// single adjustment bundle that fanned out across branches can look up each
+/// row's own branch stock (not just the first branch's).
 final adjustmentStockLevelsProvider = StreamProvider.autoDispose
     .family<Map<String, num>, String>((ref, key) {
       final repo = ref.watch(repositoryProvider);
 
-      final parts = key.split(':');
-      if (parts.length != 2) return Stream.value({});
-
-      final branchId = parts[0];
-      final productIds = parts[1]
-          .split(',')
-          .where((id) => id.isNotEmpty)
-          .toList();
-
+      final productIds = key.split(',').where((id) => id.isNotEmpty).toList();
       if (productIds.isEmpty) return Stream.value({});
 
-      return repo.watchStockByProductIds(productIds, branchId: branchId).map((
-        stockList,
-      ) {
+      return repo.watchStockByProductIds(productIds).map((stockList) {
         final result = <String, num>{};
-        for (final id in productIds) {
-          final stock = stockList.where((s) => s.productId == id).firstOrNull;
-          result[id] = stock?.quantity ?? 0;
+        for (final s in stockList) {
+          result['${s.branchId}:${s.productId}'] = s.quantity;
         }
         return result;
       });
