@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.3](https://github.com/WolfeLeo2/Zynk/compare/v1.6.2...v1.6.3) (2026-07-06)
+
+
+### Bug Fixes
+
+* added product seeding for new items via csv ([a58b3d8](https://github.com/WolfeLeo2/Zynk/commit/a58b3d8d1dd707a11e5096165b8d135a0e99c12d))
+
 ## [1.6.2](https://github.com/WolfeLeo2/Zynk/compare/v1.6.1...v1.6.2) (2026-07-06)
 
 
