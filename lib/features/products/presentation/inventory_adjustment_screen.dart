@@ -1,5 +1,3 @@
-import 'package:button_group_m3e/button_group_m3e.dart';
-import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
@@ -8,15 +6,16 @@ import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/features/products/domain/stock_adjustment_math.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_basket_view.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_catalog_list.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_config_bar.dart';
 
-/// Two-zone stock-adjustment screen. Desktop shows catalog + basket side by
-/// side; mobile shows a persistent config bar + a Catalog/Basket toggle, with
-/// the mode-aware confirm CTA always pinned to the bottom on both.
+/// POS-style stock-adjustment screen: the catalog (with live stock) is always
+/// visible. On mobile a FAB opens a bottom sheet holding the configuration +
+/// basket + confirm CTA; on desktop that same block sits in a right-hand pane.
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
 
@@ -33,7 +32,6 @@ class _InventoryAdjustmentScreenState
   bool _initializedBranches = false;
   String? _reasonId;
   String _mode = 'add'; // 'add' | 'subtract' | 'set'
-  String _view = 'catalog'; // mobile only: 'catalog' | 'basket'
 
   @override
   void dispose() {
@@ -71,31 +69,34 @@ class _InventoryAdjustmentScreenState
     });
   }
 
-  void _snack(String message) {
+  void _snack(String message, {bool error = true}) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: Theme.of(context).colorScheme.error,
+        backgroundColor: error ? Theme.of(context).colorScheme.error : null,
         behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  Future<void> _submitBatch() async {
+  /// Applies the basket as pending stock adjustments. Returns true on success
+  /// so callers can decide navigation (desktop stays put; the mobile sheet
+  /// closes itself). Does NOT pop the screen — the catalog stays visible.
+  Future<bool> _submitBatch() async {
     final items = ref.read(batchStockProvider);
-    if (items.isEmpty) return;
+    if (items.isEmpty) return false;
 
     if (_reasonId == null) {
       _snack('Please select a reason for this adjustment.');
-      return;
+      return false;
     }
 
     final profile = ref.read(currentProfileProvider);
-    if (profile == null) return;
+    if (profile == null) return false;
 
     if (ref.read(currentBranchIdProvider) == null) {
       _snack('Please select a branch first.');
-      return;
+      return false;
     }
 
     final allBranchesMode = _selectedBranchIds.length > 1;
@@ -106,7 +107,7 @@ class _InventoryAdjustmentScreenState
         .toList();
     if (enteredItems.isEmpty) {
       _snack('Please enter a quantity for at least one item.');
-      return;
+      return false;
     }
 
     setState(() => _isLoading = true);
@@ -173,19 +174,17 @@ class _InventoryAdjustmentScreenState
 
       if (mounted) {
         ref.read(batchStockProvider.notifier).clear();
-        context.pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              allBranchesMode
-                  ? 'Updated stock for $adjustedCount item(s) across all branches.'
-                  : 'Adjustment confirmed for $adjustedCount item(s)!',
-            ),
-          ),
+        _snack(
+          allBranchesMode
+              ? 'Submitted $adjustedCount item(s) across all branches for review.'
+              : 'Submitted $adjustedCount item(s) for review!',
+          error: false,
         );
       }
+      return true;
     } catch (e) {
       if (mounted) _snack('Error: $e');
+      return false;
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -203,6 +202,102 @@ class _InventoryAdjustmentScreenState
     return allBranches
         ? '$verb · all branches ($items)'
         : '$verb stock ($items)';
+  }
+
+  AdjustmentConfigBar _configBar({VoidCallback? onChanged}) {
+    void bubble() => onChanged?.call();
+    return AdjustmentConfigBar(
+      selectedBranchIds: _selectedBranchIds,
+      mode: _mode,
+      reasonId: _reasonId,
+      referenceController: _referenceController,
+      onBranchToggle: (id, sel) {
+        _toggleBranch(id, sel);
+        bubble();
+      },
+      onModeChanged: (m) {
+        setState(() => _mode = m);
+        bubble();
+      },
+      onReasonChanged: (r) {
+        setState(() => _reasonId = r);
+        bubble();
+      },
+    );
+  }
+
+  /// Mobile: the config + basket + confirm live in a bottom sheet behind a FAB,
+  /// so the catalog underneath stays fully visible (POS pattern).
+  void _openAdjustSheet() {
+    showResponsiveModal(
+      context: context,
+      builder: (sheetContext) => StatefulBuilder(
+        builder: (sheetContext, setSheetState) {
+          final colorScheme = Theme.of(sheetContext).colorScheme;
+          return Consumer(
+            builder: (context, ref, _) {
+              final count = ref.watch(batchStockProvider).length;
+              final allBranches = _selectedBranchIds.length > 1;
+              return SizedBox(
+                height: MediaQuery.of(sheetContext).size.height * 0.85,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 4, 12, 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            'Adjust stock',
+                            style: Theme.of(sheetContext).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.bold),
+                          ),
+                          const Spacer(),
+                          if (count > 0)
+                            TextButton.icon(
+                              onPressed: () {
+                                ref.read(batchStockProvider.notifier).clear();
+                                setSheetState(() {});
+                              },
+                              icon: const PhosphorIcon(
+                                PhosphorIconsRegular.trash,
+                                size: 16,
+                              ),
+                              label: const Text('Clear'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: colorScheme.error,
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: _configBar(onChanged: () => setSheetState(() {})),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: AdjustmentBasketView(
+                        selectedBranchIds: _selectedBranchIds,
+                        mode: _mode,
+                      ),
+                    ),
+                    _buildConfirmBar(
+                      colorScheme,
+                      count,
+                      allBranches,
+                      onDone: () {
+                        if (sheetContext.mounted) Navigator.pop(sheetContext);
+                      },
+                      onProgress: () => setSheetState(() {}),
+                    ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -229,19 +324,7 @@ class _InventoryAdjustmentScreenState
           ),
         );
 
-    final configBar = AdjustmentConfigBar(
-      selectedBranchIds: _selectedBranchIds,
-      mode: _mode,
-      reasonId: _reasonId,
-      referenceController: _referenceController,
-      onBranchToggle: _toggleBranch,
-      onModeChanged: (m) => setState(() => _mode = m),
-      onReasonChanged: (r) => setState(() => _reasonId = r),
-    );
-    final basket = AdjustmentBasketView(
-      selectedBranchIds: _selectedBranchIds,
-      mode: _mode,
-    );
+    final catalog = AdjustmentCatalogList(selectedBranchIds: _selectedBranchIds);
 
     return Scaffold(
       drawer: const AppDrawer(),
@@ -255,33 +338,29 @@ class _InventoryAdjustmentScreenState
               : const SizedBox.shrink(),
         ),
         title: const Text('Adjustments'),
-        actions: [
-          if (batchItems.isNotEmpty)
-            TextButton.icon(
-              onPressed: () => ref.read(batchStockProvider.notifier).clear(),
-              icon: const PhosphorIcon(PhosphorIconsRegular.trash),
-              label: const Text('Clear All'),
-              style: TextButton.styleFrom(foregroundColor: colorScheme.error),
-            ),
-        ],
       ),
       body: LayoutBuilder(
         builder: (context, constraints) {
           if (constraints.maxWidth > 800) {
             return Row(
               children: [
-                const Expanded(flex: 4, child: AdjustmentCatalogList()),
+                Expanded(flex: 5, child: catalog),
                 const VerticalDivider(width: 1),
                 Expanded(
-                  flex: 6,
+                  flex: 5,
                   child: Column(
                     children: [
                       Padding(
                         padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: configBar,
+                        child: _configBar(),
                       ),
-                      Expanded(child: basket),
-                      _buildFooter(
+                      Expanded(
+                        child: AdjustmentBasketView(
+                          selectedBranchIds: _selectedBranchIds,
+                          mode: _mode,
+                        ),
+                      ),
+                      _buildConfirmBar(
                         colorScheme,
                         batchItems.length,
                         allBranchesMode,
@@ -293,57 +372,35 @@ class _InventoryAdjustmentScreenState
             );
           }
 
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: configBar,
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: _buildViewToggle(batchItems.length),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: _view == 'catalog'
-                    ? const AdjustmentCatalogList()
-                    : basket,
-              ),
-              _buildFooter(colorScheme, batchItems.length, allBranchesMode),
-            ],
-          );
+          // Mobile: catalog fills the screen; the FAB opens the config+basket.
+          return catalog;
         },
       ),
+      floatingActionButton: MediaQuery.of(context).size.width > 800
+          ? null
+          : FloatingActionButton.extended(
+              onPressed: _openAdjustSheet,
+              icon: Badge(
+                label: Text('${batchItems.length}'),
+                isLabelVisible: batchItems.isNotEmpty,
+                backgroundColor: colorScheme.error,
+                child: const PhosphorIcon(PhosphorIconsRegular.slidersHorizontal),
+              ),
+              label: const Text('Adjust'),
+            ),
     );
   }
 
-  Widget _buildViewToggle(int count) {
-    return ButtonGroupM3E(
-      selection: true,
-      overflow: ButtonGroupM3EOverflow.none,
-      type: ButtonGroupM3EType.connected,
-      style: ButtonM3EStyle.filled,
-      size: ButtonGroupM3ESize.sm,
-      shape: ButtonGroupM3EShape.round,
-      selectedIndex: _view == 'catalog' ? 0 : 1,
-      actions: [
-        ButtonGroupM3EAction(
-          label: const Text('Catalog'),
-          icon: const PhosphorIcon(PhosphorIconsRegular.squaresFour, size: 18),
-          style: _view == 'catalog' ? ButtonM3EStyle.tonal : null,
-          onPressed: () => setState(() => _view = 'catalog'),
-        ),
-        ButtonGroupM3EAction(
-          label: Text('Basket · $count'),
-          icon: const PhosphorIcon(PhosphorIconsRegular.stack, size: 18),
-          style: _view == 'basket' ? ButtonM3EStyle.tonal : null,
-          onPressed: () => setState(() => _view = 'basket'),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildFooter(ColorScheme colorScheme, int count, bool allBranches) {
+  /// The confirm CTA, shared by the desktop pane and the mobile sheet.
+  /// [onDone] fires after a successful submit (used to close the sheet);
+  /// [onProgress] lets the sheet rebuild to reflect the loading state.
+  Widget _buildConfirmBar(
+    ColorScheme colorScheme,
+    int count,
+    bool allBranches, {
+    VoidCallback? onDone,
+    VoidCallback? onProgress,
+  }) {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -359,7 +416,14 @@ class _InventoryAdjustmentScreenState
       child: SafeArea(
         top: false,
         child: FilledButton.icon(
-          onPressed: count == 0 || _isLoading ? null : _submitBatch,
+          onPressed: count == 0 || _isLoading
+              ? null
+              : () async {
+                  onProgress?.call();
+                  final ok = await _submitBatch();
+                  onProgress?.call();
+                  if (ok) onDone?.call();
+                },
           style: FilledButton.styleFrom(
             padding: const EdgeInsets.symmetric(vertical: 18),
             shape: RoundedRectangleBorder(
