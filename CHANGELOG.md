@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.2](https://github.com/WolfeLeo2/Zynk/compare/v1.6.1...v1.6.2) (2026-07-06)
+
+
+### Bug Fixes
+
+* updated the bottomsheets for a better ui ([d557858](https://github.com/WolfeLeo2/Zynk/commit/d5578585762c74473cb5fdf3130b993f83ab004f))
+
 ## [1.6.1](https://github.com/WolfeLeo2/Zynk/compare/v1.6.0...v1.6.1) (2026-07-06)
 
 
