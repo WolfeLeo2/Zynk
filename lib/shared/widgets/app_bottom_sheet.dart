@@ -16,6 +16,7 @@ class AppBottomSheet extends StatelessWidget {
   final Widget child;
   final EdgeInsetsGeometry padding;
   final double? maxHeightFactor;
+  final Widget? bottomBar;
 
   const AppBottomSheet({
     super.key,
@@ -24,6 +25,7 @@ class AppBottomSheet extends StatelessWidget {
     required this.child,
     this.padding = const EdgeInsets.fromLTRB(24, 8, 24, 24),
     this.maxHeightFactor,
+    this.bottomBar,
   });
 
   @override
@@ -70,6 +72,19 @@ class AppBottomSheet extends StatelessWidget {
             ),
           );
 
-    return SafeArea(child: Padding(padding: padding, child: content));
+    Widget sheetBody = Padding(padding: padding, child: content);
+
+    if (bottomBar != null) {
+      sheetBody = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (maxHeightFactor == null) sheetBody else Flexible(child: sheetBody),
+          bottomBar!,
+        ],
+      );
+    }
+
+    return SafeArea(child: sheetBody);
   }
 }

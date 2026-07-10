@@ -189,7 +189,7 @@ class AppDrawer extends ConsumerWidget {
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.package,
                       label: 'Item Groups',
-                      path: '/products/groups',
+                      path: '/groups',
                       currentPath: currentPath,
                     ),
                     _DrawerItem(
@@ -201,7 +201,7 @@ class AppDrawer extends ConsumerWidget {
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.slidersHorizontal,
                       label: 'Adjustments Review',
-                      path: '/settings/adjustments-review',
+                      path: '/adjustment-review',
                       currentPath: currentPath,
                     ),
                   ],
@@ -219,13 +219,13 @@ class AppDrawer extends ConsumerWidget {
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.currencyDollar,
                       label: 'Reports',
-                      path: '/settings/reports',
+                      path: '/reports',
                       currentPath: currentPath,
                     ),
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.trendUp,
                       label: 'Commissions',
-                      path: '/settings/commissions',
+                      path: '/reports/commissions',
                       currentPath: currentPath,
                     ),
                   ],
@@ -246,16 +246,7 @@ class AppDrawer extends ConsumerWidget {
                       padding: const EdgeInsets.only(left: 16),
                       child: Text('SYSTEM', style: _headerStyle(theme)),
                     ),
-                    if (profileAsync.value?.hasPermission(
-                          Permission.manageBranches,
-                        ) ==
-                        true)
-                      _DrawerItem(
-                        icon: PhosphorIconsDuotone.buildings,
-                        label: 'Branches',
-                        path: '/settings/branches',
-                        currentPath: currentPath,
-                      ),
+
                     if (profileAsync.value?.hasPermission(
                           Permission.manageStaff,
                         ) ==

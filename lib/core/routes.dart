@@ -85,7 +85,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
 
         // Enforce Product access
-        if (loc.startsWith('/products') || loc.startsWith('/adjustments')) {
+        if (loc.startsWith('/products') || loc.startsWith('/adjustments') || loc.startsWith('/groups') || loc.startsWith('/adjustment-review')) {
           if (!profile.hasPermission(Permission.manageProducts) &&
               !profile.hasPermission(Permission.manageStock)) {
             return profile.hasPermission(Permission.viewDashboard)
@@ -107,7 +107,8 @@ final routerProvider = Provider<GoRouter>((ref) {
         }
 
         // Enforce Reports access
-        if ((loc.startsWith('/settings/reports') ||
+        if ((loc.startsWith('/reports') ||
+                loc.startsWith('/settings/reports') ||
                 loc.startsWith('/settings/stock-report')) &&
             !profile.hasPermission(Permission.viewReports)) {
           return profile.hasPermission(Permission.viewDashboard) ? '/' : '/pos';
@@ -205,24 +206,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                         },
                       ),
                       GoRoute(
-                        path: 'groups',
-                        builder: (context, state) => const ItemGroupsScreen(),
-                        routes: [
-                          GoRoute(
-                            path: 'add',
-                            builder: (context, state) =>
-                                const AddItemGroupScreen(),
-                          ),
-                          GoRoute(
-                            path: ':id',
-                            builder: (context, state) {
-                              final group = state.extra as ItemGroup;
-                              return GroupDetailsScreen(group: group);
-                            },
-                          ),
-                        ],
-                      ),
-                      GoRoute(
                         path: 'details',
                         builder: (context, state) {
                           final product = state.extra as Product;
@@ -256,6 +239,48 @@ final routerProvider = Provider<GoRouter>((ref) {
                   GoRoute(
                     path: 'expenses',
                     builder: (context, state) => const ExpensesScreen(),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: '/groups',
+                builder: (context, state) => const ItemGroupsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'add',
+                    builder: (context, state) =>
+                        const AddItemGroupScreen(),
+                  ),
+                  GoRoute(
+                    path: ':id',
+                    builder: (context, state) {
+                      final group = state.extra as ItemGroup;
+                      return GroupDetailsScreen(group: group);
+                    },
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: '/adjustment-review',
+                builder: (context, state) => const AdjustmentsScreen(),
+                routes: [
+                  GoRoute(
+                    path: ':bundleId',
+                    builder: (context, state) {
+                      final bundleId = state.pathParameters['bundleId']!;
+                      return AdjustmentDetailScreen(bundleId: bundleId);
+                    },
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: '/reports',
+                builder: (context, state) => const ReportsScreen(),
+                routes: [
+                  GoRoute(
+                    path: 'commissions',
+                    builder: (context, state) =>
+                        const CommissionsReportScreen(),
                   ),
                 ],
               ),
@@ -337,30 +362,8 @@ final routerProvider = Provider<GoRouter>((ref) {
                     },
                   ),
                   GoRoute(
-                    path: 'adjustments-review',
-                    builder: (context, state) => const AdjustmentsScreen(),
-                    routes: [
-                      GoRoute(
-                        path: ':bundleId',
-                        builder: (context, state) {
-                          final bundleId = state.pathParameters['bundleId']!;
-                          return AdjustmentDetailScreen(bundleId: bundleId);
-                        },
-                      ),
-                    ],
-                  ),
-                  GoRoute(
-                    path: 'reports',
-                    builder: (context, state) => const ReportsScreen(),
-                  ),
-                  GoRoute(
                     path: 'stock-report',
                     builder: (context, state) => const StockReportScreen(),
-                  ),
-                  GoRoute(
-                    path: 'commissions',
-                    builder: (context, state) =>
-                        const CommissionsReportScreen(),
                   ),
                   GoRoute(
                     path: 'customers',

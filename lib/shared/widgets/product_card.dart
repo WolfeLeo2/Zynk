@@ -66,7 +66,9 @@ class SharedProductCard extends ConsumerWidget {
             )
           : null,
       child: InkWell(
-        onTap: isOutOfStock ? null : onTap,
+        // Out-of-stock only blocks the add-to-cart (POS) context; browsing to
+        // details must always work.
+        onTap: (isOutOfStock && showCartBadges) ? null : onTap,
         borderRadius: AppTokens.roundedCard,
         child: Stack(
           children: [

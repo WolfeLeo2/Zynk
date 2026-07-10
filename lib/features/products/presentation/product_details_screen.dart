@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:m3e_card_list/m3e_card_list.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/core/models/schema_models.dart';
@@ -148,80 +149,89 @@ class ProductDetailsScreen extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
-          Card(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                  child: Text(
-                    'Classification',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 24, 4, 12),
+                child: Text(
+                  'Classification',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurfaceVariant,
                   ),
                 ),
-                Consumer(
-                  builder: (context, ref, child) {
-                    final categories =
-                        ref.watch(allCategoriesProvider).value ?? [];
-                    final categoryName =
-                        categories
-                            .where((c) => c.id == product.categoryId)
-                            .map((c) => c.name)
-                            .firstOrNull ??
-                        'No Category';
-                    return ListTile(
-                      leading: PhosphorIcon(
-                        PhosphorIconsRegular.folder,
-                        color: colorScheme.primary,
-                      ),
-                      title: const Text('Category'),
-                      subtitle: Text(categoryName),
+              ),
+              M3ECardList(
+                itemCount: 2,
+                color: colorScheme.surfaceContainerLow,
+                padding: EdgeInsets.zero,
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    return Consumer(
+                      builder: (context, ref, child) {
+                        final categories =
+                            ref.watch(allCategoriesProvider).value ?? [];
+                        final categoryName =
+                            categories
+                                .where((c) => c.id == product.categoryId)
+                                .map((c) => c.name)
+                                .firstOrNull ??
+                            'No Category';
+                        return ListTile(
+                          leading: PhosphorIcon(
+                            PhosphorIconsRegular.folder,
+                            color: colorScheme.primary,
+                          ),
+                          title: const Text('Category'),
+                          subtitle: Text(categoryName),
+                        );
+                      },
                     );
-                  },
-                ),
-                const Divider(height: 1, indent: 16, endIndent: 16),
-                Consumer(
-                  builder: (context, ref, child) {
-                    final groups = ref.watch(allItemGroupsProvider).value ?? [];
-                    final groupName =
-                        groups
-                            .where((g) => g.id == product.itemGroupId)
-                            .map((g) => g.name)
-                            .firstOrNull ??
-                        'No Group';
-                    return ListTile(
-                      leading: PhosphorIcon(
-                        PhosphorIconsRegular.package,
-                        color: colorScheme.primary,
-                      ),
-                      title: const Text('Item Group'),
-                      subtitle: Text(groupName),
+                  } else {
+                    return Consumer(
+                      builder: (context, ref, child) {
+                        final groups =
+                            ref.watch(allItemGroupsProvider).value ?? [];
+                        final groupName =
+                            groups
+                                .where((g) => g.id == product.itemGroupId)
+                                .map((g) => g.name)
+                                .firstOrNull ??
+                            'No Group';
+                        return ListTile(
+                          leading: PhosphorIcon(
+                            PhosphorIconsRegular.package,
+                            color: colorScheme.primary,
+                          ),
+                          title: const Text('Item Group'),
+                          subtitle: Text(groupName),
+                        );
+                      },
                     );
-                  },
-                ),
-              ],
-            ),
+                  }
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Pricing',
-                    style: theme.textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(4, 24, 4, 12),
+                child: Text(
+                  'Pricing',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: colorScheme.onSurfaceVariant,
                   ),
-                  const SizedBox(height: 16),
-                  Consumer(
+                ),
+              ),
+              M3ECardList(
+                itemCount: 2,
+                color: colorScheme.surfaceContainerLow,
+                itemBuilder: (context, index) {
+                  return Consumer(
                     builder: (context, ref, child) {
                       final group = product.itemGroupId != null
                           ? ref
@@ -231,130 +241,130 @@ class ProductDetailsScreen extends ConsumerWidget {
                       final pricingService = ref.watch(
                         productPricingServiceProvider,
                       );
-                      final resolvedSelling = pricingService
-                          .resolveSellingPrice(product, group);
-                      final resolvedBuying = pricingService.resolveBuyingPrice(
-                        product,
-                        group,
-                      );
+
+                      final isCost = index == 0;
+                      final price = isCost
+                          ? pricingService.resolveBuyingPrice(product, group)
+                          : pricingService.resolveSellingPrice(product, group);
+
+                      final priceFormatted = price > 0
+                          ? CurrencyHelper.format(price)
+                          : 'Not Set';
+                      final label = isCost ? 'Cost Price' : 'Selling Price';
 
                       return Row(
                         children: [
-                          Expanded(
-                            child: _buildPriceBlock(
-                              theme,
-                              label: 'Cost Price',
-                              value: resolvedBuying > 0
-                                  ? CurrencyHelper.format(resolvedBuying)
-                                  : 'Not Set',
-                              colorScheme: colorScheme,
+                          PhosphorIcon(
+                            isCost
+                                ? PhosphorIconsDuotone.money
+                                : PhosphorIconsDuotone.tag,
+                            color: colorScheme.primary,
+                          ),
+                          const SizedBox(width: 16),
+                          Text(
+                            priceFormatted,
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: isCost
+                                  ? colorScheme.onSurfaceVariant
+                                  : colorScheme.secondary,
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _buildPriceBlock(
-                              theme,
-                              label: 'Selling Price',
-                              value: resolvedSelling > 0
-                                  ? CurrencyHelper.format(resolvedSelling)
-                                  : 'Not Set',
-                              colorScheme: colorScheme,
-                              isPrimary: true,
+                          const Spacer(),
+                          Text(
+                            label,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: colorScheme.onSurfaceVariant,
                             ),
                           ),
                         ],
                       );
                     },
-                  ),
-                  const SizedBox(height: 12),
-                  const Divider(height: 1),
-                  const SizedBox(height: 4),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: PhosphorIcon(
-                      PhosphorIconsDuotone.receipt,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    title: const Text('Tax Category'),
-                    trailing: Text(
-                      product.taxCategory?.toUpperCase() ?? 'STANDARD',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
+                  );
+                },
               ),
-            ),
+            ],
           ),
           if (!product.isService) ...[
-            const SizedBox(height: 12),
-            Card(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                    child: Text(
-                      'Inventory',
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: colorScheme.onSurfaceVariant,
-                      ),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(4, 24, 4, 12),
+                  child: Text(
+                    'Inventory',
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.bold,
+                      color: colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final stockAsync = ref.watch(stockProvider(product.id));
-                      return stockAsync.when(
-                        data: (stock) => ListTile(
-                          leading: PhosphorIcon(
-                            PhosphorIconsDuotone.stack,
-                            color: colorScheme.primary,
-                          ),
-                          title: const Text('Total Stock'),
-                          trailing: Text(
-                            formatQty(stock?.quantity ?? 0),
-                            style: theme.textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
+                ),
+                M3ECardList(
+                  itemCount: 1,
+                  color: colorScheme.surfaceContainerLow,
+                  padding: EdgeInsets.zero,
+                  itemBuilder: (context, index) {
+                    return Consumer(
+                      builder: (context, ref, child) {
+                        final stockAsync = ref.watch(stockProvider(product.id));
+                        return stockAsync.when(
+                          data: (stock) {
+                            final qty = stock?.quantity ?? 0;
+                            return ListTile(
+                              leading: PhosphorIcon(
+                                PhosphorIconsDuotone.stack,
+                                color: colorScheme.primary,
+                              ),
+                              title: const Text('Total Stock'),
+                              trailing: Text(
+                                formatQty(qty),
+                                style: theme.textTheme.titleMedium?.copyWith(
+                                  fontWeight: qty <= 5
+                                      ? FontWeight.bold
+                                      : FontWeight.w500,
+                                  color: qty <= 5
+                                      ? colorScheme.error
+                                      : colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            );
+                          },
+                          loading: () => ListTile(
+                            leading: PhosphorIcon(
+                              PhosphorIconsDuotone.stack,
+                              color: colorScheme.primary,
                             ),
-                          ),
-                        ),
-                        loading: () => ListTile(
-                          leading: PhosphorIcon(
-                            PhosphorIconsDuotone.stack,
-                            color: colorScheme.primary,
-                          ),
-                          title: const Text('Total Stock'),
-                          trailing: Shimmer.fromColors(
-                            baseColor: colorScheme.surfaceContainerHighest,
-                            highlightColor: colorScheme.surface,
-                            child: Container(
-                              width: 48,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: colorScheme.surfaceContainerHighest,
-                                borderRadius: BorderRadius.circular(4),
+                            title: const Text('Total Stock'),
+                            trailing: Shimmer.fromColors(
+                              baseColor: colorScheme.surfaceContainerHighest,
+                              highlightColor: colorScheme.surface,
+                              child: Container(
+                                width: 48,
+                                height: 16,
+                                decoration: BoxDecoration(
+                                  color: colorScheme.surfaceContainerHighest,
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        error: (e, st) => ListTile(
-                          leading: PhosphorIcon(
-                            PhosphorIconsDuotone.stack,
-                            color: colorScheme.error,
+                          error: (e, st) => ListTile(
+                            leading: PhosphorIcon(
+                              PhosphorIconsDuotone.stack,
+                              color: colorScheme.error,
+                            ),
+                            title: const Text('Total Stock'),
+                            trailing: Text(
+                              'Error',
+                              style: TextStyle(color: colorScheme.error),
+                            ),
                           ),
-                          title: const Text('Total Stock'),
-                          trailing: Text(
-                            'Error',
-                            style: TextStyle(color: colorScheme.error),
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ],
-              ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
             ),
             Consumer(
               builder: (context, ref, _) {
@@ -391,37 +401,33 @@ class ProductDetailsScreen extends ConsumerWidget {
                                 ),
                               ),
                             ),
-                            ...realBranches.map((branch) {
-                              final qty = qtyByBranch[branch.id] ?? 0;
-                              return Card(
-                                child: ListTile(
+                            M3ECardList(
+                              itemCount: realBranches.length,
+                              color: colorScheme.surfaceContainerLow,
+                              padding: EdgeInsets.zero,
+                              itemBuilder: (context, i) {
+                                final branch = realBranches[i];
+                                final qty = qtyByBranch[branch.id] ?? 0;
+                                return ListTile(
                                   leading: PhosphorIcon(
                                     PhosphorIconsDuotone.storefront,
                                     color: colorScheme.primary,
                                   ),
                                   title: Text(branch.name),
-                                  trailing: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 12,
-                                      vertical: 4,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color: colorScheme.tertiaryContainer,
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      formatQty(qty),
-                                      style: theme.textTheme.titleSmall
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.bold,
-                                            color:
-                                                colorScheme.onTertiaryContainer,
-                                          ),
+                                  trailing: Text(
+                                    formatQty(qty),
+                                    style: theme.textTheme.titleSmall?.copyWith(
+                                      fontWeight: qty <= 5
+                                          ? FontWeight.bold
+                                          : FontWeight.w500,
+                                      color: qty <= 5
+                                          ? colorScheme.error
+                                          : colorScheme.onSurfaceVariant,
                                     ),
                                   ),
-                                ),
-                              );
-                            }),
+                                );
+                              },
+                            ),
                           ],
                         );
                       },
@@ -510,20 +516,15 @@ class ProductDetailsScreen extends ConsumerWidget {
                         final visible = history.length > 5
                             ? history.sublist(0, 5)
                             : history;
-                        return Card(
-                          child: Column(
-                            children: [
-                              for (int i = 0; i < visible.length; i++) ...[
-                                _buildTransactionTile(
-                                  theme,
-                                  colorScheme,
-                                  visible[i],
-                                  context,
-                                ),
-                                if (i < visible.length - 1)
-                                  const Divider(height: 1, indent: 72),
-                              ],
-                            ],
+                        return M3ECardList(
+                          itemCount: visible.length,
+                          padding: EdgeInsets.zero,
+                          color: colorScheme.surfaceContainerLow,
+                          itemBuilder: (context, i) => _buildTransactionTile(
+                            theme,
+                            colorScheme,
+                            visible[i],
+                            context,
                           ),
                         );
                       },
@@ -566,47 +567,6 @@ class ProductDetailsScreen extends ConsumerWidget {
           size: 28,
           color: Colors.white.withValues(alpha: 0.7),
         ),
-      ),
-    );
-  }
-
-  Widget _buildPriceBlock(
-    ThemeData theme, {
-    required String label,
-    required String value,
-    required ColorScheme colorScheme,
-    bool isPrimary = false,
-  }) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: isPrimary
-            ? colorScheme.primaryContainer
-            : colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: isPrimary
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: theme.textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: isPrimary
-                  ? colorScheme.onPrimaryContainer
-                  : colorScheme.onSurface,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -699,7 +659,7 @@ class ProductDetailsScreen extends ConsumerWidget {
         '${tx.actorName ?? 'Unknown'} · ${tx.createdAt != null ? DateFormat('MMM d, y HH:mm').format(tx.createdAt!) : ''}',
       ),
       trailing: Text(
-        '${isPositive ? '+' : ''}${tx.quantityChange}',
+        '${isPositive ? '+' : ''}${formatQty(tx.quantityChange)}',
         style: theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.bold,
           color: isPositive ? colorScheme.tertiary : colorScheme.error,

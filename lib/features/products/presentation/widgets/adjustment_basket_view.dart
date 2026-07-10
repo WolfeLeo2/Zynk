@@ -40,7 +40,7 @@ class AdjustmentBasketView extends ConsumerWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(16),
+      padding: shrinkWrap ? EdgeInsets.zero : const EdgeInsets.all(16),
       shrinkWrap: shrinkWrap,
       physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
       itemCount: batchItems.length,

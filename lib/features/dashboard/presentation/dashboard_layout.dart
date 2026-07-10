@@ -3,17 +3,17 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/user_role.dart';
+import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/features/dashboard/providers/dashboard_providers.dart';
 
-import 'package:zynk/core/widgets/app_drawer.dart';
-import 'widgets/metric_cards.dart';
+import 'staff_dashboard_layout.dart';
 import 'widgets/charts.dart';
+import 'widgets/metric_cards.dart';
 import 'widgets/orders_list.dart';
 import 'widgets/products_list.dart';
-import 'staff_dashboard_layout.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN DASHBOARD LAYOUT
@@ -233,6 +233,7 @@ class _MobileDashboard extends StatelessWidget {
         backgroundColor: colorScheme.surface,
         child: SafeArea(
           top: false,
+          bottom: false,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),

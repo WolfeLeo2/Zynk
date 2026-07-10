@@ -205,80 +205,33 @@ class _BatchItemCardState extends ConsumerState<BatchItemCard> {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      ref
-                          .read(batchStockProvider.notifier)
-                          .updateQuantity(
-                            product.id,
-                            widget.item.quantityChange - 1,
-                          );
-                    },
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.minus,
-                      size: 16,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                    padding: EdgeInsets.zero,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: _qtyController,
-                      keyboardType: TextInputType.numberWithOptions(
-                        signed: widget.mode != 'set',
-                        decimal: true,
-                      ),
-                      inputFormatters: [
-                        FilteringTextInputFormatter.allow(
-                          RegExp(r'^-?\d*\.?\d*'),
-                        ),
-                      ],
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: delta == 0 ? null : deltaColor,
-                        fontWeight: FontWeight.bold,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: widget.mode == 'set' ? 'Quantity' : '0',
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 8,
-                        ),
-                        isDense: true,
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                      ),
-                      onChanged: _updateQuantity,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton.filledTonal(
-                    onPressed: () {
-                      ref
-                          .read(batchStockProvider.notifier)
-                          .updateQuantity(
-                            product.id,
-                            widget.item.quantityChange + 1,
-                          );
-                    },
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.plus,
-                      size: 16,
-                    ),
-                    constraints: const BoxConstraints(
-                      minWidth: 36,
-                      minHeight: 36,
-                    ),
-                    padding: EdgeInsets.zero,
+              TextField(
+                controller: _qtyController,
+                keyboardType: TextInputType.numberWithOptions(
+                  signed: widget.mode != 'set',
+                  decimal: true,
+                ),
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(
+                    RegExp(r'^-?\d*\.?\d*'),
                   ),
                 ],
+                style: TextStyle(
+                  color: delta == 0 ? null : deltaColor,
+                  fontWeight: FontWeight.bold,
+                ),
+                decoration: InputDecoration(
+                  labelText: widget.mode == 'set' ? 'New Quantity' : 'Amount',
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  isDense: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                ),
+                onChanged: _updateQuantity,
               ),
               const SizedBox(height: 12),
               TextField(

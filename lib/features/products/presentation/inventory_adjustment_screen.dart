@@ -5,14 +5,12 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/features/products/domain/stock_adjustment_math.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_basket_view.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_catalog_list.dart';
 import 'package:zynk/features/products/presentation/widgets/adjustment_config_bar.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
-import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 /// POS-style stock-adjustment screen: the catalog (with live stock) is always
 /// visible. On mobile a FAB opens a bottom sheet holding the configuration +
@@ -205,127 +203,73 @@ class _InventoryAdjustmentScreenState
         : '$verb stock ($items)';
   }
 
-  AdjustmentConfigBar _configBar({VoidCallback? onChanged}) {
-    void bubble() => onChanged?.call();
+  AdjustmentConfigBar _configBar() {
     return AdjustmentConfigBar(
       selectedBranchIds: _selectedBranchIds,
       mode: _mode,
       reasonId: _reasonId,
       referenceController: _referenceController,
-      onBranchToggle: (id, sel) {
-        _toggleBranch(id, sel);
-        bubble();
-      },
-      onModeChanged: (m) {
-        setState(() => _mode = m);
-        bubble();
-      },
-      onReasonChanged: (r) {
-        setState(() => _reasonId = r);
-        bubble();
-      },
+      onBranchToggle: _toggleBranch,
+      onModeChanged: (m) => setState(() => _mode = m),
+      onReasonChanged: (r) => setState(() => _reasonId = r),
     );
   }
 
-  /// Mobile: the config + basket + confirm live in a bottom sheet behind a FAB,
-  /// so the catalog underneath stays fully visible (POS pattern). Uses the
-  /// shared [AppBottomSheet] frame + house footer buttons for consistency.
-  void _openAdjustSheet() {
-    showResponsiveModal(
-      context: context,
-      builder: (sheetContext) => StatefulBuilder(
-        builder: (sheetContext, setSheetState) => Consumer(
-          builder: (context, ref, _) {
-            final cs = Theme.of(sheetContext).colorScheme;
-            final count = ref.watch(batchStockProvider).length;
-            final allBranches = _selectedBranchIds.length > 1;
-            return AppBottomSheet(
-              maxHeightFactor: 0.85,
-              icon: PhosphorIconsDuotone.slidersHorizontal,
-              title: 'Adjust stock',
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Expanded(
-                    child: ListView(
-                      children: [
-                        if (count > 0)
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: _isLoading
-                                  ? null
-                                  : () {
-                                      ref
-                                          .read(batchStockProvider.notifier)
-                                          .clear();
-                                      setSheetState(() {});
-                                    },
-                              icon: const PhosphorIcon(
-                                PhosphorIconsRegular.trash,
-                                size: 16,
-                              ),
-                              label: const Text('Clear all'),
-                              style: TextButton.styleFrom(
-                                foregroundColor: cs.error,
-                              ),
-                            ),
-                          ),
-                        _configBar(onChanged: () => setSheetState(() {})),
-                        const SizedBox(height: 16),
-                        AdjustmentBasketView(
-                          selectedBranchIds: _selectedBranchIds,
-                          mode: _mode,
-                          shrinkWrap: true,
-                        ),
-                      ],
+  /// The configuration + basket + confirm CTA. Used as the desktop right pane
+  /// and as the "Basket" tab on mobile. Config changes call setState, which
+  /// rebuilds this pane in place (no overlay), so no extra plumbing is needed.
+  Widget _buildBasketPane(ColorScheme cs, int count, bool allBranches) {
+    return Column(
+      children: [
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            children: [
+              if (count > 0)
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: TextButton.icon(
+                    onPressed: _isLoading
+                        ? null
+                        : () =>
+                              ref.read(batchStockProvider.notifier).clear(),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.trash,
+                      size: 16,
                     ),
+                    label: const Text('Clear all'),
+                    style: TextButton.styleFrom(foregroundColor: cs.error),
                   ),
-                  const Divider(height: 1),
-                  const SizedBox(height: 16),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 56,
-                    child: FilledButton(
-                      onPressed: count == 0 || _isLoading
-                          ? null
-                          : () async {
-                              final ok = await _submitBatch();
-                              setSheetState(() {});
-                              if (ok && sheetContext.mounted) {
-                                Navigator.pop(sheetContext);
-                              }
-                            },
-                      style: FilledButton.styleFrom(
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: _isLoading
-                          ? SizedBox(
-                              width: 24,
-                              height: 24,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: cs.onPrimary,
-                              ),
-                            )
-                          : Text(
-                              _confirmLabel(count, allBranches),
-                              style: const TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
+                ),
+              _configBar(),
+              const SizedBox(height: 24),
+              const Divider(height: 1),
+              const SizedBox(height: 24),
+              AdjustmentBasketView(
+                selectedBranchIds: _selectedBranchIds,
+                mode: _mode,
+                shrinkWrap: true,
               ),
-            );
-          },
+            ],
+          ),
         ),
+        _buildConfirmBar(cs, count, allBranches),
+      ],
+    );
+  }
+
+  AppBar _appBar(BuildContext context, {PreferredSizeWidget? bottom}) {
+    return AppBar(
+      leading: Builder(
+        builder: (context) => MediaQuery.of(context).size.width < 840
+            ? IconButton(
+                icon: const PhosphorIcon(PhosphorIconsRegular.list),
+                onPressed: () => Scaffold.of(context).openDrawer(),
+              )
+            : const SizedBox.shrink(),
       ),
+      title: const Text('Stock Adjustments'),
+      bottom: bottom,
     );
   }
 
@@ -356,112 +300,101 @@ class _InventoryAdjustmentScreenState
     final catalog = AdjustmentCatalogList(
       selectedBranchIds: _selectedBranchIds,
     );
+    final basketPane = _buildBasketPane(
+      colorScheme,
+      batchItems.length,
+      allBranchesMode,
+    );
 
-    return Scaffold(
-      drawer: const AppDrawer(),
-      appBar: AppBar(
-        leading: Builder(
-          builder: (context) => MediaQuery.of(context).size.width < 840
-              ? IconButton(
-                  icon: const PhosphorIcon(PhosphorIconsRegular.list),
-                  onPressed: () => Scaffold.of(context).openDrawer(),
-                )
-              : const SizedBox.shrink(),
-        ),
-        title: const Text('Stock Adjustments'),
-      ),
-      body: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth > 800) {
-            return Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Wide screens: catalog + basket side by side (both always visible).
+        if (constraints.maxWidth > 800) {
+          return Scaffold(
+            drawer: const AppDrawer(),
+            appBar: _appBar(context),
+            body: Row(
               children: [
                 Expanded(flex: 5, child: catalog),
                 const VerticalDivider(width: 1),
-                Expanded(
-                  flex: 5,
-                  child: Column(
-                    children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                        child: _configBar(),
-                      ),
-                      Expanded(
-                        child: AdjustmentBasketView(
-                          selectedBranchIds: _selectedBranchIds,
-                          mode: _mode,
-                        ),
-                      ),
-                      _buildConfirmBar(
-                        colorScheme,
-                        batchItems.length,
-                        allBranchesMode,
-                      ),
-                    ],
-                  ),
-                ),
+                Expanded(flex: 5, child: basketPane),
               ],
-            );
-          }
-
-          // Mobile: catalog fills the screen; the FAB opens the config+basket.
-          return catalog;
-        },
-      ),
-      floatingActionButton: MediaQuery.of(context).size.width > 800
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: _openAdjustSheet,
-              icon: Badge(
-                label: Text('${batchItems.length}'),
-                isLabelVisible: batchItems.isNotEmpty,
-                backgroundColor: colorScheme.error,
-                child: const PhosphorIcon(
-                  PhosphorIconsRegular.slidersHorizontal,
-                ),
-              ),
-              label: const Text('Adjust'),
             ),
+          );
+        }
+
+        // Mobile: two tabs — Catalog and Basket (with a live item-count badge).
+        return DefaultTabController(
+          length: 2,
+          child: Scaffold(
+            drawer: const AppDrawer(),
+            appBar: _appBar(
+              context,
+              bottom: TabBar(
+                tabs: [
+                  const Tab(
+                    icon: PhosphorIcon(PhosphorIconsRegular.squaresFour),
+                    text: 'Catalog',
+                  ),
+                  Tab(
+                    icon: Badge(
+                      label: Text('${batchItems.length}'),
+                      isLabelVisible: batchItems.isNotEmpty,
+                      child: const PhosphorIcon(PhosphorIconsRegular.stack),
+                    ),
+                    text: 'Basket',
+                  ),
+                ],
+              ),
+            ),
+            body: TabBarView(children: [catalog, basketPane]),
+          ),
+        );
+      },
     );
   }
 
   /// The confirm CTA for the desktop pane (the mobile sheet has its own footer).
   Widget _buildConfirmBar(ColorScheme colorScheme, int count, bool allBranches) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
       decoration: BoxDecoration(
         color: colorScheme.surface,
-        boxShadow: [
-          BoxShadow(
-            color: colorScheme.shadow.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -5),
-          ),
-        ],
+        border: Border(
+          top: BorderSide(color: colorScheme.outline.withValues(alpha: 0.15)),
+        ),
       ),
       child: SafeArea(
         top: false,
-        child: FilledButton.icon(
-          onPressed: count == 0 || _isLoading ? null : () => _submitBatch(),
-          style: FilledButton.styleFrom(
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
-          ),
-          icon: _isLoading
-              ? SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: colorScheme.onPrimary,
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: count == 0 || _isLoading ? null : () => _submitBatch(),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                )
-              : const PhosphorIcon(PhosphorIconsRegular.checkCircle),
-          label: Text(
-            _isLoading ? 'Processing...' : _confirmLabel(count, allBranches),
-            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-          ),
+                ),
+                icon: _isLoading
+                    ? SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            count > 0 ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      )
+                    : const PhosphorIcon(PhosphorIconsBold.checkCircle, size: 18),
+                label: Text(
+                  _isLoading ? 'Processing...' : _confirmLabel(count, allBranches),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

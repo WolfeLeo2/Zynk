@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:m3e_card_list/m3e_card_list.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
-import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
@@ -66,6 +66,63 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
       maxHeightFactor: 0.7,
       icon: PhosphorIconsDuotone.bookmarkSimple,
       title: widget.title,
+      bottomBar: Container(
+        padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+        decoration: BoxDecoration(
+          color: cs.surfaceContainerLow,
+          border: Border(
+            top: BorderSide(color: cs.outline.withValues(alpha: 0.15)),
+          ),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Row(
+            children: [
+              Expanded(
+                child: FilledButton(
+                  onPressed: (_selectedIds.isEmpty || _isLoading)
+                      ? null
+                      : () async {
+                          setState(() => _isLoading = true);
+                          try {
+                            await widget.onConfirm(_selectedIds);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                            }
+                          } finally {
+                            if (mounted) {
+                              setState(() => _isLoading = false);
+                            }
+                          }
+                        },
+                  style: FilledButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : Text(
+                          '${widget.actionLabel} (${_selectedIds.length} Items)',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
       child: productsAsync.when(
         data: (items) {
           if (items.isEmpty) {
@@ -156,120 +213,64 @@ class _BatchGroupActionSheetState extends ConsumerState<BatchGroupActionSheet> {
 
                     // 4. Items List
                     // 4. Items List
-                    ListView.separated(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
+                    Padding(
                       padding: const EdgeInsets.only(top: 8, bottom: 24),
-                      itemCount: filtered.length,
-                      separatorBuilder: (context, index) =>
-                          const SizedBox(height: 8),
-                      itemBuilder: (context, index) {
-                        final item = filtered[index];
-                        final isSelected = _selectedIds.contains(item.id);
+                      child: M3ECardList(
+                        itemCount: filtered.length,
+                        color: cs.surfaceContainerHighest,
+                        padding: EdgeInsets.zero,
+                        itemBuilder: (context, index) {
+                          final item = filtered[index];
+                          final isSelected = _selectedIds.contains(item.id);
 
-                        return CheckboxListTile(
-                          value: isSelected,
-                          onChanged: (val) {
-                            setState(() {
-                              if (val == true) {
-                                _selectedIds.add(item.id);
-                              } else {
-                                _selectedIds.remove(item.id);
-                              }
-                            });
-                          },
-                          shape: RoundedRectangleBorder(
-                            borderRadius: AppTokens.roundedCard,
-                            side: BorderSide(
-                              color: isSelected
-                                  ? cs.primary
-                                  : cs.outlineVariant.withValues(alpha: 0.3),
-                              width: isSelected ? 1.5 : 0.5,
+                          return CheckboxListTile(
+                            value: isSelected,
+                            onChanged: (val) {
+                              setState(() {
+                                if (val == true) {
+                                  _selectedIds.add(item.id);
+                                } else {
+                                  _selectedIds.remove(item.id);
+                                }
+                              });
+                            },
+                            selected: isSelected,
+                            selectedTileColor: cs.primaryContainer.withValues(
+                              alpha: 0.2,
                             ),
-                          ),
-                          tileColor: cs.surfaceContainerLow,
-                          selectedTileColor: cs.primaryContainer.withValues(
-                            alpha: 0.3,
-                          ),
-                          title: Text(
-                            item.name,
-                            style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
+                            title: Text(
+                              item.name,
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
-                          ),
-                          subtitle: widget.itemTrailingBuilder(
-                            context,
-                            item,
-                            isSelected,
-                          ),
-                          secondary: Container(
-                            width: 40,
-                            height: 40,
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? cs.primary.withValues(alpha: 0.1)
-                                  : cs.surfaceContainerHigh,
-                              borderRadius: BorderRadius.circular(8),
+                            subtitle: widget.itemTrailingBuilder(
+                              context,
+                              item,
+                              isSelected,
                             ),
-                            child: PhosphorIcon(
-                              PhosphorIconsRegular.package,
-                              size: 20,
-                              color: isSelected
-                                  ? cs.primary
-                                  : cs.onSurfaceVariant,
+                            secondary: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? cs.primary.withValues(alpha: 0.1)
+                                    : cs.surfaceContainerLow,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: PhosphorIcon(
+                                PhosphorIconsRegular.package,
+                                size: 20,
+                                color: isSelected
+                                    ? cs.primary
+                                    : cs.onSurfaceVariant,
+                              ),
                             ),
-                          ),
-                        );
-                      },
+                          );
+                        },
+                      ),
                     ),
                   ],
-                ),
-              ),
-
-              const Divider(height: 1),
-              const SizedBox(height: 16),
-
-              // Footer Action
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: FilledButton(
-                  onPressed: (_selectedIds.isEmpty || _isLoading)
-                      ? null
-                      : () async {
-                          setState(() => _isLoading = true);
-                          try {
-                            await widget.onConfirm(_selectedIds);
-                            if (context.mounted) {
-                              Navigator.pop(context);
-                            }
-                          } finally {
-                            if (mounted) {
-                              setState(() => _isLoading = false);
-                            }
-                          }
-                        },
-                  style: FilledButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: Colors.white,
-                          ),
-                        )
-                      : Text(
-                          '${widget.actionLabel} (${_selectedIds.length} Items)',
-                          style: const TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
                 ),
               ),
             ],

@@ -1053,7 +1053,7 @@ class _CommissionLeaderboardCard extends ConsumerWidget {
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  onPressed: () => context.push('/settings/commissions'),
+                  onPressed: () => context.push('/reports/commissions'),
                   icon: const PhosphorIcon(
                     PhosphorIconsRegular.arrowRight,
                     size: 16,
