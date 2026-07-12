@@ -76,8 +76,14 @@ Deno.serve(async (req: Request) => {
         }
 
         // ── Get tenant context ──
+        // Most actions are sale-scoped (carry sale_id). Credit-note actions
+        // (approve / apply) are scoped by credit_note_id instead, so they
+        // resolve their tenant from the credit note rather than a sale.
         const saleId = params.sale_id;
-        if (!saleId && action !== "apply_credit") {
+        const creditNoteScoped =
+            action === "approve_credit_note" || action === "apply_credit";
+
+        if (!saleId && !creditNoteScoped) {
             return new Response(JSON.stringify({ error: "Missing sale_id" }), {
                 status: 400,
                 headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -100,8 +106,24 @@ Deno.serve(async (req: Request) => {
                 });
             }
             tenantId = sale.tenant_id;
+        } else if (creditNoteScoped && params.credit_note_id) {
+            const { data: cn } = await supabase
+                .from("credit_notes")
+                .select("tenant_id")
+                .eq("id", params.credit_note_id)
+                .single();
+            if (!cn) {
+                return new Response(
+                    JSON.stringify({ error: "Credit note not found" }),
+                    { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                );
+            }
+            tenantId = cn.tenant_id;
         } else {
-            tenantId = params.tenant_id;
+            return new Response(
+                JSON.stringify({ error: "Missing tenant context" }),
+                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+            );
         }
 
         // ── Permission check ──
@@ -454,6 +476,11 @@ Deno.serve(async (req: Request) => {
 
                 if (error) throw new Error(`Approve failed: ${error.message}`);
 
+                // Commissions are generated only once the invoice is fully approved.
+                if (isFinalApproval) {
+                    await supabase.rpc("recalculate_sale_commissions", { p_sale_id: saleId });
+                }
+
                 return jsonResponse({
                     status: isFinalApproval ? "approved" : "pending_approval",
                     sale_id: saleId,
@@ -637,6 +664,10 @@ Deno.serve(async (req: Request) => {
                     }
                     throw new Error(`Reject failed: ${error.message}`);
                 }
+
+                // A rejected invoice earns no commission.
+                await supabase.from("commissions").delete().eq("sale_id", saleId).eq("status", "pending");
+
                 return jsonResponse({ status: "rejected", sale_id: saleId });
             }
 
@@ -708,6 +739,10 @@ Deno.serve(async (req: Request) => {
                     }
                     throw new Error(`Void failed: ${error.message}`);
                 }
+
+                // A voided invoice earns no commission.
+                await supabase.from("commissions").delete().eq("sale_id", saleId).eq("status", "pending");
+
                 return jsonResponse({ status: "voided", sale_id: saleId });
             }
 
@@ -801,6 +836,9 @@ Deno.serve(async (req: Request) => {
                     throw new Error(`Unapprove update failed: ${updateError.message}`);
                 }
 
+                // Back to pending_approval → commission is regenerated on re-approval.
+                await supabase.from("commissions").delete().eq("sale_id", saleId).eq("status", "pending");
+
                 return jsonResponse({ status: "pending_approval", sale_id: saleId });
             }
 
@@ -866,6 +904,8 @@ Deno.serve(async (req: Request) => {
                 if (updateError) {
                     throw new Error(`Final approve update failed: ${updateError.message}`);
                 }
+
+                await supabase.rpc("recalculate_sale_commissions", { p_sale_id: saleId });
 
                 return jsonResponse({
                     status: "approved",
@@ -1077,7 +1117,8 @@ Deno.serve(async (req: Request) => {
                         original_sale_id,
                         credit_number: creditNumber,
                         reason,
-                        items: normalizedItems,
+                        // items (jsonb) is populated by trg_sync_credit_note_items_json
+                        // once the credit_note_items rows are inserted below.
                         subtotal: cnSubtotal,
                         tax_amount: cnTax,
                         total: cnTotal,

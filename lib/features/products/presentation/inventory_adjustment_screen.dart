@@ -12,9 +12,6 @@ import 'package:zynk/features/products/presentation/widgets/adjustment_catalog_l
 import 'package:zynk/features/products/presentation/widgets/adjustment_config_bar.dart';
 import 'package:zynk/features/products/providers/batch_stock_provider.dart';
 
-/// POS-style stock-adjustment screen: the catalog (with live stock) is always
-/// visible. On mobile a FAB opens a bottom sheet holding the configuration +
-/// basket + confirm CTA; on desktop that same block sits in a right-hand pane.
 class InventoryAdjustmentScreen extends ConsumerStatefulWidget {
   const InventoryAdjustmentScreen({super.key});
 
@@ -283,7 +280,7 @@ class _InventoryAdjustmentScreenState
     if (selectedBranchId == null) {
       return Scaffold(
         drawer: const AppDrawer(),
-        appBar: AppBar(title: const Text('Adjustments')),
+        appBar: AppBar(title: const Text('Stock Adjustments')),
         body: _buildInvalidBranchState(context, colorScheme),
       );
     }

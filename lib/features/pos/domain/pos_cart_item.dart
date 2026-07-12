@@ -30,23 +30,27 @@ class PosCartItem {
     return 1.0;
   }
 
-  double get pricePerSqm {
-    if (overridePrice != null) return overridePrice!;
-    if (product.basePrice != null && product.basePrice! > 0) {
-      return product.basePrice!;
-    }
-    return itemGroup?.defaultSellingPrice ?? 0.0;
+  // Base per-unit price before any override. Item-group pricing is
+  // authoritative; product base price is the fallback. For sqm items this is
+  // the per-BOX price (per-sqm price × coverage); otherwise per piece.
+  double get _baseUnitPrice {
+    final groupPrice = itemGroup?.defaultSellingPrice;
+    final base = (groupPrice != null && groupPrice > 0)
+        ? groupPrice
+        : (product.basePrice != null && product.basePrice! > 0
+              ? product.basePrice!
+              : 0.0);
+    return isSqmBased ? base * coveragePerBox : base;
   }
 
-  double get effectivePrice {
-    if (isSqmBased) {
-      return pricePerSqm * coveragePerBox;
-    }
-    if (overridePrice != null) return overridePrice!;
-    if (product.basePrice != null && product.basePrice! > 0)
-      return product.basePrice!;
-    return itemGroup?.defaultSellingPrice ?? 0.0;
-  }
+  /// Effective unit price charged: per box for sqm items, per piece otherwise.
+  /// A manual per-line [overridePrice] (also per box / per piece) wins.
+  double get effectivePrice => overridePrice ?? _baseUnitPrice;
+
+  /// Per-sqm equivalent — secondary display only.
+  double get pricePerSqm => isSqmBased && coveragePerBox > 0
+      ? effectivePrice / coveragePerBox
+      : effectivePrice;
 
   double get totalSqm => isSqmBased ? quantity * coveragePerBox : 0.0;
 

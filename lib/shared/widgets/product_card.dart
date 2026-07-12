@@ -158,18 +158,46 @@ class SharedProductCard extends ConsumerWidget {
                           final pricingService = ref.watch(
                             productPricingServiceProvider,
                           );
-                          final resolvedPrice = pricingService
-                              .resolveSellingPrice(product, group);
                           final isSqm =
                               pricingService.resolvePricingUnit(
                                 product,
                                 group,
                               ) ==
                               'sqm';
+                          if (isSqm) {
+                            // Box is the primary unit; per-sqm shown beneath.
+                            final perBox = pricingService.resolvePricePerBox(
+                              product,
+                              group,
+                            );
+                            final perSqm = pricingService.resolvePricePerSqm(
+                              product,
+                              group,
+                            );
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${CurrencyHelper.format(perBox)}/box',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                                Text(
+                                  '${CurrencyHelper.format(perSqm)}/sqm',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
                           return Text(
-                            isSqm
-                                ? '${CurrencyHelper.format(resolvedPrice)}/sqm'
-                                : CurrencyHelper.format(resolvedPrice),
+                            CurrencyHelper.format(
+                              pricingService.resolveSellingPrice(product, group),
+                            ),
                             style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w900,
                               color: colorScheme.primary,

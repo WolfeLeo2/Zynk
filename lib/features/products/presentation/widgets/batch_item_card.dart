@@ -83,6 +83,13 @@ class _BatchItemCardState extends ConsumerState<BatchItemCard> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final product = widget.item.product;
+    final itemGroup = product.itemGroupId != null
+        ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
+        : null;
+    final isSqm =
+        product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm';
+    final coverage =
+        (product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
     final branchStocksAsync = ref.watch(branchStocksProvider(product.id));
 
     final currentStock =
@@ -204,6 +211,18 @@ class _BatchItemCardState extends ConsumerState<BatchItemCard> {
                   ],
                 ),
               ),
+              // Coverage view for sqm items — box counts translated to area.
+              if (isSqm && coverage > 0) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Coverage: ${(currentStock * coverage).toStringAsFixed(2)} → '
+                  '${(newStock * coverage).toStringAsFixed(2)} sqm',
+                  style: TextStyle(
+                    color: colorScheme.onSurfaceVariant,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
               const SizedBox(height: 12),
               TextField(
                 controller: _qtyController,

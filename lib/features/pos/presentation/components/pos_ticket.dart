@@ -394,7 +394,7 @@ class _TicketItemRow extends ConsumerWidget {
                       builder: (context, ref, child) {
                         if (item.isSqmBased) {
                           return Text(
-                            '${item.totalSqm.toStringAsFixed(2)} sqm (${item.quantity} box${item.quantity != 1 ? 'es' : ''})',
+                            '${item.quantity} box${item.quantity != 1 ? 'es' : ''} · ${item.totalSqm.toStringAsFixed(2)} sqm',
                             style: tt.bodySmall?.copyWith(
                               color: cs.onSurfaceVariant.withValues(alpha: 0.8),
                               fontSize: 12,

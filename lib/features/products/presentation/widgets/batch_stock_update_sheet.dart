@@ -222,6 +222,25 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 ),
               ],
             ),
+            // For sqm-based groups, show how much coverage the entered box
+            // count represents so stock is added with area in mind.
+            if (widget.group.defaultPricingUnit == 'sqm' &&
+                (widget.group.defaultCoveragePerBox ?? 0) > 0) ...[
+              const SizedBox(height: 8),
+              Builder(
+                builder: (context) {
+                  final boxes = double.tryParse(_qtyController.text) ?? 0;
+                  final cov = widget.group.defaultCoveragePerBox!;
+                  return Text(
+                    '${boxes.toStringAsFixed(0)} box${boxes == 1 ? '' : 'es'} '
+                    '≈ ${(boxes * cov).toStringAsFixed(2)} sqm coverage (per item)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         );
       },

@@ -95,9 +95,11 @@ Deno.serve(async (req: Request) => {
 
     if (rpcError) {
       console.error("complete_sale_v2 error:", rpcError);
+      // Surface the DB message so the POS can alert the user (e.g. a product
+      // with no stock record in this branch → "NO_STOCK_RECORD: ...").
       return new Response(
-        JSON.stringify({ error: "Sale completion failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: rpcError.message || "Sale completion failed" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

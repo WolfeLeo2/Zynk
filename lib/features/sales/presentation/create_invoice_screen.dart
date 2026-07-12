@@ -17,7 +17,6 @@ import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
-import 'package:zynk/core/services/product_pricing_service.dart';
 
 class CreateInvoiceScreen extends ConsumerStatefulWidget {
   final List<PosCartItem> cartItems;
@@ -77,17 +76,19 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       _items.fold(0, (sum, item) => sum + item.resolvedLine().total);
 
   /// Build an editable item from a catalogue product (qty defaults to 1).
-  _EditableInvoiceItem _editableFromProduct(Product product) {
+  _EditableInvoiceItem _editableFromProduct(
+    Product product,
+    List<ItemGroup> itemGroups,
+  ) {
     final itemGroup = product.itemGroupId != null
-        ? ref.read(itemGroupProvider(product.itemGroupId!)).value
+        ? itemGroups.where((g) => g.id == product.itemGroupId).firstOrNull
         : null;
-    final pricingService = ref.read(productPricingServiceProvider);
-    final resolvedPrice = pricingService.resolveSellingPrice(product, itemGroup);
+    // No override — PosCartItem.effectivePrice resolves the per-box (sqm) or
+    // per-piece price from the group/product for the field default.
     final cartItem = PosCartItem(
       product: product,
       itemGroup: itemGroup,
       quantity: 1,
-      overridePrice: resolvedPrice,
     );
     return _EditableInvoiceItem(cartItem);
   }
@@ -111,10 +112,14 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
       branchId: widget.branchId ?? ref.read(currentBranchIdProvider),
     );
     if (selected == null || selected.isEmpty || !mounted) return;
+    // Load item groups up front so price / sqm / coverage inheritance resolves
+    // (the old synchronous `.value` read of an autoDispose provider was null).
+    final itemGroups = await ref.read(allItemGroupsProvider.future);
+    if (!mounted) return;
     setState(() {
       for (final id in selected) {
         final product = products.firstWhere((p) => p.id == id, orElse: () => throw Exception());
-        _items.add(_editableFromProduct(product));
+        _items.add(_editableFromProduct(product, itemGroups));
       }
     });
   }
@@ -186,9 +191,8 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
             itemGroup: item.originalItem.itemGroup,
             quantity: qty,
             overrideName: name != item.originalItem.product.name ? name : null,
-            overridePrice: item.originalItem.isSqmBased
-                ? (price != item.originalItem.product.basePrice ? price : null)
-                : (price != item.originalItem.product.basePrice ? price : null),
+            // Entered price is the effective per-box / per-piece price.
+            overridePrice: price,
           ),
         );
       }
@@ -576,38 +580,23 @@ class _EditableInvoiceItem {
 
   _EditableInvoiceItem(this.originalItem) {
     nameCtr = TextEditingController(text: originalItem.effectiveName);
+    // Price is per box (sqm items) or per piece; quantity is whole boxes/pieces.
     priceCtr = TextEditingController(
-      text:
-          (originalItem.isSqmBased
-                  ? originalItem.pricePerSqm
-                  : originalItem.effectivePrice)
-              .toStringAsFixed(0),
+      text: originalItem.effectivePrice.toStringAsFixed(0),
     );
-    qtyCtr = TextEditingController(
-      text: originalItem.isSqmBased
-          ? originalItem.totalSqm.toStringAsFixed(2)
-          : originalItem.quantity.toString(),
-    );
+    qtyCtr = TextEditingController(text: originalItem.quantity.toString());
   }
 
-  /// The per-sqm price (sqm-based) or unit price (otherwise) currently entered.
+  /// The per-box (sqm-based) or per-piece unit price currently entered.
   double get enteredUnitPrice =>
-      double.tryParse(priceCtr.text) ??
-      (originalItem.isSqmBased
-          ? originalItem.pricePerSqm
-          : originalItem.effectivePrice);
+      double.tryParse(priceCtr.text) ?? originalItem.effectivePrice;
 
   double get _enteredQty =>
-      double.tryParse(qtyCtr.text) ??
-      (originalItem.isSqmBased
-          ? originalItem.totalSqm
-          : originalItem.quantity.toDouble());
+      double.tryParse(qtyCtr.text) ?? originalItem.quantity.toDouble();
 
   /// Resolved pricing for this line — the single source for subtotal, the row
   /// total and submission. Delegates to [SalesService.resolveLine].
   InvoiceLine resolvedLine() => SalesService.resolveLine(
-    isSqmBased: originalItem.isSqmBased,
-    coveragePerBox: originalItem.coveragePerBox,
     enteredPrice: enteredUnitPrice,
     enteredQty: _enteredQty,
   );
@@ -710,21 +699,14 @@ class _EditableItemRow extends StatelessWidget {
                   controller: item.qtyCtr,
                   onChanged: (_) => onChanged(),
                   decoration: InputDecoration(
-                    labelText: item.originalItem.isSqmBased ? 'sqm' : 'Qty',
+                    labelText: item.originalItem.isSqmBased ? 'Boxes' : 'Qty',
                     isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  keyboardType: item.originalItem.isSqmBased
-                      ? const TextInputType.numberWithOptions(decimal: true)
-                      : TextInputType.number,
-                  inputFormatters: [
-                    if (item.originalItem.isSqmBased)
-                      FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))
-                    else
-                      FilteringTextInputFormatter.digitsOnly,
-                  ],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   validator: (v) {
                     final qty = double.tryParse(v ?? '');
                     if (qty == null || qty <= 0) return 'Invalid';
@@ -741,7 +723,7 @@ class _EditableItemRow extends StatelessWidget {
                   onChanged: (_) => onChanged(),
                   decoration: InputDecoration(
                     labelText: item.originalItem.isSqmBased
-                        ? 'Price/sqm (Ksh)'
+                        ? 'Price/box (Ksh)'
                         : 'Unit Price (Ksh)',
                     isDense: true,
                     border: OutlineInputBorder(
@@ -788,20 +770,21 @@ class _EditableItemRow extends StatelessWidget {
             Builder(
               builder: (context) {
                 final line = item.resolvedLine();
-                final actualSqm =
-                    line.quantity * item.originalItem.coveragePerBox;
+                final coverage = item.originalItem.coveragePerBox;
+                final actualSqm = line.quantity * coverage;
+                final perSqm = coverage > 0 ? line.unitPrice / coverage : 0.0;
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Price/box: ${CurrencyHelper.format(line.unitPrice)}',
+                      'Price/sqm: ${CurrencyHelper.format(perSqm)}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                         fontSize: 11,
                       ),
                     ),
                     Text(
-                      'Total boxes: ${line.quantity} (${actualSqm.toStringAsFixed(2)} sqm)',
+                      '${actualSqm.toStringAsFixed(2)} sqm coverage',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: cs.primary.withValues(alpha: 0.8),
                         fontSize: 11,

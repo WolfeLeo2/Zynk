@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:powersync/powersync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -1723,9 +1725,18 @@ class PowerSyncRepository {
       params.add(tenantId);
     }
     sql += ' ORDER BY created_at DESC';
-    return _db
-        .watch(sql, parameters: params)
-        .map((rows) => rows.map((row) => CreditNote.fromMap(row)).toList());
+    return _db.watch(sql, parameters: params).map(
+          (rows) => rows.map((row) {
+            // `items` is a jsonb column PowerSync surfaces as a TEXT string;
+            // decode it so CreditNote.fromMap's List parse doesn't throw.
+            final map = Map<String, dynamic>.from(row);
+            final rawItems = map['items'];
+            map['items'] = rawItems is String
+                ? (rawItems.trim().isEmpty ? const [] : jsonDecode(rawItems))
+                : (rawItems ?? const []);
+            return CreditNote.fromMap(map);
+          }).toList(),
+        );
   }
 
   /// Watch credit notes for a specific sale, including items from the junction table

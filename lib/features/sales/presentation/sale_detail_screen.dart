@@ -650,6 +650,7 @@ class SaleDetailScreen extends ConsumerWidget {
             final items = await ref.read(saleItemsProvider(sale.id).future);
             final allProducts = await ref.read(allProductsProvider.future);
             final allCustomers = await ref.read(allCustomersProvider.future);
+            final allItemGroups = await ref.read(allItemGroupsProvider.future);
 
             final customer = allCustomers.firstWhere(
               (c) => c.id == sale.customerId,
@@ -668,25 +669,19 @@ class SaleDetailScreen extends ConsumerWidget {
               }
 
               final itemGroup = product.itemGroupId != null
-                  ? ref.read(itemGroupProvider(product.itemGroupId!)).value
+                  ? allItemGroups
+                        .where((g) => g.id == product.itemGroupId)
+                        .firstOrNull
                   : null;
-              final isSqmBased =
-                  product.pricingUnit == 'sqm' ||
-                  itemGroup?.defaultPricingUnit == 'sqm';
-              final coverage =
-                  (product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ??
-                  1.0;
 
-              // item.unitPrice is persisted per-box; PosCartItem.overridePrice
-              // is per-sqm for sqm-based items, so convert back.
+              // Stored unit_price and quantity are already per-box; the
+              // override is the effective per-box / per-piece price directly.
               return PosCartItem(
                 product: product,
                 itemGroup: itemGroup,
                 quantity: item.quantity,
                 overrideName: item.productName,
-                overridePrice: isSqmBased
-                    ? item.unitPrice / coverage
-                    : item.unitPrice,
+                overridePrice: item.unitPrice,
               );
             }).toList();
 
@@ -1544,9 +1539,7 @@ class _ItemsList extends ConsumerWidget {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            isSqmBased
-                                ? totalSqm.toStringAsFixed(2)
-                                : '${item.quantity}',
+                            '${item.quantity}',
                             style: theme.textTheme.labelMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -1566,14 +1559,14 @@ class _ItemsList extends ConsumerWidget {
                               ),
                               if (isSqmBased) ...[
                                 Text(
-                                  '@ ${CurrencyHelper.format(sqmPrice)}/sqm (${CurrencyHelper.format(item.unitPrice)}/box)',
+                                  '@ ${CurrencyHelper.format(item.unitPrice)}/box (${CurrencyHelper.format(sqmPrice)}/sqm)',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: cs.onSurfaceVariant,
                                   ),
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${item.quantity} box${item.quantity != 1 ? 'es' : ''} (${totalSqm.toStringAsFixed(2)} sqm total)',
+                                  '${item.quantity} box${item.quantity != 1 ? 'es' : ''} · ${totalSqm.toStringAsFixed(2)} sqm coverage',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: cs.primary.withValues(alpha: 0.8),
                                     fontSize: 10,
@@ -1870,71 +1863,86 @@ class _CreditNotesList extends ConsumerWidget {
                 : cn.status == CreditNoteStatus.applied
                 ? Theme.of(context).colorScheme.secondary
                 : const Color(0xFFFFA726);
-            return Container(
-              margin: const EdgeInsets.only(bottom: 8),
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(12),
+                  onTap: () => _showCreditNoteDetail(context, ref, cn),
+                  child: Container(
+                    padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: color.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Center(
-                      child: PhosphorIcon(
-                        PhosphorIconsRegular.arrowUUpLeft,
-                        color: color,
-                        size: 20,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text(
-                          cn.creditNumber ?? 'CN',
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                        Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            color: color.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Center(
+                            child: PhosphorIcon(
+                              PhosphorIconsRegular.arrowUUpLeft,
+                              color: color,
+                              size: 20,
+                            ),
                           ),
                         ),
-                        Text(
-                          cn.reason,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: cs.onSurfaceVariant,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                cn.creditNumber ?? 'CN',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                cn.reason,
+                                style: theme.textTheme.bodySmall?.copyWith(
+                                  color: cs.onSurfaceVariant,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.end,
+                          children: [
+                            Text(
+                              CurrencyHelper.format(cn.total),
+                              style: theme.textTheme.titleSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                                color: color,
+                              ),
+                            ),
+                            Text(
+                              cn.status.displayName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: color,
+                                fontSize: 10,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(width: 4),
+                        PhosphorIcon(
+                          PhosphorIconsRegular.caretRight,
+                          size: 16,
+                          color: cs.onSurfaceVariant,
                         ),
                       ],
                     ),
                   ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Text(
-                        CurrencyHelper.format(cn.total),
-                        style: theme.textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: color,
-                        ),
-                      ),
-                      Text(
-                        cn.status.displayName,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: color,
-                          fontSize: 10,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
+                ),
               ),
             );
           }).toList(),
@@ -1942,6 +1950,251 @@ class _CreditNotesList extends ConsumerWidget {
       },
       loading: () => _ShimmerSection(height: 50),
       error: (e, _) => Text('Error: $e'),
+    );
+  }
+
+  void _showCreditNoteDetail(
+    BuildContext context,
+    WidgetRef ref,
+    CreditNote cn,
+  ) {
+    showResponsiveModal(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (_) => _CreditNoteDetailSheet(creditNote: cn),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CREDIT NOTE DETAIL SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _CreditNoteDetailSheet extends ConsumerStatefulWidget {
+  final CreditNote creditNote;
+  const _CreditNoteDetailSheet({required this.creditNote});
+
+  @override
+  ConsumerState<_CreditNoteDetailSheet> createState() =>
+      _CreditNoteDetailSheetState();
+}
+
+class _CreditNoteDetailSheetState
+    extends ConsumerState<_CreditNoteDetailSheet> {
+  bool _approving = false;
+
+  CreditNote get cn => widget.creditNote;
+
+  Future<void> _approve() async {
+    setState(() => _approving = true);
+    try {
+      await ref.read(salesServiceProvider).approveCreditNote(cn.id);
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Credit note ${cn.creditNumber ?? ''} approved')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _approving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Approval failed: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+
+    final statusColor = cn.status == CreditNoteStatus.approved
+        ? const Color(0xFF66BB6A)
+        : cn.status == CreditNoteStatus.applied
+        ? cs.secondary
+        : cn.status == CreditNoteStatus.voided
+        ? cs.error
+        : const Color(0xFFFFA726);
+
+    final canApprove = ref.watch(
+      hasPermissionProvider(Permission.approveInvoices),
+    );
+    final showApprove =
+        cn.status == CreditNoteStatus.pendingApproval && canApprove;
+
+    return AppBottomSheet(
+      title: cn.creditNumber ?? 'Credit Note',
+      icon: PhosphorIconsRegular.arrowUUpLeft,
+      maxHeightFactor: 0.8,
+      bottomBar: showApprove
+          ? Padding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+              child: FilledButton.icon(
+                onPressed: _approving ? null : _approve,
+                icon: _approving
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const PhosphorIcon(
+                        PhosphorIconsBold.checkCircle,
+                        size: 18,
+                      ),
+                label: Text(_approving ? 'Approving...' : 'Approve Credit Note'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+            )
+          : null,
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Status + date
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: statusColor.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    cn.status.displayName,
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: statusColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  _formatFull(cn.createdAt),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Reason
+            Text(
+              'Reason',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(cn.reason, style: theme.textTheme.bodyMedium),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                PhosphorIcon(
+                  cn.restockItems
+                      ? PhosphorIconsRegular.package
+                      : PhosphorIconsRegular.prohibit,
+                  size: 14,
+                  color: cs.onSurfaceVariant,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  cn.restockItems
+                      ? 'Items returned to stock'
+                      : 'Items not restocked',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: cs.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // Returned items
+            Text(
+              'Returned items',
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: cs.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 8),
+            ...cn.items.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            item.productName ?? 'Item',
+                            style: theme.textTheme.bodyMedium,
+                          ),
+                          Text(
+                            '${item.quantity} × ${CurrencyHelper.format(item.unitPrice)}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      CurrencyHelper.format(item.total),
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 24),
+
+            // Totals
+            _cnTotalRow(theme, 'Subtotal', cn.subtotal),
+            _cnTotalRow(theme, 'Tax', cn.taxAmount),
+            const SizedBox(height: 4),
+            _cnTotalRow(theme, 'Total refund', cn.total, emphasize: true),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _cnTotalRow(
+    ThemeData theme,
+    String label,
+    double value, {
+    bool emphasize = false,
+  }) {
+    final style = emphasize
+        ? theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold)
+        : theme.textTheme.bodyMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text(CurrencyHelper.format(value), style: style),
+        ],
+      ),
     );
   }
 }
