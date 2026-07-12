@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/WolfeLeo2/Zynk/compare/v1.7.1...v1.8.0) (2026-07-12)
+
+
+### Features
+
+* Boxes become main unit, with sqm as the subtext ([8d3939d](https://github.com/WolfeLeo2/Zynk/commit/8d3939dab30d19c03184d75b9bd008fce7dd8096))
+
 ## [1.7.1](https://github.com/WolfeLeo2/Zynk/compare/v1.7.0...v1.7.1) (2026-07-10)
 
 
