@@ -153,12 +153,24 @@ class AddProductController extends _$AddProductController {
         if (components != null && components.isNotEmpty) {
           await repository.createCompositeProduct(newProduct, components);
         } else {
-          // Products are global — no targetBranchIds needed.
-          await repository.createProduct(newProduct);
+          // Products are global, but createProduct still needs every branch
+          // id to seed a zero stock row per branch (see its doc comment) —
+          // without that seed row, the first Inventory Adjustment for this
+          // product silently no-ops instead of creating real stock. CSV
+          // import already does this; Add Product previously didn't.
+          final branches = await repository.getBranches(tenantId);
+          final allBranchIds = branches
+              .map((b) => b.id)
+              .where((id) => id != 'all')
+              .toList();
+          await repository.createProduct(
+            newProduct,
+            targetBranchIds: allBranchIds,
+          );
         }
 
-        // Initial stock is not set at creation time for global products.
-        // Use the Inventory Adjustments screen to add stock per branch.
+        // Initial stock quantity is not set at creation time (starts at 0 for
+        // every branch) — use Inventory Adjustments to add real stock.
       }
 
       state = const AsyncData(null);

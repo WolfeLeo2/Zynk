@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
@@ -126,6 +127,10 @@ class _InventoryAdjustmentScreenState
         throw Exception('No branches found to apply stock changes.');
       }
 
+      // One shared bundle across every branch in this fan-out, so the review
+      // screen shows a single adjustment with a branch badge per row instead
+      // of a separate, easy-to-miss bundle per branch.
+      final bundleId = const Uuid().v4();
       int adjustedCount = 0;
       for (final branchId in branchIds) {
         // 'set' target → delta depends on each branch's own current stock, so
@@ -166,6 +171,7 @@ class _InventoryAdjustmentScreenState
           adjustmentType: 'auto',
           reasonId: _reasonId,
           referenceNumber: referenceNumber,
+          bundleId: bundleId,
         );
       }
 

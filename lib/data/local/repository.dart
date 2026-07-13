@@ -474,24 +474,19 @@ class PowerSyncRepository {
         ],
       );
 
+      // No product_branches rows are written here: products are global by
+      // design (branch_id IS NULL), and watchProducts()'s fallback only
+      // treats a product as "everywhere" while it has zero product_branches
+      // rows. Writing one here would silently hide it from any branch
+      // created later. Only seed the zero stock row per (current) branch —
+      // that's the part later adjustments actually need (see below).
       final now = DateTime.now().toIso8601String();
-      for (final branchId in effectiveBranchIds) {
-        final deterministicId = const Uuid().v5(
-          _productBranchNamespace,
-          '${product.id}:$branchId',
-        );
-        await tx.execute(
-          '''INSERT INTO product_branches (
-               id, tenant_id, product_id, branch_id, created_at
-             ) VALUES (?, ?, ?, ?, ?)''',
-          [deterministicId, product.tenantId, product.id, branchId, now],
-        );
-
-        // Seed a zero stock row per branch so later adjustments (which use an
-        // UPDATE-based increment) have a row to accumulate into. Without this,
-        // approving a new product's initial stock silently no-ops against a
-        // missing row and stock stays at 0. Services aren't stock-tracked.
-        if (!product.isService) {
+      if (!product.isService) {
+        for (final branchId in effectiveBranchIds) {
+          // Seed a zero stock row per branch so later adjustments (which use
+          // an UPDATE-based increment) have a row to accumulate into.
+          // Without this, approving a new product's initial stock silently
+          // no-ops against a missing row and stock stays at 0.
           final stockId = const Uuid().v5(
             _productBranchNamespace,
             'stock:${product.id}:$branchId',
@@ -912,12 +907,18 @@ class PowerSyncRepository {
     required String adjustmentType,
     String? reasonId,
     String? referenceNumber,
+    // Pass the same bundleId across multiple calls (one per branch) to fan a
+    // single adjustment out across branches as one reviewable bundle — see
+    // adjustment_detail_screen.dart's per-row branch badge, which only makes
+    // sense when a bundle actually spans more than one branch. Omit for a
+    // single-branch adjustment to get a fresh bundle.
+    String? bundleId,
   }) async {
     _ensureSpecificBranchId(branchId);
 
     await _db.writeTransaction((tx) async {
       final now = DateTime.now().toUtc().toIso8601String();
-      final bundleId = const Uuid().v4();
+      final resolvedBundleId = bundleId ?? const Uuid().v4();
 
       for (final item in items) {
         if (item.quantityChange == 0) continue;
@@ -945,7 +946,7 @@ class PowerSyncRepository {
             reasonId,
             resolvedAdjustmentType,
             now,
-            bundleId,
+            resolvedBundleId,
           ],
         );
       }
@@ -1072,19 +1073,46 @@ class PowerSyncRepository {
   }
 
   Future<void> createBranch(Branch branch) async {
-    await _db.execute(
-      'INSERT INTO branches (id, tenant_id, location_id, name, address, phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        branch.id,
-        branch.tenantId,
-        branch.locationId,
-        branch.name,
-        branch.address,
-        branch.phone,
-        DateTime.now().toIso8601String(),
-        DateTime.now().toIso8601String(),
-      ],
-    );
+    final now = DateTime.now().toIso8601String();
+    await _db.writeTransaction((tx) async {
+      await tx.execute(
+        'INSERT INTO branches (id, tenant_id, location_id, name, address, phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          branch.id,
+          branch.tenantId,
+          branch.locationId,
+          branch.name,
+          branch.address,
+          branch.phone,
+          now,
+          now,
+        ],
+      );
+
+      // Every existing global product is "in" every branch by design (see
+      // createProduct) — but that only holds for stock-adjustment purposes
+      // once a zero stock row exists. Seed one now for this new branch so
+      // adjusting stock on a pre-existing product here doesn't silently
+      // no-op the same way an un-seeded new product would.
+      final existingProducts = await tx.getAll(
+        'SELECT id FROM products WHERE tenant_id = ? AND branch_id IS NULL AND is_service = 0',
+        [branch.tenantId],
+      );
+      for (final row in existingProducts) {
+        final productId = row['id'] as String;
+        final stockId = const Uuid().v5(
+          _productBranchNamespace,
+          'stock:$productId:${branch.id}',
+        );
+        await tx.execute(
+          '''INSERT INTO stock (
+               id, tenant_id, branch_id, product_id, quantity, reorder_level,
+               last_updated
+             ) VALUES (?, ?, ?, ?, 0, 0, ?)''',
+          [stockId, branch.tenantId, branch.id, productId, now],
+        );
+      }
+    });
   }
 
   Future<void> updateBranch(

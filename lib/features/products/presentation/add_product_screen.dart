@@ -70,9 +70,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     if (widget.existingProduct != null) {
       final p = widget.existingProduct!;
       _nameController.text = p.name;
-      _skuController.text = p.sku ?? '';
-      _autoGenerateSku = p.sku == null || p.sku!.isEmpty;
-      _barcodeController.text = p.barcode ?? '';
+      // A clone is a distinct new product — it must not inherit the source's
+      // SKU/barcode (those should be unique per catalog entry). Editing the
+      // same product keeps them as-is.
+      if (widget.isCloneMode) {
+        _skuController.text = '';
+        _autoGenerateSku = true;
+        _barcodeController.text = '';
+      } else {
+        _skuController.text = p.sku ?? '';
+        _autoGenerateSku = p.sku == null || p.sku!.isEmpty;
+        _barcodeController.text = p.barcode ?? '';
+      }
       _priceController.text = p.basePrice.toString();
       if (p.costPrice != null) {
         _costPriceController.text = p.costPrice.toString();
