@@ -87,7 +87,7 @@ class _BatchItemCardState extends ConsumerState<BatchItemCard> {
         ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
         : null;
     final isSqm =
-        product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm';
+        (product.pricingUnit ?? itemGroup?.defaultPricingUnit) == 'sqm';
     final coverage =
         (product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
     final branchStocksAsync = ref.watch(branchStocksProvider(product.id));

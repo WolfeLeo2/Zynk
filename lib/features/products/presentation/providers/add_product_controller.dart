@@ -106,6 +106,21 @@ class AddProductController extends _$AddProductController {
         );
         await repository.updateProduct(updatedProduct);
       } else {
+        // Products are a shared, tenant-wide catalog — guard against
+        // recreating one that already exists under the same name (the usual
+        // cause: a staffer couldn't find an existing product in a branch's
+        // filtered view and used Add Product instead of the existing entry).
+        final existing = await repository.watchProducts().first;
+        final normalizedName = name.trim().toLowerCase();
+        final duplicate = existing
+            .where((p) => p.name.trim().toLowerCase() == normalizedName)
+            .firstOrNull;
+        if (duplicate != null) {
+          throw Exception(
+            'A product named "$name" already exists. Edit it instead of creating a duplicate.',
+          );
+        }
+
         final newProductId = const Uuid().v4();
         final newProduct = Product(
           id: newProductId,

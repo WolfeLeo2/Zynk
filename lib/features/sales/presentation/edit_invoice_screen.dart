@@ -85,10 +85,11 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       final itemGroup = (product != null && product.itemGroupId != null)
           ? itemGroups.where((g) => g.id == product.itemGroupId).firstOrNull
           : null;
+      // Product's own pricing unit wins when set; only fall back to the
+      // group's default when the product doesn't declare one explicitly.
       final isSqmBased =
           product != null &&
-          (product.pricingUnit == 'sqm' ||
-              itemGroup?.defaultPricingUnit == 'sqm');
+          (product.pricingUnit ?? itemGroup?.defaultPricingUnit) == 'sqm';
       final coverage =
           (product?.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
 
@@ -120,7 +121,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
         ? itemGroups.where((g) => g.id == product.itemGroupId).firstOrNull
         : null;
     final isSqmBased =
-        product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm';
+        (product.pricingUnit ?? itemGroup?.defaultPricingUnit) == 'sqm';
     final coverage =
         (product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
     return _EditableSaleItem(

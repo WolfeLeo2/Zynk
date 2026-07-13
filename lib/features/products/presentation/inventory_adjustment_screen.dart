@@ -96,10 +96,11 @@ class _InventoryAdjustmentScreenState
     }
 
     final allBranchesMode = _selectedBranchIds.length > 1;
-    // In 'set' mode every row has an absolute target (0 is valid); otherwise
-    // skip rows the user left at zero.
+    // In 'set' mode every touched row has an absolute target (an explicit "0"
+    // is valid); a row the user never typed into is skipped even in 'set'
+    // mode — otherwise confirming with untouched rows silently zeroes them.
     final enteredItems = items
-        .where((item) => item.quantityChange != 0 || _mode == 'set')
+        .where((item) => item.quantityChange != 0 || (_mode == 'set' && item.touched))
         .toList();
     if (enteredItems.isEmpty) {
       _snack('Please enter a quantity for at least one item.');

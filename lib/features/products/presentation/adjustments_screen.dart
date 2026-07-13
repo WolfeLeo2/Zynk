@@ -213,7 +213,7 @@ class _BundleTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Card(
         child: InkWell(
-          onTap: () => context.push('/settings/adjustments-review/$bundleId'),
+          onTap: () => context.push('/adjustment-review/$bundleId'),
           borderRadius: AppTokens.roundedCard,
           child: Padding(
             padding: const EdgeInsets.all(16),

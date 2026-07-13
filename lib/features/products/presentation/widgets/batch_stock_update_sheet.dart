@@ -308,6 +308,13 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
         final tenantId = ref.read(tenantIdProvider) ?? '';
         final branchId = _selectedBranch?.id ?? '';
         final profile = ref.read(currentProfileProvider);
+
+        // In 'set' mode a blank field must not silently resolve to "set
+        // everything to 0" — require an explicit amount (an explicit "0" is
+        // still valid; an untouched field is not).
+        if (_mode == 'set' && _qtyController.text.trim().isEmpty) {
+          throw 'Please enter the new quantity';
+        }
         final amount = num.tryParse(_qtyController.text) ?? 0;
 
         if (branchId.isEmpty) {

@@ -1502,10 +1502,12 @@ class _ItemsList extends ConsumerWidget {
                   ? ref.watch(itemGroupProvider(product.itemGroupId!)).value
                   : null;
 
+              // Product's own pricing unit wins when set; only fall back to
+              // the group's default when the product doesn't declare one.
               final isSqmBased =
                   product != null &&
-                  (product.pricingUnit == 'sqm' ||
-                      itemGroup?.defaultPricingUnit == 'sqm');
+                  (product.pricingUnit ?? itemGroup?.defaultPricingUnit) ==
+                      'sqm';
               final coverage =
                   (product?.coveragePerBox ??
                       itemGroup?.defaultCoveragePerBox) ??
