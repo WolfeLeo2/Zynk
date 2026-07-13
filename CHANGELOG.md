@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.2](https://github.com/WolfeLeo2/Zynk/compare/v1.8.1...v1.8.2) (2026-07-13)
+
+
+### Bug Fixes
+
+* **bug:** removed duplicates and heavily guarded against duplicate files ([e370d3f](https://github.com/WolfeLeo2/Zynk/commit/e370d3f9f5a32dd2676802ac92ee609a60434b86))
+
 ## [1.8.1](https://github.com/WolfeLeo2/Zynk/compare/v1.8.0...v1.8.1) (2026-07-12)
 
 
