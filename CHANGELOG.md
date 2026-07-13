@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/WolfeLeo2/Zynk/compare/v1.8.2...v1.9.0) (2026-07-13)
+
+
+### Features
+
+* more robust branch and product seeding ([17ff57d](https://github.com/WolfeLeo2/Zynk/commit/17ff57d6279b7a56d4f581331696bb76edbe0fe0))
+
 ## [1.8.2](https://github.com/WolfeLeo2/Zynk/compare/v1.8.1...v1.8.2) (2026-07-13)
 
 
