@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/WolfeLeo2/Zynk/compare/v1.8.0...v1.8.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* fixed release build failure due to gradle upgrade ([e7f325e](https://github.com/WolfeLeo2/Zynk/commit/e7f325ee5522863937123aec0fec53ab297af327))
+
 ## [1.8.0](https://github.com/WolfeLeo2/Zynk/compare/v1.7.1...v1.8.0) (2026-07-12)
 
 
