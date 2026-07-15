@@ -78,7 +78,7 @@ class ItemGroupsScreen extends ConsumerWidget {
         ),
       ),
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => context.push("/products/groups/add"),
+        onPressed: () => context.push("/groups/add"),
         icon: const PhosphorIcon(PhosphorIconsBold.plus),
         label: const Text("Add Group"),
       ),
@@ -115,7 +115,7 @@ class ItemGroupsScreen extends ConsumerWidget {
           ),
           const SizedBox(height: 24),
           FilledButton.icon(
-            onPressed: () => context.push('/products/groups/add'),
+            onPressed: () => context.push('/groups/add'),
             icon: const PhosphorIcon(PhosphorIconsBold.plus),
             label: const Text('Create Item Group'),
           ),
