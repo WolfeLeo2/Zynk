@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.2](https://github.com/WolfeLeo2/Zynk/compare/v1.9.1...v1.9.2) (2026-07-15)
+
+
+### Bug Fixes
+
+* routing ([09b5504](https://github.com/WolfeLeo2/Zynk/commit/09b55045277ab0e9455305f432424c8f70877ab8))
+
 ## [1.9.1](https://github.com/WolfeLeo2/Zynk/compare/v1.9.0...v1.9.1) (2026-07-15)
 
 
