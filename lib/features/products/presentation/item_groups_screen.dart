@@ -193,7 +193,7 @@ class _ItemGroupCard extends ConsumerWidget {
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () =>
-              context.push('/products/groups/${group.id}', extra: group),
+              context.push('/groups/${group.id}', extra: group),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Row(
