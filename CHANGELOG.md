@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/WolfeLeo2/Zynk/compare/v1.9.0...v1.9.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* fixed page route for item group details ([79dbe09](https://github.com/WolfeLeo2/Zynk/commit/79dbe09063d5788a7dfca1ec5e92f591227d15fe))
+
 ## [1.9.0](https://github.com/WolfeLeo2/Zynk/compare/v1.8.2...v1.9.0) (2026-07-13)
 
 
