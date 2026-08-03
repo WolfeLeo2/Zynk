@@ -385,6 +385,11 @@ class Payment {
   final PaymentMethod paymentMethod;
   final String? referenceNumber;
   final String? recordedBy;
+
+  /// Joined from profiles in [AppRepository.watchPaymentsForSale] — never
+  /// persisted, so the payment creator stays visible without a second lookup.
+  @JsonKey(includeToJson: false)
+  final String? recordedByName;
   final String? notes;
   @JsonKey(fromJson: _parseDate, toJson: _dateToIso)
   final DateTime? createdAt;
@@ -398,6 +403,7 @@ class Payment {
     required this.paymentMethod,
     this.referenceNumber,
     this.recordedBy,
+    this.recordedByName,
     this.notes,
     this.createdAt,
   });

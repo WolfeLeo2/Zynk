@@ -288,6 +288,7 @@ final schema = Schema([
     Column.real('amount'),
     Column.text('payment_method'),
     Column.text('reference_number'),
+    Column.text('recorded_by'),
     Column.text('notes'),
     Column.text('created_at'),
     Column.text('updated_at'),

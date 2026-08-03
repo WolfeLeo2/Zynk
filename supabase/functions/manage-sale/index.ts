@@ -946,6 +946,9 @@ Deno.serve(async (req: Request) => {
                         // Only an explicit `false` enforces the guard; absent/true
                         // preserves the lenient default for any other caller.
                         p_allow_overpayment: allow_overpayment !== false,
+                        // Audit: whoever collected this payment, which is not
+                        // necessarily whoever raised the invoice.
+                        p_recorded_by: userId,
                     }
                 );
 

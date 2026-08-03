@@ -1672,74 +1672,16 @@ class PowerSyncRepository {
   Stream<List<Payment>> watchPaymentsForSale(String saleId) {
     return _db
         .watch(
-          'SELECT * FROM sale_payments WHERE sale_id = ? ORDER BY created_at ASC',
+          '''
+          SELECT sp.*, pr.display_name AS recorded_by_name
+          FROM sale_payments sp
+          LEFT JOIN profiles pr ON pr.user_id = sp.recorded_by
+          WHERE sp.sale_id = ?
+          ORDER BY sp.created_at ASC
+          ''',
           parameters: [saleId],
         )
         .map((rows) => rows.map((row) => Payment.fromMap(row)).toList());
-  }
-
-  /// Record payment offline locally and auto-update sale status / amount paid
-  Future<void> recordPaymentLocally({
-    required String saleId,
-    required double amount,
-    required String paymentMethod,
-    String? referenceNumber,
-    String? notes,
-  }) async {
-    await _db.writeTransaction((tx) async {
-      // 1. Fetch current sale
-      final saleRow = await tx.getOptional('SELECT * FROM sales WHERE id = ?', [
-        saleId,
-      ]);
-      if (saleRow == null) throw Exception('Sale not found locally');
-      final sale = Sale.fromMap(saleRow);
-
-      // 2. Insert payment
-      final paymentId = uuid.v4();
-      final now = DateTime.now().toIso8601String();
-      await tx.execute(
-        'INSERT INTO sale_payments (id, tenant_id, branch_id, sale_id, amount, payment_method, reference_number, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          paymentId,
-          sale.tenantId,
-          sale.branchId,
-          sale.id,
-          amount,
-          paymentMethod,
-          referenceNumber,
-          notes,
-          now,
-          now,
-        ],
-      );
-
-      // 3. Update sale totals & status
-      final newAmountPaid = sale.amountPaid + amount;
-      var newPaymentStatus = PaymentStatus.partiallyPaid;
-      if (newAmountPaid >= sale.grandTotal) {
-        newPaymentStatus = PaymentStatus.paid;
-      }
-
-      final completedAtStr =
-          newPaymentStatus == PaymentStatus.paid &&
-              sale.fulfillmentStatus == FulfillmentStatus.released
-          ? now
-          : sale.completedAt?.toIso8601String();
-
-      await tx.execute(
-        'UPDATE sales SET amount_paid = ?, status = ?, payment_status = ?, fulfillment_status = ?, payment_method = ?, updated_at = ?, completed_at = ? WHERE id = ?',
-        [
-          newAmountPaid,
-          sale.status.value,
-          newPaymentStatus.value,
-          sale.fulfillmentStatus.value,
-          paymentMethod,
-          now,
-          completedAtStr,
-          sale.id,
-        ],
-      );
-    });
   }
 
   // --- Credit Notes ---

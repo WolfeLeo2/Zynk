@@ -117,6 +117,7 @@ Payment _$PaymentFromJson(Map<String, dynamic> json) => Payment(
   paymentMethod: _paymentMethodFromJson(json['payment_method'] as String?),
   referenceNumber: json['reference_number'] as String?,
   recordedBy: json['recorded_by'] as String?,
+  recordedByName: json['recorded_by_name'] as String?,
   notes: json['notes'] as String?,
   createdAt: _parseDate(json['created_at']),
 );

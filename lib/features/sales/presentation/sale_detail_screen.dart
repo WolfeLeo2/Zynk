@@ -1756,6 +1756,15 @@ class _PaymentsList extends ConsumerWidget {
                               color: cs.onSurfaceVariant,
                             ),
                           ),
+                        // Audit: the collector, who may differ from whoever
+                        // raised the invoice. Blank on pre-migration payments.
+                        if (p.recordedByName != null)
+                          Text(
+                            'Recorded by ${p.recordedByName}',
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: cs.onSurfaceVariant,
+                            ),
+                          ),
                       ],
                     ),
                   ),
