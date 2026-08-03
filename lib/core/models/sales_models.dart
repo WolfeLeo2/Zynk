@@ -273,7 +273,7 @@ class SaleItem {
   final String saleId;
   final String productId;
   final String? tenantId;
-  final int quantity;
+  final num quantity;
   final double unitPrice;
   final double costPrice;
   final double taxAmount;
@@ -544,7 +544,7 @@ enum CreditNoteStatus {
 class CreditNoteItem {
   final String productId;
   final String? productName;
-  final int quantity;
+  final num quantity;
   final double unitPrice;
   final double taxAmount;
   final double total;

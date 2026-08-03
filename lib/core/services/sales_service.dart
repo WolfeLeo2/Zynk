@@ -11,7 +11,7 @@ final _log = AppLogger('SalesService');
 /// [quantity] is the persisted unit count (boxes for sqm-based items),
 /// [unitPrice] is the per-persisted-unit price (per box for sqm), and [total]
 /// is `unitPrice * quantity`.
-typedef InvoiceLine = ({int quantity, double unitPrice, double total});
+typedef InvoiceLine = ({num quantity, double unitPrice, double total});
 
 /// Thin client service that delegates heavy operations to Supabase edge functions.
 ///
@@ -25,15 +25,20 @@ class SalesService {
   /// Single source of truth for invoice line-item pricing — used by the create,
   /// edit and clone screens so totals never drift between them.
   ///
-  /// Quantities are entered in whole units — boxes for sqm-based items, pieces
-  /// otherwise — and [enteredPrice] is that unit's price (per box / per piece).
+  /// Quantities are in units — boxes for sqm-based items, pieces otherwise —
+  /// and [enteredPrice] is that unit's price (per box / per piece). Fractional
+  /// quantities are kept as entered (0.5 = a half unit); rounding here would
+  /// silently disagree with the stock the sale actually decrements.
   /// sqm coverage is display-only (boxes × coverage) and not needed here.
   static InvoiceLine resolveLine({
     required double enteredPrice,
     required double enteredQty,
   }) {
-    final qty = enteredQty.round();
-    return (quantity: qty, unitPrice: enteredPrice, total: enteredPrice * qty);
+    return (
+      quantity: enteredQty,
+      unitPrice: enteredPrice,
+      total: enteredPrice * enteredQty,
+    );
   }
 
   /// Ensures the session is fresh before making edge function calls.

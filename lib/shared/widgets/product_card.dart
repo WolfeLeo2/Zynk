@@ -44,7 +44,7 @@ class SharedProductCard extends ConsumerWidget {
 
     // Cart details (only if requested)
     bool isInCart = false;
-    int qtyInCart = 0;
+    num qtyInCart = 0;
 
     if (showCartBadges) {
       final cartItems = ref
@@ -53,7 +53,7 @@ class SharedProductCard extends ConsumerWidget {
           .where((i) => i.product.id == product.id)
           .toList();
       isInCart = cartItems.isNotEmpty;
-      qtyInCart = cartItems.fold<int>(0, (sum, i) => sum + i.quantity);
+      qtyInCart = cartItems.fold<num>(0, (sum, i) => sum + i.quantity);
     }
 
     return Card(
@@ -216,7 +216,7 @@ class SharedProductCard extends ConsumerWidget {
                 right: 12,
                 child: Badge(
                   label: Text(
-                    '$qtyInCart',
+                    formatQty(qtyInCart),
                     style: textTheme.labelSmall?.copyWith(
                       color: colorScheme.onPrimary,
                       fontWeight: FontWeight.bold,

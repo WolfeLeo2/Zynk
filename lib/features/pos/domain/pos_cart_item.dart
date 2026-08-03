@@ -3,7 +3,7 @@ import 'package:zynk/core/models/schema_models.dart';
 class PosCartItem {
   final Product product;
   final ItemGroup? itemGroup;
-  int quantity;
+  num quantity;
   String? overrideName;
   double? overridePrice;
 

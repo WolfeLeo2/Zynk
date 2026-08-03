@@ -580,11 +580,12 @@ class _EditableInvoiceItem {
 
   _EditableInvoiceItem(this.originalItem) {
     nameCtr = TextEditingController(text: originalItem.effectiveName);
-    // Price is per box (sqm items) or per piece; quantity is whole boxes/pieces.
+    // Price is per box (sqm items) or per piece; quantity is boxes/pieces and
+    // may be fractional (0.5 = a half unit).
     priceCtr = TextEditingController(
       text: originalItem.effectivePrice.toStringAsFixed(0),
     );
-    qtyCtr = TextEditingController(text: originalItem.quantity.toString());
+    qtyCtr = TextEditingController(text: formatQtyInput(originalItem.quantity));
   }
 
   /// The per-box (sqm-based) or per-piece unit price currently entered.

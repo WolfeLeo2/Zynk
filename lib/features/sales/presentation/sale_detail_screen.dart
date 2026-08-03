@@ -22,6 +22,7 @@ import 'package:zynk/features/sales/providers/sales_providers.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1541,7 +1542,7 @@ class _ItemsList extends ConsumerWidget {
                           ),
                           alignment: Alignment.center,
                           child: Text(
-                            '${item.quantity}',
+                            formatQty(item.quantity),
                             style: theme.textTheme.labelMedium?.copyWith(
                               fontWeight: FontWeight.bold,
                             ),
@@ -1568,7 +1569,7 @@ class _ItemsList extends ConsumerWidget {
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
-                                  '${item.quantity} box${item.quantity != 1 ? 'es' : ''} · ${totalSqm.toStringAsFixed(2)} sqm coverage',
+                                  '${formatQty(item.quantity)} box${item.quantity != 1 ? 'es' : ''} · ${totalSqm.toStringAsFixed(2)} sqm coverage',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: cs.primary.withValues(alpha: 0.8),
                                     fontSize: 10,
@@ -2146,7 +2147,7 @@ class _CreditNoteDetailSheetState
                             style: theme.textTheme.bodyMedium,
                           ),
                           Text(
-                            '${item.quantity} × ${CurrencyHelper.format(item.unitPrice)}',
+                            '${formatQty(item.quantity)} × ${CurrencyHelper.format(item.unitPrice)}',
                             style: theme.textTheme.bodySmall?.copyWith(
                               color: cs.onSurfaceVariant,
                             ),
@@ -2558,7 +2559,7 @@ class _CreateCreditNoteSheetState
                                   ),
                                 ),
                                 Text(
-                                  '${item.quantity} sold @ ${CurrencyHelper.format(item.unitPrice)}',
+                                  '${formatQty(item.quantity)} sold @ ${CurrencyHelper.format(item.unitPrice)}',
                                   style: theme.textTheme.bodySmall?.copyWith(
                                     color: cs.onSurfaceVariant,
                                   ),

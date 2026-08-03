@@ -81,7 +81,7 @@ SaleItem _$SaleItemFromJson(Map<String, dynamic> json) => SaleItem(
   saleId: json['sale_id'] as String,
   productId: json['product_id'] as String,
   tenantId: json['tenant_id'] as String?,
-  quantity: (json['quantity'] as num).toInt(),
+  quantity: json['quantity'] as num,
   unitPrice: (json['unit_price'] as num).toDouble(),
   costPrice: (json['cost_price'] as num?)?.toDouble() ?? 0,
   taxAmount: (json['tax_amount'] as num?)?.toDouble() ?? 0,
@@ -163,7 +163,7 @@ CreditNoteItem _$CreditNoteItemFromJson(Map<String, dynamic> json) =>
     CreditNoteItem(
       productId: json['product_id'] as String,
       productName: json['product_name'] as String?,
-      quantity: (json['quantity'] as num).toInt(),
+      quantity: json['quantity'] as num,
       unitPrice: (json['unit_price'] as num).toDouble(),
       taxAmount: (json['tax_amount'] as num?)?.toDouble() ?? 0,
       total: (json['total'] as num).toDouble(),

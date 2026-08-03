@@ -890,7 +890,7 @@ class _EditableSaleItem {
   final double costPrice;
   final double taxAmount;
   final String initialName;
-  final int initialQty; // number of boxes from DB
+  final num initialQty; // number of boxes from DB
   final double
   initialPrice; // unit price (per box if sqm-based, per piece if piece-based)
   final bool isSqmBased;
@@ -914,7 +914,7 @@ class _EditableSaleItem {
     nameCtr = TextEditingController(text: initialName);
     // Quantity is whole boxes/pieces; price is per box (sqm) / per piece.
     // Stored unit_price is already per box, so no conversion on load.
-    qtyCtr = TextEditingController(text: initialQty.toString());
+    qtyCtr = TextEditingController(text: formatQtyInput(initialQty));
     priceCtr = TextEditingController(text: initialPrice.toStringAsFixed(0));
   }
 

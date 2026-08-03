@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/utils/quantity.dart';
 
 class QtyStepper extends StatelessWidget {
-  final int value;
-  final ValueChanged<int> onChanged;
-  final int min;
-  final int max;
+  final num value;
+  final ValueChanged<num> onChanged;
+  final num min;
+  final num max;
 
   const QtyStepper({
     super.key,
@@ -14,6 +16,46 @@ class QtyStepper extends StatelessWidget {
     this.min = 0,
     this.max = 9999,
   });
+
+  /// Tapping the number opens a keypad so fractional quantities (0.5 of a unit)
+  /// can be entered — the +/- buttons only ever step whole units.
+  Future<void> _editQuantity(BuildContext context) async {
+    final controller = TextEditingController(text: formatQtyInput(value));
+    final entered = await showDialog<num>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Quantity'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+          ],
+          decoration: const InputDecoration(
+            hintText: 'e.g. 0.5',
+            border: OutlineInputBorder(),
+          ),
+          onSubmitted: (raw) =>
+              Navigator.pop(context, num.tryParse(raw.trim())),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.pop(context, num.tryParse(controller.text.trim())),
+            child: const Text('Set'),
+          ),
+        ],
+      ),
+    );
+
+    if (entered == null) return;
+    onChanged(entered.clamp(min, max));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -46,12 +88,16 @@ class QtyStepper extends StatelessWidget {
               ),
             ),
           ),
-          Container(
-            constraints: const BoxConstraints(minWidth: 32),
-            alignment: Alignment.center,
-            child: Text(
-              '$value',
-              style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+          InkWell(
+            onTap: () => _editQuantity(context),
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 32),
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              alignment: Alignment.center,
+              child: Text(
+                formatQty(value),
+                style: tt.bodyMedium?.copyWith(fontWeight: FontWeight.bold),
+              ),
             ),
           ),
           InkWell(

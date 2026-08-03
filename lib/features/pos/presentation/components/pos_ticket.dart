@@ -15,6 +15,7 @@ import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 import 'package:zynk/shared/widgets/current_salesperson_tile.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/shared/widgets/qty_stepper.dart';
 
 class PosTicket extends ConsumerWidget {
@@ -58,7 +59,7 @@ class PosTicket extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final tt = theme.textTheme;
-    final itemCount = items.fold<int>(0, (sum, i) => sum + i.quantity);
+    final itemCount = items.fold<num>(0, (sum, i) => sum + i.quantity);
     final branch = ref.watch(selectedPosBranchProvider);
 
     final body = Column(
@@ -72,7 +73,7 @@ class PosTicket extends ConsumerWidget {
               if (itemCount > 0)
                 Badge(
                   label: Text(
-                    '$itemCount items',
+                    '${formatQty(itemCount)} items',
                     style: tt.labelSmall?.copyWith(color: cs.onPrimary),
                   ),
                   backgroundColor: cs.primary,
@@ -394,7 +395,7 @@ class _TicketItemRow extends ConsumerWidget {
                       builder: (context, ref, child) {
                         if (item.isSqmBased) {
                           return Text(
-                            '${item.quantity} box${item.quantity != 1 ? 'es' : ''} · ${item.totalSqm.toStringAsFixed(2)} sqm',
+                            '${formatQty(item.quantity)} box${item.quantity != 1 ? 'es' : ''} · ${item.totalSqm.toStringAsFixed(2)} sqm',
                             style: tt.bodySmall?.copyWith(
                               color: cs.onSurfaceVariant.withValues(alpha: 0.8),
                               fontSize: 12,
@@ -428,6 +429,11 @@ class _TicketItemRow extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: QtyStepper(
                   value: item.quantity,
+                  // Cap at what's in stock so "+" stops (and the keypad clamps)
+                  // instead of offering a step that's always rejected below.
+                  max: item.product.isService
+                      ? 9999
+                      : (stockState?.quantity ?? 0),
                   onChanged: (newVal) {
                     if (newVal == 0) {
                       onRemove();
@@ -439,7 +445,7 @@ class _TicketItemRow extends ConsumerWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Cannot add ${item.product.name}. Only $availableStock in stock.',
+                                'Cannot add ${item.product.name}. Only ${formatQty(availableStock)} in stock.',
                               ),
                               backgroundColor: cs.error,
                               behavior: SnackBarBehavior.floating,

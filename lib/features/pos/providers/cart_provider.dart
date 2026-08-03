@@ -13,7 +13,7 @@ class CartState {
   const CartState({this.items = const []});
 
   double get total => items.fold(0, (sum, i) => sum + i.total);
-  int get totalQuantity => items.fold(0, (sum, i) => sum + i.quantity);
+  num get totalQuantity => items.fold<num>(0, (sum, i) => sum + i.quantity);
   bool get isEmpty => items.isEmpty;
 
   CartState copyWith({List<PosCartItem>? items}) =>
@@ -31,23 +31,36 @@ class CartNotifier extends Notifier<CartState> {
   void addItem(
     Product product, {
     ItemGroup? itemGroup,
-    int availableStock = 999,
+    num availableStock = 999,
   }) {
     final items = List<PosCartItem>.from(state.items);
     final idx = items.indexWhere((i) => i.product.id == product.id);
+    final inCart = idx != -1 ? items[idx].quantity : 0;
+
+    // Step by a whole unit, but never past what's in stock — a product with
+    // only 0.5 left must still be addable (as 0.5), not blocked because a
+    // full unit won't fit. Services are unlimited.
+    final step = product.isService
+        ? 1
+        : _stepWithin(availableStock - inCart);
+    if (step == null) return; // nothing left — caller surfaces a snackbar
 
     if (idx != -1) {
-      // Already in cart — check stock before incrementing
-      if (!product.isService && items[idx].quantity + 1 > availableStock) {
-        // Cannot add — caller should surface a snackbar
-        return;
-      }
-      items[idx].quantity++;
+      items[idx].quantity += step;
     } else {
-      items.add(PosCartItem(product: product, itemGroup: itemGroup));
+      items.add(
+        PosCartItem(product: product, itemGroup: itemGroup, quantity: step),
+      );
     }
 
     state = state.copyWith(items: items);
+  }
+
+  /// The largest whole-or-fractional unit that fits in [remaining], or null
+  /// when there is nothing left to add.
+  static num? _stepWithin(num remaining) {
+    if (remaining <= 0) return null;
+    return remaining < 1 ? remaining : 1;
   }
 
   void removeItem(String productId) {
@@ -56,7 +69,7 @@ class CartNotifier extends Notifier<CartState> {
     );
   }
 
-  void setQuantity(String productId, int qty) {
+  void setQuantity(String productId, num qty) {
     if (qty <= 0) {
       removeItem(productId);
       return;

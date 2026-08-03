@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/utils/quantity.dart';
 
 /// Generates a professional A4 Delivery Note PDF.
 ///
@@ -322,7 +323,7 @@ class DeliveryNoteTemplate {
       data: items.asMap().entries.map((entry) {
         final i = entry.key;
         final item = entry.value;
-        return ['${i + 1}', item.productName ?? 'Item', '${item.quantity}'];
+        return ['${i + 1}', item.productName ?? 'Item', formatQty(item.quantity)];
       }).toList(),
     );
   }

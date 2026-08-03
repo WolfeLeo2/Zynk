@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
@@ -52,6 +53,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
     HapticFeedback.lightImpact();
 
     // Validate against current stock if the item is not a service
+    num availableStock = 999;
     if (!product.isService) {
       final posBranchId = ref.read(posBranchProvider);
       final stockState = ref
@@ -62,7 +64,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
             )),
           )
           .value;
-      final availableStock = stockState?.quantity ?? 0;
+      availableStock = stockState?.quantity ?? 0;
 
       final currentCartQty = ref
           .read(cartProvider)
@@ -73,12 +75,16 @@ class _PosScreenState extends ConsumerState<PosScreen>
           )
           .quantity;
 
-      if (currentCartQty + 1 > availableStock) {
+      // Only block when nothing is left. A fractional remainder (0.5) is still
+      // addable — the cart adds whatever fits rather than a forced full unit.
+      if (availableStock - currentCartQty <= 0) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Cannot add ${product.name}. Only $availableStock in stock.',
+              currentCartQty > 0
+                  ? 'All ${formatQty(availableStock)} of ${product.name} already in the ticket.'
+                  : '${product.name} is out of stock.',
             ),
             backgroundColor: Theme.of(context).colorScheme.error,
             behavior: SnackBarBehavior.floating,
@@ -93,7 +99,13 @@ class _PosScreenState extends ConsumerState<PosScreen>
         ? itemGroups.where((g) => g.id == product.itemGroupId).firstOrNull
         : null;
 
-    ref.read(cartProvider.notifier).addItem(product, itemGroup: itemGroup);
+    ref
+        .read(cartProvider.notifier)
+        .addItem(
+          product,
+          itemGroup: itemGroup,
+          availableStock: availableStock,
+        );
 
     final isMobile = MediaQuery.of(context).size.width <= 900;
     if (isMobile) {

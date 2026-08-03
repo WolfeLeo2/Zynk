@@ -2,58 +2,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:zynk/core/services/sales_service.dart';
 
 void main() {
-  group('SalesService.resolveLine — sqm-based items', () {
-    test('rounds sqm quantity UP to the nearest whole box', () {
-      // 10 sqm at 1.67 sqm/box needs 6 boxes (5.988 rounded up), not 5.
-      final line = SalesService.resolveLine(
-        isSqmBased: true,
-        coveragePerBox: 1.67,
-        enteredPrice: 750,
-        enteredQty: 10,
-      );
-      expect(line.quantity, 6);
-      expect(line.unitPrice, closeTo(1252.5, 0.001));
-      expect(line.total, closeTo(7515.0, 0.001));
-    });
-
-    test('an exact multiple of the coverage needs no extra box', () {
-      final line = SalesService.resolveLine(
-        isSqmBased: true,
-        coveragePerBox: 1.67,
-        enteredPrice: 750,
-        enteredQty: 3.34, // exactly 2 boxes
-      );
-      expect(line.quantity, 2);
-    });
-
-    test('persists price-per-box, never the raw price-per-sqm', () {
-      final line = SalesService.resolveLine(
-        isSqmBased: true,
-        coveragePerBox: 1.67,
-        enteredPrice: 750,
-        enteredQty: 1.67,
-      );
-      expect(line.unitPrice, isNot(750));
-      expect(line.unitPrice, closeTo(1252.5, 0.001));
-    });
-
-    test('treats a zero or negative coverage as 1.0 (no box conversion)', () {
-      final line = SalesService.resolveLine(
-        isSqmBased: true,
-        coveragePerBox: 0,
-        enteredPrice: 100,
-        enteredQty: 4.2,
-      );
-      expect(line.quantity, 5); // ceil(4.2 / 1.0)
-      expect(line.unitPrice, 100);
-    });
-  });
-
-  group('SalesService.resolveLine — non-sqm items', () {
+  group('SalesService.resolveLine', () {
     test('quantity and price pass through unchanged', () {
       final line = SalesService.resolveLine(
-        isSqmBased: false,
-        coveragePerBox: 1.0,
         enteredPrice: 500,
         enteredQty: 3,
       );
@@ -62,14 +13,25 @@ void main() {
       expect(line.total, 1500);
     });
 
-    test('a fractional quantity is truncated, not rounded', () {
+    // The whole point of widening quantity to num: a half unit (a toilet with a
+    // broken cistern) must survive to the DB. Rounding here would silently
+    // disagree with the stock the sale actually decrements.
+    test('a fractional quantity is preserved, not rounded', () {
       final line = SalesService.resolveLine(
-        isSqmBased: false,
-        coveragePerBox: 1.0,
         enteredPrice: 100,
-        enteredQty: 5.9,
+        enteredQty: 0.5,
       );
-      expect(line.quantity, 5);
+      expect(line.quantity, 0.5);
+      expect(line.total, 50);
+    });
+
+    test('fractional quantity prices the line proportionally', () {
+      final line = SalesService.resolveLine(
+        enteredPrice: 750,
+        enteredQty: 2.5,
+      );
+      expect(line.quantity, 2.5);
+      expect(line.total, closeTo(1875.0, 0.001));
     });
   });
 }
