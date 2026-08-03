@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.3](https://github.com/WolfeLeo2/Zynk/compare/v1.9.2...v1.9.3) (2026-08-03)
+
+
+### Bug Fixes
+
+* allowed fractional values for sales and stock ([38ad229](https://github.com/WolfeLeo2/Zynk/commit/38ad229b7761459feadc4f615b2c36ea9a2a3c5e))
+
 ## [1.9.2](https://github.com/WolfeLeo2/Zynk/compare/v1.9.1...v1.9.2) (2026-07-15)
 
 
