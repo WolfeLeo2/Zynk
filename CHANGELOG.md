@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/WolfeLeo2/Zynk/compare/v1.9.3...v1.10.0) (2026-08-03)
+
+
+### Features
+
+* enabled audit trail for transaction history ([34f5acc](https://github.com/WolfeLeo2/Zynk/commit/34f5accc031d27826497388cd08f7c4d17162686))
+
 ## [1.9.3](https://github.com/WolfeLeo2/Zynk/compare/v1.9.2...v1.9.3) (2026-08-03)
 
 
