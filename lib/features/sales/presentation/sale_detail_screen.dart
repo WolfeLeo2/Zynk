@@ -646,6 +646,16 @@ class SaleDetailScreen extends ConsumerWidget {
           }
           return;
         case 'clone_invoice':
+          // These are autoDispose stream providers. Awaiting `.future` off a
+          // bare `read` gives them no listener, so one that nothing else on
+          // this screen watches (item groups) gets disposed mid-load and
+          // throws "disposed during loading state". Hold a subscription for
+          // the duration of the read.
+          final keepAlive = [
+            ref.listenManual(saleItemsProvider(sale.id), (_, _) {}),
+            ref.listenManual(allProductsProvider, (_, _) {}),
+            ref.listenManual(allItemGroupsProvider, (_, _) {}),
+          ];
           try {
             // Ensure all data is loaded before proceeding
             final items = await ref.read(saleItemsProvider(sale.id).future);
@@ -707,6 +717,10 @@ class SaleDetailScreen extends ConsumerWidget {
                   backgroundColor: Theme.of(context).colorScheme.error,
                 ),
               );
+            }
+          } finally {
+            for (final sub in keepAlive) {
+              sub.close();
             }
           }
           return;

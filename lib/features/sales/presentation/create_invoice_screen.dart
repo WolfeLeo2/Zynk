@@ -114,7 +114,15 @@ class _CreateInvoiceScreenState extends ConsumerState<CreateInvoiceScreen> {
     if (selected == null || selected.isEmpty || !mounted) return;
     // Load item groups up front so price / sqm / coverage inheritance resolves
     // (the old synchronous `.value` read of an autoDispose provider was null).
-    final itemGroups = await ref.read(allItemGroupsProvider.future);
+    // Nothing on this screen watches the provider, so the subscription is what
+    // stops it being disposed mid-load while we await it.
+    final sub = ref.listenManual(allItemGroupsProvider, (_, _) {});
+    final List<ItemGroup> itemGroups;
+    try {
+      itemGroups = await ref.read(allItemGroupsProvider.future);
+    } finally {
+      sub.close();
+    }
     if (!mounted) return;
     setState(() {
       for (final id in selected) {

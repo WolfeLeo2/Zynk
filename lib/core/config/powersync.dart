@@ -192,6 +192,9 @@ final schema = Schema([
     Column.text('product_id'),
     Column.text('adjustment_type'),
     Column.real('quantity'),
+    // Without this the detail screen can't read the stock level as it was at
+    // approval time and back-computes it from today's stock instead.
+    Column.real('previous_quantity'),
     Column.text('reference_number'),
     Column.text('notes'),
     Column.text('created_by'),

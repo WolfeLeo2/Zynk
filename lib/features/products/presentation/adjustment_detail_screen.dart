@@ -334,19 +334,23 @@ class _ItemsSection extends StatelessWidget {
 
             final isApproved = item.status == StockAdjustmentStatus.approved;
 
-            final num previousStock;
-            final num newStock;
+            final num? previousStock;
+            final num? newStock;
 
-            if (isApproved && item.previousQuantity != null) {
+            if (item.previousQuantity != null) {
               previousStock = item.previousQuantity!;
               newStock = item.previousQuantity! + item.quantity;
+            } else if (isApproved) {
+              // Approved before previous_quantity was recorded (pre May 2026).
+              // Today's stock has moved on since, so back-computing a "before"
+              // invents a figure — often a negative one. Show only the delta.
+              previousStock = null;
+              newStock = null;
             } else {
-              previousStock = isApproved
-                  ? (currentStock - item.quantity)
-                  : currentStock;
-              newStock = isApproved
-                  ? currentStock
-                  : (previousStock + item.quantity);
+              // Still pending: nothing has been applied, so current stock IS
+              // the before, and the after is a projection.
+              previousStock = currentStock;
+              newStock = currentStock + item.quantity;
             }
 
             return _AdjustmentItemRow(
@@ -366,8 +370,8 @@ class _ItemsSection extends StatelessWidget {
 
 class _AdjustmentItemRow extends StatelessWidget {
   final StockAdjustment item;
-  final num previousStock;
-  final num newStock;
+  final num? previousStock;
+  final num? newStock;
   final bool canEdit;
   final bool isLoading;
   final String? branchName;
@@ -493,12 +497,13 @@ class _AdjustmentItemRow extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          '${formatQty(previousStock)} → ${formatQty(newStock)}',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                        if (previousStock != null && newStock != null)
+                          Text(
+                            '${formatQty(previousStock!)} → ${formatQty(newStock!)}',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
                         if (canEdit) ...[
                           const SizedBox(width: 8),
                           _EditQuantityButton(adjustment: item),
