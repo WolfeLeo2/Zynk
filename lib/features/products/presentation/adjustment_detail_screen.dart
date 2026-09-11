@@ -436,11 +436,6 @@ class _AdjustmentItemRow extends StatelessWidget {
                 if (branchName != null) ...[
                   const SizedBox(height: 6),
                   Chip(
-                    avatar: PhosphorIcon(
-                      PhosphorIconsRegular.storefront,
-                      size: 14,
-                      color: colorScheme.onSecondaryContainer,
-                    ),
                     label: Text(branchName!),
                     labelStyle: textTheme.labelSmall?.copyWith(
                       color: colorScheme.onSecondaryContainer,
