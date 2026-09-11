@@ -8,6 +8,7 @@ import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
+import 'package:zynk/shared/widgets/branch_filter_chips.dart';
 
 import '../../../core/theme/app_tokens.dart';
 
@@ -25,6 +26,18 @@ class _StatusFilterNotifier extends Notifier<String?> {
 final _adjustmentStatusFilterProvider =
     NotifierProvider.autoDispose<_StatusFilterNotifier, String?>(
       _StatusFilterNotifier.new,
+    );
+
+class _BranchFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null; // null = All Branches
+
+  void setBranch(String? branchId) => state = branchId;
+}
+
+final _adjustmentBranchFilterProvider =
+    NotifierProvider.autoDispose<_BranchFilterNotifier, String?>(
+      _BranchFilterNotifier.new,
     );
 
 final _adjustmentsProvider = StreamProvider.autoDispose
@@ -51,7 +64,14 @@ class AdjustmentsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? '';
-    final branchId = ref.watch(currentBranchIdProvider);
+    final globalBranchId = ref.watch(currentBranchIdProvider);
+    final branchFilter = ref.watch(_adjustmentBranchFilterProvider);
+    final isAllBranches = globalBranchId == null || globalBranchId == 'all';
+    final effectiveBranchId = isAllBranches ? branchFilter : globalBranchId;
+
+    final branches = ref.watch(branchesProvider).value ?? [];
+    final showBranchFilter = isAllBranches && branches.length > 1;
+    final bottomHeight = (showBranchFilter ? 48.0 : 0.0) + 52.0;
 
     // Can this user approve adjustments?
     final canApprove =
@@ -61,7 +81,7 @@ class AdjustmentsScreen extends ConsumerWidget {
     final statusFilter = ref.watch(_adjustmentStatusFilterProvider);
 
     final adjustmentsAsync = ref.watch(
-      _adjustmentsProvider((tenantId: tenantId, branchId: branchId)),
+      _adjustmentsProvider((tenantId: tenantId, branchId: effectiveBranchId)),
     );
 
     return Scaffold(
@@ -87,11 +107,24 @@ class AdjustmentsScreen extends ConsumerWidget {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(52),
-          child: _StatusFilterBar(
-            selected: statusFilter,
-            onSelected: (v) =>
-                ref.read(_adjustmentStatusFilterProvider.notifier).setStatus(v),
+          preferredSize: Size.fromHeight(bottomHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showBranchFilter)
+                BranchFilterChips(
+                  selectedBranchId: branchFilter,
+                  onSelected: (v) => ref
+                      .read(_adjustmentBranchFilterProvider.notifier)
+                      .setBranch(v),
+                ),
+              _StatusFilterBar(
+                selected: statusFilter,
+                onSelected: (v) => ref
+                    .read(_adjustmentStatusFilterProvider.notifier)
+                    .setStatus(v),
+              ),
+            ],
           ),
         ),
       ),
