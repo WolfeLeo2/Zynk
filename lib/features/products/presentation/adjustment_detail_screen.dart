@@ -148,7 +148,7 @@ class AdjustmentDetailScreen extends ConsumerWidget {
             body: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _MetadataSection(adjustment: first),
+                _MetadataSection(items: items),
                 const SizedBox(height: 32),
                 _ItemsSection(
                   items: items,
@@ -207,40 +207,48 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _MetadataSection extends ConsumerWidget {
-  final StockAdjustment adjustment;
-  const _MetadataSection({required this.adjustment});
+  final List<StockAdjustment> items;
+  const _MetadataSection({required this.items});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final first = items.first;
     final branches = ref.watch(branchesProvider).value ?? [];
-    final branchName = branches
-        .firstWhere(
-          (b) => b.id == adjustment.branchId,
-          orElse: () => Branch(
-            id: adjustment.branchId,
-            tenantId: '',
-            name: adjustment.branchId,
-          ),
-        )
-        .name;
+    final branchIds = items.map((i) => i.branchId).toSet();
+    final branchNames = branchIds.map((id) {
+      return branches
+          .firstWhere(
+            (b) => b.id == id,
+            orElse: () => Branch(
+              id: id,
+              tenantId: '',
+              name: id,
+            ),
+          )
+          .name;
+    }).toList();
+
+    final branchLabel = branchNames.length > 1 ? 'Branches' : 'Branch';
+    final branchValue =
+        branchNames.isNotEmpty ? branchNames.join(', ') : 'Unknown';
 
     return Column(
       children: [
         _MetaItem(
           label: 'Reference',
           value:
-              (adjustment.referenceNumber != null &&
-                  adjustment.referenceNumber!.isNotEmpty)
-              ? adjustment.referenceNumber!
-              : 'ADJ-${adjustment.bundleId?.substring(0, 5).toUpperCase() ?? adjustment.id.substring(0, 5).toUpperCase()}',
+              (first.referenceNumber != null &&
+                  first.referenceNumber!.isNotEmpty)
+              ? first.referenceNumber!
+              : 'ADJ-${first.bundleId?.substring(0, 5).toUpperCase() ?? first.id.substring(0, 5).toUpperCase()}',
         ),
-        _MetaItem(label: 'Account', value: adjustment.adjusterName ?? 'System'),
+        _MetaItem(label: 'Account', value: first.adjusterName ?? 'System'),
         _MetaItem(
           label: 'Adjusted By',
-          value: adjustment.staffName ?? adjustment.adjusterName ?? 'System',
+          value: first.staffName ?? first.adjusterName ?? 'System',
         ),
         _MetaItem(label: 'Adjustment Type', value: 'Quantity'),
-        _MetaItem(label: 'Branch', value: branchName),
+        _MetaItem(label: branchLabel, value: branchValue),
       ],
     );
   }
@@ -427,33 +435,25 @@ class _AdjustmentItemRow extends StatelessWidget {
                 ),
                 if (branchName != null) ...[
                   const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 3,
+                  Chip(
+                    avatar: PhosphorIcon(
+                      PhosphorIconsRegular.storefront,
+                      size: 14,
+                      color: colorScheme.onSecondaryContainer,
                     ),
-                    decoration: BoxDecoration(
-                      color: colorScheme.secondaryContainer,
+                    label: Text(branchName!),
+                    labelStyle: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    backgroundColor: colorScheme.secondaryContainer,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        PhosphorIcon(
-                          PhosphorIconsRegular.storefront,
-                          size: 12,
-                          color: colorScheme.onSecondaryContainer,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          branchName!,
-                          style: textTheme.labelSmall?.copyWith(
-                            color: colorScheme.onSecondaryContainer,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
                 ],
               ],
