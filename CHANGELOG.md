@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.11.0](https://github.com/WolfeLeo2/Zynk/compare/v1.10.1...v1.11.0) (2026-09-11)
+
+
+### Features
+
+* **inventory:** add branch filter chips to adjustments screen appbar ([7f052bb](https://github.com/WolfeLeo2/Zynk/commit/7f052bbd461dcbed1f38f662c3975c5c3ff6671d))
+* **inventory:** show all involved branches and use official Chip in adjustment detail screen ([eed2c28](https://github.com/WolfeLeo2/Zynk/commit/eed2c282fd65c577c40e7914f2e3b9ceec5b621b))
+* remove icon from chip ([aa3041b](https://github.com/WolfeLeo2/Zynk/commit/aa3041b1693e78514f28cb68a1d395a880a61be2))
+
 ## [1.10.1](https://github.com/WolfeLeo2/Zynk/compare/v1.10.0...v1.10.1) (2026-08-08)
 
 
