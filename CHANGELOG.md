@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.1](https://github.com/WolfeLeo2/Zynk/compare/v1.10.0...v1.10.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* stock adjustment history and provider disposal during cloning ([79153d5](https://github.com/WolfeLeo2/Zynk/commit/79153d5f5833a0ed3d50501b17c42b1e549e4717))
+
 ## [1.10.0](https://github.com/WolfeLeo2/Zynk/compare/v1.9.3...v1.10.0) (2026-08-03)
 
 
