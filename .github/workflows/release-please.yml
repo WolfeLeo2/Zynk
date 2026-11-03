@@ -8,6 +8,7 @@ on:
 permissions:
   contents: write
   pull-requests: write
+  statuses: write
 
 jobs:
   release-please:
@@ -21,6 +22,19 @@ jobs:
         with:
           release-type: dart
           target-branch: main
+
+      # main requires the `source-branch` check (main-from-dev.yml), but PRs that
+      # release-please opens with the workflow token don't trigger workflows, so
+      # the check never runs on them. Report it for the release PR directly.
+      - name: Allow the release PR into main
+        if: steps.release.outputs.pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ fromJSON(steps.release.outputs.pr).number }}
+        run: |
+          sha=$(gh api "repos/${{ github.repository }}/pulls/$PR_NUMBER" --jq .head.sha)
+          gh api "repos/${{ github.repository }}/statuses/$sha" \
+            -f state=success -f context=source-branch -f description="release-please PR"
 
   build-android:
     name: Build Android
