@@ -13,6 +13,7 @@ import 'package:zynk/features/products/presentation/providers/add_product_contro
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/scanner_screen.dart';
 import 'package:zynk/features/products/presentation/widgets/edit_item_group_sheet.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class AddProductScreen extends ConsumerStatefulWidget {
   final Product? existingProduct;
@@ -69,9 +70,18 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
     if (widget.existingProduct != null) {
       final p = widget.existingProduct!;
       _nameController.text = p.name;
-      _skuController.text = p.sku ?? '';
-      _autoGenerateSku = p.sku == null || p.sku!.isEmpty;
-      _barcodeController.text = p.barcode ?? '';
+      // A clone is a distinct new product — it must not inherit the source's
+      // SKU/barcode (those should be unique per catalog entry). Editing the
+      // same product keeps them as-is.
+      if (widget.isCloneMode) {
+        _skuController.text = '';
+        _autoGenerateSku = true;
+        _barcodeController.text = '';
+      } else {
+        _skuController.text = p.sku ?? '';
+        _autoGenerateSku = p.sku == null || p.sku!.isEmpty;
+        _barcodeController.text = p.barcode ?? '';
+      }
       _priceController.text = p.basePrice.toString();
       if (p.costPrice != null) {
         _costPriceController.text = p.costPrice.toString();
@@ -420,25 +430,13 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
       isScrollControlled: true,
       backgroundColor: Theme.of(context).colorScheme.surface,
       builder: (context) => StatefulBuilder(
-        builder: (context, setModalState) => Container(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-            top: 32,
-            left: 24,
-            right: 24,
-          ),
-          decoration: const BoxDecoration(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(32)),
-          ),
+        builder: (context, setModalState) => AppBottomSheet(
+          title: 'Unit of measure',
+          icon: PhosphorIconsDuotone.ruler,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                'New Unit of Measurement',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 24),
               TextFormField(
                 controller: labelController,
                 decoration: const InputDecoration(
@@ -664,27 +662,34 @@ class _AddProductScreenState extends ConsumerState<AddProductScreen> {
                 showDragHandle: true,
                 context: context,
                 backgroundColor: Theme.of(context).colorScheme.surface,
-                builder: (context) => Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    ListTile(
-                      leading: const PhosphorIcon(PhosphorIconsDuotone.camera),
-                      title: const Text('Take Photo'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _pickImage(ImageSource.camera);
-                      },
-                    ),
-                    ListTile(
-                      leading: const PhosphorIcon(PhosphorIconsDuotone.image),
-                      title: const Text('Choose from Gallery'),
-                      onTap: () {
-                        Navigator.pop(context);
-                        _pickImage(ImageSource.gallery);
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
+                builder: (context) => AppBottomSheet(
+                  title: 'Choose image',
+                  icon: PhosphorIconsDuotone.image,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      ListTile(
+                        leading: const PhosphorIcon(
+                          PhosphorIconsDuotone.camera,
+                        ),
+                        title: const Text('Take Photo'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _pickImage(ImageSource.camera);
+                        },
+                      ),
+                      ListTile(
+                        leading: const PhosphorIcon(
+                          PhosphorIconsDuotone.image,
+                        ),
+                        title: const Text('Choose from Gallery'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          _pickImage(ImageSource.gallery);
+                        },
+                      ),
+                    ],
+                  ),
                 ),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(16),

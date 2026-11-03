@@ -1,13 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
 import 'package:zynk/core/widgets/app_drawer.dart';
-import 'package:phosphor_flutter/phosphor_flutter.dart';
-import 'package:go_router/go_router.dart';
+import 'package:zynk/shared/widgets/branch_filter_chips.dart';
+
+import '../../../core/theme/app_tokens.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Providers
@@ -23,6 +26,18 @@ class _StatusFilterNotifier extends Notifier<String?> {
 final _adjustmentStatusFilterProvider =
     NotifierProvider.autoDispose<_StatusFilterNotifier, String?>(
       _StatusFilterNotifier.new,
+    );
+
+class _BranchFilterNotifier extends Notifier<String?> {
+  @override
+  String? build() => null; // null = All Branches
+
+  void setBranch(String? branchId) => state = branchId;
+}
+
+final _adjustmentBranchFilterProvider =
+    NotifierProvider.autoDispose<_BranchFilterNotifier, String?>(
+      _BranchFilterNotifier.new,
     );
 
 final _adjustmentsProvider = StreamProvider.autoDispose
@@ -49,7 +64,14 @@ class AdjustmentsScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(currentUserProfileProvider).value;
     final tenantId = profile?.tenantId ?? '';
-    final branchId = ref.watch(currentBranchIdProvider);
+    final globalBranchId = ref.watch(currentBranchIdProvider);
+    final branchFilter = ref.watch(_adjustmentBranchFilterProvider);
+    final isAllBranches = globalBranchId == null || globalBranchId == 'all';
+    final effectiveBranchId = isAllBranches ? branchFilter : globalBranchId;
+
+    final branches = ref.watch(branchesProvider).value ?? [];
+    final showBranchFilter = isAllBranches && branches.length > 1;
+    final bottomHeight = (showBranchFilter ? 48.0 : 0.0) + 52.0;
 
     // Can this user approve adjustments?
     final canApprove =
@@ -59,7 +81,7 @@ class AdjustmentsScreen extends ConsumerWidget {
     final statusFilter = ref.watch(_adjustmentStatusFilterProvider);
 
     final adjustmentsAsync = ref.watch(
-      _adjustmentsProvider((tenantId: tenantId, branchId: branchId)),
+      _adjustmentsProvider((tenantId: tenantId, branchId: effectiveBranchId)),
     );
 
     return Scaffold(
@@ -85,11 +107,24 @@ class AdjustmentsScreen extends ConsumerWidget {
           ),
         ],
         bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(56),
-          child: _StatusFilterBar(
-            selected: statusFilter,
-            onSelected: (v) =>
-                ref.read(_adjustmentStatusFilterProvider.notifier).setStatus(v),
+          preferredSize: Size.fromHeight(bottomHeight),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (showBranchFilter)
+                BranchFilterChips(
+                  selectedBranchId: branchFilter,
+                  onSelected: (v) => ref
+                      .read(_adjustmentBranchFilterProvider.notifier)
+                      .setBranch(v),
+                ),
+              _StatusFilterBar(
+                selected: statusFilter,
+                onSelected: (v) => ref
+                    .read(_adjustmentStatusFilterProvider.notifier)
+                    .setStatus(v),
+              ),
+            ],
           ),
         ),
       ),
@@ -153,34 +188,25 @@ class _StatusFilterBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return SizedBox(
-      height: 48,
-      child: ListView(
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+      child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: _options.map((opt) {
-          final isSelected = selected == opt.value;
-          return Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: ChoiceChip(
-              label: Text(opt.label),
-              selected: isSelected,
-              onSelected: (_) => onSelected(opt.value),
-              showCheckmark: false,
-              selectedColor: colorScheme.primary,
-              backgroundColor: Colors.transparent,
-
-              labelStyle: TextStyle(
-                color: isSelected
-                    ? colorScheme.onPrimary
-                    : colorScheme.onSurface,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-              ),
-            ),
-          );
-        }).toList(),
+        child: Row(
+          children: _options
+              .map(
+                (opt) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(opt.label),
+                    selected: selected == opt.value,
+                    showCheckmark: false,
+                    onSelected: (_) => onSelected(opt.value),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
       ),
     );
   }
@@ -219,12 +245,9 @@ class _BundleTile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Card(
-        elevation: 0,
-        color: colorScheme.surfaceContainerLow,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         child: InkWell(
-          onTap: () => context.push('/settings/adjustments-review/$bundleId'),
-          borderRadius: BorderRadius.circular(14),
+          onTap: () => context.push('/adjustment-review/$bundleId'),
+          borderRadius: AppTokens.roundedCard,
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: Column(

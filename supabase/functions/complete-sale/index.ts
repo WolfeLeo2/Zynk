@@ -66,6 +66,20 @@ Deno.serve(async (req: Request) => {
       );
     }
 
+    // The service role bypasses RLS, so check the caller belongs to this tenant.
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("tenant_id", tenant_id)
+      .maybeSingle();
+    if (!profile) {
+      return new Response(
+        JSON.stringify({ error: "Profile not found" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // ── Atomic completion ──
     // sale insert + items + payment + stock decrement + invoice number all run
     // inside one DB transaction. A client-supplied sale_id makes retries
@@ -95,9 +109,11 @@ Deno.serve(async (req: Request) => {
 
     if (rpcError) {
       console.error("complete_sale_v2 error:", rpcError);
+      // Surface the DB message so the POS can alert the user (e.g. a product
+      // with no stock record in this branch → "NO_STOCK_RECORD: ...").
       return new Response(
-        JSON.stringify({ error: "Sale completion failed" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({ error: rpcError.message || "Sale completion failed" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 

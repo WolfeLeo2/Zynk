@@ -21,7 +21,6 @@ android {
     namespace = "com.wolfeleo2.zynk"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
-    // ndkVersion = "29.0.13599879"
 
     compileOptions {
         isCoreLibraryDesugaringEnabled = true
@@ -29,9 +28,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_17.toString()
-    }
 
     defaultConfig {
         // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
@@ -62,6 +58,12 @@ android {
         release {
             signingConfig = signingConfigs.getByName("release")
         }
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
     }
 }
 

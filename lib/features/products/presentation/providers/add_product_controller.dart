@@ -106,6 +106,21 @@ class AddProductController extends _$AddProductController {
         );
         await repository.updateProduct(updatedProduct);
       } else {
+        // Products are a shared, tenant-wide catalog — guard against
+        // recreating one that already exists under the same name (the usual
+        // cause: a staffer couldn't find an existing product in a branch's
+        // filtered view and used Add Product instead of the existing entry).
+        final existing = await repository.watchProducts().first;
+        final normalizedName = name.trim().toLowerCase();
+        final duplicate = existing
+            .where((p) => p.name.trim().toLowerCase() == normalizedName)
+            .firstOrNull;
+        if (duplicate != null) {
+          throw Exception(
+            'A product named "$name" already exists. Edit it instead of creating a duplicate.',
+          );
+        }
+
         final newProductId = const Uuid().v4();
         final newProduct = Product(
           id: newProductId,
@@ -138,12 +153,24 @@ class AddProductController extends _$AddProductController {
         if (components != null && components.isNotEmpty) {
           await repository.createCompositeProduct(newProduct, components);
         } else {
-          // Products are global — no targetBranchIds needed.
-          await repository.createProduct(newProduct);
+          // Products are global, but createProduct still needs every branch
+          // id to seed a zero stock row per branch (see its doc comment) —
+          // without that seed row, the first Inventory Adjustment for this
+          // product silently no-ops instead of creating real stock. CSV
+          // import already does this; Add Product previously didn't.
+          final branches = await repository.getBranches(tenantId);
+          final allBranchIds = branches
+              .map((b) => b.id)
+              .where((id) => id != 'all')
+              .toList();
+          await repository.createProduct(
+            newProduct,
+            targetBranchIds: allBranchIds,
+          );
         }
 
-        // Initial stock is not set at creation time for global products.
-        // Use the Inventory Adjustments screen to add stock per branch.
+        // Initial stock quantity is not set at creation time (starts at 0 for
+        // every branch) — use Inventory Adjustments to add real stock.
       }
 
       state = const AsyncData(null);

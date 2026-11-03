@@ -1,0 +1,15 @@
+# Supabase
+.branches
+.temp
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+.link.json
+..link.json.*.tmp
+.supabase.lock.*.tmp
+.supabase.lock.lease
+
+# Real tenant data + auth hashes copied from live
+seed_acme.sql

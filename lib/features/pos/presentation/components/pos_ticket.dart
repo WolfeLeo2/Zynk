@@ -6,15 +6,17 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/user_provider.dart';
-import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
+import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/features/pos/domain/pos_cart_item.dart';
 import 'package:zynk/features/pos/presentation/components/customer_lookup_field.dart';
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/features/pos/providers/pos_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/shared/widgets/qty_stepper.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 import 'package:zynk/shared/widgets/current_salesperson_tile.dart';
+import 'package:zynk/core/utils/quantity.dart';
+import 'package:zynk/shared/widgets/qty_stepper.dart';
 
 class PosTicket extends ConsumerWidget {
   final List<PosCartItem> items;
@@ -31,6 +33,12 @@ class PosTicket extends ConsumerWidget {
   onCreateCustomer;
   final ValueChanged<String?>? onSalespersonIdChanged;
 
+  /// True when presented inside a modal bottom sheet (mobile), which needs a
+  /// screen-relative height cap. False (default) when docked full-height in
+  /// the desktop split-view panel, which must fill whatever height its
+  /// parent `Expanded` gives it instead.
+  final bool isSheet;
+
   const PosTicket({
     super.key,
     required this.items,
@@ -43,6 +51,7 @@ class PosTicket extends ConsumerWidget {
     this.onClearCustomer,
     this.onCreateCustomer,
     this.onSalespersonIdChanged,
+    this.isSheet = false,
   });
 
   @override
@@ -50,26 +59,21 @@ class PosTicket extends ConsumerWidget {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
     final tt = theme.textTheme;
-    final itemCount = items.fold<int>(0, (sum, i) => sum + i.quantity);
+    final itemCount = items.fold<num>(0, (sum, i) => sum + i.quantity);
     final branch = ref.watch(selectedPosBranchProvider);
 
-    return Column(
+    final body = Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // ─── HEADER ───
+        // ─── SUB-HEADER (item count + clear) ───
         Padding(
-          padding: const EdgeInsets.fromLTRB(20, 20, 12, 12),
+          padding: const EdgeInsets.only(bottom: 8),
           child: Row(
             children: [
-              Text(
-                'Cart',
-                style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(width: 8),
               if (itemCount > 0)
                 Badge(
                   label: Text(
-                    '$itemCount items',
+                    '${formatQty(itemCount)} items',
                     style: tt.labelSmall?.copyWith(color: cs.onPrimary),
                   ),
                   backgroundColor: cs.primary,
@@ -148,10 +152,7 @@ class PosTicket extends ConsumerWidget {
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
-                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                   itemCount: items.length,
                   separatorBuilder: (_, _) => const SizedBox(height: 6),
                   itemBuilder: (context, index) {
@@ -169,12 +170,11 @@ class PosTicket extends ConsumerWidget {
         // ─── FOOTER (STAFF, CUSTOMER, TOTALS, INVOICE) ───
         Container(
           decoration: BoxDecoration(
-            color: cs.surfaceContainerLow,
             border: Border(
               top: BorderSide(color: cs.outlineVariant.withValues(alpha: 0.15)),
             ),
           ),
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+          padding: const EdgeInsets.only(top: 16),
           child: Column(
             children: [
               // Salesperson — the logged-in staffer (no picker; set on submit).
@@ -286,6 +286,38 @@ class PosTicket extends ConsumerWidget {
         ),
       ],
     );
+
+    if (isSheet) {
+      return AppBottomSheet(
+        title: 'Cart',
+        icon: PhosphorIconsDuotone.shoppingCartSimple,
+        maxHeightFactor: 0.7,
+        child: body,
+      );
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+          child: Row(
+            children: [
+              PhosphorIcon(
+                PhosphorIconsDuotone.shoppingCartSimple,
+                color: cs.primary,
+              ),
+              const SizedBox(width: 10),
+              Text(
+                'Cart',
+                style: tt.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+        ),
+        Expanded(child: body),
+      ],
+    );
   }
 }
 
@@ -363,7 +395,7 @@ class _TicketItemRow extends ConsumerWidget {
                       builder: (context, ref, child) {
                         if (item.isSqmBased) {
                           return Text(
-                            '${item.totalSqm.toStringAsFixed(2)} sqm (${item.quantity} box${item.quantity != 1 ? 'es' : ''})',
+                            '${formatQty(item.quantity)} box${item.quantity != 1 ? 'es' : ''} · ${item.totalSqm.toStringAsFixed(2)} sqm',
                             style: tt.bodySmall?.copyWith(
                               color: cs.onSurfaceVariant.withValues(alpha: 0.8),
                               fontSize: 12,
@@ -397,6 +429,11 @@ class _TicketItemRow extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: QtyStepper(
                   value: item.quantity,
+                  // Cap at what's in stock so "+" stops (and the keypad clamps)
+                  // instead of offering a step that's always rejected below.
+                  max: item.product.isService
+                      ? 9999
+                      : (stockState?.quantity ?? 0),
                   onChanged: (newVal) {
                     if (newVal == 0) {
                       onRemove();
@@ -408,7 +445,7 @@ class _TicketItemRow extends ConsumerWidget {
                           ScaffoldMessenger.of(context).showSnackBar(
                             SnackBar(
                               content: Text(
-                                'Cannot add ${item.product.name}. Only $availableStock in stock.',
+                                'Cannot add ${item.product.name}. Only ${formatQty(availableStock)} in stock.',
                               ),
                               backgroundColor: cs.error,
                               behavior: SnackBarBehavior.floating,

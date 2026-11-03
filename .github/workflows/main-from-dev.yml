@@ -1,0 +1,22 @@
+# Required status check on main: changes reach main only from dev (plus
+# release-please's own release PRs, which it opens from release-please--*).
+name: Main only from dev
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  source-branch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check the PR comes from dev
+        env:
+          HEAD: ${{ github.head_ref }}
+        run: |
+          if [ "$HEAD" = dev ] || [[ "$HEAD" == release-please--* ]]; then
+            echo "ok: $HEAD -> main"
+          else
+            echo "::error::PRs into main must come from dev (got '$HEAD'). Target dev instead."
+            exit 1
+          fi

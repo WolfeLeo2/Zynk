@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/utils/quantity.dart';
 
 /// Generates an 80mm thermal receipt PDF.
 ///
@@ -194,7 +195,7 @@ class ReceiptTemplate {
                       pw.SizedBox(
                         width: 25,
                         child: pw.Text(
-                          '${item.quantity}',
+                          formatQty(item.quantity),
                           style: const pw.TextStyle(fontSize: 8),
                           textAlign: pw.TextAlign.center,
                         ),

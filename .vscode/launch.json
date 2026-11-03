@@ -13,6 +13,17 @@
             ]
         },
         {
+            // Local Supabase stack (supabase start). 10.0.2.2 is the host from
+            // the Android emulator; use 127.0.0.1 in dart_defines.local.json for
+            // web/macOS.
+            "name": "Zynk (local Supabase)",
+            "request": "launch",
+            "type": "dart",
+            "args": [
+                "--dart-define-from-file=dart_defines.local.json"
+            ]
+        },
+        {
             "name": "Zynk (profile mode)",
             "request": "launch",
             "type": "dart",

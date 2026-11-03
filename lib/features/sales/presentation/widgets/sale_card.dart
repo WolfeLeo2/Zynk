@@ -5,6 +5,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/theme/app_tokens.dart';
 import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
+import 'package:zynk/features/sales/providers/sales_providers.dart';
 
 import '../../../../core/models/sales_models.dart';
 
@@ -29,6 +30,15 @@ class SaleCard extends ConsumerWidget {
             'Walk-in Customer';
       },
       orElse: () => 'Loading...',
+    );
+
+    // Credit-note indicator: amber if any is still pending approval, blue once
+    // approved/applied. Keeps the card compact instead of spelling it out.
+    final saleCreditNotes = (ref.watch(creditNotesProvider).value ?? const [])
+        .where((cn) => cn.originalSaleId == sale.id);
+    final hasCreditNote = saleCreditNotes.isNotEmpty;
+    final hasPendingCreditNote = saleCreditNotes.any(
+      (cn) => cn.status == CreditNoteStatus.pendingApproval,
     );
 
     return Card(
@@ -113,6 +123,14 @@ class SaleCard extends ConsumerWidget {
                               _FulfillmentStatusBadge(
                                 status: sale.fulfillmentStatus,
                               ),
+                              if (hasCreditNote)
+                                _MiniStateBadge(
+                                  label: 'Credit Note',
+                                  icon: PhosphorIconsRegular.arrowUUpLeft,
+                                  color: hasPendingCreditNote
+                                      ? const Color(0xFFFFA726)
+                                      : const Color(0xFF42A5F5),
+                                ),
                             ],
                           ),
                         ),

@@ -52,18 +52,41 @@ class AppDrawer extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(24, 64, 24, 12),
             child: Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
+                if (tenant?.logoUrl != null && tenant!.logoUrl!.isNotEmpty)
+                  ClipRRect(
                     borderRadius: BorderRadius.circular(12),
+                    child: CachedNetworkImage(
+                      imageUrl: tenant.logoUrl!,
+                      width: 40,
+                      height: 40,
+                      fit: BoxFit.cover,
+                      errorWidget: (context, url, error) => Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: colorScheme.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const PhosphorIcon(
+                          PhosphorIconsDuotone.storefront,
+                          color: Colors.white,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const PhosphorIcon(
+                      PhosphorIconsDuotone.storefront,
+                      color: Colors.white,
+                      size: 24,
+                    ),
                   ),
-                  child: const PhosphorIcon(
-                    PhosphorIconsDuotone.storefront,
-                    color: Colors.white,
-                    size: 24,
-                  ),
-                ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -166,13 +189,7 @@ class AppDrawer extends ConsumerWidget {
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.package,
                       label: 'Item Groups',
-                      path: '/products/groups',
-                      currentPath: currentPath,
-                    ),
-                    _DrawerItem(
-                      icon: PhosphorIconsDuotone.stack,
-                      label: 'Composite Items',
-                      path: '/products/composite',
+                      path: '/groups',
                       currentPath: currentPath,
                     ),
                     _DrawerItem(
@@ -184,7 +201,7 @@ class AppDrawer extends ConsumerWidget {
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.slidersHorizontal,
                       label: 'Adjustments Review',
-                      path: '/settings/adjustments-review',
+                      path: '/adjustment-review',
                       currentPath: currentPath,
                     ),
                   ],
@@ -202,13 +219,13 @@ class AppDrawer extends ConsumerWidget {
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.currencyDollar,
                       label: 'Reports',
-                      path: '/settings/reports',
+                      path: '/reports',
                       currentPath: currentPath,
                     ),
                     _DrawerItem(
                       icon: PhosphorIconsDuotone.trendUp,
                       label: 'Commissions',
-                      path: '/settings/commissions',
+                      path: '/reports/commissions',
                       currentPath: currentPath,
                     ),
                   ],
@@ -229,16 +246,7 @@ class AppDrawer extends ConsumerWidget {
                       padding: const EdgeInsets.only(left: 16),
                       child: Text('SYSTEM', style: _headerStyle(theme)),
                     ),
-                    if (profileAsync.value?.hasPermission(
-                          Permission.manageBranches,
-                        ) ==
-                        true)
-                      _DrawerItem(
-                        icon: PhosphorIconsDuotone.buildings,
-                        label: 'Branches',
-                        path: '/settings/branches',
-                        currentPath: currentPath,
-                      ),
+
                     if (profileAsync.value?.hasPermission(
                           Permission.manageStaff,
                         ) ==

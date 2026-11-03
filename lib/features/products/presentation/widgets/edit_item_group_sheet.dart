@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:uuid/uuid.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class EditItemGroupSheet extends ConsumerStatefulWidget {
   final ItemGroup? existingGroup;
@@ -84,13 +86,15 @@ class _EditItemGroupSheetState extends ConsumerState<EditItemGroupSheet> {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
+    return AppBottomSheet(
+      title: widget.existingGroup == null
+          ? 'New Item Group'
+          : 'Edit Item Group',
+      icon: PhosphorIconsDuotone.tag,
+      maxHeightFactor: 0.85,
+      child: SingleChildScrollView(
         padding: EdgeInsets.only(
-          bottom: MediaQuery.of(context).viewInsets.bottom + 32,
-          top: 32,
-          left: 24,
-          right: 24,
+          bottom: MediaQuery.of(context).viewInsets.bottom,
         ),
         child: Form(
           key: _formKey,
@@ -98,13 +102,6 @@ class _EditItemGroupSheetState extends ConsumerState<EditItemGroupSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                widget.existingGroup == null
-                    ? 'New Item Group'
-                    : 'Edit Item Group',
-                style: Theme.of(context).textTheme.titleMedium,
-              ),
-              const SizedBox(height: 24),
               TextFormField(
                 controller: _nameController,
                 autofocus: widget.existingGroup == null,

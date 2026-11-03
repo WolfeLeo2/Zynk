@@ -34,7 +34,9 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        const userId = parseJwtUserId(token);
+        // getUser verifies the signature; decoding the payload alone would trust a forged token.
+        const { data: { user } } = await supabase.auth.getUser(token);
+        const userId = user?.id ?? null;
         if (!userId) {
             console.error("create-invoice auth failed", {
                 hasAuthHeader: Boolean(authHeader),
@@ -55,7 +57,6 @@ Deno.serve(async (req: Request) => {
             items,
             notes,
             due_date,
-            subtotal,
             tax_amount,
             discount_amount,
             grand_total,
@@ -92,86 +93,37 @@ Deno.serve(async (req: Request) => {
             );
         }
 
-        // ── Generate sequential invoice number ──
-        const currentYear = new Date().getFullYear();
-        const { data: seq, error: counterError } = await supabase.rpc(
-            "next_invoice_number",
-            { p_tenant_id: tenant_id, p_prefix: "INV", p_year: currentYear }
-        );
-
-        if (counterError) {
-            return new Response(
-                JSON.stringify({ error: `Invoice number generation failed: ${counterError.message}` }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-
-        const invoiceNumber = `INV-${currentYear}-${String(seq).padStart(5, "0")}`;
-        const saleId = crypto.randomUUID();
-        const now = new Date().toISOString();
-
-        // ── Insert pending-approval invoice (NO stock decrement, NO payment) ──
-        const { error: saleError } = await supabase.from("sales").insert({
-            id: saleId,
-            tenant_id,
-            branch_id,
-            customer_id: customer_id || null,
-            invoice_number: invoiceNumber,
-            sale_type: "invoice",
-            created_by: userId,
-            salesperson_id,
-            subtotal: subtotal || 0,
-            tax_amount: tax_amount || 0,
-            discount_amount: discount_amount || 0,
-            grand_total: grand_total || 0,
-            amount_paid: 0,
-            status: "pending_approval",
-            notes: notes || null,
-            due_date: due_date || null,
-            created_at: now,
-            updated_at: now,
+        // ── Create the invoice in one transaction ──
+        // Totals are computed server-side from the items; grand_total is only a
+        // cross-check (TOTAL_MISMATCH). See 20261102000100_server_side_sale_totals.sql.
+        const saleId = body.sale_id || crypto.randomUUID();
+        const { data: result, error: rpcError } = await supabase.rpc("create_invoice_v2", {
+            p_sale_id: saleId,
+            p_tenant_id: tenant_id,
+            p_branch_id: branch_id,
+            p_customer_id: customer_id || null,
+            p_created_by: userId,
+            p_salesperson_id: salesperson_id,
+            p_items: items,
+            p_notes: notes || null,
+            p_due_date: due_date || null,
+            p_tax_amount: tax_amount || 0,
+            p_discount_amount: discount_amount || 0,
+            p_grand_total: grand_total || 0,
         });
 
-        if (saleError) {
+        if (rpcError) {
             return new Response(
-                JSON.stringify({ error: `Invoice creation failed: ${saleError.message}` }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
-        }
-
-        // ── Insert invoice items ──
-        const saleItems = items.map((item: any) => ({
-            id: crypto.randomUUID(),
-            sale_id: saleId,
-            tenant_id,
-            product_id: item.product_id,
-            quantity: item.quantity,
-            unit_price: item.unit_price,
-            cost_price: item.cost_price || 0,
-            tax_amount: item.tax_amount || 0,
-            discount: item.discount || 0,
-            total: item.total,
-            created_at: now,
-            updated_at: now,
-        }));
-
-        const { error: itemsError } = await supabase
-            .from("sale_items")
-            .insert(saleItems);
-
-        if (itemsError) {
-            await supabase.from("sales").delete().eq("id", saleId);
-            return new Response(
-                JSON.stringify({ error: `Items creation failed: ${itemsError.message}` }),
-                { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+                JSON.stringify({ error: `Invoice creation failed: ${rpcError.message}` }),
+                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
             );
         }
 
         return new Response(
             JSON.stringify({
-                sale_id: saleId,
-                invoice_number: invoiceNumber,
-                status: "pending_approval",
+                sale_id: result.sale_id,
+                invoice_number: result.invoice_number,
+                status: result.status,
             }),
             {
                 status: 200,
@@ -189,21 +141,3 @@ Deno.serve(async (req: Request) => {
         );
     }
 });
-
-function parseJwtUserId(token: string): string | null {
-    try {
-        const parts = token.split(".");
-        if (parts.length < 2) return null;
-
-        const base64Url = parts[1];
-        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-        const payload = JSON.parse(atob(padded));
-
-        return typeof payload?.sub === "string" && payload.sub.length > 0
-            ? payload.sub
-            : null;
-    } catch (_) {
-        return null;
-    }
-}

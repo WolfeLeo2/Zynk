@@ -3,6 +3,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/utils/quantity.dart';
 
 /// Generates a professional A4 invoice PDF.
 ///
@@ -352,7 +353,7 @@ class InvoiceTemplate {
         return [
           '${i + 1}',
           item.productName ?? 'Item',
-          '${item.quantity}',
+          formatQty(item.quantity),
           'Ksh ${currencyFormat.format(item.unitPrice)}',
           'Ksh ${currencyFormat.format(item.total)}',
         ];

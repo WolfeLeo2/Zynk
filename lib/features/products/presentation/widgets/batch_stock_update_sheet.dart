@@ -1,11 +1,20 @@
+import 'package:button_group_m3e/button_group_m3e.dart';
+import 'package:button_m3e/button_m3e.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/adjustment_reason.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/user_provider.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
+import 'package:zynk/features/products/presentation/widgets/batch_item_card.dart'
+    show stockDeltaColor;
+
+import 'package:zynk/features/products/domain/stock_adjustment_math.dart';
+
 import 'batch_group_action_sheet.dart';
 
 class BatchStockUpdateSheet extends ConsumerStatefulWidget {
@@ -88,8 +97,9 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                     .toList();
 
                 // If only one branch, don't show the selector (it's auto-selected anyway)
-                if (selectableBranches.length <= 1)
+                if (selectableBranches.length <= 1) {
                   return const SizedBox.shrink();
+                }
 
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 12),
@@ -118,7 +128,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 );
               },
               loading: () => const LinearProgressIndicator(),
-              error: (_, __) => const Text('Error loading branches'),
+              error: (_, _) => const Text('Error loading branches'),
             ),
             // Adjuster is the logged-in staffer (set on submit); no picker.
             reasonsAsync.when(
@@ -140,17 +150,44 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
               error: (_, _) => const Text('Error loading reasons'),
             ),
             const SizedBox(height: 16),
-            SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(value: 'add', label: Text('Add')),
-                ButtonSegment(value: 'subtract', label: Text('Subtract')),
-                ButtonSegment(value: 'set', label: Text('Set to')),
+            ButtonGroupM3E(
+              selection: true,
+              overflow: ButtonGroupM3EOverflow.none,
+              type: ButtonGroupM3EType.connected,
+              style: ButtonM3EStyle.filled,
+              size: ButtonGroupM3ESize.sm,
+              shape: ButtonGroupM3EShape.round,
+              selectedIndex: _mode == 'add'
+                  ? 0
+                  : _mode == 'subtract'
+                  ? 1
+                  : 2,
+              actions: [
+                ButtonGroupM3EAction(
+                  label: const Text('Add'),
+                  style: _mode == 'add' ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _mode = 'add');
+                    setSheetState(() {});
+                  },
+                ),
+                ButtonGroupM3EAction(
+                  label: const Text('Subtract'),
+                  style: _mode == 'subtract' ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _mode = 'subtract');
+                    setSheetState(() {});
+                  },
+                ),
+                ButtonGroupM3EAction(
+                  label: const Text('Set to'),
+                  style: _mode == 'set' ? ButtonM3EStyle.tonal : null,
+                  onPressed: () {
+                    setState(() => _mode = 'set');
+                    setSheetState(() {});
+                  },
+                ),
               ],
-              selected: {_mode},
-              onSelectionChanged: (val) {
-                setState(() => _mode = val.first);
-                setSheetState(() {});
-              },
             ),
             const SizedBox(height: 16),
             Row(
@@ -158,7 +195,12 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 Expanded(
                   child: TextField(
                     controller: _qtyController,
-                    keyboardType: TextInputType.number,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
                     decoration: InputDecoration(
                       labelText: _mode == 'set' ? 'New Quantity' : 'Amount',
                       border: const OutlineInputBorder(),
@@ -180,6 +222,25 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 ),
               ],
             ),
+            // For sqm-based groups, show how much coverage the entered box
+            // count represents so stock is added with area in mind.
+            if (widget.group.defaultPricingUnit == 'sqm' &&
+                (widget.group.defaultCoveragePerBox ?? 0) > 0) ...[
+              const SizedBox(height: 8),
+              Builder(
+                builder: (context) {
+                  final boxes = double.tryParse(_qtyController.text) ?? 0;
+                  final cov = widget.group.defaultCoveragePerBox!;
+                  return Text(
+                    '${boxes.toStringAsFixed(0)} box${boxes == 1 ? '' : 'es'} '
+                    '≈ ${(boxes * cov).toStringAsFixed(2)} sqm coverage (per item)',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
+                  );
+                },
+              ),
+            ],
           ],
         );
       },
@@ -203,30 +264,17 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
           )),
         );
         final currentStock = stockAsync.value?.quantity ?? 0;
-        final amount = int.tryParse(_qtyController.text) ?? 0;
-
-        int newStock;
-        if (_mode == 'add') {
-          newStock = currentStock + amount;
-        } else if (_mode == 'subtract') {
-          newStock = currentStock - amount;
-        } else {
-          newStock = amount;
-        }
-
+        final amount = num.tryParse(_qtyController.text) ?? 0;
+        final newStock = resolveStockTarget(_mode, currentStock, amount);
         final delta = newStock - currentStock;
-        final color = delta > 0
-            ? Colors.green
-            : delta < 0
-            ? theme.colorScheme.error
-            : theme.colorScheme.onSurface;
+        final color = stockDeltaColor(cs, delta);
 
         return Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Row(
             children: [
               Text(
-                '$currentStock',
+                formatQty(currentStock),
                 style: theme.textTheme.bodySmall?.copyWith(
                   color: isSelected ? cs.onSurfaceVariant : cs.onSurface,
                 ),
@@ -240,7 +288,7 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  '$newStock',
+                  formatQty(newStock),
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: color,
                     fontWeight: FontWeight.bold,
@@ -260,28 +308,32 @@ class _BatchStockUpdateSheetState extends ConsumerState<BatchStockUpdateSheet> {
         final tenantId = ref.read(tenantIdProvider) ?? '';
         final branchId = _selectedBranch?.id ?? '';
         final profile = ref.read(currentProfileProvider);
-        final amount = int.tryParse(_qtyController.text) ?? 0;
+
+        // In 'set' mode a blank field must not silently resolve to "set
+        // everything to 0" — require an explicit amount (an explicit "0" is
+        // still valid; an untouched field is not).
+        if (_mode == 'set' && _qtyController.text.trim().isEmpty) {
+          throw 'Please enter the new quantity';
+        }
+        final amount = num.tryParse(_qtyController.text) ?? 0;
 
         if (branchId.isEmpty) {
           throw 'Please select a branch first';
         }
 
+        // 'set' needs each product's current stock to compute the delta;
+        // fetch them all in one query rather than one round-trip per item.
+        final currentById = _mode == 'set'
+            ? await repo.getProductStockValues(selectedIds.toList(), branchId)
+            : const <String, num>{};
+
         final items = <BatchAdjustmentItem>[];
         for (final id in selectedIds) {
-          int quantityChange;
-          if (_mode == 'set') {
-            // We need current stock to calculate delta for 'set'
-            // In a batch update, it's safer to let the repo handle the delta calculation
-            // but the current batchAdjustStock expects quantityChange.
-            // For now, we'll fetch current stock for each.
-            final current = await repo.getProductStockValue(id, branchId);
-            quantityChange = amount - current;
-          } else if (_mode == 'add') {
-            quantityChange = amount;
-          } else {
-            quantityChange = -amount;
-          }
-
+          final quantityChange = resolveStockDelta(
+            _mode,
+            currentById[id] ?? 0,
+            amount,
+          );
           if (quantityChange != 0) {
             items.add(
               BatchAdjustmentItem(

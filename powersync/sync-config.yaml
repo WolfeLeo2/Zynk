@@ -15,8 +15,11 @@ streams:
       user_data_param: SELECT tenant_id FROM profiles WHERE user_id = auth.user_id()
     queries:
       - "SELECT tenants.* FROM tenants,user_data_param AS bucket WHERE tenants.id = bucket.tenant_id"
-      - "SELECT profiles.* FROM profiles,user_data_param AS bucket WHERE profiles.tenant_id = bucket.tenant_id"
+      # Explicit columns: pin_hash / pin_lookup are server-only and must NEVER
+      # reach devices (same list as sync_rules.yaml).
+      - "SELECT profiles.id, profiles.user_id, profiles.tenant_id, profiles.branch_id, profiles.role, profiles.permissions, profiles.display_name, profiles.profile_picture_url, profiles.phone, profiles.address, profiles.status, profiles.pin_set_at, profiles.created_at, profiles.updated_at FROM profiles,user_data_param AS bucket WHERE profiles.tenant_id = bucket.tenant_id"
       - "SELECT products.* FROM products,user_data_param AS bucket WHERE products.tenant_id = bucket.tenant_id"
+      - "SELECT product_branches.* FROM product_branches,user_data_param AS bucket WHERE product_branches.tenant_id = bucket.tenant_id"
       - "SELECT customers.* FROM customers,user_data_param AS bucket WHERE customers.tenant_id = bucket.tenant_id"
       - "SELECT categories.* FROM categories,user_data_param AS bucket WHERE categories.tenant_id = bucket.tenant_id"
       - "SELECT item_groups.* FROM item_groups,user_data_param AS bucket WHERE item_groups.tenant_id = bucket.tenant_id"
@@ -36,9 +39,11 @@ streams:
       - "SELECT credit_note_items.* FROM credit_note_items,user_data_param AS bucket WHERE credit_note_items.tenant_id = bucket.tenant_id"
       - "SELECT commissions.* FROM commissions,user_data_param AS bucket WHERE commissions.tenant_id = bucket.tenant_id"
       - "SELECT profile_branches.* FROM profile_branches,user_data_param AS bucket WHERE profile_branches.tenant_id = bucket.tenant_id"
-      - "SELECT daily_kpi_snapshots.* FROM daily_kpi_snapshots,user_data_param AS bucket WHERE daily_kpi_snapshots.tenant_id = bucket.tenant_id"
-      - "SELECT daily_payment_method_snapshots.* FROM daily_payment_method_snapshots,user_data_param AS bucket WHERE daily_payment_method_snapshots.tenant_id = bucket.tenant_id"
-      - "SELECT daily_product_sales_snapshots.* FROM daily_product_sales_snapshots,user_data_param AS bucket WHERE daily_product_sales_snapshots.tenant_id = bucket.tenant_id"
+      # Snapshot tables have composite keys, so synthesize the `id` PowerSync
+      # requires (same as sync_rules.yaml).
+      - "SELECT daily_kpi_snapshots.*, (daily_kpi_snapshots.tenant_id || '|' || IFNULL(daily_kpi_snapshots.branch_id, 'all') || '|' || daily_kpi_snapshots.snapshot_date) AS id FROM daily_kpi_snapshots,user_data_param AS bucket WHERE daily_kpi_snapshots.tenant_id = bucket.tenant_id"
+      - "SELECT daily_payment_method_snapshots.*, (daily_payment_method_snapshots.tenant_id || '|' || IFNULL(daily_payment_method_snapshots.branch_id, 'all') || '|' || daily_payment_method_snapshots.snapshot_date || '|' || IFNULL(daily_payment_method_snapshots.payment_method, '')) AS id FROM daily_payment_method_snapshots,user_data_param AS bucket WHERE daily_payment_method_snapshots.tenant_id = bucket.tenant_id"
+      - "SELECT daily_product_sales_snapshots.*, (daily_product_sales_snapshots.tenant_id || '|' || IFNULL(daily_product_sales_snapshots.branch_id, 'all') || '|' || daily_product_sales_snapshots.snapshot_date || '|' || IFNULL(daily_product_sales_snapshots.product_id, '')) AS id FROM daily_product_sales_snapshots,user_data_param AS bucket WHERE daily_product_sales_snapshots.tenant_id = bucket.tenant_id"
       - "SELECT expense_categories.* FROM expense_categories,user_data_param AS bucket WHERE expense_categories.tenant_id = bucket.tenant_id"
       - "SELECT expenses.* FROM expenses,user_data_param AS bucket WHERE expenses.tenant_id = bucket.tenant_id"
 

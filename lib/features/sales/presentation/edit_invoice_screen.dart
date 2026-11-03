@@ -8,8 +8,10 @@ import 'package:zynk/core/models/customer_model.dart';
 import 'package:zynk/core/models/sales_models.dart';
 import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/providers/app_providers.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/services/sales_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/customers/providers/customer_providers.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 import 'package:zynk/features/products/presentation/widgets/product_selection_sheet.dart';
@@ -65,6 +67,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     List<SaleItem> items,
     Customer? customer,
     List<Product> products,
+    List<ItemGroup> itemGroups,
   ) {
     if (_initialized) return;
     _initialized = true;
@@ -80,12 +83,13 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     for (final item in items) {
       final product = products.where((p) => p.id == item.productId).firstOrNull;
       final itemGroup = (product != null && product.itemGroupId != null)
-          ? ref.read(itemGroupProvider(product.itemGroupId!)).value
+          ? itemGroups.where((g) => g.id == product.itemGroupId).firstOrNull
           : null;
+      // Product's own pricing unit wins when set; only fall back to the
+      // group's default when the product doesn't declare one explicitly.
       final isSqmBased =
           product != null &&
-          (product.pricingUnit == 'sqm' ||
-              itemGroup?.defaultPricingUnit == 'sqm');
+          (product.pricingUnit ?? itemGroup?.defaultPricingUnit) == 'sqm';
       final coverage =
           (product?.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
 
@@ -109,12 +113,15 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       _items.fold(0, (sum, item) => sum + item.resolvedLine().total);
 
   /// Build a fresh editable line item from a catalogue product (qty defaults to 1).
-  _EditableSaleItem _editableFromProduct(Product product) {
+  _EditableSaleItem _editableFromProduct(
+    Product product,
+    List<ItemGroup> itemGroups,
+  ) {
     final itemGroup = product.itemGroupId != null
-        ? ref.read(itemGroupProvider(product.itemGroupId!)).value
+        ? itemGroups.where((g) => g.id == product.itemGroupId).firstOrNull
         : null;
     final isSqmBased =
-        product.pricingUnit == 'sqm' || itemGroup?.defaultPricingUnit == 'sqm';
+        (product.pricingUnit ?? itemGroup?.defaultPricingUnit) == 'sqm';
     final coverage =
         (product.coveragePerBox ?? itemGroup?.defaultCoveragePerBox) ?? 1.0;
     return _EditableSaleItem(
@@ -124,7 +131,13 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       taxAmount: 0,
       initialName: product.name,
       initialQty: 1,
-      initialPrice: product.basePrice ?? 0,
+      // Per-box price for sqm items (per-sqm × coverage), else per piece.
+      initialPrice: () {
+        final base = ref
+            .read(productPricingServiceProvider)
+            .resolveSellingPrice(product, itemGroup);
+        return isSqmBased ? base * coverage : base;
+      }(),
       isSqmBased: isSqmBased,
       coveragePerBox: coverage,
     );
@@ -153,10 +166,14 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
       branchId: _sale?.branchId,
     );
     if (selected == null || selected.isEmpty || !mounted) return;
+    // Load item groups up front so price / sqm / coverage inheritance resolves
+    // (the old synchronous `.value` read of an autoDispose provider was null).
+    final itemGroups = await ref.read(allItemGroupsProvider.future);
+    if (!mounted) return;
     setState(() {
       for (final id in selected) {
         final product = products.where((p) => p.id == id).firstOrNull;
-        if (product != null) _items.add(_editableFromProduct(product));
+        if (product != null) _items.add(_editableFromProduct(product, itemGroups));
       }
     });
   }
@@ -215,7 +232,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    'Not enough stock for "$name". Available: $available',
+                    'Not enough stock for "$name". Available: ${formatQty(available)}',
                   ),
                   backgroundColor: Theme.of(context).colorScheme.error,
                   behavior: SnackBarBehavior.floating,
@@ -304,6 +321,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
     final itemsAsync = ref.watch(saleItemsProvider(widget.saleId));
     final customersAsync = ref.watch(allCustomersProvider);
     final productsAsync = ref.watch(allProductsProvider);
+    final itemGroupsAsync = ref.watch(allItemGroupsProvider);
 
     return saleAsync.when(
       loading: () =>
@@ -325,6 +343,15 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
               ),
               error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
               data: (products) {
+                // Item groups must be loaded before hydrating lines so price /
+                // sqm / coverage inheritance resolves (was silently null before).
+                if (itemGroupsAsync.isLoading) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
+                final itemGroups =
+                    itemGroupsAsync.value ?? const <ItemGroup>[];
                 final customers = customersAsync.value ?? [];
                 final customer = customers.firstWhere(
                   (c) => c.id == sale.customerId,
@@ -335,7 +362,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                     name: '',
                   ),
                 );
-                _initialize(sale, saleItems, customer, products);
+                _initialize(sale, saleItems, customer, products, itemGroups);
 
                 return Scaffold(
                   appBar: AppBar(
@@ -752,21 +779,14 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                   controller: item.qtyCtr,
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
-                    labelText: item.isSqmBased ? 'sqm' : 'Qty',
+                    labelText: item.isSqmBased ? 'Boxes' : 'Qty',
                     isDense: true,
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  keyboardType: item.isSqmBased
-                      ? const TextInputType.numberWithOptions(decimal: true)
-                      : TextInputType.number,
-                  inputFormatters: [
-                    if (item.isSqmBased)
-                      FilteringTextInputFormatter.allow(RegExp(r'[\d.]'))
-                    else
-                      FilteringTextInputFormatter.digitsOnly,
-                  ],
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   validator: (v) {
                     final qty = double.tryParse(v ?? '');
                     if (qty == null || qty <= 0) return 'Invalid';
@@ -782,7 +802,7 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
                   onChanged: (_) => setState(() {}),
                   decoration: InputDecoration(
                     labelText: item.isSqmBased
-                        ? 'Price/sqm (Ksh)'
+                        ? 'Price/box (Ksh)'
                         : 'Unit Price (Ksh)',
                     isDense: true,
                     border: OutlineInputBorder(
@@ -828,19 +848,21 @@ class _EditInvoiceScreenState extends ConsumerState<EditInvoiceScreen> {
             Builder(
               builder: (context) {
                 final line = item.resolvedLine();
-                final actualSqm = line.quantity * item.coveragePerBox;
+                final coverage = item.coveragePerBox;
+                final actualSqm = line.quantity * coverage;
+                final perSqm = coverage > 0 ? line.unitPrice / coverage : 0.0;
                 return Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Text(
-                      'Price/box: ${CurrencyHelper.format(line.unitPrice)}',
+                      'Price/sqm: ${CurrencyHelper.format(perSqm)}',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: cs.onSurfaceVariant.withValues(alpha: 0.7),
                         fontSize: 11,
                       ),
                     ),
                     Text(
-                      'Total boxes: ${line.quantity} (${actualSqm.toStringAsFixed(2)} sqm)',
+                      '${actualSqm.toStringAsFixed(2)} sqm coverage',
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: cs.primary.withValues(alpha: 0.8),
                         fontSize: 11,
@@ -868,7 +890,7 @@ class _EditableSaleItem {
   final double costPrice;
   final double taxAmount;
   final String initialName;
-  final int initialQty; // number of boxes from DB
+  final num initialQty; // number of boxes from DB
   final double
   initialPrice; // unit price (per box if sqm-based, per piece if piece-based)
   final bool isSqmBased;
@@ -890,34 +912,20 @@ class _EditableSaleItem {
     required this.coveragePerBox,
   }) {
     nameCtr = TextEditingController(text: initialName);
-
-    // For sqm-based items, display quantity as initialQty (boxes) * coveragePerBox (total sqm)
-    final displayQty = isSqmBased
-        ? (initialQty * coveragePerBox)
-        : initialQty.toDouble();
-    qtyCtr = TextEditingController(
-      text: isSqmBased ? displayQty.toStringAsFixed(2) : initialQty.toString(),
-    );
-
-    // For sqm-based items, display price as unitPrice / coveragePerBox (price per sqm)
-    final displayPrice = isSqmBased
-        ? (initialPrice / coveragePerBox)
-        : initialPrice;
-    priceCtr = TextEditingController(text: displayPrice.toStringAsFixed(0));
+    // Quantity is whole boxes/pieces; price is per box (sqm) / per piece.
+    // Stored unit_price is already per box, so no conversion on load.
+    qtyCtr = TextEditingController(text: formatQtyInput(initialQty));
+    priceCtr = TextEditingController(text: initialPrice.toStringAsFixed(0));
   }
 
   double get _enteredPrice =>
-      double.tryParse(priceCtr.text) ??
-      (isSqmBased ? initialPrice / coveragePerBox : initialPrice);
+      double.tryParse(priceCtr.text) ?? initialPrice;
 
   double get _enteredQty =>
-      double.tryParse(qtyCtr.text) ??
-      (isSqmBased ? initialQty * coveragePerBox : initialQty.toDouble());
+      double.tryParse(qtyCtr.text) ?? initialQty.toDouble();
 
   /// Resolved pricing — single source for subtotal, the row total and saving.
   InvoiceLine resolvedLine() => SalesService.resolveLine(
-    isSqmBased: isSqmBased,
-    coveragePerBox: coveragePerBox,
     enteredPrice: _enteredPrice,
     enteredQty: _enteredQty,
   );

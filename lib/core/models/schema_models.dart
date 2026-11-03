@@ -414,7 +414,7 @@ class Stock {
   final String tenantId;
   final String branchId;
   final String productId;
-  final int quantity;
+  final num quantity;
   final int? reorderLevel;
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? lastUpdated;
@@ -441,7 +441,7 @@ class StockAdjustment {
   final String branchId;
   final String productId;
   final String? adjustmentType;
-  final int quantity;
+  final num quantity;
   final String? referenceNumber;
   final String? notes;
   final String? createdBy;
@@ -455,7 +455,7 @@ class StockAdjustment {
   @JsonKey(fromJson: _dateFromAny, toJson: _dateToIso)
   final DateTime? approvedAt;
   final String? rejectionReason;
-  final int? previousQuantity;
+  final num? previousQuantity;
 
   // Populated from JOIN queries — not stored:
   @JsonKey(name: 'adjuster_display_name', includeToJson: false)
@@ -503,7 +503,7 @@ class StockAdjustment {
 
 class BatchAdjustmentItem {
   final String productId;
-  final int quantityChange;
+  final num quantityChange;
   final String? notes;
 
   BatchAdjustmentItem({
@@ -668,7 +668,7 @@ class ProductTransaction {
   final String id;
   final DateTime? createdAt;
   final String type; // 'adjustment' or 'sale'
-  final int quantityChange;
+  final num quantityChange;
   final String? referenceId;
   final String? referenceNumber;
   final String? actorName;
@@ -691,8 +691,8 @@ class ProductTransaction {
           : null,
       type: map['type']?.toString() ?? 'adjustment',
       quantityChange: map['quantity'] is num
-          ? (map['quantity'] as num).toInt()
-          : int.tryParse(map['quantity']?.toString() ?? '0') ?? 0,
+          ? map['quantity'] as num
+          : num.tryParse(map['quantity']?.toString() ?? '0') ?? 0,
       referenceId: map['reference_id']?.toString(),
       referenceNumber: map['reference_number']?.toString(),
       actorName: map['actor_name']?.toString(),

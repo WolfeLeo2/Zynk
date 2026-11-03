@@ -13,6 +13,7 @@
 migrate_working_dir/
 .env
 dart_defines.json
+dart_defines.local.json
 
 # IntelliJ related
 *.iml
@@ -32,6 +33,7 @@ dart_defines.json
 .flutter-plugins-dependencies
 .pub-cache/
 .pub/
+.tokensave
 /build/
 /coverage/
 
@@ -48,9 +50,13 @@ app.*.map.json
 android/upload-keystore.jks
 android/keystore_base64.txt
 
+# Git worktrees
+.worktrees/
+
 # Scratch / one-off analysis artifacts
 analyze*.txt
 build_log.txt
 fix_styles.py
 migrate_icons.py
 test_products.csv
+/sample_data

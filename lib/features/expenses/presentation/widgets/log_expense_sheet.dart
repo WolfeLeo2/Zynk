@@ -8,6 +8,7 @@ import 'package:zynk/core/utils/currency.dart';
 import 'package:zynk/features/expenses/models/expense.dart';
 import 'package:zynk/features/expenses/models/expense_category.dart';
 import 'package:zynk/features/expenses/providers/expenses_provider.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 import '../../../../core/providers/user_provider.dart';
 
@@ -65,38 +66,15 @@ class _LogExpenseSheetState extends ConsumerState<LogExpenseSheet> {
       });
     }
 
-    return Container(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
-        top: 16,
-        left: 24,
-        right: 24,
-      ),
+    return AppBottomSheet(
+      title: 'Log Expense',
+      icon: PhosphorIconsRegular.receipt,
       child: Form(
         key: _formKey,
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                PhosphorIcon(PhosphorIconsRegular.receipt, color: cs.primary),
-                const SizedBox(width: 12),
-                Text(
-                  'Log Expense',
-                  style: theme.textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const Spacer(),
-                IconButton(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const PhosphorIcon(PhosphorIconsRegular.x),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-
             // Amount Field
             TextFormField(
               controller: _amountController,

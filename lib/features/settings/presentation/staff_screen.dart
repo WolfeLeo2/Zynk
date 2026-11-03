@@ -327,50 +327,60 @@ class _StaffCard extends ConsumerWidget {
           itemBuilder: (context) => [
             const PopupMenuItem(
               value: 'edit',
-              child: ListTile(
-                leading: PhosphorIcon(PhosphorIconsRegular.pencilSimple),
-                title: Text('Edit'),
-                contentPadding: EdgeInsets.zero,
+              child: Row(
+                children: [
+                  PhosphorIcon(PhosphorIconsRegular.pencilSimple),
+                  SizedBox(width: 12),
+                  Text('Edit'),
+                ],
               ),
             ),
             PopupMenuItem(
               value: isBlocked ? 'unblock' : 'block',
-              child: ListTile(
-                leading: PhosphorIcon(
-                  isBlocked
-                      ? PhosphorIconsRegular.checkCircle
-                      : PhosphorIconsRegular.prohibit,
-                ),
-                title: Text(isBlocked ? 'Unblock' : 'Block'),
-                contentPadding: EdgeInsets.zero,
+              child: Row(
+                children: [
+                  PhosphorIcon(
+                    isBlocked
+                        ? PhosphorIconsRegular.checkCircle
+                        : PhosphorIconsRegular.prohibit,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(isBlocked ? 'Unblock' : 'Block'),
+                ],
               ),
             ),
             const PopupMenuDivider(),
             const PopupMenuItem(
               value: 'reset_password',
-              child: ListTile(
-                leading: PhosphorIcon(PhosphorIconsRegular.lockKey),
-                title: Text('Reset Password'),
-                contentPadding: EdgeInsets.zero,
+              child: Row(
+                children: [
+                  PhosphorIcon(PhosphorIconsRegular.lockKey),
+                  SizedBox(width: 12),
+                  Text('Reset Password'),
+                ],
               ),
             ),
             const PopupMenuItem(
               value: 'set_pin',
-              child: ListTile(
-                leading: PhosphorIcon(PhosphorIconsRegular.password),
-                title: Text('Set Login PIN'),
-                contentPadding: EdgeInsets.zero,
+              child: Row(
+                children: [
+                  PhosphorIcon(PhosphorIconsRegular.password),
+                  SizedBox(width: 12),
+                  Text('Set Login PIN'),
+                ],
               ),
             ),
             const PopupMenuItem(
               value: 'delete',
-              child: ListTile(
-                leading: PhosphorIcon(
-                  PhosphorIconsRegular.trash,
-                  color: Colors.red,
-                ),
-                title: Text('Delete', style: TextStyle(color: Colors.red)),
-                contentPadding: EdgeInsets.zero,
+              child: Row(
+                children: [
+                  PhosphorIcon(
+                    PhosphorIconsRegular.trash,
+                    color: Colors.red,
+                  ),
+                  SizedBox(width: 12),
+                  Text('Delete', style: TextStyle(color: Colors.red)),
+                ],
               ),
             ),
           ],

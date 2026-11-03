@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:m3e_card_list/m3e_card_list.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 
 class ProductTransactionHistoryScreen extends ConsumerWidget {
@@ -50,14 +52,23 @@ class ProductTransactionHistoryScreen extends ConsumerWidget {
             );
           }
 
-          return ListView.separated(
-            itemCount: history.length,
-            separatorBuilder: (context, index) =>
-                const Divider(height: 1, indent: 72),
-            itemBuilder: (context, index) {
-              final tx = history[index];
-              return _buildTransactionTile(theme, colorScheme, tx, context);
-            },
+          return CustomScrollView(
+            slivers: [
+              SliverPadding(
+                padding: const EdgeInsets.all(16),
+                sliver: SliverM3ECardList(
+                  itemCount: history.length,
+                  padding: EdgeInsets.zero,
+                  color: colorScheme.surfaceContainerLow,
+                  itemBuilder: (context, index) => _buildTransactionTile(
+                    theme,
+                    colorScheme,
+                    history[index],
+                    context,
+                  ),
+                ),
+              ),
+            ],
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
@@ -108,7 +119,7 @@ class ProductTransactionHistoryScreen extends ConsumerWidget {
         '${tx.actorName ?? 'Unknown'} · ${tx.createdAt != null ? DateFormat('MMM d, y HH:mm').format(tx.createdAt!) : ''}',
       ),
       trailing: Text(
-        '${isPositive ? '+' : ''}${tx.quantityChange}',
+        '${isPositive ? '+' : ''}${formatQty(tx.quantityChange)}',
         style: theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.bold,
           color: isPositive ? colorScheme.tertiary : colorScheme.error,

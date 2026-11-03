@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:powersync/powersync.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
@@ -472,23 +474,31 @@ class PowerSyncRepository {
         ],
       );
 
-      for (final branchId in effectiveBranchIds) {
-        final deterministicId = const Uuid().v5(
-          _productBranchNamespace,
-          '${product.id}:$branchId',
-        );
-        await tx.execute(
-          '''INSERT INTO product_branches (
-               id, tenant_id, product_id, branch_id, created_at
-             ) VALUES (?, ?, ?, ?, ?)''',
-          [
-            deterministicId,
-            product.tenantId,
-            product.id,
-            branchId,
-            DateTime.now().toIso8601String(),
-          ],
-        );
+      // No product_branches rows are written here: products are global by
+      // design (branch_id IS NULL), and watchProducts()'s fallback only
+      // treats a product as "everywhere" while it has zero product_branches
+      // rows. Writing one here would silently hide it from any branch
+      // created later. Only seed the zero stock row per (current) branch —
+      // that's the part later adjustments actually need (see below).
+      final now = DateTime.now().toIso8601String();
+      if (!product.isService) {
+        for (final branchId in effectiveBranchIds) {
+          // Seed a zero stock row per branch so later adjustments (which use
+          // an UPDATE-based increment) have a row to accumulate into.
+          // Without this, approving a new product's initial stock silently
+          // no-ops against a missing row and stock stays at 0.
+          final stockId = const Uuid().v5(
+            _productBranchNamespace,
+            'stock:${product.id}:$branchId',
+          );
+          await tx.execute(
+            '''INSERT INTO stock (
+                 id, tenant_id, branch_id, product_id, quantity, reorder_level,
+                 last_updated
+               ) VALUES (?, ?, ?, ?, 0, 0, ?)''',
+            [stockId, product.tenantId, branchId, product.id, now],
+          );
+        }
       }
     });
   }
@@ -643,9 +653,9 @@ class PowerSyncRepository {
           if (rows.isEmpty) return null;
 
           final first = rows.first;
-          final quantity = rows.fold<int>(
+          final quantity = rows.fold<num>(
             0,
-            (sum, row) => sum + ((row['quantity'] as num?)?.toInt() ?? 0),
+            (sum, row) => sum + ((row['quantity'] as num?) ?? 0),
           );
 
           DateTime? latestUpdatedAt;
@@ -671,22 +681,41 @@ class PowerSyncRepository {
         });
   }
 
-  Future<int> getProductStockValue(String productId, String branchId) async {
+  Future<num> getProductStockValue(String productId, String branchId) async {
     final rows = await _db.getAll(
       'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
       [productId, branchId],
     );
-    return rows.isNotEmpty ? (rows.first['quantity'] as num?)?.toInt() ?? 0 : 0;
+    return rows.isNotEmpty ? (rows.first['quantity'] as num?) ?? 0 : 0;
   }
 
   /// Like [getProductStockValue] but returns null when no stock row exists,
   /// so callers can distinguish "0 in stock" from "not stock-tracked".
-  Future<int?> getProductStockOrNull(String productId, String branchId) async {
+  Future<num?> getProductStockOrNull(String productId, String branchId) async {
     final row = await _db.getOptional(
       'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
       [productId, branchId],
     );
-    return row == null ? null : (row['quantity'] as num?)?.toInt() ?? 0;
+    return row == null ? null : (row['quantity'] as num?) ?? 0;
+  }
+
+  /// Current stock for many products in one branch, in a single query.
+  /// Products with no stock row are omitted (treat as 0 at the call site).
+  Future<Map<String, num>> getProductStockValues(
+    List<String> productIds,
+    String branchId,
+  ) async {
+    if (productIds.isEmpty) return {};
+    final placeholders = List.filled(productIds.length, '?').join(',');
+    final rows = await _db.getAll(
+      'SELECT product_id, quantity FROM stock '
+      'WHERE branch_id = ? AND product_id IN ($placeholders)',
+      [branchId, ...productIds],
+    );
+    return {
+      for (final r in rows)
+        r['product_id'] as String: (r['quantity'] as num?) ?? 0,
+    };
   }
 
   Stream<List<Map<String, dynamic>>> watchLowStockProducts({
@@ -798,7 +827,7 @@ class PowerSyncRepository {
     required String productId,
     required String
     adjustmentType, // 'addition', 'reduction', 'initial', 'damage'
-    required int quantityChange,
+    required num quantityChange,
     required String createdBy,
     String? referenceNumber,
     String? notes,
@@ -830,7 +859,7 @@ class PowerSyncRepository {
     required String branchId,
     required String productId,
     required String adjustmentType,
-    required int quantityChange,
+    required num quantityChange,
     required String createdBy,
     String? referenceNumber,
     String? notes,
@@ -878,12 +907,18 @@ class PowerSyncRepository {
     required String adjustmentType,
     String? reasonId,
     String? referenceNumber,
+    // Pass the same bundleId across multiple calls (one per branch) to fan a
+    // single adjustment out across branches as one reviewable bundle — see
+    // adjustment_detail_screen.dart's per-row branch badge, which only makes
+    // sense when a bundle actually spans more than one branch. Omit for a
+    // single-branch adjustment to get a fresh bundle.
+    String? bundleId,
   }) async {
     _ensureSpecificBranchId(branchId);
 
     await _db.writeTransaction((tx) async {
       final now = DateTime.now().toUtc().toIso8601String();
-      final bundleId = const Uuid().v4();
+      final resolvedBundleId = bundleId ?? const Uuid().v4();
 
       for (final item in items) {
         if (item.quantityChange == 0) continue;
@@ -911,14 +946,14 @@ class PowerSyncRepository {
             reasonId,
             resolvedAdjustmentType,
             now,
-            bundleId,
+            resolvedBundleId,
           ],
         );
       }
     });
   }
 
-  String _resolveStockAdjustmentType(String rawType, int quantityChange) {
+  String _resolveStockAdjustmentType(String rawType, num quantityChange) {
     final normalized = rawType.trim().toLowerCase();
 
     if (_allowedStockAdjustmentTypes.contains(normalized)) {
@@ -1038,19 +1073,46 @@ class PowerSyncRepository {
   }
 
   Future<void> createBranch(Branch branch) async {
-    await _db.execute(
-      'INSERT INTO branches (id, tenant_id, location_id, name, address, phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        branch.id,
-        branch.tenantId,
-        branch.locationId,
-        branch.name,
-        branch.address,
-        branch.phone,
-        DateTime.now().toIso8601String(),
-        DateTime.now().toIso8601String(),
-      ],
-    );
+    final now = DateTime.now().toIso8601String();
+    await _db.writeTransaction((tx) async {
+      await tx.execute(
+        'INSERT INTO branches (id, tenant_id, location_id, name, address, phone, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          branch.id,
+          branch.tenantId,
+          branch.locationId,
+          branch.name,
+          branch.address,
+          branch.phone,
+          now,
+          now,
+        ],
+      );
+
+      // Every existing global product is "in" every branch by design (see
+      // createProduct) — but that only holds for stock-adjustment purposes
+      // once a zero stock row exists. Seed one now for this new branch so
+      // adjusting stock on a pre-existing product here doesn't silently
+      // no-op the same way an un-seeded new product would.
+      final existingProducts = await tx.getAll(
+        'SELECT id FROM products WHERE tenant_id = ? AND branch_id IS NULL AND is_service = 0',
+        [branch.tenantId],
+      );
+      for (final row in existingProducts) {
+        final productId = row['id'] as String;
+        final stockId = const Uuid().v5(
+          _productBranchNamespace,
+          'stock:$productId:${branch.id}',
+        );
+        await tx.execute(
+          '''INSERT INTO stock (
+               id, tenant_id, branch_id, product_id, quantity, reorder_level,
+               last_updated
+             ) VALUES (?, ?, ?, ?, 0, 0, ?)''',
+          [stockId, branch.tenantId, branch.id, productId, now],
+        );
+      }
+    });
   }
 
   Future<void> updateBranch(
@@ -1244,7 +1306,7 @@ class PowerSyncRepository {
     required String groupId,
     required String tenantId,
     required String branchId,
-    required int quantity,
+    required num quantity,
     required String mode,
     required String createdBy,
     String? salespersonId,
@@ -1265,7 +1327,7 @@ class PowerSyncRepository {
 
     for (final row in rows) {
       final productId = row['id'] as String;
-      int quantityChange;
+      num quantityChange;
 
       if (mode == 'set') {
         // Compute delta: desired - current
@@ -1274,7 +1336,7 @@ class PowerSyncRepository {
           [productId, branchId],
         );
         final current = stockRows.isNotEmpty
-            ? (stockRows.first['quantity'] as num?)?.toInt() ?? 0
+            ? (stockRows.first['quantity'] as num?) ?? 0
             : 0;
         quantityChange = quantity - current;
       } else if (mode == 'add') {
@@ -1610,74 +1672,16 @@ class PowerSyncRepository {
   Stream<List<Payment>> watchPaymentsForSale(String saleId) {
     return _db
         .watch(
-          'SELECT * FROM sale_payments WHERE sale_id = ? ORDER BY created_at ASC',
+          '''
+          SELECT sp.*, pr.display_name AS recorded_by_name
+          FROM sale_payments sp
+          LEFT JOIN profiles pr ON pr.user_id = sp.recorded_by
+          WHERE sp.sale_id = ?
+          ORDER BY sp.created_at ASC
+          ''',
           parameters: [saleId],
         )
         .map((rows) => rows.map((row) => Payment.fromMap(row)).toList());
-  }
-
-  /// Record payment offline locally and auto-update sale status / amount paid
-  Future<void> recordPaymentLocally({
-    required String saleId,
-    required double amount,
-    required String paymentMethod,
-    String? referenceNumber,
-    String? notes,
-  }) async {
-    await _db.writeTransaction((tx) async {
-      // 1. Fetch current sale
-      final saleRow = await tx.getOptional('SELECT * FROM sales WHERE id = ?', [
-        saleId,
-      ]);
-      if (saleRow == null) throw Exception('Sale not found locally');
-      final sale = Sale.fromMap(saleRow);
-
-      // 2. Insert payment
-      final paymentId = uuid.v4();
-      final now = DateTime.now().toIso8601String();
-      await tx.execute(
-        'INSERT INTO sale_payments (id, tenant_id, branch_id, sale_id, amount, payment_method, reference_number, notes, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [
-          paymentId,
-          sale.tenantId,
-          sale.branchId,
-          sale.id,
-          amount,
-          paymentMethod,
-          referenceNumber,
-          notes,
-          now,
-          now,
-        ],
-      );
-
-      // 3. Update sale totals & status
-      final newAmountPaid = sale.amountPaid + amount;
-      var newPaymentStatus = PaymentStatus.partiallyPaid;
-      if (newAmountPaid >= sale.grandTotal) {
-        newPaymentStatus = PaymentStatus.paid;
-      }
-
-      final completedAtStr =
-          newPaymentStatus == PaymentStatus.paid &&
-              sale.fulfillmentStatus == FulfillmentStatus.released
-          ? now
-          : sale.completedAt?.toIso8601String();
-
-      await tx.execute(
-        'UPDATE sales SET amount_paid = ?, status = ?, payment_status = ?, fulfillment_status = ?, payment_method = ?, updated_at = ?, completed_at = ? WHERE id = ?',
-        [
-          newAmountPaid,
-          sale.status.value,
-          newPaymentStatus.value,
-          sale.fulfillmentStatus.value,
-          paymentMethod,
-          now,
-          completedAtStr,
-          sale.id,
-        ],
-      );
-    });
   }
 
   // --- Credit Notes ---
@@ -1691,9 +1695,18 @@ class PowerSyncRepository {
       params.add(tenantId);
     }
     sql += ' ORDER BY created_at DESC';
-    return _db
-        .watch(sql, parameters: params)
-        .map((rows) => rows.map((row) => CreditNote.fromMap(row)).toList());
+    return _db.watch(sql, parameters: params).map(
+          (rows) => rows.map((row) {
+            // `items` is a jsonb column PowerSync surfaces as a TEXT string;
+            // decode it so CreditNote.fromMap's List parse doesn't throw.
+            final map = Map<String, dynamic>.from(row);
+            final rawItems = map['items'];
+            map['items'] = rawItems is String
+                ? (rawItems.trim().isEmpty ? const [] : jsonDecode(rawItems))
+                : (rawItems ?? const []);
+            return CreditNote.fromMap(map);
+          }).toList(),
+        );
   }
 
   /// Watch credit notes for a specific sale, including items from the junction table
@@ -2681,23 +2694,27 @@ class PowerSyncRepository {
         GROUP BY si.product_id
       ),
       available AS (
-        SELECT product_id, SUM(quantity) AS total_available
+        SELECT product_id, SUM(quantity) AS total_available, MAX(reorder_level) AS reorder_level
         FROM stock
         WHERE tenant_id = ?
           AND branch_id = ?
         GROUP BY product_id
       )
       SELECT
-        p.id   AS product_id,
-        p.name AS product_name,
+        p.id           AS product_id,
+        p.name         AS product_name,
         p.sku,
+        p.item_group_id,
+        ig.name        AS item_group_name,
         COALESCE(r.total_received,   0) AS received,
         COALESCE(so.total_sold,      0) AS sold,
-        COALESCE(av.total_available, 0) AS available
+        COALESCE(av.total_available, 0) AS available,
+        av.reorder_level
       FROM products p
-      LEFT JOIN received  r  ON r.product_id  = p.id
-      LEFT JOIN sold      so ON so.product_id = p.id
-      LEFT JOIN available av ON av.product_id = p.id
+      LEFT JOIN received    r  ON r.product_id  = p.id
+      LEFT JOIN sold        so ON so.product_id = p.id
+      LEFT JOIN available   av ON av.product_id = p.id
+      LEFT JOIN item_groups ig ON ig.id = p.item_group_id
       WHERE p.tenant_id = ?
         AND (p.is_service IS NULL OR p.is_service = 0)
       ORDER BY p.name ASC
@@ -2737,85 +2754,6 @@ class PowerSyncRepository {
     ''';
     return _db.watch(sql, parameters: [bundleId, bundleId]).map((rows) {
       return rows.map((row) => StockAdjustment.fromMap(row)).toList();
-    });
-  }
-
-  /// Approve a pending stock adjustment and apply the quantity change to stock.
-  /// This can approve a single adjustment or a whole bundle.
-  Future<void> approveAdjustment({
-    String? adjustmentId,
-    String? bundleId,
-    required String approverId,
-  }) async {
-    await _db.writeTransaction((tx) async {
-      final now = DateTime.now().toUtc().toIso8601String();
-
-      // 1. Find pending adjustments to approve
-      final String whereClause = bundleId != null ? 'bundle_id = ?' : 'id = ?';
-      final dynamic filterVal = bundleId ?? adjustmentId;
-
-      final rows = await tx.getAll(
-        'SELECT * FROM stock_adjustments WHERE $whereClause AND status = ?',
-        [filterVal, 'pending'],
-      );
-
-      for (final row in rows) {
-        final adjId = row['id'];
-        final productId = row['product_id'];
-        final branchId = row['branch_id'];
-        final tenantId = row['tenant_id'];
-        final quantityChange = row['quantity'] as int;
-
-        // 2. Update stock
-        final stockResult = await tx.getAll(
-          'SELECT quantity FROM stock WHERE product_id = ? AND branch_id = ?',
-          [productId, branchId],
-        );
-
-        if (stockResult.isEmpty) {
-          await tx.execute(
-            '''INSERT INTO stock (
-              id, tenant_id, branch_id, product_id, quantity, reorder_level, 
-              last_updated
-            ) VALUES (uuid(), ?, ?, ?, ?, 0, ?)''',
-            [tenantId, branchId, productId, quantityChange, now],
-          );
-        } else {
-          await tx.execute(
-            'UPDATE stock SET quantity = quantity + ?, last_updated = ? WHERE product_id = ? AND branch_id = ?',
-            [quantityChange, now, productId, branchId],
-          );
-        }
-
-        // 3. Update adjustment status
-        await tx.execute(
-          '''UPDATE stock_adjustments 
-             SET status = ?, approved_by = ?, approved_at = ? 
-             WHERE id = ?''',
-          ['approved', approverId, now, adjId],
-        );
-      }
-    });
-  }
-
-  /// Reject a pending stock adjustment.
-  Future<void> rejectAdjustment({
-    String? adjustmentId,
-    String? bundleId,
-    required String rejectorId,
-    String? reason,
-  }) async {
-    await _db.writeTransaction((tx) async {
-      final now = DateTime.now().toUtc().toIso8601String();
-      final String whereClause = bundleId != null ? 'bundle_id = ?' : 'id = ?';
-      final dynamic filterVal = bundleId ?? adjustmentId;
-
-      await tx.execute(
-        '''UPDATE stock_adjustments 
-           SET status = ?, approved_by = ?, approved_at = ?, rejection_reason = ? 
-           WHERE $whereClause AND status = ?''',
-        ['rejected', rejectorId, now, reason, filterVal, 'pending'],
-      );
     });
   }
 
@@ -2971,7 +2909,7 @@ class PowerSyncRepository {
 
   Future<void> updateStockAdjustmentQuantity({
     required String adjustmentId,
-    required int newQuantity,
+    required num newQuantity,
   }) async {
     await _db.execute(
       'UPDATE stock_adjustments SET quantity = ? WHERE id = ?',

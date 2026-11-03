@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -101,3 +102,71 @@ bool updatePromptShown = false;
 final packageInfoProvider = FutureProvider<PackageInfo>(
   (ref) => PackageInfo.fromPlatform(),
 );
+
+enum UpdateDownloadStatus { idle, downloading, installing, error }
+
+class UpdateDownloadState {
+  final UpdateDownloadStatus status;
+  final double progress; // 0..1, indeterminate while 0 and downloading
+  final String? error;
+  const UpdateDownloadState({
+    this.status = UpdateDownloadStatus.idle,
+    this.progress = 0,
+    this.error,
+  });
+}
+
+/// Owns the OTA download/install lifecycle across bottom-sheet open/close, so
+/// progress survives dismissing the sheet and re-tapping never double-starts
+/// the native download (which the plugin reports back as a failure).
+class UpdateDownloadNotifier extends Notifier<UpdateDownloadState> {
+  StreamSubscription<OtaEvent>? _sub;
+
+  @override
+  UpdateDownloadState build() {
+    ref.onDispose(() => _sub?.cancel());
+    return const UpdateDownloadState();
+  }
+
+  void start(String apkUrl) {
+    if (state.status == UpdateDownloadStatus.downloading) return;
+    state = const UpdateDownloadState(status: UpdateDownloadStatus.downloading);
+    _sub?.cancel();
+    _sub = startAppUpdate(apkUrl).listen(
+      (event) {
+        switch (event.status) {
+          case OtaStatus.DOWNLOADING:
+            final p = int.tryParse(event.value ?? '');
+            state = UpdateDownloadState(
+              status: UpdateDownloadStatus.downloading,
+              progress: p == null ? state.progress : p / 100,
+            );
+            break;
+          case OtaStatus.INSTALLING:
+            state = const UpdateDownloadState(
+              status: UpdateDownloadStatus.installing,
+            );
+            break;
+          default:
+            state = const UpdateDownloadState(
+              status: UpdateDownloadStatus.error,
+              error: 'Update failed. Please try again.',
+            );
+        }
+      },
+      onError: (_) {
+        state = const UpdateDownloadState(
+          status: UpdateDownloadStatus.error,
+          error: 'Update failed. Please try again.',
+        );
+      },
+    );
+  }
+
+  void reset() => state = const UpdateDownloadState();
+}
+
+final updateDownloadProvider =
+    NotifierProvider<UpdateDownloadNotifier, UpdateDownloadState>(
+      UpdateDownloadNotifier.new,
+    );

@@ -11,7 +11,7 @@ final _log = AppLogger('SalesService');
 /// [quantity] is the persisted unit count (boxes for sqm-based items),
 /// [unitPrice] is the per-persisted-unit price (per box for sqm), and [total]
 /// is `unitPrice * quantity`.
-typedef InvoiceLine = ({int quantity, double unitPrice, double total});
+typedef InvoiceLine = ({num quantity, double unitPrice, double total});
 
 /// Thin client service that delegates heavy operations to Supabase edge functions.
 ///
@@ -25,23 +25,20 @@ class SalesService {
   /// Single source of truth for invoice line-item pricing — used by the create,
   /// edit and clone screens so totals never drift between them.
   ///
-  /// [enteredPrice] is the per-sqm price for sqm-based items, otherwise the unit
-  /// price. [enteredQty] is the total sqm for sqm-based items, otherwise the
-  /// unit count. sqm quantities are rounded UP to whole boxes.
+  /// Quantities are in units — boxes for sqm-based items, pieces otherwise —
+  /// and [enteredPrice] is that unit's price (per box / per piece). Fractional
+  /// quantities are kept as entered (0.5 = a half unit); rounding here would
+  /// silently disagree with the stock the sale actually decrements.
+  /// sqm coverage is display-only (boxes × coverage) and not needed here.
   static InvoiceLine resolveLine({
-    required bool isSqmBased,
-    required double coveragePerBox,
     required double enteredPrice,
     required double enteredQty,
   }) {
-    if (isSqmBased) {
-      final coverage = coveragePerBox <= 0 ? 1.0 : coveragePerBox;
-      final boxes = (enteredQty / coverage).ceil();
-      final unitPrice = enteredPrice * coverage; // price per box
-      return (quantity: boxes, unitPrice: unitPrice, total: unitPrice * boxes);
-    }
-    final qty = enteredQty.toInt();
-    return (quantity: qty, unitPrice: enteredPrice, total: enteredPrice * qty);
+    return (
+      quantity: enteredQty,
+      unitPrice: enteredPrice,
+      total: enteredPrice * enteredQty,
+    );
   }
 
   /// Ensures the session is fresh before making edge function calls.

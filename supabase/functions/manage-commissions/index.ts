@@ -26,7 +26,9 @@ Deno.serve(async (req: Request) => {
 
         const supabase = createClient(supabaseUrl, serviceRoleKey);
         const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-        const userId = parseJwtUserId(token);
+        // getUser verifies the signature; decoding the payload alone would trust a forged token.
+        const { data: { user } } = await supabase.auth.getUser(token);
+        const userId = user?.id ?? null;
 
         if (!userId) {
             return new Response(JSON.stringify({ error: "Unauthorized" }), {
@@ -151,15 +153,4 @@ function jsonResponse(data: any, status = 200) {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-}
-
-function parseJwtUserId(token: string): string | null {
-    try {
-        const parts = token.split(".");
-        if (parts.length < 2) return null;
-        const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-        return payload?.sub || null;
-    } catch (_) {
-        return null;
-    }
 }

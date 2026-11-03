@@ -7,28 +7,31 @@ final productPricingServiceProvider = Provider(
 
 class ProductPricingService {
   /// Resolves the effective selling price for a product.
-  /// Strategy: Product.basePrice > ItemGroup.defaultSellingPrice > 0.0
+  /// Strategy: ItemGroup.defaultSellingPrice > Product.basePrice > 0.0
+  /// (item-group pricing is authoritative; product price is the fallback).
   double resolveSellingPrice(Product product, ItemGroup? itemGroup) {
-    if (product.basePrice != null && product.basePrice! > 0) {
-      return product.basePrice!;
+    if (itemGroup?.defaultSellingPrice != null &&
+        itemGroup!.defaultSellingPrice! > 0) {
+      return itemGroup.defaultSellingPrice!;
     }
 
-    if (itemGroup != null && itemGroup.defaultSellingPrice != null) {
-      return itemGroup.defaultSellingPrice!;
+    if (product.basePrice != null && product.basePrice! > 0) {
+      return product.basePrice!;
     }
 
     return 0.0;
   }
 
   /// Resolves the effective buying (cost) price for a product.
-  /// Strategy: Product.costPrice > ItemGroup.defaultBuyingPrice > 0.0
+  /// Strategy: ItemGroup.defaultBuyingPrice > Product.costPrice > 0.0
   double resolveBuyingPrice(Product product, ItemGroup? itemGroup) {
-    if (product.costPrice != null && product.costPrice! > 0) {
-      return product.costPrice!;
+    if (itemGroup?.defaultBuyingPrice != null &&
+        itemGroup!.defaultBuyingPrice! > 0) {
+      return itemGroup.defaultBuyingPrice!;
     }
 
-    if (itemGroup != null && itemGroup.defaultBuyingPrice != null) {
-      return itemGroup.defaultBuyingPrice!;
+    if (product.costPrice != null && product.costPrice! > 0) {
+      return product.costPrice!;
     }
 
     return 0.0;

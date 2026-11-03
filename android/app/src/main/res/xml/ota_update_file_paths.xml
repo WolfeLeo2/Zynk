@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Exposes the internal dir ota_update downloads the APK into (dataDir/files/ota_update)
+     via FileProvider so the install intent can read it (content:// not file://). -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="ota_update" path="ota_update/" />
+</paths>

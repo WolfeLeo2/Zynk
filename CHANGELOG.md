@@ -1,5 +1,256 @@
 # Changelog
 
+## [1.10.1](https://github.com/WolfeLeo2/Zynk/compare/v1.10.0...v1.10.1) (2026-08-08)
+
+
+### Bug Fixes
+
+* stock adjustment history and provider disposal during cloning ([79153d5](https://github.com/WolfeLeo2/Zynk/commit/79153d5f5833a0ed3d50501b17c42b1e549e4717))
+
+## [1.10.0](https://github.com/WolfeLeo2/Zynk/compare/v1.9.3...v1.10.0) (2026-08-03)
+
+
+### Features
+
+* enabled audit trail for transaction history ([34f5acc](https://github.com/WolfeLeo2/Zynk/commit/34f5accc031d27826497388cd08f7c4d17162686))
+
+## [1.9.3](https://github.com/WolfeLeo2/Zynk/compare/v1.9.2...v1.9.3) (2026-08-03)
+
+
+### Bug Fixes
+
+* allowed fractional values for sales and stock ([38ad229](https://github.com/WolfeLeo2/Zynk/commit/38ad229b7761459feadc4f615b2c36ea9a2a3c5e))
+
+## [1.9.2](https://github.com/WolfeLeo2/Zynk/compare/v1.9.1...v1.9.2) (2026-07-15)
+
+
+### Bug Fixes
+
+* routing ([09b5504](https://github.com/WolfeLeo2/Zynk/commit/09b55045277ab0e9455305f432424c8f70877ab8))
+
+## [1.9.1](https://github.com/WolfeLeo2/Zynk/compare/v1.9.0...v1.9.1) (2026-07-15)
+
+
+### Bug Fixes
+
+* fixed page route for item group details ([79dbe09](https://github.com/WolfeLeo2/Zynk/commit/79dbe09063d5788a7dfca1ec5e92f591227d15fe))
+
+## [1.9.0](https://github.com/WolfeLeo2/Zynk/compare/v1.8.2...v1.9.0) (2026-07-13)
+
+
+### Features
+
+* more robust branch and product seeding ([17ff57d](https://github.com/WolfeLeo2/Zynk/commit/17ff57d6279b7a56d4f581331696bb76edbe0fe0))
+
+## [1.8.2](https://github.com/WolfeLeo2/Zynk/compare/v1.8.1...v1.8.2) (2026-07-13)
+
+
+### Bug Fixes
+
+* **bug:** removed duplicates and heavily guarded against duplicate files ([e370d3f](https://github.com/WolfeLeo2/Zynk/commit/e370d3f9f5a32dd2676802ac92ee609a60434b86))
+
+## [1.8.1](https://github.com/WolfeLeo2/Zynk/compare/v1.8.0...v1.8.1) (2026-07-12)
+
+
+### Bug Fixes
+
+* fixed release build failure due to gradle upgrade ([e7f325e](https://github.com/WolfeLeo2/Zynk/commit/e7f325ee5522863937123aec0fec53ab297af327))
+
+## [1.8.0](https://github.com/WolfeLeo2/Zynk/compare/v1.7.1...v1.8.0) (2026-07-12)
+
+
+### Features
+
+* Boxes become main unit, with sqm as the subtext ([8d3939d](https://github.com/WolfeLeo2/Zynk/commit/8d3939dab30d19c03184d75b9bd008fce7dd8096))
+
+## [1.7.1](https://github.com/WolfeLeo2/Zynk/compare/v1.7.0...v1.7.1) (2026-07-10)
+
+
+### Bug Fixes
+
+* random commit ([5ab478f](https://github.com/WolfeLeo2/Zynk/commit/5ab478f16f74956652c09cc5171405cebaeadf22))
+
+## [1.7.0](https://github.com/WolfeLeo2/Zynk/compare/v1.6.3...v1.7.0) (2026-07-06)
+
+
+### Features
+
+* show affected branches on Stock Adjustment screen ([1029b8c](https://github.com/WolfeLeo2/Zynk/commit/1029b8c9ce6ec213a14276bd0ea62ea2da58c184))
+
+## [1.6.3](https://github.com/WolfeLeo2/Zynk/compare/v1.6.2...v1.6.3) (2026-07-06)
+
+
+### Bug Fixes
+
+* added product seeding for new items via csv ([a58b3d8](https://github.com/WolfeLeo2/Zynk/commit/a58b3d8d1dd707a11e5096165b8d135a0e99c12d))
+
+## [1.6.2](https://github.com/WolfeLeo2/Zynk/compare/v1.6.1...v1.6.2) (2026-07-06)
+
+
+### Bug Fixes
+
+* updated the bottomsheets for a better ui ([d557858](https://github.com/WolfeLeo2/Zynk/commit/d5578585762c74473cb5fdf3130b993f83ab004f))
+
+## [1.6.1](https://github.com/WolfeLeo2/Zynk/compare/v1.6.0...v1.6.1) (2026-07-06)
+
+
+### Bug Fixes
+
+* changed up the adjustment screen UI ([6e43784](https://github.com/WolfeLeo2/Zynk/commit/6e43784b8a435f7396ef89330b3de3e1532d3642))
+* random commit to instantiate a build ([d870a3d](https://github.com/WolfeLeo2/Zynk/commit/d870a3dfb4329c08eac959653a1f5f3bf66265b9))
+
+## [1.6.0](https://github.com/WolfeLeo2/Zynk/compare/v1.5.3...v1.6.0) (2026-07-06)
+
+
+### Features
+
+* updated csv import service ([d1a298a](https://github.com/WolfeLeo2/Zynk/commit/d1a298a64b66a6bc2712bff8052fa4c98d78a6be))
+
+
+### Bug Fixes
+
+* changed up the adjustment screen UI ([d1a298a](https://github.com/WolfeLeo2/Zynk/commit/d1a298a64b66a6bc2712bff8052fa4c98d78a6be))
+
+## [1.5.3](https://github.com/WolfeLeo2/Zynk/compare/v1.5.2...v1.5.3) (2026-07-04)
+
+
+### Bug Fixes
+
+* **bug:** enforced stricter item group for sales from a lazy loader ([99e55d8](https://github.com/WolfeLeo2/Zynk/commit/99e55d85fa118f50d72bd5c3b4b26fed229acd24))
+* **schema:** changed stock from int to num to account for both doubles and int ([99e55d8](https://github.com/WolfeLeo2/Zynk/commit/99e55d85fa118f50d72bd5c3b4b26fed229acd24))
+
+## [1.5.2](https://github.com/WolfeLeo2/Zynk/compare/v1.5.1...v1.5.2) (2026-07-04)
+
+
+### Bug Fixes
+
+* **bug:** enforced stricter item group for sales from a lazy loader ([0f616c5](https://github.com/WolfeLeo2/Zynk/commit/0f616c59f449e68c53ba282fc9047588b411c5ad))
+* **schema:** changed stock from int to num to account for both doubles and int ([0f616c5](https://github.com/WolfeLeo2/Zynk/commit/0f616c59f449e68c53ba282fc9047588b411c5ad))
+
+## [1.5.1](https://github.com/WolfeLeo2/Zynk/compare/v1.5.0...v1.5.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* bamboozled the bugs ([5419aab](https://github.com/WolfeLeo2/Zynk/commit/5419aabd642ef5274653c3b300fedacbdd3f71b9))
+
+## [1.5.0](https://github.com/WolfeLeo2/Zynk/compare/v1.4.1...v1.5.0) (2026-07-02)
+
+
+### Features
+
+* added more filtering choices for the stock report ([c72b1e9](https://github.com/WolfeLeo2/Zynk/commit/c72b1e9b301ae6ecb5fd77c47536dcf13c9e9d19))
+
+
+### Bug Fixes
+
+* updated powersync dependencies for the web ([c72b1e9](https://github.com/WolfeLeo2/Zynk/commit/c72b1e9b301ae6ecb5fd77c47536dcf13c9e9d19))
+
+## [1.4.1](https://github.com/WolfeLeo2/Zynk/compare/v1.4.0...v1.4.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **bug:** edit invoice also adds price field ([900a4eb](https://github.com/WolfeLeo2/Zynk/commit/900a4eb4623406f87fed1dca0feb134e404c4ac8))
+* **ui:** using markdown to render update details, product_selection_sheet now shows item price ([900a4eb](https://github.com/WolfeLeo2/Zynk/commit/900a4eb4623406f87fed1dca0feb134e404c4ac8))
+
+## [1.4.0](https://github.com/WolfeLeo2/Zynk/compare/v1.3.7...v1.4.0) (2026-07-02)
+
+
+### Features
+
+* **ui:** replaced segmentedbuttons with m3e buton segment, changed item group card ([6375b72](https://github.com/WolfeLeo2/Zynk/commit/6375b727a4b97fc42aca760289f1d2af1b2df8e1))
+
+
+### Bug Fixes
+
+* **ui:** updated apptheme with listtile data, fixed double padding for POS ticket modal, fixed customer form, changed dropdown to use row ([6375b72](https://github.com/WolfeLeo2/Zynk/commit/6375b727a4b97fc42aca760289f1d2af1b2df8e1))
+
+## [1.3.7](https://github.com/WolfeLeo2/Zynk/compare/v1.3.6...v1.3.7) (2026-07-02)
+
+
+### Bug Fixes
+
+* **ui:** shows logo on app drawer and setting tile ([0877f95](https://github.com/WolfeLeo2/Zynk/commit/0877f9532e7d2b27d4336c02b6474cc65447a496))
+
+## [1.3.6](https://github.com/WolfeLeo2/Zynk/compare/v1.3.5...v1.3.6) (2026-07-01)
+
+
+### Bug Fixes
+
+* random commit ([5017d05](https://github.com/WolfeLeo2/Zynk/commit/5017d05ebacc88b09e47db6ff93d538c4ed1d530))
+
+## [1.3.5](https://github.com/WolfeLeo2/Zynk/compare/v1.3.4...v1.3.5) (2026-07-01)
+
+
+### Bug Fixes
+
+* **update bug:** added persistent progress for updates, fix app crash from installing intent ([d8e825b](https://github.com/WolfeLeo2/Zynk/commit/d8e825bdf8cac3552a33c21350d6357dd2e22980))
+
+## [1.3.4](https://github.com/WolfeLeo2/Zynk/compare/v1.3.3...v1.3.4) (2026-07-01)
+
+
+### Bug Fixes
+
+* **startup:** show a diagnostic error screen instead of a blank screen ([5ed5c2d](https://github.com/WolfeLeo2/Zynk/commit/5ed5c2d551d95810030afca2a3d9e603d84e8c18))
+
+## [1.3.3](https://github.com/WolfeLeo2/Zynk/compare/v1.3.2...v1.3.3) (2026-07-01)
+
+
+### Bug Fixes
+
+* **release bug:** update github actions to see which env vars fail ([4b90661](https://github.com/WolfeLeo2/Zynk/commit/4b90661213f64484a73a8dd4147a9c2fde368f3b))
+
+## [1.3.2](https://github.com/WolfeLeo2/Zynk/compare/v1.3.1...v1.3.2) (2026-07-01)
+
+
+### Bug Fixes
+
+* bump desugaring to 2.1.5 ([5ac0fab](https://github.com/WolfeLeo2/Zynk/commit/5ac0fabb81f41b12e522cf89d388a04fc589d489))
+* random commit ([48c3b2f](https://github.com/WolfeLeo2/Zynk/commit/48c3b2f25e21a6aa179efd4ac89b072798876db2))
+* random commit ([a78d951](https://github.com/WolfeLeo2/Zynk/commit/a78d951e5face63f531171d6f8d39556d58cc66a))
+* random commit ([b8f8c87](https://github.com/WolfeLeo2/Zynk/commit/b8f8c87d5a937173cfa8dd2c251778f96ea9a6c8))
+
+## [1.3.1](https://github.com/WolfeLeo2/Zynk/compare/v1.3.0...v1.3.1) (2026-07-01)
+
+
+### Bug Fixes
+
+* enabled desugaring. ([232bcd1](https://github.com/WolfeLeo2/Zynk/commit/232bcd1fecafd8ffe69235cec7b58e82dab7d4d2))
+
+## [1.3.0](https://github.com/WolfeLeo2/Zynk/compare/v1.2.0...v1.3.0) (2026-07-01)
+
+
+### Features
+
+* added a self updating check to close sharing gap ([c3a3ca8](https://github.com/WolfeLeo2/Zynk/commit/c3a3ca82edc0d39fb8a0c468122a82e20dd9f67e))
+* **auth:** lock on cold start + password-login escape; refresh plan ([dac05be](https://github.com/WolfeLeo2/Zynk/commit/dac05be30e3bf23a37a1290cc331d07a524b548d))
+* **auth:** owner self-PIN tile + shared SetPinDialog ([5ac1d77](https://github.com/WolfeLeo2/Zynk/commit/5ac1d7767adeea4827d730723d2532f5f449644d))
+* **auth:** PIN-based staff session — Phase 1 foundation ([22107b1](https://github.com/WolfeLeo2/Zynk/commit/22107b154295d61144e0f98ca7af81a5c89bfe93))
+* **auth:** PIN-based staff session — Phase 2 (owner set-PIN UI) ([5b7b91c](https://github.com/WolfeLeo2/Zynk/commit/5b7b91c3c804421c0562c00a5a74399d0b9175b7))
+* **auth:** PIN-based staff session — Phase 3 (lock screen + auto-lock) ([9aae167](https://github.com/WolfeLeo2/Zynk/commit/9aae1671fae54ac2b4b4d12bddf306331901d1c3))
+* **auth:** PIN-based staff session — Phase 5 (login lockout + has-PIN flag) ([5cb1b71](https://github.com/WolfeLeo2/Zynk/commit/5cb1b7197ea236049cc0874c025aca59555e5427))
+* **pos:** show salesperson tile on the ticket + add stock_review.md ([847e758](https://github.com/WolfeLeo2/Zynk/commit/847e758cab460fed61cab780addb464b2159f1a0))
+* **sales:** salesperson = current logged-in profile (retire staff_members input) ([cbd792e](https://github.com/WolfeLeo2/Zynk/commit/cbd792ee39c0e432952b4438912a239f7d65fb59))
+* **update:** in-app auto-update from GitHub Releases (Android) ([37964c0](https://github.com/WolfeLeo2/Zynk/commit/37964c0f4a09cdc7b86d7dbe99b608a6ca4f52ba))
+
+
+### Bug Fixes
+
+* **errors:** surface user-facing messages, not raw HTTP codes ([6d3fc77](https://github.com/WolfeLeo2/Zynk/commit/6d3fc77930ccc512e03b6745e93ae5bb3343fb9f))
+* **expenses:** crash in Log Expense category dropdown (value count != 1) ([4f425f6](https://github.com/WolfeLeo2/Zynk/commit/4f425f69250831fdc26093e904d52d3af95795be))
+* new invoice UI and better edit/clone invoice with ability to add products and see stock ([ca80f68](https://github.com/WolfeLeo2/Zynk/commit/ca80f68424851f5f18e4a97ad95a92e0e19a53d1))
+* **sync:** add expenses + expense_categories to sync rules ([45292c9](https://github.com/WolfeLeo2/Zynk/commit/45292c9c5cafbe1878f6df0106ae6b9d559868fd))
+* **sync:** synthesize id for snapshot tables in sync rules ([74c028c](https://github.com/WolfeLeo2/Zynk/commit/74c028c47be6498b534e9935fc863b4af3f0e108))
+
+## [1.2.0](https://github.com/WolfeLeo2/Zynk/compare/v1.1.5...v1.2.0) (2026-06-24)
+
+
+### Features
+
+* critical fixes from the review doc (all marked as resolved). Responsive changes (shared util to render either bottomsheet or alert dialogue depending on screen size) ([06bba25](https://github.com/WolfeLeo2/Zynk/commit/06bba25c503fe93c24de8245dd4cade0838fefb7))
+* critical fixes from the review doc (all marked as resolved). Responsive changes (shared util to render either bottomsheet or alert dialogue depending on screen size) ([3ede1cd](https://github.com/WolfeLeo2/Zynk/commit/3ede1cda18b7aae89cd4b07ba48318ca8262497d))
+
 ## [1.1.5](https://github.com/WolfeLeo2/Zynk/compare/v1.1.4...v1.1.5) (2026-06-15)
 
 

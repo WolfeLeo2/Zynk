@@ -285,7 +285,8 @@ final stockResult = await repo.db.getAll(
 **Where:** `reports_screen.dart` L317; `add_staff_screen.dart` L534-560; `edit_invoice_screen.dart` L266-280; `add_product_screen.dart` L505/L826. Violates the shimmer-only loading standard.
 
 ### P3-3. Hardcoded colors instead of `colorScheme`
-**Where:** `add_product_screen.dart` L1204 (`Colors.white`); `sale_detail_screen.dart` (pervasive `Colors.green/red/orange`, `Color(0xFFFFA726)`, `Color(0xFF66BB6A)` at L964-1037, L1224-1332, L2257); `reports_screen.dart` L383-816; `add_staff_screen.dart` L684-711; `inventory_adjustment_screen.dart` L728/L1014/L1055. Breaks dark mode; `AGENTS.md` requires theme tokens via `colorScheme`.
+**Where:** `add_product_screen.dart` L1204 (`Colors.white`); `sale_detail_screen.dart` (pervasive `Colors.green/red/orange`, `Color(0xFFFFA726)`, `Color(0xFF66BB6A)` at L964-1037, L1224-1332, L2257); `reports_screen.dart` L383-816; `add_staff_screen.dart` L684-711; ~~`inventory_adjustment_screen.dart` L728/L1014/L1055~~. Breaks dark mode; `AGENTS.md` requires theme tokens via `colorScheme`.
+**🟡 Partially resolved (2026-07-04):** inventory-adjustment surfaces done — spinner `Colors.white` → `colorScheme.onPrimary`, delta `Colors.red` → `colorScheme.error`, and the one remaining `Colors.green` (stock-increase indicator) centralized into a single `stockDeltaColor(cs, delta)` helper in `batch_item_card.dart` with a `ponytail:` marker (no theme "success" token exists; promote to a `ThemeExtension` if more surfaces need it). Other files (`sale_detail_screen`, `reports_screen`, `add_staff_screen`, `add_product_screen`) still open.
 
 ### P3-4. Swallowed exceptions / `firstWhere` + empty `catch`
 **Where:** `sale_detail_screen.dart` L500-519, L2057 (`catch (_) {}`); `statusEnforcerProvider` (`profile_provider.dart` L59-70) fires `signOut()` fire-and-forget and ignores error/loading; `add_product_screen.dart` L506/L806 hides load failures.

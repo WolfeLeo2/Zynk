@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
 
 /// Small live "in stock: N" indicator for an invoice/cart line item.
@@ -33,7 +34,7 @@ class StockAvailabilityLabel extends ConsumerWidget {
     final color = qty <= 0
         ? cs.error
         : (qty <= reorder ? Colors.orange : cs.primary);
-    final label = qty <= 0 ? 'Out of stock' : 'In stock: $qty';
+    final label = qty <= 0 ? 'Out of stock' : 'In stock: ${formatQty(qty)}';
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),

@@ -5,6 +5,7 @@ import 'package:zynk/core/models/schema_models.dart';
 import 'package:zynk/core/models/user_role.dart';
 import 'package:zynk/core/providers/app_providers.dart';
 import 'package:zynk/core/providers/profile_provider.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/features/products/presentation/providers/inventory_providers.dart';
 import 'package:intl/intl.dart';
 import 'package:shimmer/shimmer.dart';
@@ -66,9 +67,16 @@ class AdjustmentDetailScreen extends ConsumerWidget {
           StockAdjustmentStatus.rejected => ('Rejected', colorScheme.error),
         };
         final productIds = items.map((i) => i.productId).toList()..sort();
-        final branchId = first.branchId;
-        final stockKey = '$branchId:${productIds.join(',')}';
+        final stockKey = productIds.join(',');
         final stockAsync = ref.watch(adjustmentStockLevelsProvider(stockKey));
+
+        // When a bundle fanned out across branches, label each row with its
+        // branch (the same product appears once per branch, with its own
+        // before/after). Single-branch bundles show no label.
+        final branches = ref.watch(branchesProvider).value ?? const [];
+        final branchNames = {for (final b in branches) b.id: b.name};
+        final isMultiBranch =
+            items.map((i) => i.branchId).toSet().length > 1;
 
         final profile = ref.watch(currentUserProfileProvider).value;
         final canApprove =
@@ -140,13 +148,14 @@ class AdjustmentDetailScreen extends ConsumerWidget {
             body: ListView(
               padding: const EdgeInsets.all(20),
               children: [
-                _MetadataSection(adjustment: first),
+                _MetadataSection(items: items),
                 const SizedBox(height: 32),
                 _ItemsSection(
                   items: items,
                   stockLevels: stockAsync.value,
                   isLoadingStock:
                       stockAsync.isLoading && stockAsync.value == null,
+                  branchNames: isMultiBranch ? branchNames : const {},
                   // Any user may edit a pending adjustment's quantities (a local,
                   // tenant-scoped write). Approve/unapprove/reject/delete stay
                   // gated by `canApprove` via the popup menu above.
@@ -198,40 +207,48 @@ class _StatusBadge extends StatelessWidget {
 }
 
 class _MetadataSection extends ConsumerWidget {
-  final StockAdjustment adjustment;
-  const _MetadataSection({required this.adjustment});
+  final List<StockAdjustment> items;
+  const _MetadataSection({required this.items});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final first = items.first;
     final branches = ref.watch(branchesProvider).value ?? [];
-    final branchName = branches
-        .firstWhere(
-          (b) => b.id == adjustment.branchId,
-          orElse: () => Branch(
-            id: adjustment.branchId,
-            tenantId: '',
-            name: adjustment.branchId,
-          ),
-        )
-        .name;
+    final branchIds = items.map((i) => i.branchId).toSet();
+    final branchNames = branchIds.map((id) {
+      return branches
+          .firstWhere(
+            (b) => b.id == id,
+            orElse: () => Branch(
+              id: id,
+              tenantId: '',
+              name: id,
+            ),
+          )
+          .name;
+    }).toList();
+
+    final branchLabel = branchNames.length > 1 ? 'Branches' : 'Branch';
+    final branchValue =
+        branchNames.isNotEmpty ? branchNames.join(', ') : 'Unknown';
 
     return Column(
       children: [
         _MetaItem(
           label: 'Reference',
           value:
-              (adjustment.referenceNumber != null &&
-                  adjustment.referenceNumber!.isNotEmpty)
-              ? adjustment.referenceNumber!
-              : 'ADJ-${adjustment.bundleId?.substring(0, 5).toUpperCase() ?? adjustment.id.substring(0, 5).toUpperCase()}',
+              (first.referenceNumber != null &&
+                  first.referenceNumber!.isNotEmpty)
+              ? first.referenceNumber!
+              : 'ADJ-${first.bundleId?.substring(0, 5).toUpperCase() ?? first.id.substring(0, 5).toUpperCase()}',
         ),
-        _MetaItem(label: 'Account', value: adjustment.adjusterName ?? 'System'),
+        _MetaItem(label: 'Account', value: first.adjusterName ?? 'System'),
         _MetaItem(
           label: 'Adjusted By',
-          value: adjustment.staffName ?? adjustment.adjusterName ?? 'System',
+          value: first.staffName ?? first.adjusterName ?? 'System',
         ),
         _MetaItem(label: 'Adjustment Type', value: 'Quantity'),
-        _MetaItem(label: 'Branch', value: branchName),
+        _MetaItem(label: branchLabel, value: branchValue),
       ],
     );
   }
@@ -277,15 +294,19 @@ class _MetaItem extends StatelessWidget {
 
 class _ItemsSection extends StatelessWidget {
   final List<StockAdjustment> items;
-  final Map<String, int>? stockLevels;
+  final Map<String, num>? stockLevels;
   final bool isLoadingStock;
   final bool canEdit;
+
+  /// branchId → branch name; empty when the bundle is single-branch (no label).
+  final Map<String, String> branchNames;
 
   const _ItemsSection({
     required this.items,
     required this.stockLevels,
     required this.isLoadingStock,
     required this.canEdit,
+    this.branchNames = const {},
   });
 
   @override
@@ -316,23 +337,28 @@ class _ItemsSection extends StatelessWidget {
               );
             }
 
-            final currentStock = stockLevels![item.productId] ?? 0;
+            final currentStock =
+                stockLevels!['${item.branchId}:${item.productId}'] ?? 0;
 
             final isApproved = item.status == StockAdjustmentStatus.approved;
 
-            final int previousStock;
-            final int newStock;
+            final num? previousStock;
+            final num? newStock;
 
-            if (isApproved && item.previousQuantity != null) {
+            if (item.previousQuantity != null) {
               previousStock = item.previousQuantity!;
               newStock = item.previousQuantity! + item.quantity;
+            } else if (isApproved) {
+              // Approved before previous_quantity was recorded (pre May 2026).
+              // Today's stock has moved on since, so back-computing a "before"
+              // invents a figure — often a negative one. Show only the delta.
+              previousStock = null;
+              newStock = null;
             } else {
-              previousStock = isApproved
-                  ? (currentStock - item.quantity)
-                  : currentStock;
-              newStock = isApproved
-                  ? currentStock
-                  : (previousStock + item.quantity);
+              // Still pending: nothing has been applied, so current stock IS
+              // the before, and the after is a projection.
+              previousStock = currentStock;
+              newStock = currentStock + item.quantity;
             }
 
             return _AdjustmentItemRow(
@@ -341,6 +367,7 @@ class _ItemsSection extends StatelessWidget {
               newStock: newStock,
               canEdit: canEdit,
               isLoading: false,
+              branchName: branchNames[item.branchId],
             );
           },
         ),
@@ -351,10 +378,11 @@ class _ItemsSection extends StatelessWidget {
 
 class _AdjustmentItemRow extends StatelessWidget {
   final StockAdjustment item;
-  final int previousStock;
-  final int newStock;
+  final num? previousStock;
+  final num? newStock;
   final bool canEdit;
   final bool isLoading;
+  final String? branchName;
 
   const _AdjustmentItemRow({
     required this.item,
@@ -362,6 +390,7 @@ class _AdjustmentItemRow extends StatelessWidget {
     required this.newStock,
     required this.canEdit,
     this.isLoading = false,
+    this.branchName,
   });
 
   @override
@@ -404,6 +433,24 @@ class _AdjustmentItemRow extends StatelessWidget {
                     color: colorScheme.onSurfaceVariant,
                   ),
                 ),
+                if (branchName != null) ...[
+                  const SizedBox(height: 6),
+                  Chip(
+                    label: Text(branchName!),
+                    labelStyle: textTheme.labelSmall?.copyWith(
+                      color: colorScheme.onSecondaryContainer,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    backgroundColor: colorScheme.secondaryContainer,
+                    side: BorderSide.none,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    padding: EdgeInsets.zero,
+                    visualDensity: VisualDensity.compact,
+                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ],
               ],
             ),
           ),
@@ -445,12 +492,13 @@ class _AdjustmentItemRow extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          '$previousStock → $newStock',
-                          style: textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.bold,
+                        if (previousStock != null && newStock != null)
+                          Text(
+                            '${formatQty(previousStock!)} → ${formatQty(newStock!)}',
+                            style: textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
                         if (canEdit) ...[
                           const SizedBox(width: 8),
                           _EditQuantityButton(adjustment: item),
@@ -458,7 +506,7 @@ class _AdjustmentItemRow extends StatelessWidget {
                       ],
                     ),
                     Text(
-                      '${item.quantity > 0 ? '+' : ''}${item.quantity}',
+                      '${item.quantity > 0 ? '+' : ''}${formatQty(item.quantity)}',
                       style: textTheme.bodySmall?.copyWith(
                         color: item.quantity > 0 ? Colors.green : Colors.red,
                         fontWeight: FontWeight.bold,
@@ -489,16 +537,19 @@ class _EditQuantityButton extends ConsumerWidget {
 
   Future<void> _showEditDialog(BuildContext context, WidgetRef ref) async {
     final controller = TextEditingController(
-      text: adjustment.quantity.toString(),
+      text: formatQtyInput(adjustment.quantity),
     );
 
-    final newQty = await showDialog<int>(
+    final newQty = await showDialog<num>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edit Quantity'),
         content: TextField(
           controller: controller,
-          keyboardType: TextInputType.number,
+          keyboardType: const TextInputType.numberWithOptions(
+            decimal: true,
+            signed: true,
+          ),
           decoration: const InputDecoration(
             labelText: 'New Adjustment Quantity',
             helperText: 'Positive for addition, negative for reduction',
@@ -512,7 +563,7 @@ class _EditQuantityButton extends ConsumerWidget {
           ),
           ElevatedButton(
             onPressed: () =>
-                Navigator.pop(context, int.tryParse(controller.text)),
+                Navigator.pop(context, double.tryParse(controller.text)),
             child: const Text('Save'),
           ),
         ],

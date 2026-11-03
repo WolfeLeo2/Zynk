@@ -172,14 +172,9 @@ class ExpensesScreen extends ConsumerWidget {
     showResponsiveModal(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(28)),
-        ),
-        child: const LogExpenseSheet(),
-      ),
+      showDragHandle: true,
+      useSafeArea: true,
+      builder: (context) => const LogExpenseSheet(),
     );
   }
 }

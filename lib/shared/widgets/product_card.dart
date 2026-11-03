@@ -10,6 +10,7 @@ import 'package:zynk/features/products/presentation/providers/product_providers.
 import 'package:zynk/features/pos/providers/cart_provider.dart';
 import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 class SharedProductCard extends ConsumerWidget {
@@ -43,7 +44,7 @@ class SharedProductCard extends ConsumerWidget {
 
     // Cart details (only if requested)
     bool isInCart = false;
-    int qtyInCart = 0;
+    num qtyInCart = 0;
 
     if (showCartBadges) {
       final cartItems = ref
@@ -52,7 +53,7 @@ class SharedProductCard extends ConsumerWidget {
           .where((i) => i.product.id == product.id)
           .toList();
       isInCart = cartItems.isNotEmpty;
-      qtyInCart = cartItems.fold<int>(0, (sum, i) => sum + i.quantity);
+      qtyInCart = cartItems.fold<num>(0, (sum, i) => sum + i.quantity);
     }
 
     return Card(
@@ -65,7 +66,9 @@ class SharedProductCard extends ConsumerWidget {
             )
           : null,
       child: InkWell(
-        onTap: isOutOfStock ? null : onTap,
+        // Out-of-stock only blocks the add-to-cart (POS) context; browsing to
+        // details must always work.
+        onTap: (isOutOfStock && showCartBadges) ? null : onTap,
         borderRadius: AppTokens.roundedCard,
         child: Stack(
           children: [
@@ -120,7 +123,9 @@ class SharedProductCard extends ConsumerWidget {
                                 const SizedBox(width: 4),
                                 Expanded(
                                   child: Text(
-                                    qty > 0 ? '$qty in stock' : 'Out of stock',
+                                    qty > 0
+                                        ? '${formatQty(qty)} in stock'
+                                        : 'Out of stock',
                                     style: textTheme.labelSmall?.copyWith(
                                       color: isLowStock
                                           ? colorScheme.error
@@ -153,18 +158,46 @@ class SharedProductCard extends ConsumerWidget {
                           final pricingService = ref.watch(
                             productPricingServiceProvider,
                           );
-                          final resolvedPrice = pricingService
-                              .resolveSellingPrice(product, group);
                           final isSqm =
                               pricingService.resolvePricingUnit(
                                 product,
                                 group,
                               ) ==
                               'sqm';
+                          if (isSqm) {
+                            // Box is the primary unit; per-sqm shown beneath.
+                            final perBox = pricingService.resolvePricePerBox(
+                              product,
+                              group,
+                            );
+                            final perSqm = pricingService.resolvePricePerSqm(
+                              product,
+                              group,
+                            );
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  '${CurrencyHelper.format(perBox)}/box',
+                                  style: textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                    color: colorScheme.primary,
+                                  ),
+                                ),
+                                Text(
+                                  '${CurrencyHelper.format(perSqm)}/sqm',
+                                  style: textTheme.labelSmall?.copyWith(
+                                    color: colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            );
+                          }
                           return Text(
-                            isSqm
-                                ? '${CurrencyHelper.format(resolvedPrice)}/sqm'
-                                : CurrencyHelper.format(resolvedPrice),
+                            CurrencyHelper.format(
+                              pricingService.resolveSellingPrice(product, group),
+                            ),
                             style: textTheme.titleMedium?.copyWith(
                               fontWeight: FontWeight.w900,
                               color: colorScheme.primary,
@@ -183,7 +216,7 @@ class SharedProductCard extends ConsumerWidget {
                 right: 12,
                 child: Badge(
                   label: Text(
-                    '$qtyInCart',
+                    formatQty(qtyInCart),
                     style: textTheme.labelSmall?.copyWith(
                       color: colorScheme.onPrimary,
                       fontWeight: FontWeight.bold,

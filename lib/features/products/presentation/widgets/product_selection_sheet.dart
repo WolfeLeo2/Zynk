@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:zynk/core/models/schema_models.dart';
+import 'package:zynk/core/services/product_pricing_service.dart';
 import 'package:zynk/core/utils/currency.dart';
+import 'package:zynk/core/utils/quantity.dart';
 import 'package:zynk/core/utils/responsive_modal.dart';
 import 'package:zynk/features/products/presentation/providers/product_providers.dart';
-import 'package:zynk/core/services/product_pricing_service.dart';
+import 'package:zynk/shared/widgets/app_bottom_sheet.dart';
 
 class ProductSelectionSheet extends ConsumerStatefulWidget {
   final List<Product> availableProducts;
@@ -41,8 +43,7 @@ class ProductSelectionSheet extends ConsumerStatefulWidget {
       _ProductSelectionSheetState();
 }
 
-class _ProductSelectionSheetState
-    extends ConsumerState<ProductSelectionSheet> {
+class _ProductSelectionSheetState extends ConsumerState<ProductSelectionSheet> {
   late final Set<String> _selectedIds;
   final _searchCtrl = TextEditingController();
   String _searchQuery = '';
@@ -79,166 +80,135 @@ class _ProductSelectionSheetState
     final cs = theme.colorScheme;
     final filtered = _filtered;
 
-    return DraggableScrollableSheet(
-      expand: false,
-      initialChildSize: 0.85,
-      minChildSize: 0.5,
-      maxChildSize: 0.95,
-      builder: (_, scrollController) {
-        return Column(
-          children: [
-            // ── Header ──────────────────────────────────────────
+    return AppBottomSheet(
+      title: 'Add Items',
+      icon: PhosphorIconsDuotone.package,
+      maxHeightFactor: 0.5,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (_selectedIds.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 12, 8),
-              child: Row(
-                children: [
-                  Expanded(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                '${_selectedIds.length} selected',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: cs.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+
+          // ── Search ──────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Search by name or SKU...',
+                prefixIcon: const PhosphorIcon(
+                  PhosphorIconsRegular.magnifyingGlass,
+                  size: 18,
+                ),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const PhosphorIcon(
+                          PhosphorIconsRegular.x,
+                          size: 16,
+                        ),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                filled: true,
+                fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+              ),
+            ),
+          ),
+
+          const Divider(height: 1),
+
+          // ── Product List ─────────────────────────────────────
+          Expanded(
+            child: filtered.isEmpty
+                ? Center(
                     child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        PhosphorIcon(
+                          PhosphorIconsDuotone.magnifyingGlass,
+                          size: 48,
+                          color: cs.onSurfaceVariant.withValues(alpha: 0.4),
+                        ),
+                        const SizedBox(height: 12),
                         Text(
-                          'Add Items',
-                          style: theme.textTheme.titleLarge?.copyWith(
-                            fontWeight: FontWeight.bold,
+                          'No items match your search',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: cs.onSurfaceVariant,
                           ),
                         ),
-                        if (_selectedIds.isNotEmpty)
-                          Text(
-                            '${_selectedIds.length} selected',
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.primary,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
                       ],
                     ),
+                  )
+                : ListView.builder(
+                    itemCount: filtered.length,
+                    itemBuilder: (context, index) {
+                      final product = filtered[index];
+                      return _ProductSelectionTile(
+                        product: product,
+                        isSelected: _selectedIds.contains(product.id),
+                        branchId: widget.branchId,
+                        onToggle: (selected, stock) {
+                          final isOutOfStock =
+                              !product.isService && (stock ?? 0) <= 0;
+                          if (isOutOfStock) return; // guard
+                          setState(() {
+                            if (selected) {
+                              _selectedIds.add(product.id);
+                            } else {
+                              _selectedIds.remove(product.id);
+                            }
+                          });
+                        },
+                      );
+                    },
                   ),
-                  FilledButton(
-                    onPressed: () => Navigator.pop(context, _selectedIds),
-                    child: const Text('Add Selected'),
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const PhosphorIcon(PhosphorIconsRegular.x),
-                  ),
-                ],
-              ),
-            ),
+          ),
 
-            // ── Search ──────────────────────────────────────────
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-              child: TextField(
-                controller: _searchCtrl,
-                decoration: InputDecoration(
-                  hintText: 'Search by name or SKU...',
-                  prefixIcon: const PhosphorIcon(
-                    PhosphorIconsRegular.magnifyingGlass,
-                    size: 18,
-                  ),
-                  suffixIcon: _searchQuery.isNotEmpty
-                      ? IconButton(
-                          icon: const PhosphorIcon(
-                            PhosphorIconsRegular.x,
-                            size: 16,
-                          ),
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            setState(() => _searchQuery = '');
-                          },
-                        )
-                      : null,
-                  isDense: true,
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  filled: true,
-                  fillColor: cs.surfaceContainerHighest.withValues(alpha: 0.3),
+          // ── Bottom action bar ────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.only(top: 16),
+            child: SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _selectedIds.isEmpty
+                    ? null
+                    : () => Navigator.pop(context, _selectedIds),
+                icon: const PhosphorIcon(PhosphorIconsBold.plus),
+                label: Text(
+                  _selectedIds.isEmpty
+                      ? 'Select items to add'
+                      : 'Add ${_selectedIds.length} item${_selectedIds.length == 1 ? '' : 's'}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
                 ),
-              ),
-            ),
-
-            const Divider(height: 1),
-
-            // ── Product List ─────────────────────────────────────
-            Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          PhosphorIcon(
-                            PhosphorIconsDuotone.magnifyingGlass,
-                            size: 48,
-                            color: cs.onSurfaceVariant.withValues(alpha: 0.4),
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No items match your search',
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: cs.onSurfaceVariant,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      controller: scrollController,
-                      itemCount: filtered.length,
-                      itemBuilder: (context, index) {
-                        final product = filtered[index];
-                        return _ProductSelectionTile(
-                          product: product,
-                          isSelected: _selectedIds.contains(product.id),
-                          branchId: widget.branchId,
-                          onToggle: (selected, stock) {
-                            final isOutOfStock =
-                                !product.isService && (stock ?? 0) <= 0;
-                            if (isOutOfStock) return; // guard
-                            setState(() {
-                              if (selected) {
-                                _selectedIds.add(product.id);
-                              } else {
-                                _selectedIds.remove(product.id);
-                              }
-                            });
-                          },
-                        );
-                      },
-                    ),
-            ),
-
-            // ── Bottom action bar ────────────────────────────────
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: FilledButton.icon(
-                    onPressed: _selectedIds.isEmpty
-                        ? null
-                        : () => Navigator.pop(context, _selectedIds),
-                    icon: const PhosphorIcon(PhosphorIconsBold.plus),
-                    label: Text(
-                      _selectedIds.isEmpty
-                          ? 'Select items to add'
-                          : 'Add ${_selectedIds.length} item${_selectedIds.length == 1 ? '' : 's'}',
-                      style: const TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    style: FilledButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
                   ),
                 ),
               ),
             ),
-          ],
-        );
-      },
+          ),
+        ],
+      ),
     );
   }
 }
@@ -251,7 +221,7 @@ class _ProductSelectionTile extends ConsumerWidget {
   final Product product;
   final bool isSelected;
   final String? branchId;
-  final void Function(bool selected, int? stock) onToggle;
+  final void Function(bool selected, num? stock) onToggle;
 
   const _ProductSelectionTile({
     required this.product,
@@ -274,6 +244,8 @@ class _ProductSelectionTile extends ConsumerWidget {
         : null;
     final pricingService = ref.watch(productPricingServiceProvider);
     final resolvedPrice = pricingService.resolveSellingPrice(product, group);
+    final pricingUnit =
+        product.pricingUnit ?? group?.defaultPricingUnit ?? 'piece';
 
     return stockAsync.when(
       loading: () => _buildTile(
@@ -283,6 +255,7 @@ class _ProductSelectionTile extends ConsumerWidget {
         stock: null,
         isLoading: true,
         resolvedPrice: resolvedPrice,
+        pricingUnit: pricingUnit,
       ),
       error: (_, _) => _buildTile(
         context: context,
@@ -290,6 +263,7 @@ class _ProductSelectionTile extends ConsumerWidget {
         theme: theme,
         stock: null,
         resolvedPrice: resolvedPrice,
+        pricingUnit: pricingUnit,
       ),
       data: (stock) => _buildTile(
         context: context,
@@ -297,6 +271,7 @@ class _ProductSelectionTile extends ConsumerWidget {
         theme: theme,
         stock: stock?.quantity,
         resolvedPrice: resolvedPrice,
+        pricingUnit: pricingUnit,
       ),
     );
   }
@@ -306,11 +281,13 @@ class _ProductSelectionTile extends ConsumerWidget {
     required ColorScheme cs,
     required ThemeData theme,
     required double resolvedPrice,
-    int? stock,
+    required String pricingUnit,
+    num? stock,
     bool isLoading = false,
   }) {
     final isOutOfStock = !product.isService && (stock ?? 0) <= 0;
-    final isLowStock = !product.isService && (stock ?? 0) > 0 && (stock ?? 0) <= 5;
+    final isLowStock =
+        !product.isService && (stock ?? 0) > 0 && (stock ?? 0) <= 5;
 
     Color? tileColor;
     if (isSelected) {
@@ -320,9 +297,7 @@ class _ProductSelectionTile extends ConsumerWidget {
     }
 
     return InkWell(
-      onTap: isOutOfStock
-          ? null
-          : () => onToggle(!isSelected, stock),
+      onTap: isOutOfStock ? null : () => onToggle(!isSelected, stock),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         color: tileColor,
@@ -377,7 +352,7 @@ class _ProductSelectionTile extends ConsumerWidget {
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
-                          CurrencyHelper.format(resolvedPrice),
+                          '${CurrencyHelper.format(resolvedPrice)}/$pricingUnit',
                           style: theme.textTheme.labelSmall?.copyWith(
                             color: cs.primary,
                             fontWeight: FontWeight.bold,
@@ -435,7 +410,7 @@ class _ProductSelectionTile extends ConsumerWidget {
 }
 
 class _StockBadge extends StatelessWidget {
-  final int stock;
+  final num stock;
   final bool isOutOfStock;
   final bool isLowStock;
   final ColorScheme cs;
@@ -464,12 +439,12 @@ class _StockBadge extends StatelessWidget {
     } else if (isLowStock) {
       bgColor = cs.tertiaryContainer;
       textColor = cs.onTertiaryContainer;
-      label = '$stock left';
+      label = '${formatQty(stock)} left';
       icon = PhosphorIconsFill.warningCircle;
     } else {
       bgColor = cs.secondaryContainer.withValues(alpha: 0.5);
       textColor = cs.onSecondaryContainer;
-      label = '$stock in stock';
+      label = '${formatQty(stock)} in stock';
       icon = PhosphorIconsFill.circle;
     }
 
