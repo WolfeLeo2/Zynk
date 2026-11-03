@@ -3,7 +3,7 @@ name: Release Please
 on:
   push:
     branches:
-      - PH
+      - main
 
 permissions:
   contents: write
@@ -20,7 +20,7 @@ jobs:
         id: release
         with:
           release-type: dart
-          target-branch: PH
+          target-branch: main
 
   build-android:
     name: Build Android
