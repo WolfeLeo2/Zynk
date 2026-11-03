@@ -53,7 +53,9 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        const userId = parseJwtUserId(token);
+        // getUser verifies the signature; decoding the payload alone would trust a forged token.
+        const { data: { user } } = await supabase.auth.getUser(token);
+        const userId = user?.id ?? null;
         if (!userId) {
             console.error("manage-sale auth failed", {
                 hasAuthHeader: Boolean(authHeader),
@@ -90,40 +92,40 @@ Deno.serve(async (req: Request) => {
             });
         }
 
-        let tenantId: string;
-        if (params.tenant_id) {
-            tenantId = params.tenant_id;
-        } else if (saleId) {
+        // The tenant always comes from the record being acted on. A tenant_id in
+        // the body is only checked against it: trusting it let a user of one
+        // tenant pass their own tenant_id with another tenant's sale_id.
+        const json = (body: unknown, status: number) =>
+            new Response(JSON.stringify(body), {
+                status,
+                headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+
+        let tenantId = "";
+        if (saleId) {
             const { data: sale } = await supabase
                 .from("sales")
                 .select("tenant_id")
                 .eq("id", saleId)
                 .single();
-            if (!sale) {
-                return new Response(JSON.stringify({ error: "Sale not found" }), {
-                    status: 404,
-                    headers: { ...corsHeaders, "Content-Type": "application/json" },
-                });
-            }
+            if (!sale) return json({ error: "Sale not found" }, 404);
             tenantId = sale.tenant_id;
-        } else if (creditNoteScoped && params.credit_note_id) {
+        }
+        if (creditNoteScoped && params.credit_note_id) {
             const { data: cn } = await supabase
                 .from("credit_notes")
                 .select("tenant_id")
                 .eq("id", params.credit_note_id)
                 .single();
-            if (!cn) {
-                return new Response(
-                    JSON.stringify({ error: "Credit note not found" }),
-                    { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-                );
+            if (!cn) return json({ error: "Credit note not found" }, 404);
+            if (tenantId && cn.tenant_id !== tenantId) {
+                return json({ error: "Credit note does not belong to this sale's tenant" }, 403);
             }
             tenantId = cn.tenant_id;
-        } else {
-            return new Response(
-                JSON.stringify({ error: "Missing tenant context" }),
-                { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-            );
+        }
+        if (!tenantId) return json({ error: "Missing tenant context" }, 400);
+        if (params.tenant_id && params.tenant_id !== tenantId) {
+            return json({ error: "Record does not belong to this tenant" }, 403);
         }
 
         // ── Permission check ──
@@ -169,91 +171,23 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Missing required fields: customer_id, salesperson_id, items");
                 }
 
-                const { data: sale } = await supabase
-                    .from("sales")
-                    .select("id, status, amount_paid")
-                    .eq("id", saleId)
-                    .single();
-
-                if (!sale) {
-                    throw new Error("Sale not found");
-                }
-
-                if (sale.status !== "pending_approval") {
-                    throw new Error("Only pending approval invoices can be edited");
-                }
-
-                if ((sale.amount_paid || 0) > 0) {
-                    throw new Error("Cannot edit an invoice with recorded payments");
-                }
-
-                const normalizedItems = (saleItems as any[])
-                    .filter((item) => Number(item.quantity || 0) > 0)
-                    .map((item) => ({
-                        id: item.id || crypto.randomUUID(),
-                        sale_id: saleId,
-                        product_id: item.product_id,
-                        tenant_id: tenantId,
-                        quantity: Number(item.quantity || 0),
-                        unit_price: Number(item.unit_price || 0),
-                        cost_price: Number(item.cost_price || 0),
-                        tax_amount: Number(item.tax_amount || 0),
-                        discount: Number(item.discount || 0),
-                        total: Number(item.total || 0),
-                        product_name: item.product_name || null,
-                        created_at: now,
-                        updated_at: now,
-                    }));
-
-                if (!normalizedItems.length) {
-                    throw new Error("Invoice must have at least one item");
-                }
-
-                const subtotal = normalizedItems.reduce(
-                    (sum, item) => sum + Number(item.total || 0),
-                    0
-                );
-
-                const { error: saleUpdateError } = await supabase
-                    .from("sales")
-                    .update({
-                        customer_id,
-                        salesperson_id,
-                        subtotal,
-                        total_amount: subtotal,
-                        grand_total: subtotal,
-                        notes: saleNotes || null,
-                        due_date: due_date || null,
-                        updated_at: now,
-                    })
-                    .eq("id", saleId);
-
-                if (saleUpdateError) {
-                    throw new Error(`Draft update failed: ${saleUpdateError.message}`);
-                }
-
-                const { error: deleteItemsError } = await supabase
-                    .from("sale_items")
-                    .delete()
-                    .eq("sale_id", saleId);
-
-                if (deleteItemsError) {
-                    throw new Error(`Draft item replace failed: ${deleteItemsError.message}`);
-                }
-
-                const { error: insertItemsError } = await supabase
-                    .from("sale_items")
-                    .insert(normalizedItems);
-
-                if (insertItemsError) {
-                    throw new Error(`Draft item insert failed: ${insertItemsError.message}`);
-                }
-
-                return jsonResponse({
-                    sale_id: saleId,
-                    status: sale.status,
-                    subtotal,
+                // Lock, re-check (pending, unpaid), recompute totals and replace
+                // the items in one transaction. See 20261103000000_atomic_invoice_edit.sql.
+                const { data: result, error: rpcError } = await supabase.rpc("update_invoice_draft_v2", {
+                    p_sale_id: saleId,
+                    p_tenant_id: tenantId,
+                    p_customer_id: customer_id,
+                    p_salesperson_id: salesperson_id,
+                    p_items: saleItems,
+                    p_notes: saleNotes || null,
+                    p_due_date: due_date || null,
                 });
+
+                if (rpcError) {
+                    throw new Error(rpcError.message);
+                }
+
+                return jsonResponse(result);
             }
 
             case "submit_for_approval": {
@@ -965,6 +899,7 @@ Deno.serve(async (req: Request) => {
                     .from("sale_payments")
                     .select("*")
                     .eq("id", payment_id)
+                    .eq("sale_id", saleId)
                     .single();
 
                 if (!payment) throw new Error("Payment not found");
@@ -1268,6 +1203,7 @@ Deno.serve(async (req: Request) => {
                     .from("sales")
                     .select("id, tenant_id, branch_id, status, payment_status, fulfillment_status, grand_total, amount_paid")
                     .eq("id", target_sale_id)
+                    .eq("tenant_id", tenantId)
                     .single();
 
                 if (!targetSale) throw new Error("Target sale not found");
@@ -1367,22 +1303,4 @@ function jsonResponse(data: any, status = 200) {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-}
-
-function parseJwtUserId(token: string): string | null {
-    try {
-        const parts = token.split(".");
-        if (parts.length < 2) return null;
-
-        const base64Url = parts[1];
-        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-        const padded = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
-        const payload = JSON.parse(atob(padded));
-
-        return typeof payload?.sub === "string" && payload.sub.length > 0
-            ? payload.sub
-            : null;
-    } catch (_) {
-        return null;
-    }
 }

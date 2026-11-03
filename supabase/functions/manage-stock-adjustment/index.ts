@@ -23,7 +23,9 @@ Deno.serve(async (req: Request) => {
 
         const supabase = createClient(supabaseUrl, serviceRoleKey);
         const token = authHeader.replace(/^Bearer\s+/i, "").trim();
-        const userId = parseJwtUserId(token);
+        // getUser verifies the signature; decoding the payload alone would trust a forged token.
+        const { data: { user } } = await supabase.auth.getUser(token);
+        const userId = user?.id ?? null;
 
         if (!userId) {
             return jsonResponse({ error: "Unauthorized" }, 401);
@@ -65,62 +67,17 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Missing bundle_id or adjustment_id");
                 }
 
-                const query = supabase.from("stock_adjustments").select("*").eq("status", "pending");
-                if (bundle_id) query.eq("bundle_id", bundle_id);
-                else query.eq("id", adjustment_id);
+                // One transaction: all of the bundle applies, or none of it.
+                const { data: count, error } = await supabase.rpc("set_stock_adjustment_approval", {
+                    p_tenant_id: tenant_id,
+                    p_bundle_id: bundle_id ?? null,
+                    p_adjustment_id: bundle_id ? null : adjustment_id,
+                    p_user_id: userId,
+                    p_approve: true,
+                });
+                if (error) throw new Error(error.message);
 
-                const { data: adjustments, error: fetchError } = await query;
-
-                if (fetchError || !adjustments || adjustments.length === 0) {
-                    throw new Error("No pending adjustments found to approve");
-                }
-
-                // Atomic stock updates
-                for (const adj of adjustments) {
-                    const quantity = Math.abs(Number(adj.quantity || 0));
-                    const changeValue = Number(adj.quantity || 0);
-                    const rpcName = changeValue >= 0 ? "increment_stock" : "decrement_stock";
-
-                    // 1. Fetch current stock before applying
-                    const { data: stockData } = await supabase
-                        .from("stock")
-                        .select("quantity")
-                        .eq("product_id", adj.product_id)
-                        .eq("branch_id", adj.branch_id)
-                        .single();
-                    
-                    const previousQuantity = stockData?.quantity || 0;
-
-                    // 2. Update stock via RPC
-                    if (quantity !== 0) {
-                        const { error: stockError } = await supabase.rpc(rpcName, {
-                            p_product_id: adj.product_id,
-                            p_branch_id: adj.branch_id,
-                            p_quantity: quantity,
-                        });
-
-                        if (stockError) {
-                            throw new Error(`Stock update failed for ${adj.product_id}: ${stockError.message}`);
-                        }
-                    }
-
-                    // 3. Update individual adjustment record with previous_quantity snapshot
-                    const { error: adjUpdateError } = await supabase
-                        .from("stock_adjustments")
-                        .update({
-                            status: "approved",
-                            approved_by: userId,
-                            approved_at: now,
-                            previous_quantity: previousQuantity
-                        })
-                        .eq("id", adj.id);
-                    
-                    if (adjUpdateError) {
-                        throw new Error(`Adjustment update failed for ${adj.id}: ${adjUpdateError.message}`);
-                    }
-                }
-
-                return jsonResponse({ status: "approved", count: adjustments.length });
+                return jsonResponse({ status: "approved", count });
             }
 
             case "reject_adjustment": {
@@ -137,6 +94,7 @@ Deno.serve(async (req: Request) => {
                         approved_by: userId,
                         approved_at: now,
                     })
+                    .eq("tenant_id", tenant_id)
                     .eq("status", "pending");
 
                 if (bundle_id) updateQuery.eq("bundle_id", bundle_id);
@@ -153,54 +111,16 @@ Deno.serve(async (req: Request) => {
                     throw new Error("Missing bundle_id or adjustment_id");
                 }
 
-                // Only unapprove adjustments that are currently 'approved'
-                const query = supabase.from("stock_adjustments").select("*").eq("status", "approved");
-                if (bundle_id) query.eq("bundle_id", bundle_id);
-                else query.eq("id", adjustment_id);
+                const { data: count, error } = await supabase.rpc("set_stock_adjustment_approval", {
+                    p_tenant_id: tenant_id,
+                    p_bundle_id: bundle_id ?? null,
+                    p_adjustment_id: bundle_id ? null : adjustment_id,
+                    p_user_id: userId,
+                    p_approve: false,
+                });
+                if (error) throw new Error(error.message);
 
-                const { data: adjustments, error: fetchError } = await query;
-
-                if (fetchError || !adjustments || adjustments.length === 0) {
-                    throw new Error("No approved adjustments found to unapprove");
-                }
-
-                // Atomic stock reversals
-                for (const adj of adjustments) {
-                    const originalChange = Number(adj.quantity || 0);
-                    const reversalQuantity = Math.abs(originalChange);
-                    
-                    // Inverse operation: if original was addition (+), we decrement. If reduction (-), we increment.
-                    const rpcName = originalChange >= 0 ? "decrement_stock" : "increment_stock";
-
-                    if (reversalQuantity !== 0) {
-                        const { error: stockError } = await supabase.rpc(rpcName, {
-                            p_product_id: adj.product_id,
-                            p_branch_id: adj.branch_id,
-                            p_quantity: reversalQuantity,
-                        });
-
-                        if (stockError) {
-                            throw new Error(`Stock reversal failed for ${adj.product_id}: ${stockError.message}`);
-                        }
-                    }
-
-                    // Reset status to pending and clear approval metadata
-                    const { error: adjUpdateError } = await supabase
-                        .from("stock_adjustments")
-                        .update({
-                            status: "pending",
-                            approved_by: null,
-                            approved_at: null,
-                            previous_quantity: null
-                        })
-                        .eq("id", adj.id);
-                    
-                    if (adjUpdateError) {
-                        throw new Error(`Adjustment reset failed for ${adj.id}: ${adjUpdateError.message}`);
-                    }
-                }
-
-                return jsonResponse({ status: "unapproved", count: adjustments.length });
+                return jsonResponse({ status: "unapproved", count });
             }
 
             case "delete_adjustment": {
@@ -212,7 +132,8 @@ Deno.serve(async (req: Request) => {
                 const deleteQuery = supabase
                     .from("stock_adjustments")
                     .delete()
-                    .eq("status", "pending"); 
+                    .eq("tenant_id", tenant_id)
+                    .eq("status", "pending");
 
                 if (bundle_id) deleteQuery.eq("bundle_id", bundle_id);
                 else deleteQuery.eq("id", adjustment_id);
@@ -237,15 +158,4 @@ function jsonResponse(data: any, status = 200) {
         status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-}
-
-function parseJwtUserId(token: string): string | null {
-    try {
-        const parts = token.split(".");
-        if (parts.length < 2) return null;
-        const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
-        return payload?.sub || null;
-    } catch (_) {
-        return null;
-    }
 }
