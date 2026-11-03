@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Zynk Design Tokens - Source of Truth for Design System v2.0
 /// "Corporate Minimalism"
