@@ -668,7 +668,7 @@ class ProductTransaction {
   final String id;
   final DateTime? createdAt;
   final String type; // 'adjustment' or 'sale'
-  final int quantityChange;
+  final num quantityChange;
   final String? referenceId;
   final String? referenceNumber;
   final String? actorName;
@@ -691,8 +691,8 @@ class ProductTransaction {
           : null,
       type: map['type']?.toString() ?? 'adjustment',
       quantityChange: map['quantity'] is num
-          ? (map['quantity'] as num).toInt()
-          : int.tryParse(map['quantity']?.toString() ?? '0') ?? 0,
+          ? map['quantity'] as num
+          : num.tryParse(map['quantity']?.toString() ?? '0') ?? 0,
       referenceId: map['reference_id']?.toString(),
       referenceNumber: map['reference_number']?.toString(),
       actorName: map['actor_name']?.toString(),

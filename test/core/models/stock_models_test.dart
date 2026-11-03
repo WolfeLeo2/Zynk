@@ -80,4 +80,17 @@ void main() {
       expect(fractional.quantityChange, -0.5);
     });
   });
+
+  group('ProductTransaction (numeric quantityChange)', () {
+    test('fromMap keeps a fractional quantity instead of truncating it', () {
+      final tx = ProductTransaction.fromMap({'id': 't1', 'quantity': -1.5});
+      expect(tx.quantityChange, -1.5);
+    });
+
+    test('fromMap parses a numeric string', () {
+      final tx = ProductTransaction.fromMap({'id': 't1', 'quantity': '0.25'});
+      expect(tx.quantityChange, 0.25);
+    });
+  });
+
 }
