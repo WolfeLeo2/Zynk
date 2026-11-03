@@ -1,0 +1,33 @@
+# Self-hosted PowerSync for local development (docker compose up, from the repo
+# root). Replicates from the native local Supabase stack on the host
+# (supabase start, ports pinned in supabase/config.toml). Not used in production:
+# ../service.yaml is the PowerSync Cloud config.
+
+replication:
+  connections:
+    - type: postgresql
+      uri: postgresql://postgres:postgres@host.docker.internal:54322/postgres
+      sslmode: disable
+
+# Bucket storage lives in its own database on the same local Postgres
+# (created by docker-compose's init step), so no MongoDB container is needed.
+storage:
+  type: postgresql
+  uri: postgresql://postgres:postgres@host.docker.internal:54322/powersync_storage
+  sslmode: disable
+
+port: 8080
+
+# Mounted by docker-compose.yml: sync_rules.yaml by default, or the Sync Streams
+# draft with ZYNK_SYNC_CONFIG=./powersync/sync-config.yaml.
+sync_config:
+  path: /config/sync-config.yaml
+
+# Local Supabase Auth signs session tokens with ES256; verify them against its
+# JWKS. Supabase puts "authenticated" in the aud claim.
+client_auth:
+  jwks_uri: http://host.docker.internal:54321/auth/v1/.well-known/jwks.json
+  audience: ['authenticated']
+
+telemetry:
+  disable_telemetry_sharing: true

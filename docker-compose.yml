@@ -1,0 +1,53 @@
+# Local dev services for Zynk that don't run natively. Supabase itself runs
+# without Docker (supabase start); this adds PowerSync on top of it.
+#
+#   supabase start && docker compose up -d
+#   app: "Zynk (local Supabase)" launch config (dart_defines.local.json)
+#
+# After `supabase db reset --local` the replication slot is gone with the old
+# database, so re-sync from scratch:
+#   docker compose stop powersync && docker compose run --rm powersync-reset && docker compose start powersync
+name: zynk
+
+x-pg: &pg
+  image: postgres:17
+  environment:
+    PGHOST: host.docker.internal
+    PGPORT: "54322"
+    PGUSER: postgres
+    PGPASSWORD: postgres
+
+services:
+  # Creates PowerSync's bucket-storage database on the local Postgres if missing.
+  powersync-init:
+    <<: *pg
+    restart: "no"
+    command: >
+      sh -c "psql -tc \"select 1 from pg_database where datname = 'powersync_storage'\" | grep -q 1
+      || psql -c 'create database powersync_storage'"
+
+  # Wipes PowerSync's storage so it re-replicates from scratch (after a db reset).
+  powersync-reset:
+    <<: *pg
+    restart: "no"
+    profiles: [tools]
+    command: >
+      sh -c "psql -c 'drop database if exists powersync_storage with (force)'
+      && psql -c 'create database powersync_storage'
+      && psql -d postgres -c \"select pg_drop_replication_slot(slot_name) from pg_replication_slots where slot_name like 'powersync%'\""
+
+  powersync:
+    image: journeyapps/powersync-service:latest
+    restart: unless-stopped
+    command: ["start", "-r", "unified"]
+    depends_on:
+      powersync-init:
+        condition: service_completed_successfully
+    environment:
+      POWERSYNC_CONFIG_PATH: /config/service.yaml
+      NODE_OPTIONS: --max-old-space-size=1000
+    volumes:
+      - ./powersync/local/service.yaml:/config/service.yaml:ro
+      - ${ZYNK_SYNC_CONFIG:-./sync_rules.yaml}:/config/sync-config.yaml:ro
+    ports:
+      - "8080:8080"
