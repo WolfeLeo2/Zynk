@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.11.0](https://github.com/WolfeLeo2/Zynk/compare/v1.10.1...v1.11.0) (2026-11-03)
+
+
+### Features
+
+* **inventory:** add branch filter chips to adjustments screen appbar ([7f052bb](https://github.com/WolfeLeo2/Zynk/commit/7f052bbd461dcbed1f38f662c3975c5c3ff6671d))
+* **inventory:** show all involved branches and use official Chip in adjustment detail screen ([eed2c28](https://github.com/WolfeLeo2/Zynk/commit/eed2c282fd65c577c40e7914f2e3b9ceec5b621b))
+* remove icon from chip ([aa3041b](https://github.com/WolfeLeo2/Zynk/commit/aa3041b1693e78514f28cb68a1d395a880a61be2))
+
+
+### Bug Fixes
+
+* **db:** server-owned stock quantity, atomic stock approvals and server-side sale totals ([cccc241](https://github.com/WolfeLeo2/Zynk/commit/cccc241445064e20b81be245283bde088d0989d4))
+* **functions:** verify JWTs and enforce tenant isolation in Edge Functions ([05f4645](https://github.com/WolfeLeo2/Zynk/commit/05f4645d8fdf38cfa6c4ee57c9106c60a67373d7))
+* remove dead local stock approval code and keep fractional transaction quantities ([ea2b7bf](https://github.com/WolfeLeo2/Zynk/commit/ea2b7bf828c85c586a887990979b66a6174397d7))
+* **sync:** keep PIN hashes out of the Sync Streams draft and restore snapshot ids and product_branches ([a757fde](https://github.com/WolfeLeo2/Zynk/commit/a757fdea4ffe0b7fc8bffc2d53511cea92ed302a))
+
 ## [1.10.1](https://github.com/WolfeLeo2/Zynk/compare/v1.10.0...v1.10.1) (2026-08-08)
 
 
