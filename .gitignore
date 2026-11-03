@@ -60,3 +60,6 @@ fix_styles.py
 migrate_icons.py
 test_products.csv
 /sample_data
+
+# Client data: keep out of the (public) repo
+PH/*.csv
